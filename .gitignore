@@ -218,3 +218,28 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# ===== 팀 ONLy: 추가 규칙 =====
+# 환경변수·API 키는 절대 커밋 금지 (.env.example만 공유)
+.env.*
+!.env.example
+
+# Python 템플릿의 lib/ 규칙이 프론트엔드 src/lib/ 폴더를 막지 않게
+!**/src/lib/
+
+# Node / 프론트엔드
+node_modules/
+.vite/
+coverage/
+*.log
+
+# OS·에디터
+.DS_Store
+Thumbs.db
+.idea/
+
+# 실제 사용자 데이터·외부 데이터셋은 Drive에 보관 (공개 저장소라 올리면 안 됨)
+data/raw/
+data/private/
+uploads/
+recordings/
+aihub/
