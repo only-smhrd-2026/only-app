@@ -1,0 +1,3 @@
+# Windows(CRLF)와 Mac(LF)의 줄바꿈 차이 때문에
+# 파일 전체가 바뀐 것처럼 보이는 문제를 막아요
+* text=auto
