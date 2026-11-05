@@ -58,4 +58,4 @@ React PWA(TypeScript) / Python 3.12 + FastAPI / PostgreSQL 16(테이블 18) / Cl
 ## 3. 뒤로 미룬 것 (초석 밖)
 
 CI(ci.yml — develop 이 2회 깨지면 tsc 1잡), CODEOWNERS(README 한 줄로 대체), 드리프트 테스트(PR 체크박스), 카카오 로그인(2순위), 브라우저 `SpeechRecognition` 대체 경로, 8초·15초 고정 mp3(`frontend/public/audio/`), 사진 업로드 배치(천주웅), 문제 은행 규칙·되짚기·story_facts(홍진성 11/9 주), 꼬마심심이 연동.
-일기 쪽(D36 다음): 사진 일기 카메라 업로드(FR-DI-001)·옛 사진 분기(FR-DI-002)(천주웅·김승희), 첫 답에 있는 질문 건너뛰기로 질문 수 줄이기, 사진첩 '내 일기'·가족 일기 쓰기(FR-DI-006~008)·일기 상세(HOME_002)·알림 화면(NOTI_001)·어르신 가족 소식 듣기(ELDER_FAMILY_001, `POST /elder/diaries/{id}/read`)(천주웅·김승희), 실제 그림 제공자 Workers AI FLUX.2 klein·일기 프롬프트 다듬기(11/9 배정).
+일기 쪽(D36 다음): 사진 일기 카메라 업로드(FR-DI-001)·옛 사진 분기(FR-DI-002)(천주웅·김승희), 첫 답에 있는 질문 건너뛰기로 질문 수 줄이기, 사진첩 '내 일기'·가족 일기 쓰기(FR-DI-006~008)·일기 상세(HOME_002)·알림 화면(NOTI_001)·어르신 가족 소식 듣기(ELDER_FAMILY_001, `POST /elder/diaries/{id}/read`)(천주웅·김승희), 실제 그림 제공자 Workers AI FLUX.2 klein·일기 프롬프트 다듬기(홍진성).

@@ -7,7 +7,7 @@ draw_spec = {"objects": ["화투패", "찻잔"]} — 어르신이 말씀하신 �
 
 IMAGE_PROVIDER=mock: 개발(APP_ENV=dev)은 도형 자리표시 그림(글자 없음) — 키 없이 그림일기 화면 흐름을 보려고.
 배포(APP_ENV=deploy)는 None → 글만 게시 (가짜 그림이 진짜 그림일기로 가족에게 가지 않게).
-실제 제공자(cloudflare Workers AI FLUX.2 klein, 손그림체·시드 고정)는 CF_* 키를 받은 뒤 담당자(11/9 배정)가 채운다.
+실제 제공자(cloudflare Workers AI FLUX.2 klein, 손그림체·시드 고정)는 담당자(홍진성)가 CF_* 키로 채운다.
 """
 
 from __future__ import annotations
