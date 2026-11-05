@@ -243,3 +243,7 @@ data/private/
 uploads/
 recordings/
 aihub/
+
+# ---- 하루한장 (11/5 초석) ----
+backend/tests/.uploads/
+frontend/dev-dist/

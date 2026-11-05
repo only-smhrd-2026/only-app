@@ -1,6 +1,6 @@
 # only-app
 
-팀 **ONLy:** · 스마트인재개발원 2026 기업연계 실전프로젝트 — 가족 참여형 AI 회상·사진 일기 앱
+팀 **ONLy:** · 스마트인재개발원 2026 기업연계 실전프로젝트 — **하루한장**: 가족 사진과 AI 회상 대화 기반 어르신 정서지원·가족 소통 앱 (심심이(주) 꼬마심심이 연동)
 
 > 이 문서는 **Git을 처음 써 보는 사람도 그대로 따라 할 수 있게** 만든 팀 협업 가이드예요.
 > 모르는 단어가 나오면 [1. 용어 정리](#1-용어-정리)를, 막히면 [12. 이럴 땐 이렇게](#12-이럴-땐-이렇게-faq)를 보세요.
@@ -12,8 +12,103 @@
 > 2. 작업이 끝나면 **PR**(합치기 요청)을 올리고, **팀원 1명이 승인**하면 합쳐요.
 > 3. **`.env`, API 키, 비밀번호, 실제 사용자 사진·음성은 절대 올리지 않아요.** 이 저장소는 공개(public)라서 누구나 볼 수 있어요.
 
+## 10분 안에 실행
+
+> 11/9(월) 오전 전원이 이 절대로 실행해 봐요. 안 되면 단톡방에 **입력한 명령 + 오류 메시지 전체**를 붙이고 @홍진성.
+> 설계·구조 설명은 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), 기술 결정의 이유는 [docs/DECISIONS.md](docs/DECISIONS.md). Figma: [링크 적기 — 김승희]
+
+### ① 설치 (처음 한 번, 30~60분)
+
+| 프로그램 | 무엇 | Windows | Mac | 확인 명령 |
+|---|---|---|---|---|
+| Git | 코드 받기 | <https://git-scm.com> (전부 Next) | 터미널에 `git --version` 치면 설치창 | `git --version` |
+| Docker Desktop | 데이터베이스를 상자째 띄움 | <https://www.docker.com/products/docker-desktop/> (설치 중 WSL2 안내 따르기, 설치 후 재부팅) | 같은 링크 (Apple silicon 선택) | `docker --version` |
+| Node 20 이상 | 화면 실행 | <https://nodejs.org> LTS | 같은 링크 | `node --version` |
+| Python 3.12 | 서버 실행 | <https://www.python.org/downloads/> 3.12.x, 설치 첫 화면에서 **Add python.exe to PATH** 체크 | `brew install python@3.12` 또는 python.org | Windows `py -3.12 --version` / Mac `python3.12 --version` |
+| uv | Python 라이브러리 설치기 | PowerShell: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 \| iex"` | `curl -LsSf https://astral.sh/uv/install.sh \| sh` | `uv --version` (터미널 껐다 켜기) |
+
+박유승은 Git·VS Code 만 설치하고 ②까지만 하면 돼요. 명령은 Windows 는 **PowerShell**, Mac 은 **터미널** 앱에 한 줄씩 입력해요.
+
+### ② 저장소 받기
+
+```bash
+git clone https://github.com/only-smhrd-2026/only-app.git
+cd only-app
+git checkout develop
+```
+
+### ③ 설정 파일 복사 → 데이터베이스 띄우기 → 시드 넣기
+
+Docker Desktop 을 먼저 실행해 두고(고래 아이콘이 떠 있어야 해요):
+
+```bash
+# Mac
+cp .env.example .env
+# Windows PowerShell 은 이 줄 대신:  Copy-Item .env.example .env
+
+docker compose up -d db
+cd backend
+uv sync
+uv run python -m scripts.seed
+```
+
+`시드 완료: 가족방 1, 가족 2, 사진 3, 문제 5, 오늘의 한 장 1` 이 나오면 OK. (`.env` 는 값을 안 채워도 돼요. 전부 가짜(mock) 부품으로 돌아가요.)
+
+### ④ 서버 실행 (터미널 1)
+
+```bash
+cd backend
+uv run uvicorn app.main:app --reload
+```
+
+`http://localhost:8000/docs` 에서 API 문서(Swagger)가 보이면 OK.
+
+### ⑤ 화면 실행 (터미널 2 — 새 터미널을 하나 더 열어요)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+`http://localhost:5173` 에 로그인 화면이 뜨면 끝.
+
+### ⑥ 테스트 계정·어르신 링크 (시드가 넣어 둔 것, `db/seed/seed.sql` 머리 주석과 같음)
+
+| 무엇 | 값 |
+|---|---|
+| 가족 로그인 (방장) | `test@haru.local` / `test1234` |
+| 가족 로그인 (손주) | `test2@haru.local` / `test1234` |
+| 어르신 기기 연결 링크 | `http://localhost:5173/elder/connect#seed-elder-link-token-only-for-dev-0001` — 한 번 쓰면 소모돼요. 다시 쓰려면 `uv run python -m scripts.seed` 를 다시 실행(데이터 초기화) |
+
+흐름 확인: 가족 로그인 → 가족 홈에 "순자 할머니" 가족방 → (새 탭에서) 어르신 링크 열기 → [시작하기] → 어르신 홈 → [오늘 사진 보기] → 말하기 왕복 8턴(지금은 가짜 답). 서버 테스트는 `cd backend && uv run pytest`.
+
+### ⑦ 폰(갤럭시)에서 테스트 — USB 연결
+
+폰 Chrome 은 http 에서 마이크·홈 화면 설치를 막아요. `localhost` 만 예외라서 PC 의 5173 포트를 폰의 localhost 로 연결해요.
+
+1. PC 에 [Android platform-tools](https://developer.android.com/tools/releases/platform-tools) 를 받아 압축을 풀고, 그 폴더에서 터미널을 열어요 (Windows: 폴더 빈 곳에서 Shift+우클릭 → PowerShell).
+2. 폰: 설정 → 휴대전화 정보 → 소프트웨어 정보 → **빌드번호 7번 탭** → 설정 → 개발자 옵션 → **USB 디버깅** 켜기.
+3. USB 로 연결하고 폰에 뜨는 "USB 디버깅 허용"을 **허용**.
+4. 터미널에서:
+   ```bash
+   adb devices            # 기기가 device 로 보이면 OK (unauthorized 면 폰에서 허용)
+   adb reverse tcp:5173 tcp:5173
+   adb reverse tcp:8000 tcp:8000
+   ```
+5. 폰 Chrome 에서 `http://localhost:5173/elder/connect#<토큰>` (가족 홈에서 만든 어르신 기기 링크 그대로) → 메뉴 ⋮ → **홈 화면에 추가**.
+
+### 자주 막히는 것
+
+- `port is already allocated` / `address already in use` (5432): 내 PC 에 PostgreSQL 이 이미 있어요. `.env` 의 `DB_PORT=5433`, `DATABASE_URL` 의 포트도 `5433` 으로 바꾸고 `docker compose up -d db` 다시.
+- `Cannot connect to the Docker daemon`: Docker Desktop 을 실행하지 않았어요.
+- `uv: command not found`: 설치 후 터미널을 껐다 켜요.
+- Windows 에서 `npm run dev` 가 실행 정책 오류: PowerShell 에서 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` 한 번.
+- 화면은 뜨는데 로그인이 안 됨: 터미널 1(서버)이 꺼져 있거나 시드를 안 넣었어요.
+
 ## 목차
 
+- [10분 안에 실행](#10분-안에-실행)
 1. [용어 정리](#1-용어-정리)
 2. [브랜치 구조](#2-브랜치-구조)
 3. [폴더 구조와 담당](#3-폴더-구조와-담당)
@@ -65,12 +160,12 @@ gitGraph
   checkout feature/fe-photo-upload
   commit id: "사진 업로드 화면"
   checkout develop
-  branch feature/be-quiz-api
-  checkout feature/be-quiz-api
-  commit id: "퀴즈 API"
+  branch feature/be-photo-upload
+  checkout feature/be-photo-upload
+  commit id: "사진 업로드 API"
   checkout develop
   merge feature/fe-photo-upload
-  merge feature/be-quiz-api
+  merge feature/be-photo-upload
   checkout main
   merge develop id: "시연 버전"
 ```
@@ -80,21 +175,26 @@ gitGraph
 
 ## 3. 폴더 구조와 담당
 
-| 폴더 | 들어가는 것 | 담당 | 브랜치 이름 예시 |
+| 폴더/파일 | 들어가는 것 | 담당 | 브랜치 이름 예시 |
 |---|---|---|---|
-| `frontend/` | 화면 (웹앱) | 프론트엔드 | `feature/fe-photo-upload` |
-| `backend/` | 서버, API, AI 에이전트 | 백엔드 | `feature/be-quiz-api` |
-| `db/` | 테이블을 만드는 SQL(`schema.sql`), 더미 데이터 | DB | `feature/db-diary-table` |
-| 최상위 파일 (`README.md`, `.gitignore` 등) | 팀 공용 설정과 문서 | 모두 (고치기 전에 단톡방에 한 마디) | `docs/readme-run-guide` |
+| `frontend/` | 화면 전부. `src/screens/elder/` 어르신 화면 10개, `src/screens/family/` 가족 화면 15개. **파일 이름 = 화면설계서 화면 ID** (예: `ELDER_HOME_001.tsx`). 경로 표는 `src/App.tsx` | 김승희 (+홍진성: `src/components/VoiceSession/`) | `feature/fe-elder-today` |
+| `backend/app/routers/` | API 주소별 서버 코드 (로그인·가족방·사진·세션·일기·주간·알림). 빈 API 는 `stubs.py` | 천주웅 (세션 `sessions.py` 는 홍진성) | `feature/be-photo-upload` |
+| `backend/app/ai/` | AI 부품: `llm.py`(Claude) `stt.py` `tts.py` `image.py` `coach.py` `prompts/`(지시문 4종) | 홍진성 (분류·일기·음성 비교는 11/9 배정) | `feature/ai-memory-coach` |
+| `backend/app/models.py` | 테이블 18개의 모양을 서버 코드로 적은 파일 (`db/schema.sql` 과 짝) | 천주웅 | `feature/db-diary-table` |
+| `db/schema.sql`, `db/seed/` | 테이블 생성 SQL(기준 문서) / 시드·더미 데이터 | **천주웅만 수정** | `feature/db-diary-table` |
+| `data/` | 문제 은행 `question_bank.json`, 사진 분류 목록 `taxonomy.json`, 금지어 `banned_words.json`, 평가용 가짜 데이터 | 박유승 (문제 은행·목록), 평가 데이터는 11/9 배정 | `feature/data-question-bank` |
+| `docs/` | `DECISIONS.md`(기술 결정 기록), `ARCHITECTURE.md`(구조 설명) | 홍진성 | `docs/decisions-stt` |
+| `.env.example`, `docker-compose.yml`, `Caddyfile` | 설정 파일 (복사해서 `.env`), 내 PC 의 DB / 배포(서버+Caddy) | 홍진성 | `chore/compose-port` |
+| `README.md`, `.gitignore` 등 최상위 | 팀 공용 설정과 문서 | 모두 (고치기 전에 단톡방에 한 마디) | `docs/readme-run-guide` |
 
-폴더는 각 담당이 첫 PR을 올릴 때 만들어요.
+> 리뷰 규칙 한 줄: `backend/app/ai/`, `db/schema.sql`, `frontend/src/components/VoiceSession/` 을 고친 PR 은 **홍진성을 리뷰어로** 지정해요.
 
 > [!TIP]
 > **내 담당 폴더만 고쳐요.** 다른 폴더를 고쳐야 하면 그 담당자에게 먼저 말하고, PR에 이유를 적어요. 이것만 지켜도 충돌이 거의 안 나요.
 
 > [!WARNING]
 > 실제 사용자 데이터와 외부 데이터셋(AI Hub 등)은 Git이 아니라 **팀 Google Drive**에 보관해요.
-> `uploads/`, `recordings/`, `data/raw/`, `data/private/`, `aihub/` 폴더와 `.env` 파일은 `.gitignore`에 등록돼 있어서 자동으로 빠져요.
+> `uploads/`(내 PC 에 저장되는 사진), `recordings/`, `data/raw/`, `data/private/`, `aihub/` 폴더와 `.env` 파일은 `.gitignore`에 등록돼 있어서 자동으로 빠져요.
 
 ## 4. 처음 한 번만 하는 설정
 
@@ -206,15 +306,15 @@ git checkout develop
 git pull origin develop
 
 # ② 작업용 브랜치 만들기 (작업 하나에 브랜치 하나)
-git checkout -b feature/be-quiz-api
+git checkout -b feature/be-photo-upload
 
 # ③ 코드 작업 → 바뀐 파일 확인 → 내 폴더만 담아서 커밋
 git status
 git add backend/
-git commit -m "feat(be): 퀴즈 조회 API 추가"
+git commit -m "feat(be): 사진 업로드 API 추가"
 
 # ④ GitHub에 올리기 (처음 push 할 때만 -u origin 브랜치이름)
-git push -u origin feature/be-quiz-api
+git push -u origin feature/be-photo-upload
 ```
 
 ### ⑤~⑦ GitHub 웹에서
@@ -226,7 +326,7 @@ git push -u origin feature/be-quiz-api
 ```bash
 git checkout develop
 git pull origin develop
-git branch -d feature/be-quiz-api
+git branch -d feature/be-photo-upload
 ```
 
 그리고 다음 작업은 다시 ①부터 시작해요.
@@ -243,7 +343,7 @@ git branch -d feature/be-quiz-api
 ```bash
 # 먼저 내 작업을 커밋하고
 git add backend/
-git commit -m "feat(be): 퀴즈 채점 중간 저장"
+git commit -m "feat(be): 사진 업로드 중간 저장"
 
 # develop 최신 내용을 내 브랜치에 합치기 (--no-edit: 메시지 입력창이 안 뜨게)
 git pull --no-edit origin develop
@@ -257,12 +357,12 @@ git push
 | 지금 어느 브랜치인지, 뭐가 바뀌었는지 보기 | `git status` |
 | develop으로 이동 | `git checkout develop` |
 | GitHub 최신 내용 받기 | `git pull origin develop` |
-| 새 브랜치 만들고 이동 | `git checkout -b feature/be-quiz-api` |
+| 새 브랜치 만들고 이동 | `git checkout -b feature/be-photo-upload` |
 | 내 폴더 변경 담기 | `git add backend/` |
-| 커밋 | `git commit -m "feat(be): 퀴즈 조회 API 추가"` |
-| 처음 올리기 | `git push -u origin feature/be-quiz-api` |
+| 커밋 | `git commit -m "feat(be): 사진 업로드 API 추가"` |
+| 처음 올리기 | `git push -u origin feature/be-photo-upload` |
 | 두 번째부터 올리기 | `git push` |
-| 다 쓴 브랜치 지우기 | `git branch -d feature/be-quiz-api` |
+| 다 쓴 브랜치 지우기 | `git branch -d feature/be-photo-upload` |
 
 ## 7. PR 올리기와 리뷰하기
 
@@ -271,9 +371,9 @@ git push
 1. push 하고 저장소 페이지에 들어가면 노란 띠에 **Compare & pull request** 버튼이 보여요. 눌러요.
    (안 보이면 **Pull requests** 탭 → **New pull request**)
 2. 위쪽이 `base: develop` ← `compare: 내 브랜치`인지 확인해요. **base가 main이면 develop으로 바꿔요.**
-3. 제목은 커밋 메시지처럼 써요. 예: `feat(be): 퀴즈 조회 API 추가`
+3. 제목은 커밋 메시지처럼 써요. 예: `feat(be): 사진 업로드 API 추가`
 4. 본문은 자동으로 나오는 템플릿 칸을 채워요. 관련 이슈가 있으면 `Closes #12`처럼 적어요.
-5. 오른쪽 **Reviewers** 옆 톱니바퀴를 눌러 리뷰어 1명을 지정해요. (같은 영역 사람, 없으면 아무나)
+5. 오른쪽 **Reviewers** 옆 톱니바퀴를 눌러 리뷰어를 지정해요. **기본은 홍진성**(반나절 안에 봐요). API 응답 모양이나 테이블을 바꾸는 PR 은 영향받는 담당자(화면이면 김승희, 테이블이면 천주웅)를 추가해요. 홍진성이 올린 PR 은 서버 쪽이면 천주웅, 화면 쪽이면 김승희가 리뷰해요. 연습 PR 만 옆 사람끼리 서로 승인해요.
 6. **Create pull request**를 눌러요.
 7. 승인(Approved)을 받으면 **Merge pull request** → **Confirm merge**. 이어서 **Delete branch** 버튼이 보이면 눌러요.
 
@@ -334,39 +434,28 @@ git push
 - 백엔드는 기능을 다 만들기 전에 **빈 API부터** 올려요. 주소·요청·응답 형식만 정하고 가짜 데이터를 돌려주는 API예요.
   FastAPI는 이것만 올려도 `http://localhost:8000/docs`에 API 문서(Swagger)가 자동으로 생겨요.
 - 프론트엔드는 그 문서를 보고 바로 화면을 연결해요. 백엔드가 진짜 기능을 채우는 동안 기다리지 않아도 돼요.
-- 응답 형식(필드 이름이나 구조)을 바꾸는 PR은 **프론트엔드 담당을 리뷰어로** 지정해요. 말없이 바꾸면 화면이 깨져요.
-- 프론트 개발 서버(예: Vite `5173`)에서 백엔드(`8000`)를 부르면 **CORS 에러**가 나요. 백엔드에 처음부터 허용 설정을 넣어 둬요.
-
-```python
-# 백엔드 메인 파일 (예: main.py)
-from fastapi.middleware.cors import CORSMiddleware
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # 프론트 개발 서버 주소. "*"(전부 허용)는 쓰지 않아요
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-# 배포할 때는 allow_origins에 실제 도메인을 추가해요
-```
+- 응답 형식(필드 이름이나 구조)을 바꾸는 PR은 **프론트엔드 담당(김승희)을 리뷰어로** 지정해요. 말없이 바꾸면 화면이 깨져요. 서버 응답 모양은 `backend/app/schemas/`, 화면 쪽 타입은 `frontend/src/api/types.ts` 에 짝으로 있어요.
+- 화면(Vite `5173`)이 서버(`8000`)를 부를 때는 **Vite 프록시**가 `/api` 를 서버로 넘겨요(`frontend/vite.config.ts`). 주소가 하나라서 **CORS 설정이 없어요**. 화면 코드에서는 `fetch('/api/...')` 처럼 상대 주소만 써요(`src/api/client.ts` 의 `api()` 를 쓰면 돼요).
+- 로그인 상태는 쿠키로 전달돼요. 화면에서 토큰을 저장하거나 헤더에 붙이지 않아요.
 
 ### 백엔드 ↔ DB: `db/schema.sql` 하나로 관리
 
-- 테이블 구조 변경은 **DB 담당이 `db/schema.sql`을 고치는 PR로만** 해요. 다른 사람은 DB를 직접 바꾸지 말고 이슈나 단톡방으로 요청해요.
-- 스키마를 바꾸면 **테이블명세서(산출물)도 같이** 고쳐요. 문서와 코드가 다르면 발표 때 바로 질문받아요.
-- 개발할 때는 각자 **내 컴퓨터 MySQL**에 `db/schema.sql` → 더미 데이터 SQL 순서로 실행해서, 모두 같은 DB 상태로 맞춰요.
-- 공용 DB 서버는 통합 테스트와 시연용으로만 써요. 개발까지 같이 쓰면 누가 테스트하다 데이터를 지울 때 다 같이 멈춰요.
+- 테이블 구조 변경은 **DB 담당(천주웅)이 `db/schema.sql`을 고치는 PR로만** 해요. 다른 사람은 DB를 직접 바꾸지 말고 이슈나 단톡방으로 요청해요.
+- `schema.sql` 을 바꾸면 **`backend/app/models.py` 와 테이블명세서(산출물)도 같이** 고쳐요(PR 템플릿 체크 항목). 문서와 코드가 다르면 발표 때 바로 질문받아요.
+- 개발할 때는 각자 **내 컴퓨터의 Docker PostgreSQL**(`docker compose up -d db`)에 `uv run python -m scripts.seed` 로 테이블과 시드를 넣어서, 모두 같은 DB 상태로 맞춰요. 테이블을 바꾼 뒤에도 같은 명령으로 초기화해요(데이터가 지워져요).
+- 공용 DB 서버(EC2)는 통합 테스트와 시연용으로만 써요. 개발까지 같이 쓰면 누가 테스트하다 데이터를 지울 때 다 같이 멈춰요.
 - 더미 데이터에는 실제 사람 이름, 전화번호, 사진을 쓰지 않아요.
+- 날짜·시간은 전부 한국 시간이에요. 서버 코드에서는 `datetime.now()` 대신 `app.config` 의 `now_kst()`/`today_kst()` 를 쓰고, SQL 에서 `CURRENT_DATE` 를 쓰지 않아요.
 
 ### 비밀 정보: `.env`
 
 - API 키, DB 비밀번호는 코드에 직접 쓰지 않고 `.env` 파일에만 적어요. `.env`는 `.gitignore`에 등록돼 있어서 GitHub에 안 올라가요.
-- 필요한 키 목록은 `.env.example`(키 이름만 있고 값은 빈 파일)로 공유하고, 실제 값은 GitHub 밖에서(개인 메시지 등) 전달해요. 이슈, PR, 코드 어디에도 적지 않아요.
-- 코드에서는 `os.getenv("LLM_API_KEY")`처럼 읽어요.
+- 필요한 키 목록은 `.env.example` 로 공유해요. 값을 하나도 안 채워도 가짜(mock) 부품으로 실행되게 개발용 기본값이 들어 있어요. 실제 키 값은 GitHub 밖에서(개인 메시지 등) 전달해요. 이슈, PR, 코드 어디에도 적지 않아요.
+- 코드에서는 `from app.config import settings` 뒤 `settings.ANTHROPIC_API_KEY` 처럼 읽어요(`backend/app/config.py` 에 이름을 먼저 추가).
 
 ### 공용 파일
 
-- `README.md`, `.gitignore`, `requirements.txt`처럼 여럿이 고치는 파일은 충돌이 잘 나요.
+- `README.md`, `.gitignore`, `backend/pyproject.toml`·`uv.lock`, `frontend/package.json`·`package-lock.json`처럼 여럿이 고치는 파일은 충돌이 잘 나요. 라이브러리는 `uv add 이름` / `npm install 이름` 으로만 추가하고, lock 파일은 손으로 고치지 않아요.
 - 필요한 줄만 **추가**하고, 기존 줄의 순서를 바꾸거나 정렬하지 않아요. 크게 고칠 때는 단톡방에 먼저 말해요.
 
 ## 10. 이름 짓는 규칙
@@ -377,11 +466,11 @@ app.add_middleware(
 
 | 종류 | 언제 | 예시 |
 |---|---|---|
-| `feature/` | 새 기능 | `feature/fe-photo-upload`, `feature/be-quiz-api`, `feature/db-diary-table` |
+| `feature/` | 새 기능 | `feature/fe-photo-upload`, `feature/be-photo-upload`, `feature/db-diary-table` |
 | `fix/` | 버그 수정 | `fix/fe-login-button` |
 | `docs/` | 문서만 수정 | `docs/readme-run-guide` |
 
-영역: `fe` 프론트엔드, `be` 백엔드, `db` DB
+영역: `fe` 화면, `be` 서버, `db` 데이터베이스, `ai` AI, `data` 데이터 파일, `docs` 문서
 
 ### 커밋 메시지: `종류(영역): 무엇을 했는지`
 
@@ -390,16 +479,16 @@ app.add_middleware(
 | 종류 | 뜻 | 예시 |
 |---|---|---|
 | `feat` | 기능 추가 | `feat(fe): 사진 업로드 화면 추가` |
-| `fix` | 버그 수정 | `fix(be): 퀴즈 날짜 계산 오류 수정` |
+| `fix` | 버그 수정 | `fix(be): 오늘의 한 장 날짜 계산 오류 수정` |
 | `docs` | 문서 | `docs: README 실행 방법 추가` |
-| `refactor` | 동작은 그대로 두고 코드 정리 | `refactor(be): 퀴즈 생성 함수 분리` |
+| `refactor` | 동작은 그대로 두고 코드 정리 | `refactor(ai): 회상 질문 생성 함수 분리` |
 | `chore` | 설정, 기타 | `chore: .gitignore에 로그 폴더 추가` |
 
 `수정`, `ㅇㅇ`, `final`, `진짜최종` 같은 메시지는 일주일만 지나도 아무도 못 알아봐요.
 
 ## 11. 할 일 관리 (Issues, Projects)
 
-- 할 일은 **Issue**로 만들어요. **Issues** 탭 → **New issue** → 제목(예: `퀴즈 조회 API`) → 오른쪽 **Assignees**에 담당자, **Labels**에 `FE`/`BE`/`DB`를 지정해요.
+- 할 일은 **Issue**로 만들어요. **Issues** 탭 → **New issue** → 제목(예: `사진 업로드 API`) → 오른쪽 **Assignees**에 담당자, **Labels**에 `FE`/`BE`/`DB`/`AI`/`DATA`/`DOCS`를 지정해요. WBS 의 작업 하나하나를 이슈로 만드는 건 박유승이 해요.
 - 진행 상황은 **Projects 보드**에서 `Todo` → `In Progress` → `Done`으로 옮기면서 봐요. PM의 WBS와 맞춰요.
 - PR 본문에 `Closes #12`를 쓰면 Merge될 때 12번 이슈가 자동으로 닫혀요.
 
@@ -411,14 +500,14 @@ app.add_middleware(
 **아직 커밋 전이라면** 브랜치만 새로 만들면 돼요. 바꾼 내용이 그대로 따라와요.
 
 ```bash
-git checkout -b feature/be-quiz-api
+git checkout -b feature/be-photo-upload
 ```
 
 **이미 커밋했다면** 똑같이 브랜치를 만들어 push 하고 PR을 올려요.
 
 ```bash
-git checkout -b feature/be-quiz-api
-git push -u origin feature/be-quiz-api
+git checkout -b feature/be-photo-upload
+git push -u origin feature/be-photo-upload
 ```
 
 그다음 내 컴퓨터의 develop을 GitHub 상태로 되돌려요. ⚠️ 위 push가 성공한 걸 확인한 뒤에만 하세요.
@@ -523,15 +612,15 @@ git checkout feature/fe-photo-upload
 
 ## 13. 팀원
 
-역할이 정해지면 팀장이 한 번에 채워요. (여럿이 동시에 고치면 충돌이 나요)
+11/9(월) 파트 배분이 확정되면 홍진성이 한 번에 고쳐요. (여럿이 동시에 고치면 충돌이 나요)
 
 | 이름 | 역할 | 담당 폴더 | GitHub |
 |---|---|---|---|
-| [이름] | [역할] | [폴더] | [@아이디] |
-| [이름] | [역할] | [폴더] | [@아이디] |
-| [이름] | [역할] | [폴더] | [@아이디] |
-| [이름] | [역할] | [폴더] | [@아이디] |
-| [이름] | [역할] | [폴더] | [@아이디] |
+| 박유승 | PM (팀장) — 문제 은행·분류 목록, WBS→이슈, 문서 | `data/question_bank.json`, `data/taxonomy.json` | @starjr125 |
+| 김승희 | 프론트엔드(화면) — 화면 25개, 실기기 테스트 | `frontend/` | @jjudahui933-art |
+| 천주웅 | 백엔드·DB(서버) — API, 테이블, 예약 작업 | `backend/app/routers/`, `backend/app/models.py`, `db/` | @rudmeon |
+| 김영중 | 데이터 — [11/9 배정: 코드 개발은 하지 않음. 라벨링·설문 집계 등] | `data/` [적기] | [@아이디 적기] |
+| 홍진성 | AI 에이전트·개발 총괄 — 회상 대화, VoiceSession, 모든 PR 리뷰, 배포(EC2) | `backend/app/ai/`, `frontend/src/components/VoiceSession/`, `docs/`, 설정 파일 | @hongjinkong |
 
 <details>
 <summary><b>팀장·Owner만 보세요: 저장소 설정 체크리스트</b></summary>
@@ -546,7 +635,8 @@ git checkout feature/fe-photo-upload
   - Target branches: **Add target → Include by pattern** → `main`, `develop` 각각 추가
   - Rules: **Restrict deletions**, **Require a pull request before merging**(Required approvals `1`), **Block force pushes** 체크 → **Create**
 - [ ] **Merge 후 브랜치 자동 삭제**: **Settings → General → Pull Requests → Automatically delete head branches** 체크
-- [ ] **라벨**: **Issues → Labels → New label** → `FE`, `BE`, `DB`
+- [ ] **라벨**: **Issues → Labels → New label** → `FE`, `BE`, `DB`, `AI`, `DATA`, `DOCS`
+- [ ] **비밀키 push 차단**: 저장소 **Settings → Code security** → **Secret scanning** 켜기 → **Push protection** 켜기 (Anthropic·AWS·Google 키 모양을 push 단계에서 막아요. DB 비밀번호 같은 일반 문자열은 못 잡으니 습관이 먼저)
 - [ ] **Projects 보드**: org **Projects → New project → Board** → 저장소 `only-app` 연결
 - [ ] **2단계 인증(2FA) 필수**: 팀원 모두 2FA를 켠 **다음에** org **Settings → Authentication security → Require two-factor authentication**
       (2FA를 안 켠 사람은 org에서 자동으로 빠지니까 순서를 지켜요)

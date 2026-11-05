@@ -1,0 +1,45 @@
+{
+  "_comment": "문제 은행 견본 5문항. 박유승이 같은 모양으로 늘립니다(필드 이름은 바꾸지 않음). qtype: REMEMBER(떠올리기, category 필수) | KNOWHOW(노하우, activity 필수) | THEN_NOW(그때 vs 지금) | COMMON(공통). choices 는 2지선다일 때만, 아니면 null. priority 1(먼저)~9. seed 가 question_bank 테이블에 넣습니다.",
+  "questions": [
+    {
+      "qtype": "REMEMBER",
+      "activity": null,
+      "category": "잔칫상 음식",
+      "prompt_text": "잔칫상에 올리던 음식, 생각나는 거 하나만 말씀해 주세요.",
+      "choices": null,
+      "priority": 5
+    },
+    {
+      "qtype": "KNOWHOW",
+      "activity": "김장",
+      "category": null,
+      "prompt_text": "김장할 때 배추를 절일 때 소금은 어떻게 뿌리셨어요?",
+      "choices": null,
+      "priority": 5
+    },
+    {
+      "qtype": "KNOWHOW",
+      "activity": "모내기",
+      "category": null,
+      "prompt_text": "모내기는 보통 아침에 하셨어요, 저녁에 하셨어요?",
+      "choices": ["아침", "저녁"],
+      "priority": 6
+    },
+    {
+      "qtype": "THEN_NOW",
+      "activity": null,
+      "category": null,
+      "prompt_text": "그때 장은 어디서 보셨어요? 지금이랑 많이 다르지요?",
+      "choices": null,
+      "priority": 7
+    },
+    {
+      "qtype": "COMMON",
+      "activity": null,
+      "category": null,
+      "prompt_text": "요즘 같은 날씨에는 뭘 하면서 지내셨어요?",
+      "choices": null,
+      "priority": 8
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+# 배포용 (docker compose --profile deploy). {$DOMAIN} 은 .env 의 DOMAIN. Let's Encrypt 인증서 자동 (D7).
+# 화면(frontend/dist)은 Caddy 가 직접 서빙, /api/* 만 api 컨테이너로 넘김. 단일 오리진이라 CORS 없음.
+{$DOMAIN} {
+	encode gzip
+
+	# 사진 업로드 배치(장당 10MB × 20장 + 여유)만 크게, 나머지 API 는 5MB (이미지 폭탄 1차 방어)
+	@upload path /api/rooms/*/photos
+	handle @upload {
+		request_body {
+			max_size 220MB
+		}
+		reverse_proxy api:8000
+	}
+
+	handle /api/* {
+		request_body {
+			max_size 5MB
+		}
+		reverse_proxy api:8000
+	}
+
+	# SPA: 파일이 없으면 index.html (React Router 가 경로를 처리)
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

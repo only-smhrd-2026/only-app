@@ -1,0 +1,59 @@
+/*
+ * 어르신 화면 규격 (NFR-DE-001/002, D10): 글자 32px 이상, 버튼 높이 88px, 대비 7:1.
+ * 변수 10개 + 클래스 6개만 쓴다. 글자 크기는 <html data-font="L|XL|XXL"> 로 바꾼다 (ELDER_HOME_001 이 서버 설정으로 지정).
+ */
+:root {
+  --elder-font-size: 32px;
+  --elder-font-size-lg: 40px;
+  --elder-btn-height: 88px;
+  --elder-btn-font: 32px;
+  --elder-gap: 16px;
+  --elder-bg: #fffdf7;
+  --elder-fg: #1a1a1a;          /* 배경 대비 16:1 */
+  --elder-primary: #145a32;     /* 흰 글자 대비 8.6:1 */
+  --elder-primary-fg: #ffffff;
+  --elder-radius: 20px;
+}
+html[data-font='L'] { --elder-font-size: 28px; --elder-font-size-lg: 34px; --elder-btn-font: 28px; }
+html[data-font='XXL'] { --elder-font-size: 38px; --elder-font-size-lg: 48px; --elder-btn-font: 36px; }
+
+.elder {
+  min-height: 100vh;
+  padding: var(--elder-gap);
+  background: var(--elder-bg);
+  color: var(--elder-fg);
+  font-size: var(--elder-font-size);
+  line-height: 1.4;
+  display: flex;
+  flex-direction: column;
+  gap: var(--elder-gap);
+  max-width: 560px;
+  margin: 0 auto;
+}
+.elder-text { font-size: var(--elder-font-size); margin: 0; word-break: keep-all; }
+.elder-text--lg { font-size: var(--elder-font-size-lg); font-weight: 700; }
+.elder-btn {
+  min-height: var(--elder-btn-height);
+  width: 100%;
+  font-size: var(--elder-btn-font);
+  font-weight: 700;
+  border: 0;
+  border-radius: var(--elder-radius);
+  background: var(--elder-primary);
+  color: var(--elder-primary-fg);
+  cursor: pointer;
+}
+.elder-btn:disabled { opacity: .45; }
+.elder-btn--secondary { background: #ffffff; color: var(--elder-fg); border: 4px solid var(--elder-fg); }
+.elder-chip {
+  min-height: 72px;
+  font-size: var(--elder-font-size);
+  padding: 8px 20px;
+  border-radius: 999px;
+  border: 3px solid var(--elder-primary);
+  background: #ffffff;
+  color: var(--elder-fg);
+  cursor: pointer;
+}
+.elder-stack { display: flex; flex-direction: column; gap: var(--elder-gap); }
+.elder-photo { width: 100%; max-height: 40vh; object-fit: cover; border-radius: var(--elder-radius); }
