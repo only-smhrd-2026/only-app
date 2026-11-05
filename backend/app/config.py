@@ -19,7 +19,8 @@ DEV_JWT_SECRET = "dev-only-jwt-secret-change-me-before-deploy-0000"
 
 # 상한값은 설정 테이블 대신 상수 (D8)
 MAX_TURNS = 8  # 세션당 AI 질문 수 (sessions.turn_count CHECK 0~8)
-MAX_SESSION_SEC = 300  # 5분
+MAX_SESSION_SEC = 300  # 5분 (대화한 시간)
+PAUSE_GAP_SEC = 90  # 턴 사이가 이보다 길면 보류로 보고 90초만 센다 (무응답 3단계 60초 + 여유)
 ALBUM_PER_DAY = 3
 ELDER_PUSH_PER_DAY = 2
 SESSION_RESUME_MIN = 30  # 마지막 턴 후 30분 지나면 ENDED 취급

@@ -10,6 +10,7 @@ from app.config import settings
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
+    hide_parameters=True,  # DB 오류 메시지에 SQL 파라미터(어르신 말·토큰 해시)를 넣지 않는다 (D15)
     connect_args={"options": "-c timezone=Asia/Seoul"},
 )
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)

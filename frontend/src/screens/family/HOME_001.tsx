@@ -27,7 +27,7 @@ export default function HOME_001() {
   }
 
   async function logout() {
-    await api('/api/auth/logout')
+    await api('/api/auth/logout', { method: 'POST' }).catch(() => {})
     nav('/login', { replace: true })
   }
 

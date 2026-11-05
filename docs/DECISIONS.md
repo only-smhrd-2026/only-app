@@ -48,6 +48,10 @@ React PWA(TypeScript) / Python 3.12 + FastAPI / PostgreSQL 16(테이블 18) / Cl
 | D28 | 테스트는 docker Postgres 의 `only_app_test` DB 에 `schema.sql` 을 그대로 적용(SQLite 대체 없음) | PG 전용 문법(부분 인덱스, `NULLS NOT DISTINCT`, JSONB) 검증, D1 유지 | SQLite | `docker compose up -d db` 가 선행 |
 | D29 | DB 호스트 포트는 `DB_PORT`(기본 5432) | 내 PC 에 Postgres 가 이미 있으면 충돌 | 고정 5432 | 두 값(`DB_PORT`, `DATABASE_URL`)을 같이 바꿔야 함 |
 | D30 | LLM 실호출은 `anthropic` SDK `messages.create` + `output_config.format(json_schema)`, 모델 `claude-haiku-5-5`, `effort: low` | 구조화 출력으로 JSON 파싱 실패 제거, 비용 | tool_use 강제 | 스키마 제약 키 일부 제거(`_simplify`) 후 pydantic 이 재검사 |
+| D31 | 5분 상한 = **대화한 시간**: 시작·각 턴·지금 사이 간격을 90초(`PAUSE_GAP_SEC`)까지만 더한다. 마지막 턴 뒤 30분이면 GET·POST 모두 끝난 대화(POST 는 NO_RESPONSE 로 닫고 409). 5분에 걸린 턴은 어르신 답을 먼저 저장하고 마무리 | 시작 시각 기준이면 '보류 30분 복귀'(FR-VS-004)가 불가능. 턴 시각이 이미 DB 에 있어 컬럼 추가 없음 | `sessions.paused_at` 컬럼(DB 담당 PR) | 90초 넘는 침묵은 보류로 간주(무응답 3단계 60초 + 여유) |
+| D32 | 처리 못 한 예외는 `exception_handler(Exception)` 대신 HTTP 미들웨어에서 삼켜 경로·타입만 로그, `create_engine(hide_parameters=True)` | Starlette 는 Exception 핸들러로 응답한 뒤 예외를 다시 던지고 uvicorn 이 전체 트레이스백(SQL 파라미터의 어르신 말, pydantic input_value)을 남김 → D15 위반 | 로깅 설정으로 uvicorn 에러 로그 끄기 | 디버깅 정보 감소 — 로컬에서 재현해 확인 |
+| D33 | 저신뢰(<0.7) 전사 확인은 **화면**이 한다: [맞아요]를 눌러야 `retried=true` 로 보내고, 20초 무조작이면 무응답. 고신뢰는 3초 무조작 확정. 서버의 확인 질문(`confirm_question`)은 다른 클라이언트용으로 남김(들은 말에 금지어가 있으면 되읊지 않음) | 한 번 확인하면 충분. 서버 확인 질문 칩을 그대로 보내면 '맞아요'가 답으로 저장됨 | 3초 뒤 서버 확인 질문 | 서버 잠금(`input_locked`)은 이 화면에선 [다시 말할게요] 2회로 대신함 |
+| D34 | 본문 없는 변경 요청은 `api(path, { method: 'POST' })` 로 method 를 꼭 적는다 (`client.ts` 주석) | 기본값이 GET 이라 로그아웃·'다 들었어요'가 405 로 조용히 실패했음(리뷰 11/5) | method 필수 인자 | — |
 
 ## 3. 뒤로 미룬 것 (초석 밖)
 

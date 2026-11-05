@@ -23,7 +23,7 @@
 |---|---|---|---|---|
 | Git | 코드 받기 | <https://git-scm.com> (전부 Next) | 터미널에 `git --version` 치면 설치창 | `git --version` |
 | Docker Desktop | 데이터베이스를 상자째 띄움 | <https://www.docker.com/products/docker-desktop/> (설치 중 WSL2 안내 따르기, 설치 후 재부팅) | 같은 링크 (Apple silicon 선택) | `docker --version` |
-| Node 20 이상 | 화면 실행 | <https://nodejs.org> LTS | 같은 링크 | `node --version` |
+| Node 20 이상 | 화면 실행 | <https://nodejs.org> LTS. 설치 뒤 PowerShell 에서 한 번: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` (안 하면 `npm install` 이 실행 정책 오류) | 같은 링크 | `node --version` |
 | Python 3.12 | 서버 실행 | <https://www.python.org/downloads/> 3.12.x, 설치 첫 화면에서 **Add python.exe to PATH** 체크 | `brew install python@3.12` 또는 python.org | Windows `py -3.12 --version` / Mac `python3.12 --version` |
 | uv | Python 라이브러리 설치기 | PowerShell: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 \| iex"` | `curl -LsSf https://astral.sh/uv/install.sh \| sh` | `uv --version` (터미널 껐다 켜기) |
 
@@ -31,11 +31,15 @@
 
 ### ② 저장소 받기
 
+VS Code 로 받았으면(4절 ⑤ 방법 A) 이 단계는 끝난 거예요. VS Code 메뉴 **터미널 → 새 터미널**을 열면 `only-app` 폴더에서 시작해요. 터미널로 받으려면:
+
 ```bash
 git clone https://github.com/only-smhrd-2026/only-app.git
 cd only-app
 git checkout develop
 ```
+
+아래 ③~⑤의 명령은 전부 **`only-app` 폴더에서 시작**해요.
 
 ### ③ 설정 파일 복사 → 데이터베이스 띄우기 → 시드 넣기
 
@@ -54,22 +58,23 @@ uv run python -m scripts.seed
 
 `시드 완료: 가족방 1, 가족 2, 사진 3, 문제 5, 오늘의 한 장 1` 이 나오면 OK. (`.env` 는 값을 안 채워도 돼요. 전부 가짜(mock) 부품으로 돌아가요.)
 
-### ④ 서버 실행 (터미널 1)
+### ④ 서버 실행 (터미널 1 — ③을 친 그 터미널 그대로, 이미 `backend` 폴더예요)
 
 ```bash
-cd backend
 uv run uvicorn app.main:app --reload
 ```
 
-`http://localhost:8000/docs` 에서 API 문서(Swagger)가 보이면 OK.
+`http://localhost:8000/docs` 에서 API 문서(Swagger)가 보이면 OK. 이 터미널은 끄지 말고 둬요.
 
-### ⑤ 화면 실행 (터미널 2 — 새 터미널을 하나 더 열어요)
+### ⑤ 화면 실행 (터미널 2 — VS Code 메뉴 **터미널 → 새 터미널**. `only-app` 폴더에서 열려요)
 
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+
+VS Code 가 아닌 터미널을 새로 열었으면 먼저 `only-app` 폴더로 이동해요(예: Mac `cd ~/only-app`, Windows `cd ~\only-app` — clone 한 위치에 따라 달라요).
 
 `http://localhost:5173` 에 로그인 화면이 뜨면 끝.
 
@@ -79,9 +84,9 @@ npm run dev
 |---|---|
 | 가족 로그인 (방장) | `test@haru.local` / `test1234` |
 | 가족 로그인 (손주) | `test2@haru.local` / `test1234` |
-| 어르신 기기 연결 링크 | `http://localhost:5173/elder/connect#seed-elder-link-token-only-for-dev-0001` — 한 번 쓰면 소모돼요. 다시 쓰려면 `uv run python -m scripts.seed` 를 다시 실행(데이터 초기화) |
+| 어르신 기기 연결 링크 | `http://localhost:5173/elder/connect#seed-elder-link-token-only-for-dev-0001` — 한 번 쓰면 소모돼요. 다시 쓰려면 `backend` 폴더에서 `uv run python -m scripts.seed` 를 다시 실행(데이터 초기화) |
 
-흐름 확인: 가족 로그인 → 가족 홈에 "순자 할머니" 가족방 → (새 탭에서) 어르신 링크 열기 → [시작하기] → 어르신 홈 → [오늘 사진 보기] → 말하기 왕복 8턴(지금은 가짜 답). 서버 테스트는 `cd backend && uv run pytest`.
+흐름 확인: 가족 로그인 → 가족 홈에 "순자 할머니" 가족방 → (새 탭에서) 어르신 링크 열기 → [시작하기] → 어르신 홈 → [오늘 사진 보기] → 말하기 왕복 8턴(지금은 가짜 답). 서버 테스트는 `backend` 폴더에서 `uv run pytest`.
 
 ### ⑦ 폰(갤럭시)에서 테스트 — USB 연결
 
@@ -90,11 +95,11 @@ npm run dev
 1. PC 에 [Android platform-tools](https://developer.android.com/tools/releases/platform-tools) 를 받아 압축을 풀고, 그 폴더에서 터미널을 열어요 (Windows: 폴더 빈 곳에서 Shift+우클릭 → PowerShell).
 2. 폰: 설정 → 휴대전화 정보 → 소프트웨어 정보 → **빌드번호 7번 탭** → 설정 → 개발자 옵션 → **USB 디버깅** 켜기.
 3. USB 로 연결하고 폰에 뜨는 "USB 디버깅 허용"을 **허용**.
-4. 터미널에서:
+4. 그 터미널에서 (Mac 은 `./adb`, Windows PowerShell 은 `.\adb` 로 시작해요):
    ```bash
-   adb devices            # 기기가 device 로 보이면 OK (unauthorized 면 폰에서 허용)
-   adb reverse tcp:5173 tcp:5173
-   adb reverse tcp:8000 tcp:8000
+   ./adb devices                   # 기기가 device 로 보이면 OK (unauthorized 면 폰에서 허용)
+   ./adb reverse tcp:5173 tcp:5173
+   ./adb reverse tcp:8000 tcp:8000
    ```
 5. 폰 Chrome 에서 `http://localhost:5173/elder/connect#<토큰>` (가족 홈에서 만든 어르신 기기 링크 그대로) → 메뉴 ⋮ → **홈 화면에 추가**.
 
@@ -103,7 +108,7 @@ npm run dev
 - `port is already allocated` / `address already in use` (5432): 내 PC 에 PostgreSQL 이 이미 있어요. `.env` 의 `DB_PORT=5433`, `DATABASE_URL` 의 포트도 `5433` 으로 바꾸고 `docker compose up -d db` 다시.
 - `Cannot connect to the Docker daemon`: Docker Desktop 을 실행하지 않았어요.
 - `uv: command not found`: 설치 후 터미널을 껐다 켜요.
-- Windows 에서 `npm run dev` 가 실행 정책 오류: PowerShell 에서 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` 한 번.
+- Windows 에서 `npm install`/`npm run dev` 가 "npm.ps1 파일을 로드할 수 없습니다": PowerShell 에서 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` 한 번.
 - 화면은 뜨는데 로그인이 안 됨: 터미널 1(서버)이 꺼져 있거나 시드를 안 넣었어요.
 
 ## 목차

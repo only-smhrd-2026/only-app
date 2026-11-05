@@ -1,6 +1,6 @@
 """가족 가입 → 가족방 → 기기 링크 → 어르신 홈 → 사진까지 이어지는지 (초석 C·F 완료 기준)."""
 
-from tests.conftest import add_photos, connect_device, make_room, signup
+from tests.conftest import add_photos, make_room, signup
 
 
 def test_family_to_elder_flow(client):
@@ -66,5 +66,27 @@ def test_family_invite_accept(client):
 
 
 def test_device_requires_connection(client):
-    connect_device  # noqa: B018  (헬퍼 존재 확인)
     assert client.get("/api/elder/home").status_code == 401
+
+
+def test_password_over_72_bytes_is_not_500(client):
+    long_ko = "가" * 25  # 75바이트 (bcrypt 상한 72)
+    r = client.post(
+        "/api/auth/signup",
+        json={"email": "long@test.local", "password": long_ko, "name": "긴비번", "terms_agreed": True},
+    )
+    assert r.status_code == 422
+    assert client.post("/api/auth/login", json={"email": "long@test.local", "password": long_ko}).status_code == 401
+
+
+def test_unhandled_error_returns_500_json_without_reraise(client, monkeypatch):
+    """예외를 미들웨어가 삼켜야 uvicorn 이 트레이스백(어르신 말 포함 가능)을 남기지 않는다 (D15).
+    TestClient 는 서버 예외가 바깥까지 올라오면 다시 던지므로, 500 JSON 을 받으면 삼킨 것이다."""
+    import app.main
+
+    def boom():
+        raise RuntimeError("PRIVATE 어르신 말")
+
+    monkeypatch.setattr(app.main, "now_kst", boom)
+    r = client.get("/api/health")
+    assert r.status_code == 500 and r.json() == {"detail": "서버 오류", "code": "INTERNAL"}

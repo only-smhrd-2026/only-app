@@ -33,7 +33,12 @@ def install_handlers(app: FastAPI) -> None:
             status_code=422,
         )
 
-    @app.exception_handler(Exception)
-    def _unhandled(request: Request, exc: Exception):
-        log.error("unhandled %s %s -> %s", request.method, request.url.path, type(exc).__name__)
-        return JSONResponse({"detail": "서버 오류", "code": "INTERNAL"}, status_code=500)
+    # exception_handler(Exception) 은 쓰지 않는다: Starlette 가 응답 뒤 예외를 다시 던져 uvicorn 이 전체 트레이스백
+    # (SQL 파라미터의 어르신 말, pydantic input_value 포함)을 로그에 남긴다. 미들웨어에서 삼켜 경로·타입만 남긴다 (D15).
+    @app.middleware("http")
+    async def _catch_all(request: Request, call_next):
+        try:
+            return await call_next(request)
+        except Exception as exc:
+            log.error("unhandled %s %s -> %s", request.method, request.url.path, type(exc).__name__)
+            return JSONResponse({"detail": "서버 오류", "code": "INTERNAL"}, status_code=500)

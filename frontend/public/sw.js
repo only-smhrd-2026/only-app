@@ -20,7 +20,8 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then((res) => {
-          caches.open(CACHE).then((c) => c.put('/', res.clone()))
+          const copy = res.clone() // 응답을 넘기기 전에 복사해야 한다 (넘긴 뒤 clone 하면 TypeError)
+          caches.open(CACHE).then((c) => c.put('/', copy))
           return res
         })
         .catch(() => caches.match('/')),

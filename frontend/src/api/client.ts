@@ -12,6 +12,10 @@ export class ApiError extends Error {
 
 type Options = { method?: string; body?: unknown; form?: FormData; signal?: AbortSignal }
 
+/**
+ * method 를 안 적으면 body·form 이 있을 때 POST, 없으면 GET.
+ * ⚠ 본문 없는 변경 요청(로그아웃, '다 들었어요' 등)은 반드시 { method: 'POST' } 를 적는다. 안 적으면 GET 으로 나가 405.
+ */
 export async function api<T>(path: string, opts: Options = {}): Promise<T> {
   const method = opts.method ?? (opts.body !== undefined || opts.form ? 'POST' : 'GET')
   const res = await fetch(path, {

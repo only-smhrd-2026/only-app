@@ -29,7 +29,8 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, password_hash: str | None) -> bool:
-    if not password_hash:
+    # bcrypt 5 는 72바이트 초과 입력에 ValueError → 500 대신 로그인 실패로
+    if not password_hash or len(password.encode()) > 72:
         return False
     return bcrypt.checkpw(password.encode(), password_hash.encode())
 

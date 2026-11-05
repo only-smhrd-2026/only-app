@@ -3,7 +3,8 @@
 턴 정의: AI 질문 1 + 어르신 답 1 = 1턴. sessions.turn_count = 지금까지 낸 AI 질문 수 (만들 때 1, 최대 MAX_TURNS=8).
 8번째 답을 받으면 AI 가 마무리 인사(CLOSING) 를 하고 state=ENDED, end_reason=COMPLETED.
 session_turns.turn_no 는 행 순번 (1=AI, 2=ELDER, 3=AI …).
-서버가 지키는 상한: 8턴, 5분, 무응답 3단계, 저신뢰 2회 → input_locked (D5, D8).
+서버가 지키는 상한: 8턴, 5분(대화한 시간 — 보류는 빼고 잼), 무응답 3단계, 저신뢰 2회 → input_locked (D5, D8).
+마지막 턴 뒤 30분이 지나면 끝난 대화로 본다 (보류 30분 복귀).
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from app.config import (
     MAX_SESSION_SEC,
     MAX_TURNS,
     NO_RESPONSE_END,
+    PAUSE_GAP_SEC,
     SESSION_ERROR_ALERT,
     SESSION_RESUME_MIN,
     STT_CONF_MIN,
@@ -131,6 +133,7 @@ def _ai_out(db, session: TalkSession, room: FamilyRoom, reply: CoachReply) -> Ai
         if session.session_id not in _tts_failed:
             _tts_failed.add(session.session_id)
             notify_family(db, room.room_id, "TTS_ERROR", f"{room.elder_name} 님 기기에서 음성 재생에 문제가 있어요")
+            db.commit()  # _out 은 각 핸들러의 commit 뒤에 불리므로 여기서 따로 커밋해야 알림이 남는다
     return AiOut(
         text=reply.text,
         audio_b64=audio_b64,
@@ -140,8 +143,25 @@ def _ai_out(db, session: TalkSession, room: FamilyRoom, reply: CoachReply) -> Ai
     )
 
 
-def _expired(session: TalkSession) -> bool:
-    return (now_kst() - session.started_at).total_seconds() > MAX_SESSION_SEC
+def _talk_seconds(db, session: TalkSession) -> float:
+    """5분 상한용 '대화한 시간'. 시작·각 턴·지금 사이 간격을 PAUSE_GAP_SEC 까지만 더한다.
+
+    더 긴 간격은 보류(전화·홈 버튼)로 보고 빼야 '30분 안 복귀'가 가능하다. 턴 시각이 DB 에 있어 컬럼 추가가 필요 없다.
+    """
+    times = [
+        session.started_at,
+        *db.scalars(
+            select(SessionTurn.created_at)
+            .where(SessionTurn.session_id == session.session_id)
+            .order_by(SessionTurn.turn_no)
+        ),
+        now_kst(),
+    ]
+    return sum(min((b - a).total_seconds(), PAUSE_GAP_SEC) for a, b in zip(times, times[1:]))
+
+
+def _expired(db, session: TalkSession) -> bool:
+    return _talk_seconds(db, session) > MAX_SESSION_SEC
 
 
 def _stale(db, session: TalkSession) -> bool:
@@ -167,6 +187,7 @@ def _finish(db, session: TalkSession, reason: str) -> None:
             pick.completed_at = now
             pick.completed_session_id = session.session_id
     if reason == "ERROR":
+        db.flush()  # 지금 끝나는 이 세션도 세도록 먼저 반영 (그래서 아래 비교에 +1 이 없다)
         errors_today = db.scalar(
             select(func.count())
             .select_from(TalkSession)
@@ -185,7 +206,7 @@ def _finish(db, session: TalkSession, reason: str) -> None:
                 Notification.sent_at >= now.replace(hour=0, minute=0, second=0, microsecond=0),
             )
         )
-        if (errors_today or 0) + 1 >= SESSION_ERROR_ALERT and not already:
+        if (errors_today or 0) >= SESSION_ERROR_ALERT and not already:
             room = db.get(FamilyRoom, session.room_id)
             notify_family(db, room.room_id, "SESSION_ERROR_3X", f"{room.elder_name} 님 대화가 오늘 3번 중단됐어요")
     for store in (_no_response, _low_conf, _last_reply):
@@ -243,7 +264,7 @@ def create_session(body: SessionCreateIn, device: CurrentDevice, db: DB):
 @router.get("/{session_id}", response_model=SessionGetOut)
 def get_session(session_id: uuid.UUID, device: CurrentDevice, db: DB):
     session = _get(db, session_id, device)
-    ended = session.ended_at is not None or _expired(session) or _stale(db, session)
+    ended = session.ended_at is not None or _expired(db, session) or _stale(db, session)
     reply = _last_reply.get(session.session_id)
     if reply is None:
         last = _last_ai_turn(db, session.session_id)
@@ -265,14 +286,45 @@ def get_session(session_id: uuid.UUID, device: CurrentDevice, db: DB):
     )
 
 
+def _unconfirmed(body: TurnIn) -> bool:
+    """저신뢰 음성인데 어르신이 아직 '맞아요' 하지 않은 답 — 저장하지 않는다 (D5)."""
+    return (
+        body.input_type == "VOICE"
+        and not body.retried
+        and body.stt_confidence is not None
+        and body.stt_confidence < STT_CONF_MIN
+    )
+
+
+def _save_elder(db, session: TalkSession, body: TurnIn, text: str) -> None:
+    last_ai = _last_ai_turn(db, session.session_id)
+    _add_turn(
+        db,
+        session,
+        "ELDER",
+        text,
+        stt_confidence=body.stt_confidence,
+        input_type=body.input_type,
+        retried=body.retried,
+        reply_to_turn_id=last_ai.turn_id if last_ai else None,
+    )
+
+
 @router.post("/{session_id}/turns", response_model=SessionOut)
 def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB):
     session = _get(db, session_id, device)
     room = db.get(FamilyRoom, session.room_id)
     if session.ended_at is not None:
         raise ApiError(409, "SESSION_ENDED", "이미 끝난 대화예요")
+    if _stale(db, session):  # 마지막 턴 뒤 30분 → 끝난 대화 (GET 과 같은 규칙)
+        _finish(db, session, "NO_RESPONSE")
+        db.commit()
+        raise ApiError(409, "SESSION_ENDED", "이미 끝난 대화예요")
 
-    if _expired(session):  # 5분 상한 (D8)
+    if _expired(db, session):  # 5분 상한 (D8). 방금 한 답은 저장한 뒤 마무리
+        text = (body.text or "").strip()
+        if text and body.event is None and not _unconfirmed(body):
+            _save_elder(db, session, body, text)
         reply = _ask(db, session, _ctx(db, room, session), closing=True)
         _finish(db, session, "LIMIT")
         db.commit()
@@ -298,27 +350,14 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
         raise ApiError(422, "TEXT_REQUIRED", "말씀 내용이 비어 있어요")
     if body.input_type == "VOICE" and _locked(session.session_id):
         raise ApiError(409, "INPUT_LOCKED", "지금은 버튼으로만 답할 수 있어요")
-    if (
-        body.input_type == "VOICE"
-        and not body.retried
-        and body.stt_confidence is not None
-        and body.stt_confidence < STT_CONF_MIN
+    if _unconfirmed(
+        body
     ):  # 저신뢰: 저장하지 않고 확인 질문만 (D5). "맞아요" 면 같은 문장을 retried=true 로 다시 보낸다.
         _low_conf[session.session_id] += 1
         return _out(db, session, room, coach.confirm_question(text))
 
     _no_response[session.session_id] = 0
-    last_ai = _last_ai_turn(db, session.session_id)
-    _add_turn(
-        db,
-        session,
-        "ELDER",
-        text,
-        stt_confidence=body.stt_confidence,
-        input_type=body.input_type,
-        retried=body.retried,
-        reply_to_turn_id=last_ai.turn_id if last_ai else None,
-    )
+    _save_elder(db, session, body, text)
     ctx = _ctx(db, room, session)
     if session.turn_count >= MAX_TURNS:  # 8번째 답 → 마무리 인사 후 종료
         reply = _ask(db, session, ctx, closing=True)

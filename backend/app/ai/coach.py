@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from pydantic import ValidationError
+
 from app.ai import llm
 from app.ai.schemas import CoachReply
 from app.config import MAX_TURNS
@@ -66,11 +68,14 @@ def closing(ctx: CoachContext, turn_no: int) -> CoachReply:
 
 
 def confirm_question(heard: str) -> CoachReply:
-    """STT 신뢰도가 낮을 때 (D5): LLM 을 부르지 않고 확인만 묻는다."""
-    heard = heard[:40]
-    return CoachReply(
-        text=f"제가 '{heard}' 라고 들었어요. 맞으면 맞아요를 눌러 주세요.",
-        suggestions=CONFIRM_SUGGESTIONS,
-        question_type="NONE",
-        choice_mode="TWO_BUTTONS",
-    )
+    """STT 신뢰도가 낮을 때 (D5): LLM 을 부르지 않고 확인만 묻는다.
+
+    들은 말을 되읊되, 금지어 검사에 걸리면(예: '저하고' 의 '저하') 되읊지 않는 고정 문장으로.
+    """
+    heard = heard[:40].replace("?", "").replace("？", "")
+    try:
+        text = f"제가 '{heard}' 라고 들었어요. 맞으면 맞아요를 눌러 주세요."
+        return CoachReply(text=text, suggestions=CONFIRM_SUGGESTIONS, question_type="NONE", choice_mode="TWO_BUTTONS")
+    except ValidationError:
+        text = "제가 잘 들었는지 모르겠어요. 맞으면 맞아요를 눌러 주세요."
+        return CoachReply(text=text, suggestions=CONFIRM_SUGGESTIONS, question_type="NONE", choice_mode="TWO_BUTTONS")

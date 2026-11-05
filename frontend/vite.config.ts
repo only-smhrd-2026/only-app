@@ -7,6 +7,8 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   server: {
+    // 127.0.0.1 고정: Windows adb reverse 는 127.0.0.1 로만 붙는데 Vite 기본값은 [::1] 에만 열린다. LAN 에는 열지 않음.
+    host: '127.0.0.1',
     port: 5173,
     proxy: { '/api': { target: 'http://127.0.0.1:8000', changeOrigin: false } },
   },
