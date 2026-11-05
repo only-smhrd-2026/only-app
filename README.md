@@ -624,7 +624,7 @@ git checkout feature/fe-photo-upload
 | 박유승 | PM (팀장) — 문제 은행·분류 목록, WBS→이슈, 문서 | `data/question_bank.json`, `data/taxonomy.json` | @starjr125 |
 | 김승희 | 프론트엔드(화면) — 화면 25개, 실기기 테스트 | `frontend/` | @jjudahui933-art |
 | 천주웅 | 백엔드·DB(서버) — API, 테이블, 예약 작업 | `backend/app/routers/`, `backend/app/models.py`, `db/` | @rudmeon |
-| 김영중 | 데이터 — [11/9 배정: 코드 개발은 하지 않음. 라벨링·설문 집계 등] | `data/` [적기] | [@아이디 적기] |
+| 김영중 | 데이터 — [11/9 배정. 코드 개발은 하지 않음] | — | — |
 | 홍진성 | AI 에이전트·개발 총괄 — 회상 대화, VoiceSession, 모든 PR 리뷰, 배포(EC2) | `backend/app/ai/`, `frontend/src/components/VoiceSession/`, `docs/`, 설정 파일 | @hongjinkong |
 
 <details>

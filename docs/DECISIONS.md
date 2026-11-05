@@ -52,6 +52,7 @@ React PWA(TypeScript) / Python 3.12 + FastAPI / PostgreSQL 16(테이블 18) / Cl
 | D32 | 처리 못 한 예외는 `exception_handler(Exception)` 대신 HTTP 미들웨어에서 삼켜 경로·타입만 로그, `create_engine(hide_parameters=True)` | Starlette 는 Exception 핸들러로 응답한 뒤 예외를 다시 던지고 uvicorn 이 전체 트레이스백(SQL 파라미터의 어르신 말, pydantic input_value)을 남김 → D15 위반 | 로깅 설정으로 uvicorn 에러 로그 끄기 | 디버깅 정보 감소 — 로컬에서 재현해 확인 |
 | D33 | 저신뢰(<0.7) 전사 확인은 **화면**이 한다: [맞아요]를 눌러야 `retried=true` 로 보내고, 20초 무조작이면 무응답. 고신뢰는 3초 무조작 확정. 서버의 확인 질문(`confirm_question`)은 다른 클라이언트용으로 남김(들은 말에 금지어가 있으면 되읊지 않음) | 한 번 확인하면 충분. 서버 확인 질문 칩을 그대로 보내면 '맞아요'가 답으로 저장됨 | 3초 뒤 서버 확인 질문 | 서버 잠금(`input_locked`)은 이 화면에선 [다시 말할게요] 2회로 대신함 |
 | D34 | 본문 없는 변경 요청은 `api(path, { method: 'POST' })` 로 method 를 꼭 적는다 (`client.ts` 주석) | 기본값이 GET 이라 로그아웃·'다 들었어요'가 405 로 조용히 실패했음(리뷰 11/5) | method 필수 인자 | — |
+| D35 | **STT·TTS 1안**: 리턴제로(RTZR) WebSocket 스트리밍 + Google Cloud TTS Chirp 3 HD(ko-KR). 교체용 2안: Deepgram Nova-3 + Azure 표준 신경 음성. 11/15 조부모 녹음 비교(CER·p95 지연·청취 평가)로 확정하고, 기준 미달인 축만 2안으로 (11/5 확정) | 조사 후보 중 한국어 CER 최저(RTZR 6.18%, 자사 벤치). Chirp 3 HD 는 한국어 HD 음성 30종, 월 100만 자 무료(예상 30만 자). 예상 비용 0~11,000원 | CLOVA(월 기본료 9만 원), ElevenLabs(무료 한도 부족), ETRI(건당 20초·평문 HTTP), Whisper 자체 호스팅(t4g.small 지연) | RTZR 파일 API 는 5초 폴링이라 스트리밍 + ffmpeg(webm→PCM) 구현 필요, 무료 동시 5채널. Chirp 3 HD 지연은 비공식 0.6~2초. 노인·사투리 직접 근거는 어느 후보에도 없음 → 11/15 테스트 필수. 조사 보고서는 홍진성 보관 |
 
 ## 3. 뒤로 미룬 것 (초석 밖)
 
