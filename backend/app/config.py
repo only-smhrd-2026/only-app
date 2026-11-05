@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     R2_BUCKET: str = ""
     RTZR_CLIENT_ID: str = ""
     RTZR_CLIENT_SECRET: str = ""
-    GOOGLE_TTS_CREDENTIALS: str = ""
+    GOOGLE_TTS_API_KEY: str = ""
     CF_ACCOUNT_ID: str = ""
     CF_API_TOKEN: str = ""
 

@@ -21,9 +21,7 @@ def synthesize(text: str, speed: float = 0.85) -> bytes | None:
         if provider == "mock":
             return None
         if provider == "google":
-            raise NotImplementedError(
-                "Google TTS 연동은 GOOGLE_TTS_CREDENTIALS 를 받은 뒤 구현 (backend/app/ai/tts.py)"
-            )
+            raise NotImplementedError("Google TTS 연동은 GOOGLE_TTS_API_KEY 를 받은 뒤 구현 (backend/app/ai/tts.py)")
         raise NotImplementedError(f"TTS_PROVIDER={provider} 는 아직 없습니다")
     finally:
         ms = int((time.perf_counter() - t0) * 1000)
