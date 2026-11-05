@@ -268,7 +268,7 @@ class Diary(Base):
     mood: Mapped[str] = mapped_column(String(6))  # SUNNY | CLOUDY | RAINY | MOON
     illustration_type: Mapped[str] = mapped_column(String(10))  # PHOTO | AI_DRAWING | NONE
     illustration_key: Mapped[str | None] = mapped_column(String(255))
-    draw_spec: Mapped[Any | None] = mapped_column(JSONB)
+    draw_spec: Mapped[Any | None] = mapped_column(JSONB(none_as_null=True))  # None → SQL NULL (JSON null 아님)
     request_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     posted_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
     status: Mapped[str] = mapped_column(String(8), server_default="POSTED")  # POSTED | DELETED

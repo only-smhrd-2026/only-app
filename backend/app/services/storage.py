@@ -1,6 +1,8 @@
 """사진 저장 부품 (초석 F). STORAGE=local 이면 UPLOAD_DIR 폴더(기본 only-app/uploads, git 제외), r2 면 Cloudflare R2.
 
-key 모양은 rooms/{room_id}/{upload_batch_id}/{index}.jpg 로 고정 (D17). 로컬은 경로 탐색 방어 2중 (D18):
+key 모양: 업로드 사진 rooms/{room_id}/{upload_batch_id}/{index}.jpg (D17),
+그림일기 그림 rooms/{room_id}/{session_id}.jpg (D36 — 정규식 끝의 '/숫자' 가 선택인 이유이니 줄이지 말 것).
+로컬은 경로 탐색 방어 2중 (D18):
 정규식 + resolve() 가 base 안인지 확인.
 서명 URL 없이 GET /api/media/{key} 가 쿠키로 권한을 확인하고 바이트를 돌려준다 (D2).
 """

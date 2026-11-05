@@ -19,6 +19,8 @@ DEV_JWT_SECRET = "dev-only-jwt-secret-change-me-before-deploy-0000"
 
 # 상한값은 설정 테이블 대신 상수 (D8)
 MAX_TURNS = 8  # 세션당 AI 질문 수 (sessions.turn_count CHECK 0~8)
+DIARY_TURNS = 3  # 일기 대화 질문 수: 뭐 하셨어요 → 누구랑 → 기분은 (FR-DI-003)
+DIARY_DRAFT_MIN = 30  # 일기 초안 유지 시간 (FR-DI-004)
 MAX_SESSION_SEC = 300  # 5분 (대화한 시간)
 PAUSE_GAP_SEC = 90  # 턴 사이가 이보다 길면 보류로 보고 90초만 센다 (무응답 3단계 60초 + 여유)
 ALBUM_PER_DAY = 3

@@ -1,7 +1,8 @@
-"""회상 대화 세션 — 음성 왕복 걷는 해골 (초석 원안 D). 계약은 schemas/sessions.py.
+"""회상·일기 대화 세션 — 음성 왕복 걷는 해골 (초석 원안 D). 계약은 schemas/sessions.py.
 
 턴 정의: AI 질문 1 + 어르신 답 1 = 1턴. sessions.turn_count = 지금까지 낸 AI 질문 수 (만들 때 1, 최대 MAX_TURNS=8).
 8번째 답을 받으면 AI 가 마무리 인사(CLOSING) 를 하고 state=ENDED, end_reason=COMPLETED.
+kind=DIARY(일기 대화)는 질문 3개(DIARY_TURNS)로 끝난다. 초안·그림일기·게시는 routers/diaries.py (D36).
 session_turns.turn_no 는 행 순번 (1=AI, 2=ELDER, 3=AI …).
 서버가 지키는 상한: 8턴, 5분(대화한 시간 — 보류는 빼고 잼), 무응답 3단계, 저신뢰 2회 → input_locked (D5, D8).
 마지막 턴 뒤 30분이 지나면 끝난 대화로 본다 (보류 30분 복귀).
@@ -22,6 +23,7 @@ from sqlalchemy import func, select
 from app.ai import coach, tts
 from app.ai.schemas import CoachReply
 from app.config import (
+    DIARY_TURNS,
     MAX_SESSION_SEC,
     MAX_TURNS,
     NO_RESPONSE_END,
@@ -49,6 +51,9 @@ from app.schemas.sessions import (
 log = logging.getLogger("app.sessions")
 router = APIRouter(prefix="/elder/sessions", tags=["sessions"])
 
+# 일기로 남기는 종료 사유. 그만할래요(USER_STOP)·무응답·오류로 끝난 일기 대화는 저장하지 않는다 (FR-DI-003)
+DIARY_SAVED = ("COMPLETED", "LIMIT")
+
 # ponytail: 세션별 카운터는 프로세스 메모리 (uvicorn --workers 1 전제, D9). 재시작하면 사라지지만
 # 세션은 어차피 30분 지나면 ENDED 취급이라 무방. 수평 확장이 필요해지면 sessions 테이블 컬럼으로.
 _no_response: dict[uuid.UUID, int] = defaultdict(int)
@@ -57,7 +62,8 @@ _last_reply: dict[uuid.UUID, CoachReply] = {}
 _tts_failed: set[uuid.UUID] = set()
 
 
-def _get(db, session_id: uuid.UUID, device) -> TalkSession:
+def load_session(db, session_id: uuid.UUID, device) -> TalkSession:
+    """이 기기 가족방의 세션만 돌려준다 (다른 방 것은 없는 것처럼 404). routers/diaries.py 도 쓴다."""
     session = db.get(TalkSession, session_id)
     if not session or session.room_id != device.room_id:
         raise ApiError(404, "SESSION_NOT_FOUND", "대화를 찾을 수 없어요")
@@ -70,7 +76,8 @@ def _turns(db, session_id: uuid.UUID) -> list[SessionTurn]:
     ).all()
 
 
-def _ctx(db, room: FamilyRoom, session: TalkSession) -> coach.CoachContext:
+def coach_context(db, room: FamilyRoom, session: TalkSession) -> coach.CoachContext:
+    """코치에 넘길 데이터 (호칭·사진 설명·지금까지의 턴). routers/diaries.py 도 쓴다."""
     photo = db.get(Photo, session.photo_id) if session.photo_id else None
     return coach.CoachContext(
         elder_name=room.elder_name,
@@ -107,10 +114,27 @@ def _last_ai_turn(db, session_id: uuid.UUID) -> SessionTurn | None:
     )
 
 
-def _ask(db, session: TalkSession, ctx: coach.CoachContext, closing: bool) -> CoachReply:
-    """코치 호출 + AI 턴 저장 (latency_ms 기록)."""
+def _max_turns(session: TalkSession) -> int:
+    return DIARY_TURNS if session.kind == "DIARY" else MAX_TURNS
+
+
+def _fallback(session: TalkSession) -> CoachReply:
+    """마지막 질문을 메모리에서 잃었을 때(서버 재시작) 다시 보여 줄 질문."""
+    return coach.diary_fallback(session.turn_count) if session.kind == "DIARY" else coach.FALLBACK_QUESTION
+
+
+def _ask(db, session: TalkSession, ctx: coach.CoachContext, end: str | None = None) -> CoachReply:
+    """코치 호출 + AI 턴 저장 (latency_ms 기록). end(종료 사유)가 있으면 질문 대신 마무리 인사."""
     t0 = time.perf_counter()
-    reply = coach.closing(ctx, session.turn_count) if closing else coach.next_question(ctx, session.turn_count)
+    if session.kind == "DIARY":
+        if end is None:
+            reply = coach.diary_question(ctx, session.turn_count)
+        else:  # "일기를 써 볼게요"는 일기를 쓸 때만. 무응답으로 끝나면 저장하지 않으니 다른 인사
+            reply = coach.DIARY_CLOSING if end in DIARY_SAVED else coach.DIARY_STOP
+    elif end:
+        reply = coach.closing(ctx, session.turn_count)
+    else:
+        reply = coach.next_question(ctx, session.turn_count)
     _add_turn(
         db,
         session,
@@ -232,7 +256,7 @@ def create_session(body: SessionCreateIn, device: CurrentDevice, db: DB):
     if existing:  # 같은 session_id 재요청은 멱등
         if existing.room_id != room.room_id:
             raise ApiError(404, "SESSION_NOT_FOUND", "대화를 찾을 수 없어요")
-        reply = _last_reply.get(existing.session_id) or coach.FALLBACK_QUESTION
+        reply = _last_reply.get(existing.session_id) or _fallback(existing)
         state = "ENDED" if existing.ended_at else "CONTINUE"
         return _out(db, existing, room, reply, state, existing.end_reason)
     pick = None
@@ -256,16 +280,18 @@ def create_session(body: SessionCreateIn, device: CurrentDevice, db: DB):
     )
     db.add(session)
     db.flush()
-    reply = _ask(db, session, _ctx(db, room, session), closing=False)
+    reply = _ask(db, session, coach_context(db, room, session))
     db.commit()
     return _out(db, session, room, reply)
 
 
 @router.get("/{session_id}", response_model=SessionGetOut)
 def get_session(session_id: uuid.UUID, device: CurrentDevice, db: DB):
-    session = _get(db, session_id, device)
+    session = load_session(db, session_id, device)
     ended = session.ended_at is not None or _expired(db, session) or _stale(db, session)
     reply = _last_reply.get(session.session_id)
+    if reply is None and not ended and session.kind == "DIARY":
+        reply = _fallback(session)  # 재시작으로 칩을 잃음 → NO_RESPONSE 와 같은 고정 질문·칩 (기분 질문은 칩 4개)
     if reply is None:
         last = _last_ai_turn(db, session.session_id)
         reply = CoachReply(text=last.text, suggestions=[], question_type=last.question_type or "NONE") if last else None
@@ -312,7 +338,7 @@ def _save_elder(db, session: TalkSession, body: TurnIn, text: str) -> None:
 
 @router.post("/{session_id}/turns", response_model=SessionOut)
 def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB):
-    session = _get(db, session_id, device)
+    session = load_session(db, session_id, device)
     room = db.get(FamilyRoom, session.room_id)
     if session.ended_at is not None:
         raise ApiError(409, "SESSION_ENDED", "이미 끝난 대화예요")
@@ -325,7 +351,7 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
         text = (body.text or "").strip()
         if text and body.event is None and not _unconfirmed(body):
             _save_elder(db, session, body, text)
-        reply = _ask(db, session, _ctx(db, room, session), closing=True)
+        reply = _ask(db, session, coach_context(db, room, session), end="LIMIT")
         _finish(db, session, "LIMIT")
         db.commit()
         return _out(db, session, room, reply, "ENDED", "LIMIT")
@@ -334,12 +360,13 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
         _no_response[session.session_id] += 1
         stage = _no_response[session.session_id]
         if stage >= NO_RESPONSE_END:
-            reply = _ask(db, session, _ctx(db, room, session), closing=True)
+            reply = _ask(db, session, coach_context(db, room, session), end="NO_RESPONSE")
             _finish(db, session, "NO_RESPONSE")
             db.commit()
             return _out(db, session, room, reply, "ENDED", "NO_RESPONSE")
-        last = _last_reply.get(session.session_id) or coach.FALLBACK_QUESTION
-        if stage >= 2:
+        last = _last_reply.get(session.session_id) or _fallback(session)
+        mood_question = session.kind == "DIARY" and session.turn_count >= DIARY_TURNS
+        if stage >= 2 and not mood_question:  # 일기 기분 질문은 칩 4개 그대로 (둘만 남기면 기분이 한쪽으로 치우친다)
             last = last.model_copy(
                 update={"choice_mode": "TWO_BUTTONS", "suggestions": (last.suggestions or ["네", "아니요"])[:2]}
             )
@@ -358,21 +385,21 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
 
     _no_response[session.session_id] = 0
     _save_elder(db, session, body, text)
-    ctx = _ctx(db, room, session)
-    if session.turn_count >= MAX_TURNS:  # 8번째 답 → 마무리 인사 후 종료
-        reply = _ask(db, session, ctx, closing=True)
+    ctx = coach_context(db, room, session)
+    if session.turn_count >= _max_turns(session):  # 마지막 답(회상 8번째·일기 3번째) → 마무리 인사 후 종료
+        reply = _ask(db, session, ctx, end="COMPLETED")
         _finish(db, session, "COMPLETED")
         db.commit()
         return _out(db, session, room, reply, "ENDED", "COMPLETED")
     session.turn_count += 1
-    reply = _ask(db, session, ctx, closing=False)
+    reply = _ask(db, session, ctx)
     db.commit()
     return _out(db, session, room, reply)
 
 
 @router.post("/{session_id}/end", response_model=SessionEndOut)
 def end_session(session_id: uuid.UUID, body: SessionEndIn, device: CurrentDevice, db: DB):
-    session = _get(db, session_id, device)
+    session = load_session(db, session_id, device)
     if session.ended_at is None:
         _finish(db, session, body.reason)
         db.commit()

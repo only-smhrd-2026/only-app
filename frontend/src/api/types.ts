@@ -75,3 +75,33 @@ export type TurnIn = {
 }
 
 export type AlbumOut = { photos: { photo_id: number; url: string; taken_at: string | null; caption: string | null }[] }
+
+// ---- 일기 (backend/app/schemas/diaries.py, D36)
+export type Mood = 'SUNNY' | 'CLOUDY' | 'RAINY' | 'MOON'
+/** 기분 날씨 표시 이름 (일기 대화 마지막 칩과 같은 글자) */
+export const MOOD_LABEL: Record<Mood, string> = { SUNNY: '맑음', CLOUDY: '구름', RAINY: '비', MOON: '달' }
+export type IllustrationType = 'PHOTO' | 'AI_DRAWING' | 'NONE'
+export type DraftOut = {
+  session_id: string
+  body: string
+  mood: Mood
+  photo_id: number | null
+  illustration_type: IllustrationType
+  illustration_url: string | null // PHOTO 면 /api/media/{key}
+  illustration_b64: string | null // AI_DRAWING 이면 JPEG base64 (올리기 전이라 URL 없음)
+  audio_b64: string | null // 본문 + "이대로 올릴까요?" TTS. null 이면 speechSynthesis
+}
+export type DiaryOut = {
+  diary_id: number
+  room_id: number
+  author_type: 'ELDER' | 'FAMILY'
+  author_name: string | null
+  body: string
+  mood: Mood
+  illustration_type: IllustrationType
+  illustration_url: string | null
+  posted_at: string
+  read_by_elder: boolean
+  read_by_me: boolean // false 면 가족 홈 '새 일기'
+}
+export type DiaryListOut = { diaries: DiaryOut[] }

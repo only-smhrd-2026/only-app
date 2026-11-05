@@ -11,8 +11,9 @@ from typing import Literal
 from fastapi import APIRouter, File, UploadFile
 from pydantic import BaseModel, Field
 
-from app.deps import CurrentActor, CurrentDevice, CurrentUser
+from app.deps import CurrentDevice, CurrentUser
 from app.errors import ApiError
+from app.schemas.diaries import DiaryListOut, DiaryOut
 
 
 def todo(owner: str):
@@ -64,7 +65,7 @@ def correct_photo(room_id: int, photo_id: int, body: PhotoCorrectIn, user: Curre
     todo("천주웅")
 
 
-# ---------------------------------------------------------------- 일기 (천주웅, FR-DI-004/008, FR-FD-001/002/003/004)
+# ---------------------------------------------------------------- 일기 (천주웅, FR-DI-008, FR-FD-002/003)
 diaries = APIRouter(tags=["diaries (빈 API)"])
 
 
@@ -77,34 +78,11 @@ class DiaryCreateIn(BaseModel):
     illustration_type: Literal["PHOTO", "AI_DRAWING", "NONE"] = "NONE"
 
 
-class DiaryOut(BaseModel):
-    diary_id: int
-    room_id: int
-    author_type: str
-    author_name: str | None
-    body: str
-    mood: str
-    illustration_url: str | None
-    posted_at: datetime
-    read_by_elder: bool
-
-
-class DiaryListOut(BaseModel):
-    diaries: list[DiaryOut]
-
-
-@diaries.post("/elder/diaries", response_model=DiaryOut, status_code=201)
-def post_elder_diary(body: DiaryCreateIn, device: CurrentDevice):
-    todo("천주웅")
+# 어르신 일기 게시·가족방 일기 목록·가족 열람 기록(POST /diaries/{id}/read)은 routers/diaries.py 에 있다 (D36)
 
 
 @diaries.post("/rooms/{room_id}/diaries", response_model=DiaryOut, status_code=201)
 def post_family_diary(room_id: int, body: DiaryCreateIn, user: CurrentUser):
-    todo("천주웅")
-
-
-@diaries.get("/rooms/{room_id}/diaries", response_model=DiaryListOut)
-def list_diaries(room_id: int, user: CurrentUser):
     todo("천주웅")
 
 
@@ -114,9 +92,12 @@ def elder_family_news(device: CurrentDevice):
     todo("천주웅")
 
 
-@diaries.post("/diaries/{diary_id}/read", status_code=204)
-def mark_read(diary_id: int, actor: CurrentActor):
-    """'다 들었어요' / 가족 열람 기록 (diary_reads, FR-FD-004)."""
+@diaries.post("/elder/diaries/{diary_id}/read", status_code=204)
+def elder_mark_read(diary_id: int, device: CurrentDevice):
+    """어르신 '다 들었어요' (diary_reads reader_type=ELDER, reader_user_id NULL, FR-FD-004). 기기 쿠키 전용.
+
+    가족 '다 봤어요'(routers/diaries.py mark_read)와 같은 INSERT … ON CONFLICT DO NOTHING, 다른 방 일기는 404.
+    """
     todo("천주웅")
 
 

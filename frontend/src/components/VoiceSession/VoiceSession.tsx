@@ -5,7 +5,7 @@
  *     → CONFIRMING(전사 표시, [맞아요]/[다시 말할게요])
  *         신뢰도 ≥0.7: 3초 무조작이면 확정 / <0.7: 어르신이 [맞아요]를 눌러야 보냄(20초 무조작이면 무응답)
  *     → THINKING(/turns, 4초 안내·8초 음성 안내·15초 포기 → 고정 문구 낭독 + /end ERROR) → SPEAKING → WAITING …
- *   8턴이면 서버가 ENDED 를 주고 onEnded 로 올린다. WAITING 에서 20초 무조작이면 event=NO_RESPONSE (서버가 3단계 처리).
+ *   8턴(일기는 3턴)이면 서버가 ENDED 를 주고 onEnded 로 올린다. WAITING 에서 20초 무조작이면 event=NO_RESPONSE (서버가 3단계 처리).
  *   [다시 말할게요] 2회면 이 세션은 버튼만 (D5-a 를 화면에서 지킴. 저신뢰 확인도 화면이 하므로 서버 확인 질문은 이 화면에선 안 씀).
  * 화면을 벗어나면(언마운트) alive=false 로 모든 후속 동작(타이머·재생·요청 뒤 처리)을 멈춘다.
  * 서버 STT/TTS 가 mock 이면 전사는 고정 문장, 읽기는 speechSynthesis — 흐름 확인용.
@@ -40,9 +40,10 @@ type Props = {
   speed: number
   inputMode: 'VOICE' | 'BUTTON'
   onEnded: (result: SessionOut) => void
+  maxTurns?: number // 회상 8 (서버 MAX_TURNS), 일기 3 (서버 DIARY_TURNS)
 }
 
-export default function VoiceSession({ sessionId, initial, speed, inputMode, onEnded }: Props) {
+export default function VoiceSession({ sessionId, initial, speed, inputMode, onEnded, maxTurns = 8 }: Props) {
   const [phase, setPhase] = useState<Phase>('IDLE')
   const [ai, setAi] = useState<AiOut>(initial.ai)
   const [turnNo, setTurnNo] = useState(initial.turn_no)
@@ -120,10 +121,19 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
         return startWaiting()
       }
       if (e instanceof ApiError && e.code === 'SESSION_ENDED') return endWith(ended(ERROR_AI, null))
-      // 15초 초과·네트워크 오류: 고정 문구를 읽고 반드시 ERROR 로 끝낸다 (하루 3회면 서버가 가족에게 알림)
+      // 15초 초과·네트워크 오류: 서버에 ERROR 로 끝내 달라고 한다 (하루 3회면 서버가 가족에게 알림).
+      // 응답만 잃고 서버는 이미 끝냈을 수 있다(마지막 답 → COMPLETED·LIMIT). 그때는 서버가 돌려준 종료 사유를 따른다
+      // — 일기는 COMPLETED 여야 확인 화면으로 가서 남는다.
       stopSpeaking()
       setAi(ERROR_AI)
-      api(`/api/elder/sessions/${sessionId}/end`, { body: { reason: 'ERROR' } }).catch(() => {})
+      const end = await api<{ end_reason: EndReason | null }>(`/api/elder/sessions/${sessionId}/end`, {
+        body: { reason: 'ERROR' },
+        signal: AbortSignal.timeout(5_000), // 망이 죽었으면 오래 매달리지 않는다
+      }).catch(() => null)
+      if (!alive.current) return
+      if (end?.end_reason === 'COMPLETED' || end?.end_reason === 'LIMIT') {
+        return endWith(ended({ ...ERROR_AI, text: '고마워요. 오늘은 여기까지 할게요.' }, end.end_reason))
+      }
       await speakAi(ERROR_AI)
       if (alive.current) endWith(ended(ERROR_AI, 'ERROR'))
       return
@@ -227,7 +237,7 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
   const busy = phase === 'THINKING' || phase === 'SPEAKING' || phase === 'TRANSCRIBING'
   return (
     <section className="elder-stack" aria-live="polite">
-      <p className="muted" style={{ margin: 0 }}>{turnNo} / 8</p>
+      <p className="muted" style={{ margin: 0 }}>{turnNo} / {maxTurns}</p>
 
       {phase === 'CONFIRMING' && heard ? (
         <>

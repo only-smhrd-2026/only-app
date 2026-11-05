@@ -16,7 +16,7 @@ EndReason = Literal["COMPLETED", "USER_STOP", "NO_RESPONSE", "ERROR", "LIMIT"]
 class AiOut(BaseModel):
     text: str
     audio_b64: str | None = None  # TTS mp3 base64. None 이면 브라우저 speechSynthesis (D5)
-    suggestions: list[str] = Field(default_factory=list, max_length=3)
+    suggestions: list[str] = Field(default_factory=list, max_length=4)  # 일기 기분 질문만 4개
     choice_mode: ChoiceMode = "CHIPS"
     question_type: QuestionType = "RECALL"
 

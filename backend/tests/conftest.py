@@ -25,6 +25,9 @@ os.environ["DATABASE_URL"] = f"{_server}/{TEST_DB}"
 os.environ["SCHEDULER_ENABLED"] = "false"
 os.environ["APP_ENV"] = "dev"
 os.environ["UPLOAD_DIR"] = os.path.join(os.path.dirname(__file__), ".uploads")
+os.environ["STORAGE"] = "local"  # .env 가 r2 여도 테스트 파일은 tests/.uploads 에만
+for _p in ("LLM_PROVIDER", "STT_PROVIDER", "TTS_PROVIDER", "IMAGE_PROVIDER"):
+    os.environ[_p] = "mock"  # .env 에 실제 키가 있어도 테스트는 유료 API 를 부르지 않는다
 
 _admin = create_engine(f"{_server}/postgres", isolation_level="AUTOCOMMIT")
 with _admin.connect() as c:

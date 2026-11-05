@@ -88,6 +88,8 @@ VS Code 가 아닌 터미널을 새로 열었으면 먼저 `only-app` 폴더로 
 
 흐름 확인: 가족 로그인 → 가족 홈에 "순자 할머니" 가족방 → (새 탭에서) 어르신 링크 열기 → [시작하기] → 어르신 홈 → [오늘 사진 보기] → 말하기 왕복 8턴(지금은 가짜 답). 서버 테스트는 `backend` 폴더에서 `uv run pytest`.
 
+일기·그림일기: 어르신 홈 → [오늘 이야기하기] → [이야기할래요] → 질문 3개(마지막은 기분 칩) → 일기 확인(사진 없는 일기는 그림까지 그린 뒤 보여 줘요. 그릴 사물은 Claude 가 골라서 `LLM_PROVIDER=anthropic` 일 때만 그림이 나오고, 그림 키가 없는 동안은 동그라미 자리표시 그림이에요. 전부 mock 이면 글만) → [네, 올려요] → 가족 홈 탭을 새로고침하면 "새 일기 1개가 왔어요".
+
 ### ⑦ 폰(갤럭시)에서 테스트 — USB 연결
 
 폰 Chrome 은 http 에서 마이크·홈 화면 설치를 막아요. `localhost` 만 예외라서 PC 의 5173 포트를 폰의 localhost 로 연결해요.
@@ -184,7 +186,7 @@ gitGraph
 |---|---|---|---|
 | `frontend/` | 화면 전부. `src/screens/elder/` 어르신 화면 10개, `src/screens/family/` 가족 화면 15개. **파일 이름 = 화면설계서 화면 ID** (예: `ELDER_HOME_001.tsx`). 경로 표는 `src/App.tsx` | 김승희 (+홍진성: `src/components/VoiceSession/`) | `feature/fe-elder-today` |
 | `backend/app/routers/` | API 주소별 서버 코드 (로그인·가족방·사진·세션·일기·주간·알림). 빈 API 는 `stubs.py` | 천주웅 (세션 `sessions.py` 는 홍진성) | `feature/be-photo-upload` |
-| `backend/app/ai/` | AI 부품: `llm.py`(Claude) `stt.py` `tts.py` `image.py` `coach.py` `prompts/`(지시문 4종) | 홍진성 (분류·일기·음성 비교는 11/9 배정) | `feature/ai-memory-coach` |
+| `backend/app/ai/` | AI 부품: `llm.py`(Claude) `stt.py` `tts.py` `image.py` `coach.py` `prompts/`(지시문 5종) | 홍진성 (분류·일기·음성 비교는 11/9 배정) | `feature/ai-memory-coach` |
 | `backend/app/models.py` | 테이블 18개의 모양을 서버 코드로 적은 파일 (`db/schema.sql` 과 짝) | 천주웅 | `feature/db-diary-table` |
 | `db/schema.sql`, `db/seed/` | 테이블 생성 SQL(기준 문서) / 시드·더미 데이터 | **천주웅만 수정** | `feature/db-diary-table` |
 | `data/` | 문제 은행 `question_bank.json`, 사진 분류 목록 `taxonomy.json`, 금지어 `banned_words.json`, 평가용 가짜 데이터 | 박유승 (문제 은행·목록), 평가 데이터는 11/9 배정 | `feature/data-question-bank` |
