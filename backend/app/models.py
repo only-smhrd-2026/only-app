@@ -181,6 +181,7 @@ class TalkSession(Base):
 class QuestionBank(Base):
     __tablename__ = "question_bank"
     question_id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    code: Mapped[str] = mapped_column(String(30), unique=True)  # 고정 이름표, 출제 기록이 가리킴 (D39)
     qtype: Mapped[str] = mapped_column(String(10))  # REMEMBER | KNOWHOW | THEN_NOW | COMMON
     activity: Mapped[str | None] = mapped_column(String(20))
     category: Mapped[str | None] = mapped_column(String(20))

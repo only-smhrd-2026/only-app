@@ -154,8 +154,8 @@ CREATE TABLE sessions (
 --   공통  : turn_no, speaker(AI|ELDER), text, created_at
 --   어르신: stt_confidence(0~1), input_type(VOICE|CHIP|BUTTON), retried, reply_to_turn_no
 --   AI    : question_type(RECALL|REMEMBER|KNOWHOW|THEN_NOW|RECHECK|CLOSING|NONE), latency_ms
---   출제  : question_id(문제 은행 번호, 되짚기는 없음), hint_level(0~3), recheck_result(REMEMBERED|HINTED|SKIPPED|NA),
---           answer_summary — 14일 반복 방지는 최근 14일 세션의 question_id → question_bank 카테고리·활동 (FR-AI-002)
+--   출제  : question_code(문제 은행 code, 되짚기는 없음), hint_level(0~3), recheck_result(REMEMBERED|HINTED|SKIPPED|NA),
+--           answer_summary — 14일 반복 방지는 최근 14일 세션의 question_code → question_bank.code 의 카테고리·활동 (FR-AI-002, D39)
 CREATE INDEX ix_sessions_room_started ON sessions(room_id, started_at);   -- S14
 CREATE INDEX ix_sessions_pick ON sessions(pick_id);                       -- S14
 ALTER TABLE daily_picks
@@ -164,6 +164,7 @@ ALTER TABLE daily_picks
 -- 8. 문제 은행 (data/question_bank.json 을 seed 가 읽어 넣음). 모든 가족방 공용
 CREATE TABLE question_bank (
     question_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    code VARCHAR(30) NOT NULL UNIQUE,                              -- 고정 이름표(예 KH-kimjang-01). 출제 기록이 가리키므로 바꾸지 않는다 (D39)
     qtype VARCHAR(10) NOT NULL CHECK (qtype IN ('REMEMBER', 'KNOWHOW', 'THEN_NOW', 'COMMON')),   -- S1 REMEMBER·KNOWHOW 추가
     activity VARCHAR(20),
     category VARCHAR(20),

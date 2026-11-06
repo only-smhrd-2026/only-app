@@ -1,7 +1,8 @@
 {
-  "_comment": "문제 은행 견본 5문항. 박유승이 같은 모양으로 늘립니다(필드 이름은 바꾸지 않음). qtype: REMEMBER(떠올리기, category 필수) | KNOWHOW(노하우, activity 필수) | THEN_NOW(그때 vs 지금) | COMMON(공통). choices 는 2지선다일 때만, 아니면 null. priority 1(먼저)~9. seed 가 question_bank 테이블에 넣습니다.",
+  "_comment": "문제 은행 견본 5문항. 박유승이 같은 모양으로 늘립니다(필드 이름은 바꾸지 않음). code: 문제마다 바뀌지 않는 이름표(D39) — qtype 약자(RM·KH·TN·CM)-영어 소문자 주제-두 자리 번호, 30자 이내, 예 KH-kimjang-01. 출제 기록이 code 를 가리키므로 한 번 정한 code 는 바꾸거나 지우지 않습니다. 문구만 다듬으면 code 그대로, 뜻이 바뀌면 새 code 로 추가하고 옛 문제에 \"is_active\": false 를 붙입니다. code 가 겹치면 seed 가 오류로 멈춥니다. qtype: REMEMBER(떠올리기, category 필수) | KNOWHOW(노하우, activity 필수) | THEN_NOW(그때 vs 지금) | COMMON(공통). choices 는 2지선다일 때만, 아니면 null. priority 1(먼저)~9. seed 가 question_bank 테이블에 넣습니다.",
   "questions": [
     {
+      "code": "RM-feast-01",
       "qtype": "REMEMBER",
       "activity": null,
       "category": "잔칫상 음식",
@@ -10,6 +11,7 @@
       "priority": 5
     },
     {
+      "code": "KH-kimjang-01",
       "qtype": "KNOWHOW",
       "activity": "김장",
       "category": null,
@@ -18,6 +20,7 @@
       "priority": 5
     },
     {
+      "code": "KH-monaegi-01",
       "qtype": "KNOWHOW",
       "activity": "모내기",
       "category": null,
@@ -26,6 +29,7 @@
       "priority": 6
     },
     {
+      "code": "TN-market-01",
       "qtype": "THEN_NOW",
       "activity": null,
       "category": null,
@@ -34,6 +38,7 @@
       "priority": 7
     },
     {
+      "code": "CM-weather-01",
       "qtype": "COMMON",
       "activity": null,
       "category": null,
