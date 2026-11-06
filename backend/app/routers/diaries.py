@@ -10,7 +10,8 @@
 5. POST /diaries/{id}/read — 가족 '다 봤어요' 열람 기록(diary_reads). 여러 번 불러도 1행.
    어르신 가족 소식 '다 들었어요'는 기기 쿠키 전용 POST /elder/diaries/{id}/read (빈 API, ELDER_FAMILY_001 과 함께).
 
-담당: 일기 프롬프트 다듬기·실제 그림 제공자(image.py) 홍진성 / 사진 일기(카메라)·가족 일기·목록 세부 천주웅.
+담당: 일기 프롬프트·그림 화풍(image.STYLE) 다듬기 홍진성 / 사진 일기(카메라)·가족 일기·목록 세부 천주웅.
+그림 제공자는 Workers AI FLUX.2 klein 4B 로 연결됨(D37, IMAGE_PROVIDER=cloudflare).
 """
 
 from __future__ import annotations

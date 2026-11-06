@@ -112,7 +112,7 @@ STORAGE=local: uploads/ 폴더 (git 제외) / STORAGE=r2: Cloudflare R2 (boto3, 
 | 회상·일기 대화·요약·분류 | `app/ai/llm.py` `call_json(prompt_name, data, Schema)` | `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `LLM_MODEL` | 회상: 고정 질문 7개 순환 / 일기: 고정 질문 3개 + 어르신 말 이어 붙인 초안(그림 없음) | Anthropic SDK, 구조화 출력(JSON 스키마) + pydantic 검사(`app/ai/schemas.py`), 검증 실패만 1회 재시도. 시도당 상한 말하기 턴 6초·초안 15초, SDK 재시도 없음 |
 | 음성→글 | `app/ai/stt.py` `transcribe(audio, hints)` | `STT_PROVIDER` | 고정 문장, 0.95 | 담당자가 제공자 분기 추가 (11/15 비교 후) |
 | 글→음성 | `app/ai/tts.py` `synthesize(text, speed)` | `TTS_PROVIDER` | None → 브라우저 TTS | mp3 바이트 반환 → 턴 응답 `audio_b64` |
-| 그림일기 | `app/ai/image.py` `generate(draw_spec, seed)` | `IMAGE_PROVIDER` | 개발: 도형 자리표시 그림(JPEG, 글자 없음) / 배포: None → 글만 | Workers AI FLUX.2 klein, 20초 안 — 실패·None 이면 글만 게시 (D36) |
+| 그림일기 | `app/ai/image.py` `generate(draw_spec, seed)` | `IMAGE_PROVIDER=cloudflare`, `CF_ACCOUNT_ID`, `CF_API_TOKEN` | 개발: 도형 자리표시 그림(JPEG, 글자 없음) / 배포: None → 글만 | **연결됨(D37)**: Workers AI `flux-2-klein-4b` 768px, 고정 화풍 문장 + 사물 이름만, 20초 상한(실측 7~10초), JPEG 다시 인코딩 — 실패·None 이면 글만 게시 (D36) |
 
 프롬프트는 `app/ai/prompts/*.md`(system). 어르신 말·사진 설명은 JSON **데이터**로만 user 메시지에 넣는다(인젝션 방어). 출력은 코드가 검사: 금지어(`data/banned_words.json` — 목록은 모든 프롬프트 끝에도 자동으로 붙음), 물음표 ≤1, 추천 답변 ≤3개×12자(4개인 일기 기분 칩은 모델이 만들지 않는 고정 문장), 일기 본문 ≤400자·그릴 사물 ≤3개. 일기 초안이 LLM 없이 만들어질 때도 금지어가 든 답은 본문에서 뺀다.
 

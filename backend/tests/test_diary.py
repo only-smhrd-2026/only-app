@@ -1,9 +1,13 @@
 """일기·그림일기 흐름 (D36) — 질문 3개 → 초안(그림까지 기다림) → '네, 올려요' 1회 게시·가족 알림 → 가족 '새 일기'."""
 
 import base64
+import io
 import uuid
 from datetime import timedelta
 
+import httpx
+import pytest
+from PIL import Image
 from sqlalchemy import func, select
 
 from app.ai import coach, image, llm
@@ -214,3 +218,40 @@ def test_mock_drawing_only_in_dev(monkeypatch):
     assert image.generate({"objects": ["호박"]}).startswith(JPEG_SOI)
     monkeypatch.setattr(settings, "APP_ENV", "deploy")
     assert image.generate({"objects": ["호박"]}) is None  # 배포에서 가짜 그림이 진짜 그림일기로 가족에게 가지 않게
+
+
+def test_cloudflare_drawing_fixed_style_and_reencoded_jpeg(monkeypatch):
+    """실제 제공자(D37): 고정 화풍에 사물 이름만 끼운 multipart 1회, 받은 그림은 JPEG 로 다시 인코딩.
+    유료 API 는 부르지 않는다(httpx.post 를 바꿔 끼움)."""
+    sent = {}
+    reply = {"status": 200, "size": (8, 8)}
+
+    def fake_post(url, headers, files, timeout):
+        sent.update(url=url, auth=headers["Authorization"], fields={k: v[1] for k, v in files.items()}, timeout=timeout)
+        png = io.BytesIO()
+        Image.new("RGB", reply["size"], (200, 100, 50)).save(png, "PNG")
+        body = {"success": True, "result": {"image": base64.b64encode(png.getvalue()).decode()}}
+        return httpx.Response(reply["status"], json=body, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(image.httpx, "post", fake_post)
+    monkeypatch.setattr(settings, "IMAGE_PROVIDER", "cloudflare")
+    monkeypatch.setattr(settings, "CF_ACCOUNT_ID", "acct")
+    monkeypatch.setattr(settings, "CF_API_TOKEN", "tok")
+    out = image.generate({"objects": ["찻잔", "화투\n패"]}, seed=7)
+    assert out.startswith(JPEG_SOI)  # PNG 로 와도 JPEG
+    assert sent["url"].endswith("/accounts/acct/ai/run/@cf/black-forest-labs/flux-2-klein-4b")
+    assert sent["auth"] == "Bearer tok" and sent["timeout"] == 20
+    assert "찻잔, 화투 패" in sent["fields"]["prompt"] and "No people" in sent["fields"]["prompt"]
+    assert sent["fields"]["seed"] == "7" and sent["fields"]["width"] == "768"
+    assert image.generate({"objects": []}) is None  # 그릴 것이 없으면 부르지 않는다
+
+    reply["size"] = (4096, 8)  # 너무 큰 그림은 풀기 전에 거절 → 글만
+    with pytest.raises(ValueError):
+        image.generate({"objects": ["찻잔"]})
+    reply.update(status=429, size=(8, 8))  # 하루 무료 한도 초과 → 예외 → 글만
+    with pytest.raises(httpx.HTTPStatusError):
+        image.generate({"objects": ["찻잔"]})
+
+    monkeypatch.setattr(settings, "CF_API_TOKEN", "")
+    with pytest.raises(RuntimeError):  # 키가 없으면 예외 → diaries._draw 가 글만 게시
+        image.generate({"objects": ["찻잔"]})
