@@ -8,7 +8,7 @@ import { useFetch } from '../../hooks/useFetch'
 /**
  * 가족방 하나의 소식 (D36). 어르신이 일기를 올리면 가족 모두의 홈에 '새 일기 N개' 한 줄이 뜬다.
  * 실시간 반영은 없다 — 가족이 홈을 열 때(앱으로 돌아올 때 포함) 읽는다. 앱 내 알림 DIARY_POSTED 도 1건씩 쌓인다
- * (알림 화면은 천주웅). [다 봤어요] = 열람 기록(diary_reads). 회상 대화 내용은 여기 없다(주간 이야기로만, R18).
+ * (알림 화면은 천주웅). [다 봤어요] = 열람 기록(diaries.family_read_by). 회상 대화 내용은 여기 없다(주간 이야기로만, R18).
  */
 function RoomNews({ room }: { room: RoomOut }) {
   const { data, error, reload } = useFetch<DiaryListOut>(`/api/rooms/${room.room_id}/diaries`)

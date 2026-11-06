@@ -187,8 +187,8 @@ gitGraph
 | `frontend/` | 화면 전부. `src/screens/elder/` 어르신 화면 10개, `src/screens/family/` 가족 화면 15개. **파일 이름 = 화면설계서 화면 ID** (예: `ELDER_HOME_001.tsx`). 경로 표는 `src/App.tsx` | 김승희 (+홍진성: `src/components/VoiceSession/`) | `feature/fe-elder-today` |
 | `backend/app/routers/` | API 주소별 서버 코드 (로그인·가족방·사진·세션·일기·주간·알림). 빈 API 는 `stubs.py` | 천주웅 (세션 `sessions.py` 는 홍진성) | `feature/be-photo-upload` |
 | `backend/app/ai/` | AI 부품: `llm.py`(Claude) `stt.py` `tts.py` `image.py` `coach.py` `prompts/`(지시문 5종) | 홍진성 (분류·일기·음성 비교는 11/9 배정) | `feature/ai-memory-coach` |
-| `backend/app/models.py` | 테이블 18개의 모양을 서버 코드로 적은 파일 (`db/schema.sql` 과 짝) | 천주웅 | `feature/db-diary-table` |
-| `db/schema.sql`, `db/seed/` | 테이블 생성 SQL(기준 문서) / 시드·더미 데이터 | **천주웅만 수정** | `feature/db-diary-table` |
+| `backend/app/models.py` | 테이블 12개의 모양을 서버 코드로 적은 파일 (`db/schema.sql` 과 짝) | 천주웅 | `feature/db-diary-table` |
+| `db/schema.sql`, `db/seed/` | 테이블 생성 SQL(기준 문서) / 시드·더미 데이터 | **천주웅·홍진성만 수정** | `feature/db-diary-table` |
 | `data/` | 문제 은행 `question_bank.json`, 사진 분류 목록 `taxonomy.json`, 금지어 `banned_words.json`, 평가용 가짜 데이터 | 박유승 (문제 은행·목록), 평가 데이터는 11/9 배정 | `feature/data-question-bank` |
 | `docs/` | `DECISIONS.md`(기술 결정 기록), `ARCHITECTURE.md`(구조 설명) | 홍진성 | `docs/decisions-stt` |
 | `.env.example`, `docker-compose.yml`, `Caddyfile` | 설정 파일 (복사해서 `.env`), 내 PC 의 DB / 배포(서버+Caddy) | 홍진성 | `chore/compose-port` |

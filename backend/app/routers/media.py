@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.deps import DB, CurrentActor
 from app.errors import ApiError
-from app.models import Diary, ElderDevice, Photo, RoomMember
+from app.models import Diary, FamilyRoom, Photo, RoomMember
 from app.services import storage
 
 router = APIRouter(prefix="/media", tags=["media"])
@@ -23,7 +23,7 @@ def get_media(key: str, actor: CurrentActor, db: DB):
         room_id = db.scalar(select(Diary.room_id).where(Diary.illustration_key == key, Diary.status == "POSTED"))
     if room_id is None:
         raise NOT_FOUND
-    if isinstance(actor, ElderDevice):
+    if isinstance(actor, FamilyRoom):  # 어르신 기기 = 연결된 가족방 (D38)
         allowed = actor.room_id == room_id
     else:
         allowed = (

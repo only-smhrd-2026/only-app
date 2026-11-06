@@ -1,9 +1,10 @@
 -- =====================================================================
--- 하루한장 DB 스키마 (PostgreSQL 16) — 테이블 18개. 이 파일이 원천(source of truth)입니다.
--- 바꾸면 backend/app/models.py 도 같이 고칩니다 (PR 템플릿 체크 항목). DB 담당(천주웅)만 PR로 수정.
+-- 하루한장 DB 스키마 (PostgreSQL 16) — 테이블 12개. 이 파일이 원천(source of truth)입니다.
+-- 바꾸면 backend/app/models.py 도 같이 고칩니다 (PR 템플릿 체크 항목). DB 담당(천주웅·홍진성)이 PR로 수정.
 --
 -- 기준: 테이블명세서_ONly_최종_1104 의 DDL 원문 + 수정 제안 S1~S15 (개발설계_초석안내서 부록 A).
---       수정한 줄에는 끝에 "-- S번호" 를 달았습니다. 11/6 DB 멘토링 결과에 따라 조정합니다.
+--       수정한 줄에는 끝에 "-- S번호" 를 달았습니다.
+--       11/6 DB 멘토링 반영(D38): 18개 → 12개. 1:1·방당 1개인 표는 칸으로, 대화 턴·출제 기록은 sessions.turns JSON 으로.
 --
 -- S15 시간대: 이 DB의 DATE/TIME 컬럼(pick_date, fact_date, week_start, memory_time, diary_time)은
 --       "한국 시간" 의미입니다. 서버가 접속할 때마다 SET timezone='Asia/Seoul' 을 겁니다(backend/app/db.py).
@@ -28,7 +29,7 @@ CREATE TABLE users (
     last_login_at TIMESTAMPTZ
 );
 
--- 2. 가족방 (어르신 1명 = 가족방 1개)
+-- 2. 가족방 (어르신 1명 = 가족방 1개). 초대 링크·어르신 기기도 여기 칸으로 둔다 (D38)
 CREATE TABLE family_rooms (
     room_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     elder_name VARCHAR(10) NOT NULL,
@@ -42,7 +43,22 @@ CREATE TABLE family_rooms (
     integration_consent_at TIMESTAMPTZ,
     external_user_id VARCHAR(64) UNIQUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    status VARCHAR(10) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'CLOSED'))   -- S4 DEFAULT
+    status VARCHAR(10) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'CLOSED')),  -- S4 DEFAULT
+    -- 초대 링크: 종류마다 살아 있는 링크 1개. 토큰 원문은 저장하지 않고 SHA-256 해시만.
+    -- 새로 만들면 덮어써서 이전 링크는 무효. 기기 링크 사용·폐기는 만료 시각을 지금으로 (해시는 남겨 "더 쓸 수 없어요" 안내)
+    family_invite_hash CHAR(64) UNIQUE,
+    family_invite_expires_at TIMESTAMPTZ,                          -- 발급 + 7일. 기간 안에는 여러 명이 씀
+    elder_invite_hash CHAR(64) UNIQUE,
+    elder_invite_expires_at TIMESTAMPTZ,                           -- 발급 + 24시간. 1회
+    -- 어르신 기기 (계정 없음, 기기 토큰으로 식별). 가족방당 1대 — 새 기기를 연결하면 해시를 덮어써 이전 기기 차단
+    device_token_hash CHAR(64) UNIQUE,                             -- NULL = 연결된 기기 없음
+    device_push_token VARCHAR(255),
+    device_perm_notification BOOLEAN NOT NULL DEFAULT false,
+    device_perm_mic BOOLEAN NOT NULL DEFAULT false,                -- S5 DEFAULT
+    device_perm_camera BOOLEAN NOT NULL DEFAULT false,             -- S5 DEFAULT
+    device_input_mode VARCHAR(8) NOT NULL DEFAULT 'VOICE' CHECK (device_input_mode IN ('VOICE', 'BUTTON')),
+    device_connected_at TIMESTAMPTZ,
+    device_last_seen_at TIMESTAMPTZ
 );
 
 -- 3. 가족방 구성원
@@ -59,36 +75,7 @@ CREATE TABLE room_members (
 );
 CREATE INDEX ix_room_members_user ON room_members(user_id);       -- S14
 
--- 4. 초대 링크 (토큰 원문은 저장하지 않고 SHA-256 해시만)
-CREATE TABLE invites (
-    invite_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
-    kind VARCHAR(12) NOT NULL CHECK (kind IN ('ELDER_DEVICE', 'FAMILY')),
-    token_hash CHAR(64) NOT NULL UNIQUE,
-    expires_at TIMESTAMPTZ NOT NULL,
-    used_at TIMESTAMPTZ,
-    revoked_at TIMESTAMPTZ,
-    created_by BIGINT NOT NULL REFERENCES users(user_id),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- 5. 어르신 기기 (계정 없음, 기기 토큰으로 식별)
-CREATE TABLE elder_devices (
-    device_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
-    device_token_hash CHAR(64) NOT NULL UNIQUE,
-    push_token VARCHAR(255),
-    perm_notification BOOLEAN NOT NULL DEFAULT false,
-    perm_mic BOOLEAN NOT NULL DEFAULT false,                       -- S5 DEFAULT
-    perm_camera BOOLEAN NOT NULL DEFAULT false,                    -- S5 DEFAULT
-    input_mode VARCHAR(8) NOT NULL DEFAULT 'VOICE' CHECK (input_mode IN ('VOICE', 'BUTTON')),
-    connected_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    last_seen_at TIMESTAMPTZ,
-    revoked_at TIMESTAMPTZ
-);
-CREATE UNIQUE INDEX uq_elder_devices_active_room ON elder_devices(room_id) WHERE revoked_at IS NULL;  -- S14 방당 활성 기기 1
-
--- 6. 가족방 이름 사전 (STT 힌트·호칭)
+-- 4. 가족방 이름 사전 (STT 힌트·호칭)
 CREATE TABLE group_vocab (
     vocab_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
@@ -99,7 +86,7 @@ CREATE TABLE group_vocab (
     CONSTRAINT uq_group_vocab_room_id_term UNIQUE (room_id, term)
 );
 
--- 7. 추억 사진 (원본은 R2/로컬 폴더, 여기엔 object_key 만)
+-- 5. 추억 사진 (원본은 R2/로컬 폴더, 여기엔 object_key 만) + AI 분류 (D38). 분류 전에는 분류 칸(usable~analyzed_at)이 NULL
 CREATE TABLE photos (
     photo_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
@@ -113,27 +100,22 @@ CREATE TABLE photos (
     people_note VARCHAR(100),
     status VARCHAR(10) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'DELETED')),   -- S4 DEFAULT
     uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    usable BOOLEAN,
+    is_old BOOLEAN,
+    season VARCHAR(8) CHECK (season IN ('SPRING', 'SUMMER', 'AUTUMN', 'WINTER', 'NONE')),
+    activity VARCHAR(20),
+    category VARCHAR(20),
+    confidence NUMERIC(3,2) CHECK (confidence BETWEEN 0 AND 1),
+    corrected_activity VARCHAR(20),
+    corrected_at TIMESTAMPTZ,
+    model_version VARCHAR(30),
+    analyzed_at TIMESTAMPTZ,                                       -- NULL = 아직 분류 전
     CONSTRAINT uq_photos_room_id_object_key UNIQUE (room_id, object_key)   -- S10 업로드 멱등
 );
 CREATE INDEX ix_photos_room_status ON photos(room_id, status);
 CREATE INDEX ix_photos_batch ON photos(upload_batch_id);          -- S14
 
--- 8. 사진 AI 분류
-CREATE TABLE photo_meta (
-    photo_id BIGINT PRIMARY KEY REFERENCES photos(photo_id),
-    usable BOOLEAN NOT NULL,
-    is_old BOOLEAN NOT NULL,
-    season VARCHAR(8) NOT NULL CHECK (season IN ('SPRING', 'SUMMER', 'AUTUMN', 'WINTER', 'NONE')),
-    activity VARCHAR(20) NOT NULL,
-    category VARCHAR(20) NOT NULL,
-    confidence NUMERIC(3,2) NOT NULL CHECK (confidence BETWEEN 0 AND 1),
-    corrected_activity VARCHAR(20),
-    corrected_at TIMESTAMPTZ,
-    model_version VARCHAR(30) NOT NULL,
-    analyzed_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- 9. 오늘의 한 장 (가족방·날짜당 1행)
+-- 6. 오늘의 한 장 (가족방·날짜당 1행)
 CREATE TABLE daily_picks (
     pick_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
@@ -149,7 +131,7 @@ CREATE TABLE daily_picks (
     CONSTRAINT uq_daily_picks_room_id_pick_date UNIQUE (room_id, pick_date)
 );
 
--- 10. 대화 세션 (session_id 는 클라이언트가 만든 UUID)
+-- 7. 대화 세션 (session_id 는 클라이언트가 만든 UUID). 턴·출제 기록은 turns JSON 배열 (D38)
 CREATE TABLE sessions (
     session_id UUID PRIMARY KEY,
     room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
@@ -164,32 +146,22 @@ CREATE TABLE sessions (
     duration_sec INTEGER,
     emotion_flag VARCHAR(6) NOT NULL DEFAULT 'NONE' CHECK (emotion_flag IN ('NONE', 'SAD')),   -- S4 DEFAULT
     private_flag BOOLEAN NOT NULL DEFAULT false,
+    turns JSONB NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(turns) = 'array'),   -- 아래 주석의 키
     CONSTRAINT ck_sessions_turn_count CHECK (turn_count BETWEEN 0 AND 8)   -- 8턴 상한 (R17)
 );
+-- turns 한 칸 = AI 한 마디 또는 어르신 한 마디 (turn_no 1=AI, 2=ELDER, 3=AI …). 값 없는 키는 넣지 않는다.
+-- 칸 안의 값은 DB 가 아니라 서버 코드가 검사한다 (D38).
+--   공통  : turn_no, speaker(AI|ELDER), text, created_at
+--   어르신: stt_confidence(0~1), input_type(VOICE|CHIP|BUTTON), retried, reply_to_turn_no
+--   AI    : question_type(RECALL|REMEMBER|KNOWHOW|THEN_NOW|RECHECK|CLOSING|NONE), latency_ms
+--   출제  : question_id(문제 은행 번호, 되짚기는 없음), hint_level(0~3), recheck_result(REMEMBERED|HINTED|SKIPPED|NA),
+--           answer_summary — 14일 반복 방지는 최근 14일 세션의 question_id → question_bank 카테고리·활동 (FR-AI-002)
 CREATE INDEX ix_sessions_room_started ON sessions(room_id, started_at);   -- S14
 CREATE INDEX ix_sessions_pick ON sessions(pick_id);                       -- S14
 ALTER TABLE daily_picks
     ADD CONSTRAINT fk_daily_picks_completed_session FOREIGN KEY (completed_session_id) REFERENCES sessions(session_id);  -- S8
 
--- 11. 세션 턴 (AI 한 마디·어르신 한 마디가 각각 1행, turn_no 는 세션 안 순번)
-CREATE TABLE session_turns (
-    turn_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    session_id UUID NOT NULL REFERENCES sessions(session_id),
-    turn_no SMALLINT NOT NULL,
-    speaker VARCHAR(5) NOT NULL CHECK (speaker IN ('AI', 'ELDER')),
-    text TEXT NOT NULL,
-    stt_confidence NUMERIC(3,2),
-    input_type VARCHAR(6) CHECK (input_type IN ('VOICE', 'CHIP', 'BUTTON')),
-    retried BOOLEAN NOT NULL DEFAULT false,
-    question_type VARCHAR(10) CHECK (question_type IN ('RECALL', 'REMEMBER', 'KNOWHOW', 'THEN_NOW', 'RECHECK', 'CLOSING', 'NONE')),
-    reply_to_turn_id BIGINT REFERENCES session_turns(turn_id),
-    latency_ms INTEGER,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT uq_session_turns_session_id_turn_no UNIQUE (session_id, turn_no)
-);
-CREATE INDEX ix_session_turns_session ON session_turns(session_id, turn_no);
-
--- 12. 문제 은행 (data/question_bank.json 을 seed 가 읽어 넣음)
+-- 8. 문제 은행 (data/question_bank.json 을 seed 가 읽어 넣음). 모든 가족방 공용
 CREATE TABLE question_bank (
     question_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     qtype VARCHAR(10) NOT NULL CHECK (qtype IN ('REMEMBER', 'KNOWHOW', 'THEN_NOW', 'COMMON')),   -- S1 REMEMBER·KNOWHOW 추가
@@ -203,27 +175,12 @@ CREATE TABLE question_bank (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- 13. 문제 출제 이력
-CREATE TABLE question_history (
-    history_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
-    session_id UUID NOT NULL REFERENCES sessions(session_id),
-    question_id BIGINT REFERENCES question_bank(question_id),
-    qtype VARCHAR(10) NOT NULL CHECK (qtype IN ('REMEMBER', 'KNOWHOW', 'THEN_NOW', 'COMMON', 'RECHECK')),
-    asked_turn_id BIGINT NOT NULL REFERENCES session_turns(turn_id),
-    answer_summary VARCHAR(200),
-    recheck_result VARCHAR(10) CHECK (recheck_result IN ('REMEMBERED', 'HINTED', 'SKIPPED', 'NA')),   -- S6 CHECK 추가
-    hint_level SMALLINT NOT NULL DEFAULT 0 CHECK (hint_level BETWEEN 0 AND 3),
-    asked_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX ix_question_history_room_date ON question_history(room_id, asked_at);
-
--- 14. 이야기 기억 (어제 이야기 이어 묻기)
+-- 9. 이야기 기억 (어제 이야기 이어 묻기)
 CREATE TABLE story_facts (
     fact_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
     session_id UUID NOT NULL REFERENCES sessions(session_id),
-    source_turn_id BIGINT NOT NULL REFERENCES session_turns(turn_id),
+    source_turn_no SMALLINT NOT NULL,                              -- 근거 턴 = 이 세션 turns 의 turn_no. 없으면 저장 안 함(코드 확인, D38)
     fact_text VARCHAR(200) NOT NULL,
     kind VARCHAR(10) NOT NULL CHECK (kind IN ('EVENT', 'PLAN', 'PREFERENCE', 'CORRECTION')),
     fact_date DATE NOT NULL,                                       -- 한국 날짜 (S15)
@@ -234,7 +191,7 @@ CREATE TABLE story_facts (
 );
 CREATE INDEX ix_story_facts_room_date ON story_facts(room_id, fact_date) WHERE is_active;   -- S14 부분 인덱스
 
--- 15. 일기 (어르신·가족)
+-- 10. 일기 (어르신·가족) + 열람 기록 (D38)
 CREATE TABLE diaries (
     diary_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
@@ -250,23 +207,14 @@ CREATE TABLE diaries (
     request_id UUID NOT NULL,                                      -- S7 단독 UNIQUE 해제
     posted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     status VARCHAR(8) NOT NULL DEFAULT 'POSTED' CHECK (status IN ('POSTED', 'DELETED')),   -- S4 DEFAULT
+    elder_read_at TIMESTAMPTZ,                                     -- 어르신 '다 들었어요' (가족 일기). NULL = 안 들음
+    family_read_by JSONB NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(family_read_by) = 'array'),  -- '다 봤어요' 누른 가족 user_id 배열
     CONSTRAINT uq_diaries_room_id_request_id UNIQUE (room_id, request_id)   -- S7 가족 일기를 가족방 여러 곳에 게시 가능 (FR-DI-008)
 );
 CREATE INDEX ix_diaries_room_posted ON diaries(room_id, posted_at DESC);
 CREATE INDEX ix_diaries_room_author_posted ON diaries(room_id, author_type, posted_at);   -- S14
 
--- 16. 일기 열람 (어르신 열람은 reader_user_id NULL)
-CREATE TABLE diary_reads (
-    read_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    diary_id BIGINT NOT NULL REFERENCES diaries(diary_id),
-    reader_type VARCHAR(6) NOT NULL CHECK (reader_type IN ('ELDER', 'FAMILY')),
-    reader_user_id BIGINT REFERENCES users(user_id),
-    read_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT uq_diary_reads_diary_id_reader_type_reader_user_id
-        UNIQUE NULLS NOT DISTINCT (diary_id, reader_type, reader_user_id)   -- S9 NULL 도 같은 값으로 취급 (PG15+)
-);
-
--- 17. 주간 이야기 요약 (집계 창: 지난 일요일 19:00 ~ 이번 일요일 19:00 KST, week_start 는 그 주 월요일 날짜)
+-- 11. 주간 이야기 요약 (집계 창: 지난 일요일 19:00 ~ 이번 일요일 19:00 KST, week_start 는 그 주 월요일 날짜)
 CREATE TABLE weekly_summaries (
     summary_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
@@ -287,7 +235,7 @@ CREATE TABLE weekly_summaries (
     CONSTRAINT uq_weekly_summaries_room_id_week_start UNIQUE (room_id, week_start)
 );
 
--- 18. 알림 (앱 내)
+-- 12. 알림 (앱 내)
 CREATE TABLE notifications (
     notification_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),

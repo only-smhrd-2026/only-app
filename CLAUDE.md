@@ -16,7 +16,7 @@ Claude Code 는 이 파일을 자동으로 읽는다. 다른 AI(ChatGPT·Cursor 
 
 1. `.env` 를 읽거나 출력하거나 커밋하지 않는다. API 키·비밀번호를 코드·이슈·PR 에 쓰지 않는다(공개 저장소).
 2. `main`·`develop` 에 직접 커밋·push 하지 않는다. 작업은 `feature/영역-작업내용` 브랜치에서, 합치기는 PR 로만.
-3. `db/schema.sql` 은 **천주웅만** 고친다. 다른 사람이 테이블 변경이 필요하면 코드를 고치지 말고 요청 문장을 만들어 준다.
+3. `db/schema.sql` 은 **천주웅·홍진성만** 고친다. 다른 사람이 테이블 변경이 필요하면 코드를 고치지 말고 요청 문장을 만들어 준다.
 4. 새 라이브러리를 추가하지 않는다(`uv add`, `npm install 이름`). 필요하면 홍진성에게 먼저 묻도록 안내한다. lock 파일은 손으로 고치지 않는다.
 5. 실제 사람 이름·전화번호·사진·음성을 코드·시드·테스트에 넣지 않는다.
 6. 테스트를 지우거나 `skip` 해서 통과시키지 않는다. 실패하면 원인을 고친다.
@@ -25,7 +25,7 @@ Claude Code 는 이 파일을 자동으로 읽는다. 다른 AI(ChatGPT·Cursor 
 ## 2. 폴더와 담당
 
 - 누가 어느 폴더를 맡는지는 `README.md` **3절 표**가 기준이다(11/9 파트 배분 뒤 홍진성이 갱신). 고치기 전에 그 표에서 사용자 담당인지 확인한다.
-- 바뀌지 않는 것: `db/schema.sql` 은 천주웅만. `backend/app/ai/`·`frontend/src/components/VoiceSession/` 은 홍진성 담당이고, 이것들과 `schema.sql` 을 고친 PR 은 홍진성이 리뷰한다. API 응답 모양을 바꾼 PR 은 김승희(화면)를 리뷰어로.
+- 바뀌지 않는 것: `db/schema.sql` 은 천주웅·홍진성만. `backend/app/ai/`·`frontend/src/components/VoiceSession/` 은 홍진성 담당이고, 이것들과 `schema.sql` 을 고친 PR 은 홍진성이 리뷰한다. API 응답 모양을 바꾼 PR 은 김승희(화면)를 리뷰어로.
 - 화면 파일 이름 = 화면설계서 화면 ID (예 `frontend/src/screens/elder/ELDER_HOME_001.tsx`), 경로 표는 `frontend/src/App.tsx` 한 곳.
 
 ## 3. 실행·확인 명령

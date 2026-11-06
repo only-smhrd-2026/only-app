@@ -94,9 +94,9 @@ def elder_family_news(device: CurrentDevice):
 
 @diaries.post("/elder/diaries/{diary_id}/read", status_code=204)
 def elder_mark_read(diary_id: int, device: CurrentDevice):
-    """어르신 '다 들었어요' (diary_reads reader_type=ELDER, reader_user_id NULL, FR-FD-004). 기기 쿠키 전용.
+    """어르신 '다 들었어요' (diaries.elder_read_at 을 지금으로, FR-FD-004). 기기 쿠키 전용.
 
-    가족 '다 봤어요'(routers/diaries.py mark_read)와 같은 INSERT … ON CONFLICT DO NOTHING, 다른 방 일기는 404.
+    이미 값이 있으면 그대로 두는 UPDATE 한 문장 (가족 '다 봤어요' mark_read 와 같은 방식). 다른 방 일기는 404.
     """
     todo("천주웅")
 

@@ -1,4 +1,4 @@
-"""db/schema.sql 의 거울 (D1). 테이블 18개. schema.sql 을 바꾸면 여기도 같이 바꾼다.
+"""db/schema.sql 의 거울 (D1). 테이블 12개. schema.sql 을 바꾸면 여기도 같이 바꾼다.
 
 CHECK 제약·인덱스는 DB(schema.sql)가 원천이라 여기서는 반복하지 않는다. 컬럼·NULL·UNIQUE·FK·기본값만 맞춘다.
 """
@@ -73,6 +73,20 @@ class FamilyRoom(Base):
     external_user_id: Mapped[str | None] = mapped_column(String(64), unique=True)
     created_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
     status: Mapped[str] = mapped_column(String(10), server_default="ACTIVE")  # ACTIVE | CLOSED
+    # 초대 링크 (D38): 종류마다 1개. 사용·폐기 = 만료 시각을 지금으로
+    family_invite_hash: Mapped[str | None] = mapped_column(CHAR(64), unique=True)
+    family_invite_expires_at: Mapped[datetime | None] = mapped_column(TS)
+    elder_invite_hash: Mapped[str | None] = mapped_column(CHAR(64), unique=True)
+    elder_invite_expires_at: Mapped[datetime | None] = mapped_column(TS)
+    # 어르신 기기 (D38): 가족방당 1대. device_token_hash NULL = 연결 안 됨
+    device_token_hash: Mapped[str | None] = mapped_column(CHAR(64), unique=True)
+    device_push_token: Mapped[str | None] = mapped_column(String(255))
+    device_perm_notification: Mapped[bool] = mapped_column(Boolean, server_default=FALSE)
+    device_perm_mic: Mapped[bool] = mapped_column(Boolean, server_default=FALSE)
+    device_perm_camera: Mapped[bool] = mapped_column(Boolean, server_default=FALSE)
+    device_input_mode: Mapped[str] = mapped_column(String(8), server_default="VOICE")  # VOICE | BUTTON
+    device_connected_at: Mapped[datetime | None] = mapped_column(TS)
+    device_last_seen_at: Mapped[datetime | None] = mapped_column(TS)
 
 
 class RoomMember(Base):
@@ -85,34 +99,6 @@ class RoomMember(Base):
     nickname: Mapped[str | None] = mapped_column(String(12))
     joined_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
     removed_at: Mapped[datetime | None] = mapped_column(TS)
-
-
-class Invite(Base):
-    __tablename__ = "invites"
-    invite_id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
-    room_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("family_rooms.room_id"))
-    kind: Mapped[str] = mapped_column(String(12))  # ELDER_DEVICE | FAMILY
-    token_hash: Mapped[str] = mapped_column(CHAR(64), unique=True)
-    expires_at: Mapped[datetime] = mapped_column(TS)
-    used_at: Mapped[datetime | None] = mapped_column(TS)
-    revoked_at: Mapped[datetime | None] = mapped_column(TS)
-    created_by: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.user_id"))
-    created_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
-
-
-class ElderDevice(Base):
-    __tablename__ = "elder_devices"
-    device_id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
-    room_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("family_rooms.room_id"))
-    device_token_hash: Mapped[str] = mapped_column(CHAR(64), unique=True)
-    push_token: Mapped[str | None] = mapped_column(String(255))
-    perm_notification: Mapped[bool] = mapped_column(Boolean, server_default=FALSE)
-    perm_mic: Mapped[bool] = mapped_column(Boolean, server_default=FALSE)
-    perm_camera: Mapped[bool] = mapped_column(Boolean, server_default=FALSE)
-    input_mode: Mapped[str] = mapped_column(String(8), server_default="VOICE")  # VOICE | BUTTON
-    connected_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
-    last_seen_at: Mapped[datetime | None] = mapped_column(TS)
-    revoked_at: Mapped[datetime | None] = mapped_column(TS)
 
 
 class GroupVocab(Base):
@@ -141,21 +127,17 @@ class Photo(Base):
     people_note: Mapped[str | None] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(10), server_default="ACTIVE")  # ACTIVE | DELETED
     uploaded_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
-
-
-class PhotoMeta(Base):
-    __tablename__ = "photo_meta"
-    photo_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("photos.photo_id"), primary_key=True)
-    usable: Mapped[bool] = mapped_column(Boolean)
-    is_old: Mapped[bool] = mapped_column(Boolean)
-    season: Mapped[str] = mapped_column(String(8))  # SPRING | SUMMER | AUTUMN | WINTER | NONE
-    activity: Mapped[str] = mapped_column(String(20))
-    category: Mapped[str] = mapped_column(String(20))
-    confidence: Mapped[Decimal] = mapped_column(Numeric(3, 2))
+    # AI 분류 (D38). 분류 전에는 전부 None
+    usable: Mapped[bool | None] = mapped_column(Boolean)
+    is_old: Mapped[bool | None] = mapped_column(Boolean)
+    season: Mapped[str | None] = mapped_column(String(8))  # SPRING | SUMMER | AUTUMN | WINTER | NONE
+    activity: Mapped[str | None] = mapped_column(String(20))
+    category: Mapped[str | None] = mapped_column(String(20))
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))
     corrected_activity: Mapped[str | None] = mapped_column(String(20))
     corrected_at: Mapped[datetime | None] = mapped_column(TS)
-    model_version: Mapped[str] = mapped_column(String(30))
-    analyzed_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
+    model_version: Mapped[str | None] = mapped_column(String(30))
+    analyzed_at: Mapped[datetime | None] = mapped_column(TS)  # None = 아직 분류 전
 
 
 class DailyPick(Base):
@@ -191,25 +173,9 @@ class TalkSession(Base):
     duration_sec: Mapped[int | None] = mapped_column(Integer)
     emotion_flag: Mapped[str] = mapped_column(String(6), server_default="NONE")  # NONE | SAD
     private_flag: Mapped[bool] = mapped_column(Boolean, server_default=FALSE)
-
-
-class SessionTurn(Base):
-    __tablename__ = "session_turns"
-    __table_args__ = (UniqueConstraint("session_id", "turn_no", name="uq_session_turns_session_id_turn_no"),)
-    turn_id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
-    session_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("sessions.session_id"))
-    turn_no: Mapped[int] = mapped_column(SmallInteger)
-    speaker: Mapped[str] = mapped_column(String(5))  # AI | ELDER
-    text: Mapped[str] = mapped_column(Text)
-    stt_confidence: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))
-    input_type: Mapped[str | None] = mapped_column(String(6))  # VOICE | CHIP | BUTTON
-    retried: Mapped[bool] = mapped_column(Boolean, server_default=FALSE)
-    question_type: Mapped[str | None] = mapped_column(
-        String(10)
-    )  # RECALL|REMEMBER|KNOWHOW|THEN_NOW|RECHECK|CLOSING|NONE
-    reply_to_turn_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("session_turns.turn_id"))
-    latency_ms: Mapped[int | None] = mapped_column(Integer)
-    created_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
+    # 턴 배열 (D38). 키는 schema.sql sessions 아래 주석.
+    # 고칠 때는 새 리스트를 넣어야 저장된다 (제자리 append 는 감지 안 됨)
+    turns: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, server_default=text("'[]'"))
 
 
 class QuestionBank(Base):
@@ -226,26 +192,12 @@ class QuestionBank(Base):
     created_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
 
 
-class QuestionHistory(Base):
-    __tablename__ = "question_history"
-    history_id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
-    room_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("family_rooms.room_id"))
-    session_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("sessions.session_id"))
-    question_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("question_bank.question_id"))
-    qtype: Mapped[str] = mapped_column(String(10))  # REMEMBER|KNOWHOW|THEN_NOW|COMMON|RECHECK
-    asked_turn_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("session_turns.turn_id"))
-    answer_summary: Mapped[str | None] = mapped_column(String(200))
-    recheck_result: Mapped[str | None] = mapped_column(String(10))  # REMEMBERED|HINTED|SKIPPED|NA
-    hint_level: Mapped[int] = mapped_column(SmallInteger, server_default="0")
-    asked_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
-
-
 class StoryFact(Base):
     __tablename__ = "story_facts"
     fact_id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
     room_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("family_rooms.room_id"))
     session_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("sessions.session_id"))
-    source_turn_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("session_turns.turn_id"))
+    source_turn_no: Mapped[int] = mapped_column(SmallInteger)  # 이 세션 turns 의 turn_no (D38)
     fact_text: Mapped[str] = mapped_column(String(200))
     kind: Mapped[str] = mapped_column(String(10))  # EVENT | PLAN | PREFERENCE | CORRECTION
     fact_date: Mapped[date] = mapped_column(Date)
@@ -272,15 +224,8 @@ class Diary(Base):
     request_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     posted_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
     status: Mapped[str] = mapped_column(String(8), server_default="POSTED")  # POSTED | DELETED
-
-
-class DiaryRead(Base):
-    __tablename__ = "diary_reads"
-    read_id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
-    diary_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("diaries.diary_id"))
-    reader_type: Mapped[str] = mapped_column(String(6))  # ELDER | FAMILY
-    reader_user_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.user_id"))
-    read_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
+    elder_read_at: Mapped[datetime | None] = mapped_column(TS)  # 어르신 '다 들었어요' (D38)
+    family_read_by: Mapped[list[int]] = mapped_column(JSONB, server_default=text("'[]'"))  # '다 봤어요' 가족 id
 
 
 class WeeklySummary(Base):

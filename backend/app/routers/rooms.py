@@ -3,19 +3,24 @@
 from datetime import timedelta
 
 from fastapi import APIRouter, Request
-from sqlalchemy import distinct, func, select, update
+from sqlalchemy import distinct, func, select
 
 from app.config import now_kst
 from app.deps import DB, CurrentUser, require_owner
 from app.errors import ApiError
-from app.models import FamilyRoom, Invite, Photo, RoomMember
+from app.models import FamilyRoom, Photo, RoomMember
 from app.schemas.common import OkOut
-from app.schemas.rooms import InviteCreatedOut, InviteCreateIn, InviteOut, RoomCreateIn, RoomOut
+from app.schemas.rooms import InviteCreatedOut, InviteCreateIn, InviteKind, InviteOut, RoomCreateIn, RoomOut
 from app.security import new_token, sha256_hex
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 ELDER_DEVICE_MIN_PHOTOS = 3
+# 링크 종류 → family_rooms 칸 (해시, 만료). 종류마다 링크 1개 (D38). routers/invites.py 도 쓴다
+INVITE_COLS = {
+    "FAMILY": ("family_invite_hash", "family_invite_expires_at"),
+    "ELDER_DEVICE": ("elder_invite_hash", "elder_invite_expires_at"),
+}
 
 
 def room_out(room: FamilyRoom, user_id: int) -> RoomOut:
@@ -59,7 +64,7 @@ def list_rooms(user: CurrentUser, db: DB):
 
 @router.post("/{room_id}/invites", response_model=InviteCreatedOut, status_code=201)
 def create_invite(room_id: int, body: InviteCreateIn, request: Request, user: CurrentUser, db: DB):
-    require_owner(room_id, user, db)
+    room = require_owner(room_id, user, db)
     now = now_kst()
     if body.kind == "ELDER_DEVICE":
         n = db.scalar(
@@ -69,61 +74,37 @@ def create_invite(room_id: int, body: InviteCreateIn, request: Request, user: Cu
         )
         if (n or 0) < ELDER_DEVICE_MIN_PHOTOS:
             raise ApiError(409, "NEED_PHOTOS", "사진을 3장 이상 올린 뒤에 어르신 기기를 연결할 수 있어요")
-        # 새 기기 링크를 만들면 기존 활성 링크는 폐기 (D16: 방당 활성 기기 링크 1)
-        db.execute(
-            update(Invite)
-            .where(
-                Invite.room_id == room_id,
-                Invite.kind == "ELDER_DEVICE",
-                Invite.used_at.is_(None),
-                Invite.revoked_at.is_(None),
-            )
-            .values(revoked_at=now)
-        )
         expires_at, path = now + timedelta(hours=24), "elder/connect"
     else:
         expires_at, path = now + timedelta(days=7), "join"
+    # 칸을 덮어쓰므로 같은 종류의 이전 링크는 바로 무효 (D16 방당 기기 링크 1, D38 가족 링크도 1)
     token = new_token()
-    invite = Invite(
-        room_id=room_id,
-        kind=body.kind,
-        token_hash=sha256_hex(token),
-        expires_at=expires_at,
-        created_by=user.user_id,
-    )
-    db.add(invite)
+    hash_col, exp_col = INVITE_COLS[body.kind]
+    setattr(room, hash_col, sha256_hex(token))
+    setattr(room, exp_col, expires_at)
     db.commit()
-    db.refresh(invite)
     # 토큰은 # 뒤 → 서버 로그·Referer·미리보기 봇에 안 감 (D16). 이 응답 한 번만 원문을 보여 준다.
     base = str(request.base_url).rstrip("/")
-    return InviteCreatedOut(
-        invite_id=invite.invite_id, kind=invite.kind, url=f"{base}/{path}#{token}", expires_at=invite.expires_at
-    )
+    return InviteCreatedOut(kind=body.kind, url=f"{base}/{path}#{token}", expires_at=expires_at)
 
 
 @router.get("/{room_id}/invites", response_model=list[InviteOut])
 def list_invites(room_id: int, user: CurrentUser, db: DB):
-    require_owner(room_id, user, db)
+    """아직 쓸 수 있는 링크 (종류마다 최대 1개)."""
+    room = require_owner(room_id, user, db)
     now = now_kst()
-    return db.scalars(
-        select(Invite)
-        .where(
-            Invite.room_id == room_id,
-            Invite.revoked_at.is_(None),
-            Invite.expires_at > now,
-            (Invite.kind == "FAMILY") | (Invite.used_at.is_(None)),
-        )
-        .order_by(Invite.invite_id.desc())
-    ).all()
+    alive = {kind: getattr(room, exp_col) for kind, (_, exp_col) in INVITE_COLS.items()}
+    return [InviteOut(kind=kind, expires_at=exp) for kind, exp in alive.items() if exp and exp > now]
 
 
-@router.delete("/{room_id}/invites/{invite_id}", response_model=OkOut)
-def revoke_invite(room_id: int, invite_id: int, user: CurrentUser, db: DB):
-    require_owner(room_id, user, db)
-    invite = db.get(Invite, invite_id)
-    if not invite or invite.room_id != room_id:
-        raise ApiError(404, "INVITE_NOT_FOUND", "링크를 찾을 수 없습니다")
-    if invite.revoked_at is None:
-        invite.revoked_at = now_kst()
+@router.delete("/{room_id}/invites/{kind}", response_model=OkOut)
+def revoke_invite(room_id: int, kind: InviteKind, user: CurrentUser, db: DB):
+    """폐기 = 만료 시각을 지금으로 (해시는 남겨 링크를 열면 '더 쓸 수 없어요' 안내, D38)."""
+    room = require_owner(room_id, user, db)
+    _, exp_col = INVITE_COLS[kind]
+    now = now_kst()
+    expires_at = getattr(room, exp_col)
+    if expires_at and expires_at > now:
+        setattr(room, exp_col, now)
         db.commit()
     return OkOut()

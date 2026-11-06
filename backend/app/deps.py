@@ -1,7 +1,7 @@
 """인증·권한 의존성 3종 (D2). 즉시 차단은 매 요청 DB 확인으로.
 
 - current_user:   쿠키 session(JWT) → users.status='ACTIVE'
-- current_device: 쿠키 device(토큰 원문) → elder_devices.revoked_at IS NULL
+- current_device: 쿠키 device(토큰 원문) → family_rooms.device_token_hash 가 같은 가족방 (D38: 기기 = device_ 칸)
 - require_member: room_members.removed_at IS NULL
 """
 
@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.config import now_kst
 from app.db import get_db
 from app.errors import ApiError
-from app.models import ElderDevice, FamilyRoom, RoomMember, User
+from app.models import FamilyRoom, RoomMember, User
 from app.security import DEVICE_COOKIE, SESSION_COOKIE, decode_session_jwt, sha256_hex
 
 DB = Annotated[Session, Depends(get_db)]
@@ -32,17 +32,16 @@ def _user_from_cookie(request: Request, db: Session) -> User | None:
     return user if user and user.status == "ACTIVE" else None
 
 
-def _device_from_cookie(request: Request, db: Session) -> ElderDevice | None:
+def _device_from_cookie(request: Request, db: Session) -> FamilyRoom | None:
+    """기기 쿠키 → 그 기기가 연결된 가족방. 새 기기를 연결하면 해시가 덮어써져 옛 쿠키는 None (즉시 차단)."""
     raw = request.cookies.get(DEVICE_COOKIE)
     if not raw:
         return None
-    device = db.scalar(
-        select(ElderDevice).where(ElderDevice.device_token_hash == sha256_hex(raw), ElderDevice.revoked_at.is_(None))
-    )
-    if device and (device.last_seen_at is None or now_kst() - device.last_seen_at > timedelta(minutes=5)):
-        device.last_seen_at = now_kst()
+    room = db.scalar(select(FamilyRoom).where(FamilyRoom.device_token_hash == sha256_hex(raw)))
+    if room and (room.device_last_seen_at is None or now_kst() - room.device_last_seen_at > timedelta(minutes=5)):
+        room.device_last_seen_at = now_kst()
         db.commit()
-    return device
+    return room
 
 
 def current_user(request: Request, db: DB) -> User:
@@ -52,14 +51,14 @@ def current_user(request: Request, db: DB) -> User:
     return user
 
 
-def current_device(request: Request, db: DB) -> ElderDevice:
+def current_device(request: Request, db: DB) -> FamilyRoom:
     device = _device_from_cookie(request, db)
     if not device:
         raise ApiError(401, "DEVICE_REQUIRED", "기기 연결이 필요합니다")
     return device
 
 
-def current_actor(request: Request, db: DB) -> User | ElderDevice:
+def current_actor(request: Request, db: DB) -> User | FamilyRoom:
     """가족·어르신 공용 엔드포인트(/api/stt, /api/media)."""
     actor = _user_from_cookie(request, db) or _device_from_cookie(request, db)
     if not actor:
@@ -89,5 +88,5 @@ def require_owner(room_id: int, user: User, db: Session) -> FamilyRoom:
 
 
 CurrentUser = Annotated[User, Depends(current_user)]
-CurrentDevice = Annotated[ElderDevice, Depends(current_device)]
-CurrentActor = Annotated[User | ElderDevice, Depends(current_actor)]
+CurrentDevice = Annotated[FamilyRoom, Depends(current_device)]  # 어르신 기기가 연결된 가족방 (device.room_id 그대로 씀)
+CurrentActor = Annotated[User | FamilyRoom, Depends(current_actor)]

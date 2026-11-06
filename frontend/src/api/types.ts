@@ -16,7 +16,7 @@ export type RoomOut = {
 }
 
 export type InviteKind = 'FAMILY' | 'ELDER_DEVICE'
-export type InviteCreatedOut = { invite_id: number; kind: InviteKind; url: string; expires_at: string }
+export type InviteCreatedOut = { kind: InviteKind; url: string; expires_at: string } // 종류마다 링크 1개 (D38)
 export type InviteStatusOut = { kind: InviteKind; elder_name: string; expires_at: string; valid: boolean }
 
 export type DeviceOut = {

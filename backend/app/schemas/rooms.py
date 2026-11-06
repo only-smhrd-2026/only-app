@@ -34,18 +34,16 @@ class InviteCreateIn(BaseModel):
 
 
 class InviteCreatedOut(BaseModel):
-    invite_id: int
     kind: str
     url: str  # 토큰은 # 뒤 (D16). 한 번만 보여 주고 서버는 해시만 저장
     expires_at: datetime
 
 
 class InviteOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    invite_id: int
+    """아직 쓸 수 있는 링크. 종류마다 1개라 kind 가 곧 식별자 (폐기: DELETE /rooms/{id}/invites/{kind}, D38)."""
+
     kind: str
     expires_at: datetime
-    created_at: datetime
 
 
 class InviteStatusOut(BaseModel):

@@ -14,7 +14,7 @@ from app.ai import coach, image, llm
 from app.ai.schemas import BANNED_WORDS, CoachReply, DiaryDraft
 from app.config import DIARY_DRAFT_MIN, settings
 from app.db import SessionLocal
-from app.models import Diary, DiaryRead, Notification
+from app.models import Diary, Notification
 from app.routers import diaries, sessions
 from tests.conftest import add_photos, connect_device, make_room, setup_elder, signup
 
@@ -111,11 +111,12 @@ def test_every_family_member_gets_notice_and_own_read_state(client):
     assert _sent(room_id) == 2  # 가족 2명 → 1건씩
 
     assert client.post(f"/api/diaries/{diary_id}/read").status_code == 204  # 손주가 '다 봤어요'
+    assert client.post(f"/api/diaries/{diary_id}/read").status_code == 204  # 두 번 눌러도 기록은 1번
     assert client.get(f"/api/rooms/{room_id}/diaries").json()["diaries"][0]["read_by_me"] is True
     client.post("/api/auth/login", json={"email": owner["email"], "password": "test1234"})
     assert client.get(f"/api/rooms/{room_id}/diaries").json()["diaries"][0]["read_by_me"] is False  # 방장은 아직
     with SessionLocal() as db:
-        assert db.scalar(select(func.count()).select_from(DiaryRead).where(DiaryRead.diary_id == diary_id)) == 1
+        assert len(db.get(Diary, diary_id).family_read_by) == 1
 
 
 def test_not_saved_when_stopped_no_response_or_not_diary(client):

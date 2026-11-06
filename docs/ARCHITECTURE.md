@@ -20,7 +20,7 @@ only-app/
 │   ├── app/main.py           FastAPI 앱, 라우터 등록, lifespan(스케줄러)
 │   ├── app/config.py         .env 설정 1곳, 시간대 KST, 상한 상수
 │   ├── app/db.py             SQLAlchemy 엔진 (접속마다 timezone=Asia/Seoul)
-│   ├── app/models.py         테이블 18개 (db/schema.sql 의 거울)
+│   ├── app/models.py         테이블 12개 (db/schema.sql 의 거울)
 │   ├── app/deps.py           current_user / current_device / require_member
 │   ├── app/security.py       bcrypt, JWT, 토큰 해시, 쿠키, 로그인 속도 제한
 │   ├── app/errors.py         오류 형식 {detail, code}
@@ -30,7 +30,7 @@ only-app/
 │   ├── app/ai/               llm·stt·tts·image 어댑터, coach(회상 코치·일기 동무), schemas(출력 검사), prompts/*.md
 │   ├── scripts/seed.py       DB 초기화 + 시드
 │   └── tests/                test_auth, test_session_stub, test_diary, test_tz (docker Postgres 사용)
-├── db/schema.sql             테이블 원천 (천주웅만 수정) / db/seed/seed.sql 시드 데이터
+├── db/schema.sql             테이블 원천 (천주웅·홍진성만 수정) / db/seed/seed.sql 시드 데이터
 ├── data/                     question_bank.json, taxonomy.json (박유승), banned_words.json
 ├── docker-compose.yml        db / --profile deploy: api + caddy
 ├── Caddyfile                 https, /api → api:8000, 나머지는 화면 정적 파일
@@ -44,7 +44,7 @@ only-app/
 ```
 가족  POST /api/auth/login ──► Set-Cookie: session=<JWT 7일; HttpOnly; SameSite=Lax>
 어르신 POST /api/devices/connect {token} ──► Set-Cookie: device=<기기 토큰 1년>  (서버는 SHA-256 해시만 저장)
-모든 요청: deps.current_user → users.status='ACTIVE' / deps.current_device → elder_devices.revoked_at IS NULL
+모든 요청: deps.current_user → users.status='ACTIVE' / deps.current_device → family_rooms.device_token_hash 일치 (D38)
 가족방 자원: deps.require_member → room_members.removed_at IS NULL  (내 가족방 것만)
 ```
 
@@ -85,7 +85,7 @@ ELDER_DIARY_003: POST /elder/sessions/{id}/draft
 [네, 올려요] ─► POST /elder/diaries {request_id, session_id}  (다시 눌러도 일기 1개·알림 1번)
    서버: diaries INSERT + 가족 전원 notifications(DIARY_POSTED) 1건씩
 가족 홈(HOME_001): GET /rooms/{id}/diaries → read_by_me=false 가 '새 일기 N개' 한 줄 (실시간 아님, 열 때 읽음)
-   [다 봤어요] ─► POST /diaries/{id}/read (가족 쿠키 전용, diary_reads). 그림은 <img src="/api/media/rooms/{room}/{session}.jpg"> (게시된 것만)
+   [다 봤어요] ─► POST /diaries/{id}/read (가족 쿠키 전용, diaries.family_read_by). 그림은 <img src="/api/media/rooms/{room}/{session}.jpg"> (게시된 것만)
    앱으로 돌아올 때(visibilitychange)도 다시 읽는다. 어르신 '다 들었어요'는 기기 쿠키 전용 /elder/diaries/{id}/read (빈 API)
 ```
 

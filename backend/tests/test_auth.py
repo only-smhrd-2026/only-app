@@ -61,7 +61,7 @@ def test_family_invite_accept(client):
     assert len(client.get("/api/rooms").json()) == 1
 
     client.post("/api/auth/login", json={"email": owner["email"], "password": "test1234"})
-    assert client.delete(f"/api/rooms/{room['room_id']}/invites/{inv['invite_id']}").status_code == 200
+    assert client.delete(f"/api/rooms/{room['room_id']}/invites/FAMILY").status_code == 200  # 종류마다 1개 (D38)
     assert client.post("/api/invites/status", json={"token": token}).json()["valid"] is False
 
 

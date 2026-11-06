@@ -7,7 +7,7 @@
    request_id·session_id 로 한 번만.
 4. GET /rooms/{id}/diaries — 가족 홈(HOME_001) 목록. read_by_me=false 가 '새 일기'.
    실시간 반영은 없다(가족이 홈을 열 때 읽는다).
-5. POST /diaries/{id}/read — 가족 '다 봤어요' 열람 기록(diary_reads). 여러 번 불러도 1행.
+5. POST /diaries/{id}/read — 가족 '다 봤어요' 열람 기록(diaries.family_read_by). 여러 번 불러도 1번.
    어르신 가족 소식 '다 들었어요'는 기기 쿠키 전용 POST /elder/diaries/{id}/read (빈 API, ELDER_FAMILY_001 과 함께).
 
 담당: 일기 프롬프트·그림 화풍(image.STYLE) 다듬기 홍진성 / 사진 일기(카메라)·가족 일기·목록 세부 천주웅.
@@ -24,14 +24,13 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter
-from sqlalchemy import exists, or_, select
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import func, or_, select, update
 
 from app.ai import coach, image, tts
 from app.config import DIARY_DRAFT_MIN, now_kst
 from app.deps import DB, CurrentDevice, CurrentUser, require_member
 from app.errors import ApiError
-from app.models import Diary, DiaryRead, FamilyRoom, Photo, RoomMember, User
+from app.models import Diary, FamilyRoom, Photo, RoomMember, User
 from app.routers.devices import notify_family
 from app.routers.sessions import DIARY_SAVED, coach_context, load_session
 from app.schemas.diaries import DiaryListOut, DiaryOut, DraftOut, ElderDiaryIn
@@ -137,19 +136,8 @@ def make_draft(session_id: uuid.UUID, device: CurrentDevice, db: DB):
 
 def _rows(db, room: FamilyRoom, *cond, me: int | None = None) -> list[DiaryOut]:
     """일기 행 → DiaryOut (최근 50개). me = 보는 가족 user_id, None 이면 어르신 기기가 보는 것."""
-
-    def read_by(reader_type: str, user_id: int | None = None):
-        who = [DiaryRead.reader_user_id == user_id] if user_id is not None else []
-        return exists().where(DiaryRead.diary_id == Diary.diary_id, DiaryRead.reader_type == reader_type, *who)
-
     rows = db.execute(
-        select(
-            Diary,
-            User.name,
-            Photo.object_key,
-            read_by("ELDER").label("by_elder"),
-            (read_by("FAMILY", me) if me is not None else read_by("ELDER")).label("by_me"),
-        )
+        select(Diary, User.name, Photo.object_key)
         .outerjoin(User, User.user_id == Diary.author_user_id)
         .outerjoin(Photo, Photo.photo_id == Diary.photo_id)
         .where(Diary.room_id == room.room_id, Diary.status == "POSTED", *cond)
@@ -157,8 +145,10 @@ def _rows(db, room: FamilyRoom, *cond, me: int | None = None) -> list[DiaryOut]:
         .limit(50)
     ).all()
     out = []
-    for d, name, photo_key, by_elder, by_me in rows:
+    for d, name, photo_key in rows:
         mine = d.author_user_id == me if me is not None else d.author_type == "ELDER"
+        by_elder = d.elder_read_at is not None
+        by_me = me in d.family_read_by if me is not None else by_elder
         key = photo_key if d.illustration_type == "PHOTO" else d.illustration_key
         out.append(
             DiaryOut(
@@ -171,8 +161,8 @@ def _rows(db, room: FamilyRoom, *cond, me: int | None = None) -> list[DiaryOut]:
                 illustration_type=d.illustration_type,
                 illustration_url=f"/api/media/{key}" if key else None,
                 posted_at=d.posted_at,
-                read_by_elder=bool(by_elder),
-                read_by_me=mine or bool(by_me),
+                read_by_elder=by_elder,
+                read_by_me=mine or by_me,
             )
         )
     return out
@@ -227,7 +217,7 @@ def list_diaries(room_id: int, user: CurrentUser, db: DB):
 
 @router.post("/diaries/{diary_id}/read", status_code=204)
 def mark_read(diary_id: int, user: CurrentUser, db: DB):
-    """가족 '다 봤어요' 열람 기록 (diary_reads, FR-FD-004). 여러 번 불러도 1행.
+    """가족 '다 봤어요' 열람 기록 (diaries.family_read_by 에 내 user_id, FR-FD-004). 여러 번 불러도 1번.
 
     가족 쿠키 전용. 어르신 기록은 기기 쿠키 전용 /elder/diaries/{id}/read 로 나눈다 — 한 브라우저에 두 쿠키가
     다 있으면(가족이 어르신 폰을 연결해 준 경우) 누가 읽었는지 섞이기 때문.
@@ -242,6 +232,10 @@ def mark_read(diary_id: int, user: CurrentUser, db: DB):
     )
     if not member or diary.status != "POSTED":  # 다른 방 일기도 없는 것처럼 404 (존재 여부 비노출, D18)
         raise ApiError(404, "DIARY_NOT_FOUND", "일기를 찾을 수 없어요")
-    stmt = insert(DiaryRead).values(diary_id=diary_id, reader_type="FAMILY", reader_user_id=user.user_id)
-    db.execute(stmt.on_conflict_do_nothing())
+    # 이미 들어 있으면 고치지 않는 UPDATE 한 문장 → 두 번 눌러도·동시에 와도 한 번만 (D38)
+    db.execute(
+        update(Diary)
+        .where(Diary.diary_id == diary_id, ~Diary.family_read_by.contains([user.user_id]))
+        .values(family_read_by=Diary.family_read_by.op("||")(func.jsonb_build_array(user.user_id)))
+    )
     db.commit()

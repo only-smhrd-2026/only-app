@@ -1,11 +1,11 @@
 """어르신 홈·오늘의 한 장·사진첩 (기기 쿠키)."""
 
 from fastapi import APIRouter
-from sqlalchemy import exists, func, select
+from sqlalchemy import func, select
 
 from app.config import now_kst, today_kst
 from app.deps import DB, CurrentDevice
-from app.models import Diary, DiaryRead, FamilyRoom, Photo
+from app.models import Diary, FamilyRoom, Photo
 from app.schemas.common import OkOut
 from app.schemas.elder import AlbumOut, AlbumPhotoOut, ElderHomeOut, ElderSettingsOut, TodayPickOut
 from app.services import picks
@@ -45,7 +45,7 @@ def home(device: CurrentDevice, db: DB):
             Diary.room_id == room.room_id,
             Diary.author_type == "FAMILY",
             Diary.status == "POSTED",
-            ~exists().where(DiaryRead.diary_id == Diary.diary_id, DiaryRead.reader_type == "ELDER"),
+            Diary.elder_read_at.is_(None),
         )
     )
     return ElderHomeOut(
@@ -54,7 +54,9 @@ def home(device: CurrentDevice, db: DB):
         elder_honorific=room.elder_honorific,
         today_pick=today_pick,
         unread_family_news=unread or 0,
-        settings=ElderSettingsOut(font_size=room.font_size, tts_speed=room.tts_speed, input_mode=device.input_mode),
+        settings=ElderSettingsOut(
+            font_size=room.font_size, tts_speed=room.tts_speed, input_mode=room.device_input_mode
+        ),
     )
 
 

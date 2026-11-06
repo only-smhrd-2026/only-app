@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 
 from app.config import now_kst
 from app.db import SessionLocal
-from app.models import Notification, SessionTurn, TalkSession
+from app.models import Notification, TalkSession
 from tests.conftest import setup_elder
 
 
@@ -90,15 +90,14 @@ def _shift(sid: str, gaps: list[int]) -> None:
     """세션 시작·각 턴 시각을 과거로 옮긴다. gaps[0]=시작→1번 턴, …, gaps[-1]=마지막 턴→지금 (초)."""
     with SessionLocal() as db:
         s = db.get(TalkSession, uuid.UUID(sid))
-        turns = db.scalars(
-            select(SessionTurn).where(SessionTurn.session_id == s.session_id).order_by(SessionTurn.turn_no)
-        ).all()
-        assert len(gaps) == len(turns) + 1
+        assert len(gaps) == len(s.turns) + 1
         t = now_kst() - timedelta(seconds=sum(gaps))
         s.started_at = t
-        for turn, gap in zip(turns, gaps):
+        shifted = []
+        for turn, gap in zip(s.turns, gaps):
             t += timedelta(seconds=gap)
-            turn.created_at = t
+            shifted.append(turn | {"created_at": t.isoformat()})
+        s.turns = shifted
         db.commit()
 
 
@@ -127,9 +126,7 @@ def test_limit_saves_last_answer_then_closes(client):
     r = client.post(f"/api/elder/sessions/{sid}/turns", json={"text": "마지막 말이에요", "input_type": "CHIP"}).json()
     assert r["state"] == "ENDED" and r["end_reason"] == "LIMIT" and r["ai"]["question_type"] == "CLOSING"
     with SessionLocal() as db:
-        texts = db.scalars(
-            select(SessionTurn.text).where(SessionTurn.session_id == uuid.UUID(sid)).order_by(SessionTurn.turn_no)
-        ).all()
+        texts = [t["text"] for t in db.get(TalkSession, uuid.UUID(sid)).turns]
     assert texts[-2] == "마지막 말이에요"  # 마무리 인사 바로 앞에 저장됨
 
 

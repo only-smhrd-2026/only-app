@@ -1,4 +1,4 @@
-"""어르신 기기 연결(기기 쿠키 발급)·권한 저장."""
+"""어르신 기기 연결(기기 쿠키 발급)·권한 저장. 기기 정보는 family_rooms 의 device_ 칸 (가족방당 1대, D38)."""
 
 from fastapi import APIRouter, Response
 from sqlalchemy import select, update
@@ -6,22 +6,22 @@ from sqlalchemy import select, update
 from app.config import now_kst
 from app.deps import DB, CurrentDevice
 from app.errors import ApiError
-from app.models import ElderDevice, FamilyRoom, Invite, Notification, RoomMember
+from app.models import FamilyRoom, Notification, RoomMember
 from app.schemas.rooms import DeviceConnectIn, DeviceOut, PermissionsIn
 from app.security import new_token, set_device_cookie, sha256_hex
 
 router = APIRouter(prefix="/devices", tags=["devices"])
 
 
-def _out(device: ElderDevice, room: FamilyRoom) -> DeviceOut:
+def _out(room: FamilyRoom) -> DeviceOut:
     return DeviceOut(
         room_id=room.room_id,
         elder_name=room.elder_name,
         elder_honorific=room.elder_honorific,
-        perm_mic=device.perm_mic,
-        perm_camera=device.perm_camera,
-        perm_notification=device.perm_notification,
-        input_mode=device.input_mode,
+        perm_mic=room.device_perm_mic,
+        perm_camera=room.device_perm_camera,
+        perm_notification=room.device_perm_notification,
+        input_mode=room.device_input_mode,
     )
 
 
@@ -46,47 +46,41 @@ def notify_family(db, room_id: int, kind: str, title: str, body: str | None = No
 @router.post("/connect", response_model=DeviceOut)
 def connect(body: DeviceConnectIn, response: Response, db: DB):
     now = now_kst()
-    # 소모는 UPDATE 한 문장 (동시 탭 2회 통과 방지, D16)
+    raw = new_token()
+    # 링크 소모 + 새 기기 등록을 UPDATE 한 문장으로 (동시 탭 2회 통과 방지, D16).
+    # 기기 해시를 덮어쓰므로 이전 기기는 바로 막힌다(가족방당 1대). 권한·입력 모드는 새 기기 기준으로 처음 값 (D38)
     row = db.execute(
-        update(Invite)
-        .where(
-            Invite.token_hash == sha256_hex(body.token),
-            Invite.kind == "ELDER_DEVICE",
-            Invite.used_at.is_(None),
-            Invite.revoked_at.is_(None),
-            Invite.expires_at > now,
+        update(FamilyRoom)
+        .where(FamilyRoom.elder_invite_hash == sha256_hex(body.token), FamilyRoom.elder_invite_expires_at > now)
+        .values(
+            elder_invite_expires_at=now,
+            device_token_hash=sha256_hex(raw),
+            device_push_token=None,
+            device_perm_notification=False,
+            device_perm_mic=False,
+            device_perm_camera=False,
+            device_input_mode="VOICE",
+            device_connected_at=now,
+            device_last_seen_at=None,
         )
-        .values(used_at=now)
-        .returning(Invite.room_id)
+        .returning(FamilyRoom.room_id)
     ).first()
     if not row:
         raise ApiError(410, "INVITE_INVALID", "링크가 만료되었거나 이미 사용됐어요. 가족에게 새 링크를 받아 주세요")
-    room_id = row[0]
-    # 방당 활성 기기 1: 기존 기기는 폐기
-    db.execute(
-        update(ElderDevice)
-        .where(ElderDevice.room_id == room_id, ElderDevice.revoked_at.is_(None))
-        .values(revoked_at=now)
-    )
-    raw = new_token()
-    device = ElderDevice(room_id=room_id, device_token_hash=sha256_hex(raw))
-    db.add(device)
-    room = db.get(FamilyRoom, room_id)
-    notify_family(db, room_id, "DEVICE_CONNECTED", f"{room.elder_name} 님 기기가 연결됐어요", link="GROUP_002")
+    room = db.get(FamilyRoom, row[0])
+    notify_family(db, room.room_id, "DEVICE_CONNECTED", f"{room.elder_name} 님 기기가 연결됐어요", link="GROUP_002")
     db.commit()
-    db.refresh(device)
     set_device_cookie(response, raw)
-    return _out(device, room)
+    return _out(room)
 
 
 @router.patch("/me/permissions", response_model=DeviceOut)
-def set_permissions(body: PermissionsIn, device: CurrentDevice, db: DB):
+def set_permissions(body: PermissionsIn, room: CurrentDevice, db: DB):
     changed = body.model_dump(exclude_none=True)
     for key, value in changed.items():
-        setattr(device, key, value)
-    room = db.get(FamilyRoom, device.room_id)
+        setattr(room, f"device_{key}", value)  # perm_mic → device_perm_mic
     if any(v is False for v in changed.values()):
         off = ", ".join(k.removeprefix("perm_") for k, v in changed.items() if v is False)
         notify_family(db, room.room_id, "PERMISSION_OFF", f"{room.elder_name} 님 기기 권한이 꺼져 있어요", body=off)
     db.commit()
-    return _out(device, room)
+    return _out(room)

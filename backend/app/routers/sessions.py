@@ -3,7 +3,7 @@
 턴 정의: AI 질문 1 + 어르신 답 1 = 1턴. sessions.turn_count = 지금까지 낸 AI 질문 수 (만들 때 1, 최대 MAX_TURNS=8).
 8번째 답을 받으면 AI 가 마무리 인사(CLOSING) 를 하고 state=ENDED, end_reason=COMPLETED.
 kind=DIARY(일기 대화)는 질문 3개(DIARY_TURNS)로 끝난다. 초안·그림일기·게시는 routers/diaries.py (D36).
-session_turns.turn_no 는 행 순번 (1=AI, 2=ELDER, 3=AI …).
+턴은 sessions.turns JSON 배열에 한 칸씩 (D38). turn_no 는 순번 (1=AI, 2=ELDER, 3=AI …).
 서버가 지키는 상한: 8턴, 5분(대화한 시간 — 보류는 빼고 잼), 무응답 3단계, 저신뢰 2회 → input_locked (D5, D8).
 마지막 턴 뒤 30분이 지나면 끝난 대화로 본다 (보류 30분 복귀).
 """
@@ -15,7 +15,8 @@ import logging
 import time
 import uuid
 from collections import defaultdict
-from datetime import timedelta
+from datetime import datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter
 from sqlalchemy import func, select
@@ -36,7 +37,7 @@ from app.config import (
 )
 from app.deps import DB, CurrentDevice
 from app.errors import ApiError
-from app.models import DailyPick, FamilyRoom, Notification, Photo, SessionTurn, TalkSession
+from app.models import DailyPick, FamilyRoom, Notification, Photo, TalkSession
 from app.routers.devices import notify_family
 from app.schemas.sessions import (
     AiOut,
@@ -62,18 +63,15 @@ _last_reply: dict[uuid.UUID, CoachReply] = {}
 _tts_failed: set[uuid.UUID] = set()
 
 
-def load_session(db, session_id: uuid.UUID, device) -> TalkSession:
-    """이 기기 가족방의 세션만 돌려준다 (다른 방 것은 없는 것처럼 404). routers/diaries.py 도 쓴다."""
-    session = db.get(TalkSession, session_id)
+def load_session(db, session_id: uuid.UUID, device, lock: bool = False) -> TalkSession:
+    """이 기기 가족방의 세션만 돌려준다 (다른 방 것은 없는 것처럼 404). routers/diaries.py 도 쓴다.
+
+    lock=True 면 세션 행을 잠근다(FOR UPDATE, 커밋까지). 같은 대화에 턴이 동시에 와도 turns 를 덮어쓰지 않게 (D38).
+    """
+    session = db.get(TalkSession, session_id, with_for_update=lock)
     if not session or session.room_id != device.room_id:
         raise ApiError(404, "SESSION_NOT_FOUND", "대화를 찾을 수 없어요")
     return session
-
-
-def _turns(db, session_id: uuid.UUID) -> list[SessionTurn]:
-    return db.scalars(
-        select(SessionTurn).where(SessionTurn.session_id == session_id).order_by(SessionTurn.turn_no)
-    ).all()
 
 
 def coach_context(db, room: FamilyRoom, session: TalkSession) -> coach.CoachContext:
@@ -91,27 +89,24 @@ def coach_context(db, room: FamilyRoom, session: TalkSession) -> coach.CoachCont
             if photo
             else None
         ),
-        turns=[{"speaker": t.speaker, "text": t.text} for t in _turns(db, session.session_id)],
+        turns=[{"speaker": t["speaker"], "text": t["text"]} for t in session.turns],
     )
 
 
-def _add_turn(db, session: TalkSession, speaker: str, text: str, **fields) -> SessionTurn:
-    next_no = (
-        db.scalar(select(func.max(SessionTurn.turn_no)).where(SessionTurn.session_id == session.session_id)) or 0
-    ) + 1
-    turn = SessionTurn(session_id=session.session_id, turn_no=next_no, speaker=speaker, text=text, **fields)
-    db.add(turn)
-    db.flush()
+def _add_turn(session: TalkSession, speaker: str, text: str, **fields: Any) -> dict[str, Any]:
+    """turns 에 한 칸 추가. 값이 None 인 키는 넣지 않는다 (키 목록: schema.sql sessions 주석)."""
+    turn = {"turn_no": len(session.turns) + 1, "speaker": speaker, "text": text, "created_at": now_kst().isoformat()}
+    turn |= {k: v for k, v in fields.items() if v is not None}
+    session.turns = [*session.turns, turn]  # 새 리스트를 넣어야 SQLAlchemy 가 바뀐 것을 안다
     return turn
 
 
-def _last_ai_turn(db, session_id: uuid.UUID) -> SessionTurn | None:
-    return db.scalar(
-        select(SessionTurn)
-        .where(SessionTurn.session_id == session_id, SessionTurn.speaker == "AI")
-        .order_by(SessionTurn.turn_no.desc())
-        .limit(1)
-    )
+def _last_ai_turn(session: TalkSession) -> dict[str, Any] | None:
+    return next((t for t in reversed(session.turns) if t["speaker"] == "AI"), None)
+
+
+def _turn_times(session: TalkSession) -> list[datetime]:
+    return [datetime.fromisoformat(t["created_at"]) for t in session.turns]
 
 
 def _max_turns(session: TalkSession) -> int:
@@ -136,7 +131,6 @@ def _ask(db, session: TalkSession, ctx: coach.CoachContext, end: str | None = No
     else:
         reply = coach.next_question(ctx, session.turn_count)
     _add_turn(
-        db,
         session,
         "AI",
         reply.text,
@@ -167,30 +161,22 @@ def _ai_out(db, session: TalkSession, room: FamilyRoom, reply: CoachReply) -> Ai
     )
 
 
-def _talk_seconds(db, session: TalkSession) -> float:
+def _talk_seconds(session: TalkSession) -> float:
     """5분 상한용 '대화한 시간'. 시작·각 턴·지금 사이 간격을 PAUSE_GAP_SEC 까지만 더한다.
 
-    더 긴 간격은 보류(전화·홈 버튼)로 보고 빼야 '30분 안 복귀'가 가능하다. 턴 시각이 DB 에 있어 컬럼 추가가 필요 없다.
+    더 긴 간격은 보류(전화·홈 버튼)로 보고 빼야 '30분 안 복귀'가 가능하다. 턴 시각이 turns 에 있어 칸 추가가 필요 없다.
     """
-    times = [
-        session.started_at,
-        *db.scalars(
-            select(SessionTurn.created_at)
-            .where(SessionTurn.session_id == session.session_id)
-            .order_by(SessionTurn.turn_no)
-        ),
-        now_kst(),
-    ]
+    times = [session.started_at, *_turn_times(session), now_kst()]
     return sum(min((b - a).total_seconds(), PAUSE_GAP_SEC) for a, b in zip(times, times[1:]))
 
 
-def _expired(db, session: TalkSession) -> bool:
-    return _talk_seconds(db, session) > MAX_SESSION_SEC
+def _expired(session: TalkSession) -> bool:
+    return _talk_seconds(session) > MAX_SESSION_SEC
 
 
-def _stale(db, session: TalkSession) -> bool:
-    last = db.scalar(select(func.max(SessionTurn.created_at)).where(SessionTurn.session_id == session.session_id))
-    return bool(last) and now_kst() - last > timedelta(minutes=SESSION_RESUME_MIN)
+def _stale(session: TalkSession) -> bool:
+    times = _turn_times(session)
+    return bool(times) and now_kst() - times[-1] > timedelta(minutes=SESSION_RESUME_MIN)
 
 
 def _locked(session_id: uuid.UUID) -> bool:
@@ -275,8 +261,9 @@ def create_session(body: SessionCreateIn, device: CurrentDevice, db: DB):
         kind=body.kind,
         pick_id=body.pick_id,
         photo_id=photo_id,
-        input_mode=device.input_mode,
+        input_mode=room.device_input_mode,
         turn_count=1,
+        turns=[],
     )
     db.add(session)
     db.flush()
@@ -288,13 +275,17 @@ def create_session(body: SessionCreateIn, device: CurrentDevice, db: DB):
 @router.get("/{session_id}", response_model=SessionGetOut)
 def get_session(session_id: uuid.UUID, device: CurrentDevice, db: DB):
     session = load_session(db, session_id, device)
-    ended = session.ended_at is not None or _expired(db, session) or _stale(db, session)
+    ended = session.ended_at is not None or _expired(session) or _stale(session)
     reply = _last_reply.get(session.session_id)
     if reply is None and not ended and session.kind == "DIARY":
         reply = _fallback(session)  # 재시작으로 칩을 잃음 → NO_RESPONSE 와 같은 고정 질문·칩 (기분 질문은 칩 4개)
     if reply is None:
-        last = _last_ai_turn(db, session.session_id)
-        reply = CoachReply(text=last.text, suggestions=[], question_type=last.question_type or "NONE") if last else None
+        last = _last_ai_turn(session)
+        reply = (
+            CoachReply(text=last["text"], suggestions=[], question_type=last.get("question_type") or "NONE")
+            if last
+            else None
+        )
     return SessionGetOut(
         session_id=session.session_id,
         state="ENDED" if ended else "CONTINUE",
@@ -323,31 +314,30 @@ def _unconfirmed(body: TurnIn) -> bool:
 
 
 def _save_elder(db, session: TalkSession, body: TurnIn, text: str) -> None:
-    last_ai = _last_ai_turn(db, session.session_id)
+    last_ai = _last_ai_turn(session)
     _add_turn(
-        db,
         session,
         "ELDER",
         text,
         stt_confidence=body.stt_confidence,
         input_type=body.input_type,
         retried=body.retried,
-        reply_to_turn_id=last_ai.turn_id if last_ai else None,
+        reply_to_turn_no=last_ai["turn_no"] if last_ai else None,
     )
 
 
 @router.post("/{session_id}/turns", response_model=SessionOut)
 def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB):
-    session = load_session(db, session_id, device)
+    session = load_session(db, session_id, device, lock=True)
     room = db.get(FamilyRoom, session.room_id)
     if session.ended_at is not None:
         raise ApiError(409, "SESSION_ENDED", "이미 끝난 대화예요")
-    if _stale(db, session):  # 마지막 턴 뒤 30분 → 끝난 대화 (GET 과 같은 규칙)
+    if _stale(session):  # 마지막 턴 뒤 30분 → 끝난 대화 (GET 과 같은 규칙)
         _finish(db, session, "NO_RESPONSE")
         db.commit()
         raise ApiError(409, "SESSION_ENDED", "이미 끝난 대화예요")
 
-    if _expired(db, session):  # 5분 상한 (D8). 방금 한 답은 저장한 뒤 마무리
+    if _expired(session):  # 5분 상한 (D8). 방금 한 답은 저장한 뒤 마무리
         text = (body.text or "").strip()
         if text and body.event is None and not _unconfirmed(body):
             _save_elder(db, session, body, text)
