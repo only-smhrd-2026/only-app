@@ -25,7 +25,7 @@ def home(device: CurrentDevice, db: DB):
     today = today_kst()
     pick = picks.today_pick(db, room.room_id, today)
     if pick is None and now_kst().time() >= room.memory_time:
-        pick = picks.select_pick(db, room.room_id, today)  # 09:00 잡을 놓쳤을 때 지연 보정 (D9)
+        pick = picks.select_pick(db, room.room_id, today)  # 매시 정각 잡보다 먼저 열었거나 잡이 놓쳤을 때 보정 (D9)
     today_pick = None
     if pick:
         if pick.status == "PENDING":

@@ -41,3 +41,44 @@ def test_gif_is_rejected(client):
     Image.new("RGB", (40, 30), "red").save(buf, "GIF")
     r = client.post(f"/api/rooms/{room_id}/photos", files=[("files", ("a.gif", buf.getvalue(), "image/gif"))])
     assert r.status_code == 400 and r.json()["code"] == "BAD_IMAGE"
+
+
+def _upload_one(client, data: bytes, name: str, mime: str):
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    return client.post(f"/api/rooms/{room_id}/photos", files=[("files", (name, data, mime))])
+
+
+def _stored(client, r) -> Image.Image:
+    assert r.status_code == 201, r.text
+    return Image.open(io.BytesIO(client.get(r.json()["photos"][0]["url"]).content))
+
+
+def test_sideways_photo_is_turned_upright(client):
+    """폰이 '옆으로 찍음'(EXIF Orientation 6)이라고 적은 40×30 사진 → 저장본은 똑바로 선 30×40."""
+    exif = Image.Exif()
+    exif[0x0112] = 6
+    buf = io.BytesIO()
+    Image.new("RGB", (40, 30), "red").save(buf, "JPEG", exif=exif.tobytes())
+    assert _stored(client, _upload_one(client, buf.getvalue(), "s.jpg", "image/jpeg")).size == (30, 40)
+
+
+def test_transparent_png_and_comment_are_cleaned(client):
+    """투명 PNG 도 JPEG 로 저장되고, 원본 주석(위치를 글로 적어 둔 경우)은 저장본에 따라오지 않는다."""
+    png = io.BytesIO()
+    Image.new("RGBA", (40, 30), (255, 0, 0, 0)).save(png, "PNG")
+    assert _stored(client, _upload_one(client, png.getvalue(), "t.png", "image/png")).format == "JPEG"
+
+    commented = io.BytesIO()
+    Image.new("RGB", (40, 30), "red").save(commented, "JPEG", comment=b"GPS 37.56,126.97 home")
+    assert "comment" not in _stored(client, _upload_one(client, commented.getvalue(), "c.jpg", "image/jpeg")).info
+
+
+def test_broken_png_is_400_not_500(client):
+    """머리 부분이 깨진 PNG(Pillow 가 OSError 가 아닌 ValueError 를 냄)도 400 BAD_IMAGE."""
+    good = io.BytesIO()
+    Image.new("RGB", (40, 30), "red").save(good, "PNG")
+    data = good.getvalue()
+    broken = data[:11] + bytes([12]) + data[12:]  # IHDR 길이 13 → 12
+    r = _upload_one(client, broken, "b.png", "image/png")
+    assert r.status_code == 400 and r.json()["code"] == "BAD_IMAGE"

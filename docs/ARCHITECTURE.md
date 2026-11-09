@@ -92,9 +92,10 @@ ELDER_DIARY_003: POST /elder/sessions/{id}/draft
 ### 오늘의 한 장
 
 ```
-09:00 잡(services/scheduler.select_daily_picks, 천주웅이 채움)  ─┐
+매시 정각 잡(services/scheduler.select_daily_picks — ACTIVE 방 중 추억 시간이 지나고 오늘 pick 없는 방)  ─┐
 GET /elder/home: now ≥ memory_time 이고 오늘 pick 없음 → services/picks.select_pick() ─┴─► INSERT … ON CONFLICT DO NOTHING
-후보: ACTIVE + source=FAMILY + 최근 14일 미선정. 건너뛰기: POST /elder/picks/today/skip → SKIPPED
+후보: ACTIVE + source=FAMILY + usable≠false + 어제까지 올린 사진 − 최근 14일 안에 이야기 끝낸(COMPLETED) 사진.
+후보 0장이면 가장 오래전에 이야기한 사진부터 다시(D44). 건너뛰기: POST /elder/picks/today/skip → SKIPPED
 ```
 
 ### 사진
@@ -118,7 +119,7 @@ STORAGE=local: uploads/ 폴더 (git 제외) / STORAGE=r2: Cloudflare R2 (boto3, 
 
 ## 4. 예약 작업·시간대
 
-`services/scheduler.py` — APScheduler(BackgroundScheduler, timezone=Asia/Seoul), 잡 3개(09:00 / 19:00 / 일 19:00)는 빈 함수. 서버·DB 세션·컨테이너 전부 Asia/Seoul(`config.TZ`, `now_kst()`, `today_kst()`; SQL 에서 `CURRENT_DATE` 금지). 놓친 09:00 은 홈 조회가 보정한다.
+`services/scheduler.py` — APScheduler(BackgroundScheduler, timezone=Asia/Seoul), 잡 3개: 오늘의 한 장(매시 정각, 방 하나가 실패해도 나머지 방은 계속) / 일기 알림 19:00·주간 요약 일 19:00(빈 함수). 서버·DB 세션·컨테이너 전부 Asia/Seoul(`config.TZ`, `now_kst()`, `today_kst()`; SQL 에서 `CURRENT_DATE` 금지). 잡이 아직 안 돈 방은 홈 조회가 보정한다.
 
 ## 5. 배포
 

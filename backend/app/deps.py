@@ -2,7 +2,7 @@
 
 - current_user:   쿠키 session(JWT) → users.status='ACTIVE'
 - current_device: 쿠키 device(토큰 원문) → family_rooms.device_token_hash 가 같은 가족방 (D38: 기기 = device_ 칸)
-- require_member: room_members.removed_at IS NULL
+- require_member: room_members.removed_at IS NULL, 아니면 404 (있는지도 모르게, D43)
 """
 
 from __future__ import annotations
@@ -75,7 +75,8 @@ def require_member(room_id: int, user: User, db: Session) -> RoomMember:
         )
     )
     if not member:
-        raise ApiError(403, "NOT_MEMBER", "이 가족방의 구성원이 아닙니다")
+        # 구성원이 아니면 가족방이 있는지도 모르게 404 (D43). 방 번호가 1,2,3… 순서라 403 이면 있는 방이 드러난다
+        raise ApiError(404, "ROOM_NOT_FOUND", "가족방을 찾을 수 없어요")
     return member
 
 
