@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 SessionKind = Literal["MEMORY", "ALBUM", "DIARY"]
 InputType = Literal["VOICE", "CHIP", "BUTTON"]
 ChoiceMode = Literal["CHIPS", "TWO_BUTTONS"]
-QuestionType = Literal["RECALL", "REMEMBER", "KNOWHOW", "THEN_NOW", "RECHECK", "CLOSING", "NONE"]
+QuestionType = Literal["RECALL", "REMEMBER", "KNOWHOW", "THEN_NOW", "COMMON", "RECHECK", "CLOSING", "NONE"]
 SessionState = Literal["CONTINUE", "ENDED"]
 EndReason = Literal["COMPLETED", "USER_STOP", "NO_RESPONSE", "ERROR", "LIMIT"]
 

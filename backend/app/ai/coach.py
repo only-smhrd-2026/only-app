@@ -1,8 +1,11 @@
-"""회상 코치 — 최소 버전 (초석 원안 D). 인사 1문장 + 회상 질문 + 마무리.
+"""회상 코치 (FR-AI-001·002·003·005·006, D42) — 회상 질문 3턴 → 문제 은행 문제 1개 → 자유 회상 → 마무리.
 일기 동무 (FR-DI-003, D36) — 질문 3개(뭐 하셨어요 → 누구랑 → 기분은) + 초안(본문·기분·그릴 사물).
 
-문제 은행 규칙(노하우→떠올리기→그때vs지금), 되짚기(RECHECK), story_facts 는 11/9 주 홍진성 PR 에서 채운다.
-LLM 이 실패하면(키 없음·검증 실패·장애) 고정 문장으로 대화를 이어 간다 (D14). mock 도 이 고정 문장을 쓴다.
+문제는 코드가 고르고(ai/quiz.py), 모델은 앞에 붙일 맞장구 한 문장과 답 칩만 만든다 — 문제 문장은 원문 그대로.
+question_type 은 모델이 아니라 여기서 정한다: 모델 질문 RECALL, 문제 = 문제 은행 qtype, 마무리 CLOSING.
+모델은 어르신 직전 말로 signal(NONE|SAD|STOP)을 함께 낸다. SAD·STOP 이면 그 턴 말은 마무리 인사다 (FR-AI-005).
+되짚기(RECHECK)·story_facts 는 AI-07(#46).
+LLM 이 실패하면(키 없음·검증 실패·장애) 고정 문장으로 대화를 이어 간다 (D14). 문제 턴은 원문만 낸다.
 """
 
 from __future__ import annotations
@@ -14,8 +17,9 @@ from typing import Any
 from pydantic import ValidationError
 
 from app.ai import llm
-from app.ai.schemas import BANNED_WORDS, CoachReply, DiaryDraft
-from app.config import DIARY_TURNS, MAX_TURNS
+from app.ai.quiz import Quiz
+from app.ai.schemas import BANNED_WORDS, CoachReply, CoachTurn, DiaryDraft, question_marks
+from app.config import DIARY_TURNS, MAX_TURNS, today_kst
 
 
 @dataclass
@@ -39,6 +43,9 @@ FALLBACK_CLOSING = CoachReply(
     choice_mode="TWO_BUTTONS",
 )
 CONFIRM_SUGGESTIONS = ["맞아요", "다시 말할게요"]
+SKIP_CHIP = "다음에 할게요"  # 문제마다 넘기기 (FR-AI-003). 고르면 그 문제만 넘기고 회상으로 돌아간다
+QUIZ_FALLBACK_CHIPS = ["잘 모르겠어요"]  # 열린 문제인데 모델이 칩을 못 만들었을 때
+WEEKDAYS = "월화수목금토일"
 
 
 def _data(ctx: CoachContext, turn_no: int, closing: bool = False, max_turns: int = MAX_TURNS) -> dict[str, Any]:
@@ -54,19 +61,73 @@ def _data(ctx: CoachContext, turn_no: int, closing: bool = False, max_turns: int
     }
 
 
-def next_question(ctx: CoachContext, turn_no: int) -> CoachReply:
-    """turn_no 번째 AI 질문 (1 = 첫 인사 + 첫 질문)."""
-    try:
-        return llm.call_json("memory_coach", _data(ctx, turn_no), CoachReply)
-    except (llm.LlmError, NotImplementedError):
-        return FALLBACK_QUESTION
+def _memory_data(ctx: CoachContext, turn_no: int, closing: bool = False, quiz: Quiz | None = None) -> dict[str, Any]:
+    """회상 대화용 데이터. 오늘 날짜·요일은 묻지 않고 말에 섞어 알려 주기 위해 넘긴다 (FR-AI-003)."""
+    d = today_kst()
+    quiz_data = {"prompt_text": quiz.prompt_text, "choices": quiz.choices} if quiz else None
+    return _data(ctx, turn_no, closing) | {
+        "today": f"{d.month}월 {d.day}일 {WEEKDAYS[d.weekday()]}요일",
+        "quiz": quiz_data,
+    }
 
 
-def closing(ctx: CoachContext, turn_no: int) -> CoachReply:
-    try:
-        return llm.call_json("memory_coach", _data(ctx, turn_no, closing=True), CoachReply)
-    except (llm.LlmError, NotImplementedError):
+def _closing_reply(text: str) -> CoachReply:
+    """모델이 쓴 마무리 인사. 질문이 섞이면 고정 인사로 (마무리는 질문 없이)."""
+    if question_marks(text):
         return FALLBACK_CLOSING
+    return CoachReply(text=text, suggestions=[], question_type="CLOSING", choice_mode="TWO_BUTTONS")
+
+
+def _is_skip(text: str) -> bool:
+    return text.strip().rstrip(".") == SKIP_CHIP
+
+
+def _quiz_reply(quiz: Quiz, lead: str, chips: list[str]) -> CoachReply:
+    """맞장구(모델) + 문제 은행 원문(코드). 칩 = 답 2개(2지선다면 선택지) + '다음에 할게요'."""
+    # 넘기기 칩·겹친 칩을 먼저 거른 뒤에 비었으면 기본 칩 (답 칩이 0개면 버튼 모드 어르신은 넘기기만 누를 수 있다)
+    answers = list(dict.fromkeys(c for c in (quiz.choices or chips) if not _is_skip(c)))[:2] or QUIZ_FALLBACK_CHIPS
+    suggestions = [*answers, SKIP_CHIP]
+    lead = re.split(r"(?<=[.!])\s+", lead.strip())[0]  # 맞장구는 첫 문장만 (원문까지 2문장 이내, FR-AI-006)
+    if lead and not question_marks(lead):  # 맞장구에 질문이 섞이면 질문이 2개가 되므로 버린다
+        try:
+            return CoachReply(text=f"{lead} {quiz.prompt_text}", suggestions=suggestions, question_type=quiz.qtype)
+        except ValidationError:
+            pass  # 합쳐서 120자 초과 등 → 원문만
+    return CoachReply(text=quiz.prompt_text, suggestions=suggestions, question_type=quiz.qtype)
+
+
+def _skipped_quiz(ctx: CoachContext) -> bool:
+    """직전 AI 턴이 문제였고 어르신이 '다음에 할게요'로 넘겼는지."""
+    return len(ctx.turns) >= 2 and bool(ctx.turns[-2].get("quiz")) and _is_skip(ctx.turns[-1]["text"])
+
+
+def next_question(ctx: CoachContext, turn_no: int, quiz: Quiz | None = None) -> tuple[CoachReply, str]:
+    """turn_no 번째 AI 말과 signal(NONE|SAD|STOP). quiz 가 있으면 맞장구 + 문제 은행 원문 (FR-AI-002).
+
+    signal 이 SAD·STOP 이면 reply 는 마무리 인사다 — 호출자가 대화를 끝낸다 (FR-AI-005).
+    """
+    try:
+        out = llm.call_json("memory_coach", _memory_data(ctx, turn_no, quiz=quiz), CoachTurn)
+    except (llm.LlmError, NotImplementedError):
+        return (_quiz_reply(quiz, "", []) if quiz else FALLBACK_QUESTION), "NONE"
+    if out.signal != "NONE":
+        if not any(t["speaker"] == "ELDER" for t in ctx.turns):  # 아직 어르신 말이 없는데 끝내자고 함 → 무시
+            return FALLBACK_QUESTION, "NONE"
+        if _skipped_quiz(ctx):  # '다음에 할게요'는 그 문제만 넘기는 칩 — 대화를 끝내지 않는다 (FR-AI-003)
+            return FALLBACK_QUESTION, "NONE"
+        return _closing_reply(out.text), out.signal
+    if quiz:
+        return _quiz_reply(quiz, out.text, out.suggestions), "NONE"
+    return CoachReply(text=out.text, suggestions=out.suggestions, question_type="RECALL"), "NONE"
+
+
+def closing(ctx: CoachContext, turn_no: int) -> tuple[CoachReply, str]:
+    """마무리 인사와 signal. 마지막 답이 슬프면 SAD 로 남기도록 signal 도 돌려준다."""
+    try:
+        out = llm.call_json("memory_coach", _memory_data(ctx, turn_no, closing=True), CoachTurn)
+    except (llm.LlmError, NotImplementedError):
+        return FALLBACK_CLOSING, "NONE"
+    return _closing_reply(out.text), out.signal
 
 
 def confirm_question(heard: str) -> CoachReply:

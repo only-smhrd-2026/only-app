@@ -64,7 +64,7 @@ def call_json(prompt_name: str, data: dict[str, Any], schema: type[T]) -> T:
 
 # ---------------------------------------------------------------- mock
 _MOCK_QUESTIONS = [
-    "이 사진은 언제 찍으신 거예요?",
+    "이 사진 보니 어떠세요?",
     "그날 누구랑 같이 계셨어요?",
     "그때 기분이 어떠셨어요?",
     "거기서 제일 기억에 남는 건 뭐예요?",
@@ -73,7 +73,7 @@ _MOCK_QUESTIONS = [
     "요즘도 그런 날이 있으면 좋겠어요?",
 ]
 _MOCK_CHIPS = [
-    ["작년에요", "오래전에요", "기억 안 나요"],
+    ["좋아요", "글쎄요", "기억 안 나요"],
     ["가족이랑요", "친구랑요"],
     ["좋았어요", "그저 그랬어요"],
 ]
@@ -84,27 +84,18 @@ def _mock(prompt_name: str, data: dict[str, Any], schema: type[T]) -> T:
         raise LlmError(f"mock 은 memory_coach 만 지원합니다 (요청: {prompt_name})")
     turn_no = int(data.get("turn_no", 1))
     if data.get("closing"):
+        text = "오늘 이야기 들려주셔서 고마워요. 모아서 가족들한테 전해 드릴게요."
+        return schema.model_validate({"text": text, "suggestions": [], "signal": "NONE"})
+    if data.get("quiz"):  # 맞장구만 — 문제 문장은 coach 가 문제 은행 원문으로 붙인다
         return schema.model_validate(
-            {
-                "text": "오늘 이야기 들려주셔서 고마워요. 내일 또 사진 들고 올게요.",
-                "suggestions": [],
-                "question_type": "CLOSING",
-                "choice_mode": "TWO_BUTTONS",
-            }
+            {"text": "아, 그러셨군요.", "suggestions": ["생각나요", "잘 모르겠어요"], "signal": "NONE"}
         )
     i = (turn_no - 1) % len(_MOCK_QUESTIONS)
     text = _MOCK_QUESTIONS[i]
-    if turn_no == 1:
-        honorific = data.get("elder_honorific", "어르신")
-        text = f"{honorific}, 안녕하세요. 오늘은 이 사진 보면서 이야기해요. " + text
-    return schema.model_validate(
-        {
-            "text": text,
-            "suggestions": _MOCK_CHIPS[i % len(_MOCK_CHIPS)],
-            "question_type": "RECALL",
-            "choice_mode": "CHIPS",
-        }
-    )
+    if turn_no == 1:  # 날짜·요일은 묻지 않고 첫 말에 섞어 알려 준다 (FR-AI-003)
+        today = f"오늘은 {data['today']}이에요. " if data.get("today") else ""
+        text = f"{data.get('elder_honorific', '어르신')}, {today}{text}"
+    return schema.model_validate({"text": text, "suggestions": _MOCK_CHIPS[i % len(_MOCK_CHIPS)], "signal": "NONE"})
 
 
 # ------------------------------------------------------------ anthropic

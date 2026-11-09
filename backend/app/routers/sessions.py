@@ -21,7 +21,7 @@ from typing import Any
 from fastapi import APIRouter
 from sqlalchemy import func, select
 
-from app.ai import coach, tts
+from app.ai import coach, quiz, tts
 from app.ai.schemas import CoachReply
 from app.config import (
     DIARY_TURNS,
@@ -29,6 +29,7 @@ from app.config import (
     MAX_TURNS,
     NO_RESPONSE_END,
     PAUSE_GAP_SEC,
+    QUIZ_TURN,
     SESSION_ERROR_ALERT,
     SESSION_RESUME_MIN,
     STT_CONF_MIN,
@@ -89,7 +90,11 @@ def coach_context(db, room: FamilyRoom, session: TalkSession) -> coach.CoachCont
             if photo
             else None
         ),
-        turns=[{"speaker": t["speaker"], "text": t["text"]} for t in session.turns],
+        # 문제였던 AI 턴에는 quiz 표시 → 다음 턴에 평가 없이 "아, 그렇군요"로 받게 (FR-AI-003). 일기 턴엔 없음
+        turns=[
+            {"speaker": t["speaker"], "text": t["text"]} | ({"quiz": True} if t.get("question_code") else {})
+            for t in session.turns
+        ],
     )
 
 
@@ -118,27 +123,41 @@ def _fallback(session: TalkSession) -> CoachReply:
     return coach.diary_fallback(session.turn_count) if session.kind == "DIARY" else coach.FALLBACK_QUESTION
 
 
-def _ask(db, session: TalkSession, ctx: coach.CoachContext, end: str | None = None) -> CoachReply:
-    """코치 호출 + AI 턴 저장 (latency_ms 기록). end(종료 사유)가 있으면 질문 대신 마무리 인사."""
+def _ask(
+    db, session: TalkSession, ctx: coach.CoachContext, end: str | None = None, turn_no: int | None = None
+) -> tuple[CoachReply, str]:
+    """코치 호출 + AI 턴 저장 (latency_ms 기록). end(종료 사유)가 있으면 질문 대신 마무리 인사.
+
+    turn_no = 이번이 몇 번째 AI 질문인지 (기본 session.turn_count). 회상(MEMORY) 4번째 질문은 문제 은행 문제이고
+    출제 기록은 그 AI 턴의 question_code (QUIZ_TURN, D42). 사진첩(ALBUM)·일기는 문제 없음 (FR-ME-008).
+    돌려주는 signal 이 SAD·STOP 이면 reply 는 마무리 인사 — 질문 중이었다면 호출자가 대화를 끝낸다 (FR-AI-005).
+    """
     t0 = time.perf_counter()
+    turn_no = turn_no or session.turn_count
+    signal, code = "NONE", None
     if session.kind == "DIARY":
         if end is None:
-            reply = coach.diary_question(ctx, session.turn_count)
+            reply = coach.diary_question(ctx, turn_no)
         else:  # "일기를 써 볼게요"는 일기를 쓸 때만. 무응답으로 끝나면 저장하지 않으니 다른 인사
             reply = coach.DIARY_CLOSING if end in DIARY_SAVED else coach.DIARY_STOP
     elif end:
-        reply = coach.closing(ctx, session.turn_count)
+        reply, signal = coach.closing(ctx, turn_no)
     else:
-        reply = coach.next_question(ctx, session.turn_count)
+        picked = quiz.pick(db, session) if session.kind == "MEMORY" and turn_no == QUIZ_TURN else None
+        reply, signal = coach.next_question(ctx, turn_no, picked)
+        code = picked.code if picked and signal == "NONE" else None
+    if signal == "SAD":
+        session.emotion_flag = "SAD"  # 가족 대시보드·주간 요약용 (FR-AI-005, FR-FD-006)
     _add_turn(
         session,
         "AI",
         reply.text,
         question_type=reply.question_type,
+        question_code=code,
         latency_ms=int((time.perf_counter() - t0) * 1000),
     )
     _last_reply[session.session_id] = reply
-    return reply
+    return reply, signal
 
 
 def _ai_out(db, session: TalkSession, room: FamilyRoom, reply: CoachReply) -> AiOut:
@@ -267,7 +286,7 @@ def create_session(body: SessionCreateIn, device: CurrentDevice, db: DB):
     )
     db.add(session)
     db.flush()
-    reply = _ask(db, session, coach_context(db, room, session))
+    reply, _ = _ask(db, session, coach_context(db, room, session))  # 어르신 말 전이라 signal 은 늘 NONE (coach)
     db.commit()
     return _out(db, session, room, reply)
 
@@ -341,7 +360,7 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
         text = (body.text or "").strip()
         if text and body.event is None and not _unconfirmed(body):
             _save_elder(db, session, body, text)
-        reply = _ask(db, session, coach_context(db, room, session), end="LIMIT")
+        reply, _ = _ask(db, session, coach_context(db, room, session), end="LIMIT")
         _finish(db, session, "LIMIT")
         db.commit()
         return _out(db, session, room, reply, "ENDED", "LIMIT")
@@ -350,7 +369,7 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
         _no_response[session.session_id] += 1
         stage = _no_response[session.session_id]
         if stage >= NO_RESPONSE_END:
-            reply = _ask(db, session, coach_context(db, room, session), end="NO_RESPONSE")
+            reply, _ = _ask(db, session, coach_context(db, room, session), end="NO_RESPONSE")
             _finish(db, session, "NO_RESPONSE")
             db.commit()
             return _out(db, session, room, reply, "ENDED", "NO_RESPONSE")
@@ -377,12 +396,17 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
     _save_elder(db, session, body, text)
     ctx = coach_context(db, room, session)
     if session.turn_count >= _max_turns(session):  # 마지막 답(회상 8번째·일기 3번째) → 마무리 인사 후 종료
-        reply = _ask(db, session, ctx, end="COMPLETED")
+        reply, _ = _ask(db, session, ctx, end="COMPLETED")
         _finish(db, session, "COMPLETED")
         db.commit()
         return _out(db, session, room, reply, "ENDED", "COMPLETED")
+    reply, signal = _ask(db, session, ctx, turn_no=session.turn_count + 1)
+    if signal != "NONE":  # 슬픔·그만 (FR-AI-005): 문제 없이 마무리 인사로 바로 끝낸다. turn_count(질문 수)는 그대로
+        reason = "USER_STOP" if signal == "STOP" else "COMPLETED"
+        _finish(db, session, reason)
+        db.commit()
+        return _out(db, session, room, reply, "ENDED", reason)
     session.turn_count += 1
-    reply = _ask(db, session, ctx)
     db.commit()
     return _out(db, session, room, reply)
 

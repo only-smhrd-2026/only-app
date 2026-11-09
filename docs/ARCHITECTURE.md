@@ -27,7 +27,7 @@ only-app/
 │   ├── app/schemas/          요청·응답 모델 (API 계약)
 │   ├── app/routers/          auth, rooms, invites, devices, elder, stt, sessions, diaries, media, stubs(빈 API)
 │   ├── app/services/         storage(local|r2), picks(오늘의 한 장), scheduler(예약 작업 틀)
-│   ├── app/ai/               llm·stt·tts·image 어댑터, coach(회상 코치·일기 동무), schemas(출력 검사), prompts/*.md
+│   ├── app/ai/               llm·stt·tts·image 어댑터, coach(회상 코치·일기 동무), quiz(문제 은행 고르기), schemas(출력 검사), prompts/*.md
 │   ├── scripts/seed.py       DB 초기화 + 시드
 │   └── tests/                test_auth, test_session_stub, test_diary, test_tz (docker Postgres 사용)
 ├── db/schema.sql             테이블 원천 (천주웅·홍진성만 수정) / db/seed/seed.sql 시드 데이터
@@ -63,7 +63,7 @@ signup → POST /rooms (가족방+구성원) → 사진 3장 이상 → POST /ro
 [말하기] ─녹음(≤60초)─► POST /api/stt (multipart, 메모리에서만 전사 후 폐기)
    ◄─ {transcript, confidence}  → 화면에 전사 표시, [맞아요]/[다시 말할게요], 3초 무조작 확정
 [맞아요] ─► POST /api/elder/sessions/{id}/turns {text, input_type:VOICE, stt_confidence, retried}
-   서버: ELDER 턴 저장 → coach.next_question(LLM 또는 mock) → 금지어·형식 검사 → AI 턴 저장 → TTS(mock 이면 None)
+   서버: ELDER 턴 저장 → (회상 4번째 질문이면 quiz.pick 이 문제 은행에서 고름) → coach.next_question(LLM 또는 mock) → 금지어·형식 검사 → AI 턴 저장(문제면 question_code) → TTS(mock 이면 None)
    ◄─ {ai:{text, audio_b64?, suggestions[], choice_mode, question_type}, state, turn_no, input_locked}
 화면: audio_b64 재생 또는 speechSynthesis → 칩 표시 → WAITING(20초 무조작이면 event:NO_RESPONSE)
 8번째 답 → AI 마무리(CLOSING) + state:ENDED(COMPLETED) → daily_picks COMPLETED → [다 들었어요] → POST /elder/picks/today/listened

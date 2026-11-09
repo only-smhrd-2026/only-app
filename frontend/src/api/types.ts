@@ -46,7 +46,7 @@ export type AiOut = {
   audio_b64: string | null
   suggestions: string[]
   choice_mode: 'CHIPS' | 'TWO_BUTTONS'
-  question_type: 'RECALL' | 'REMEMBER' | 'KNOWHOW' | 'THEN_NOW' | 'RECHECK' | 'CLOSING' | 'NONE'
+  question_type: 'RECALL' | 'REMEMBER' | 'KNOWHOW' | 'THEN_NOW' | 'COMMON' | 'RECHECK' | 'CLOSING' | 'NONE'
 }
 export type SessionState = 'CONTINUE' | 'ENDED'
 export type EndReason = 'COMPLETED' | 'USER_STOP' | 'NO_RESPONSE' | 'ERROR' | 'LIMIT'
