@@ -29,9 +29,9 @@ export default function ELDER_TODAY_001({ home, busy, error, preview, onTalk, on
         {error && <p className="elder-text" role="alert">{error}</p>}
         <div className="elder-today-actions">
           <button className="elder-btn" onClick={onTalk} disabled={busy} autoFocus>
-            {busy ? '잠시만요…' : '이야기하기'}
+            {busy ? '잠시만요' : <>이야기<wbr />하기</>}
           </button>
-          <button className="elder-btn elder-btn--secondary" onClick={onSkip} disabled={busy}>건너뛰기</button>
+          <button className="elder-btn elder-btn--secondary" onClick={onSkip} disabled={busy}>건너<wbr />뛰기</button>
         </div>
       </section>
     </div>
