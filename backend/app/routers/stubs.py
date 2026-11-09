@@ -8,12 +8,13 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from app.deps import CurrentDevice, CurrentUser
 from app.errors import ApiError
 from app.schemas.diaries import DiaryListOut, DiaryOut
+from app.schemas.photos import PhotoListOut, PhotoOut
 
 
 def todo(owner: str):
@@ -24,34 +25,11 @@ def todo(owner: str):
 photos = APIRouter(prefix="/rooms/{room_id}/photos", tags=["photos (빈 API)"])
 
 
-class PhotoOut(BaseModel):
-    photo_id: int
-    url: str
-    taken_at: date | None
-    caption: str | None
-    people_note: str | None
-    status: str
-
-
-class PhotoBatchOut(BaseModel):
-    upload_batch_id: uuid.UUID
-    photos: list[PhotoOut]
-
-
-class PhotoListOut(BaseModel):
-    photos: list[PhotoOut]
-
-
 class PhotoCorrectIn(BaseModel):
     corrected_activity: str = Field(max_length=20)
 
 
-@photos.post("", response_model=PhotoBatchOut, status_code=201)
-def upload_photos(
-    room_id: int, user: CurrentUser, files: list[UploadFile] = File(description="JPEG/PNG/HEIC, 장당 10MB, 20장")
-):
-    """업로드 배치 (D17: 장당 10MB, 30M 픽셀, 순차 처리, EXIF 제거 후 JPEG 재인코딩만 저장)."""
-    todo("천주웅")
+# 사진 올리기(POST)는 routers/photos.py 로 옮김 (박유승, BE-02)
 
 
 @photos.get("", response_model=PhotoListOut)
