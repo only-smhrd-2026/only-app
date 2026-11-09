@@ -153,9 +153,10 @@ CREATE TABLE sessions (
 -- 칸 안의 값은 DB 가 아니라 서버 코드가 검사한다 (D38).
 --   공통  : turn_no, speaker(AI|ELDER), text, created_at
 --   어르신: stt_confidence(0~1), input_type(VOICE|CHIP|BUTTON), retried, reply_to_turn_no
---   AI    : question_type(RECALL|REMEMBER|KNOWHOW|THEN_NOW|RECHECK|CLOSING|NONE), latency_ms
+--   AI    : question_type(RECALL|REMEMBER|KNOWHOW|THEN_NOW|COMMON|RECHECK|CLOSING|NONE), latency_ms
 --   출제  : question_code(문제 은행 code, 되짚기는 없음), hint_level(0~3), recheck_result(REMEMBERED|HINTED|SKIPPED|NA),
---           answer_summary — 14일 반복 방지는 최근 14일 세션의 question_code → question_bank.code 의 카테고리·활동 (FR-AI-002, D39)
+--           answer_summary — 14일 반복 방지는 최근 14일 세션의 question_code → question_bank.code 의 카테고리·활동,
+--           둘 다 없는 문제(그때 vs 지금·공통)는 그 code 자체 (FR-AI-002, D39)
 CREATE INDEX ix_sessions_room_started ON sessions(room_id, started_at);   -- S14
 CREATE INDEX ix_sessions_pick ON sessions(pick_id);                       -- S14
 ALTER TABLE daily_picks
