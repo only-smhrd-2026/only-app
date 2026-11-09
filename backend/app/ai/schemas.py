@@ -29,7 +29,9 @@ class CoachReply(BaseModel):
     # 고정 문장(coach.DIARY_MOOD_QUESTION)이라 여기 상한(3)은 그대로 둔다.
     text: str = Field(min_length=1, max_length=120)
     suggestions: list[str] = Field(default_factory=list, max_length=3)
-    question_type: Literal["RECALL", "REMEMBER", "KNOWHOW", "THEN_NOW", "RECHECK", "CLOSING", "NONE"] = "RECALL"
+    question_type: Literal["RECALL", "REMEMBER", "KNOWHOW", "THEN_NOW", "COMMON", "RECHECK", "CLOSING", "NONE"] = (
+        "RECALL"
+    )
     choice_mode: Literal["CHIPS", "TWO_BUTTONS"] = "CHIPS"
 
     @field_validator("text")

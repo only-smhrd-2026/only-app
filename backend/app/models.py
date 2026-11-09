@@ -186,7 +186,7 @@ class QuestionBank(Base):
     activity: Mapped[str | None] = mapped_column(String(20))
     category: Mapped[str | None] = mapped_column(String(20))
     prompt_text: Mapped[str] = mapped_column(String(200))
-    choices: Mapped[Any | None] = mapped_column(JSONB)
+    choices: Mapped[Any | None] = mapped_column(JSONB(none_as_null=True))  # None → SQL NULL (JSON null 아님)
     priority: Mapped[int] = mapped_column(SmallInteger, server_default="5")
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=TRUE)
     created_by: Mapped[str] = mapped_column(String(20))

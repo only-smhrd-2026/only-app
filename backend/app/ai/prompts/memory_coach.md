@@ -22,5 +22,5 @@
 
 - text: 이번에 할 말
 - suggestions: 추천 답변 배열
-- question_type: RECALL | REMEMBER | KNOWHOW | THEN_NOW | RECHECK | CLOSING | NONE
+- question_type: RECALL | REMEMBER | KNOWHOW | THEN_NOW | COMMON | RECHECK | CLOSING | NONE
 - choice_mode: CHIPS (추천 답변 버튼) | TWO_BUTTONS (예/아니오 식 버튼 2개)
