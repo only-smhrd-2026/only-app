@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import uuid
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -36,7 +37,7 @@ with _admin.connect() as c:
 
 from fastapi.testclient import TestClient  # noqa: E402  (환경 변수 설정 뒤에 import)
 
-from app.config import ROOT  # noqa: E402
+from app.config import ROOT, now_kst  # noqa: E402
 from app.db import SessionLocal, engine  # noqa: E402
 from app.models import FamilyRoom, Photo  # noqa: E402
 from app.services import storage  # noqa: E402
@@ -81,7 +82,10 @@ def add_photos(room_id: int, n: int = 3) -> list[int]:
         for i in range(n):
             key = f"rooms/{room_id}/{batch}/{i}.jpg"
             storage.put(key, b"\xff\xd8\xff\xd9")  # 최소 JPEG 마커
-            p = Photo(room_id=room_id, upload_batch_id=batch, object_key=key, source="FAMILY", caption=f"사진 {i}")
+            p = Photo(
+                room_id=room_id, upload_batch_id=batch, object_key=key, source="FAMILY",
+                caption=f"사진 {i}", uploaded_at=now_kst() - timedelta(days=1),
+            )
             db.add(p)
             db.flush()
             ids.append(p.photo_id)
