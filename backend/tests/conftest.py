@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import uuid
 from datetime import timedelta
@@ -12,7 +13,7 @@ from pathlib import Path
 
 import pytest
 from dotenv import dotenv_values
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, delete, text
 
 TEST_DB = "only_app_test"
 _dotenv = dotenv_values(Path(__file__).resolve().parents[2] / ".env")  # 저장소 루트 .env (DB 포트 등)
@@ -39,7 +40,7 @@ from fastapi.testclient import TestClient  # noqa: E402  (환경 변수 설정 �
 
 from app.config import ROOT, now_kst  # noqa: E402
 from app.db import SessionLocal, engine  # noqa: E402
-from app.models import FamilyRoom, Photo  # noqa: E402
+from app.models import FamilyRoom, Photo, QuestionBank  # noqa: E402
 from app.services import storage  # noqa: E402
 
 
@@ -57,6 +58,19 @@ def client():
 
     with TestClient(app) as c:
         yield c
+
+
+@pytest.fixture
+def question_bank():
+    """문제 은행을 seed 와 같은 방법으로 넣고 끝나면 비운다. 이 fixture 를 안 쓰는 테스트는 은행이 빈 채로 돈다."""
+    questions = json.loads((ROOT / "data" / "question_bank.json").read_text("utf-8"))["questions"]
+    with SessionLocal() as db:
+        db.add_all(QuestionBank(**q, created_by="test") for q in questions)
+        db.commit()
+    yield questions
+    with SessionLocal() as db:
+        db.execute(delete(QuestionBank))
+        db.commit()
 
 
 def signup(client: TestClient, email: str | None = None) -> dict:

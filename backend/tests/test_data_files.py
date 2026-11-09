@@ -51,7 +51,8 @@ def test_question_bank_rules():
         else:
             assert q["activity"] is None and q["category"] is None, c
         text = q["prompt_text"]
-        assert 0 < len(text) <= 200 and text.count("?") + text.count("？") <= 1, f"{c}: 질문은 한 번에 하나"
+        # 120자 = 화면·소리로 나가는 AI 말 상한(CoachReply.text). 넘으면 문제 턴이 500 이 된다 (DB 는 200자)
+        assert 0 < len(text) <= 120 and text.count("?") + text.count("？") <= 1, f"{c}: 질문은 한 번에 하나"
         assert not any(w in text for w in banned), f"{c}: 금지어 (NFR-DE-003)"
         assert q["choices"] is None or len(q["choices"]) == 2, f"{c}: 2지선다만"
         for ch in q["choices"] or []:
