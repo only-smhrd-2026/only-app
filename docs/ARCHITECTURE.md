@@ -126,4 +126,5 @@ STORAGE=local: uploads/ 폴더 (git 제외) / STORAGE=r2: Cloudflare R2 (boto3, 
 폰(https://DOMAIN) ─► caddy(80/443, 인증서 자동, 화면 정적 파일, /api 프록시) ─► api(uvicorn --workers 1) ─► db(postgres:16)
                                                                                  └─ uploads 볼륨 (STORAGE=r2 면 R2)
 ```
-`docker compose --profile deploy up -d --build`. `.env` 에 `APP_ENV=deploy`, 새 `JWT_SECRET`, `DOMAIN` 필수. 개발은 `docker compose up -d db` + `uv run uvicorn` + `npm run dev`(Vite 프록시).
+서버: AWS EC2 서울 `t4g.small`(ARM) 1대 + 탄력적 IP, 도메인 `haruhanjang.duckdns.org`(DuckDNS 가 탄력적 IP 를 가리킴, D41). 서버 안 `.env` 는 저장소에 올리지 않고 `scp` 로만 옮긴다.
+`docker compose --profile deploy up -d --build`. 서버 `.env` 에 새 `POSTGRES_PASSWORD`·새 `JWT_SECRET`·`DOMAIN=haruhanjang.duckdns.org` 필수(`APP_ENV=deploy` 는 compose 가 넣음). 개발은 `docker compose up -d db` + `uv run uvicorn` + `npm run dev`(Vite 프록시).

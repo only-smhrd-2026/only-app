@@ -45,7 +45,7 @@ services:
     build:
       context: ./frontend
     environment:
-      # 배포 전 .env 에 DOMAIN 을 적는다 (예 haru.duckdns.org). 비어 있으면 localhost(자체 서명 인증서)로 뜬다
+      # 배포 서버 .env 에 DOMAIN 을 적는다 (haruhanjang.duckdns.org, D41). 비어 있으면 localhost(자체 서명 인증서)로 뜬다
       DOMAIN: ${DOMAIN:-localhost}
     ports:
       - "80:80"
