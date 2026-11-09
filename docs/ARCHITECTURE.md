@@ -31,7 +31,7 @@ only-app/
 │   ├── scripts/seed.py       DB 초기화 + 시드
 │   └── tests/                test_auth, test_session_stub, test_diary, test_tz (docker Postgres 사용)
 ├── db/schema.sql             테이블 원천 (천주웅·홍진성만 수정) / db/seed/seed.sql 시드 데이터
-├── data/                     question_bank.json, taxonomy.json (박유승), banned_words.json
+├── data/                     question_bank.json, taxonomy.json (홍진성), banned_words.json
 ├── docker-compose.yml        db / --profile deploy: api + caddy
 ├── Caddyfile                 https, /api → api:8000, 나머지는 화면 정적 파일
 └── docs/                     DECISIONS.md, ARCHITECTURE.md
@@ -100,7 +100,7 @@ GET /elder/home: now ≥ memory_time 이고 오늘 pick 없음 → services/pick
 ### 사진
 
 ```
-업로드(천주웅): 장당 10MB·30M 픽셀 검사 → EXIF 제거 → JPEG 재인코딩 → storage.put(key)  key=rooms/{room}/{batch}/{i}.jpg
+업로드(박유승): 장당 10MB·30M 픽셀 검사 → EXIF 제거 → JPEG 재인코딩 → storage.put(key)  key=rooms/{room}/{batch}/{i}.jpg
 조회: <img src="/api/media/{key}"> → 쿠키로 구성원/기기 확인 → storage.get(key) 바이트 반환 (서명 URL 없음)
 STORAGE=local: uploads/ 폴더 (git 제외) / STORAGE=r2: Cloudflare R2 (boto3, R2_* 키)
 ```

@@ -9,7 +9,7 @@
 
 > [!IMPORTANT]
 > 1. **`main`, `develop`에는 직접 올리지 않아요.** 작업은 항상 **내 브랜치**에서 해요.
-> 2. 작업이 끝나면 **PR**(합치기 요청)을 올리고, **팀원 1명이 승인**하면 합쳐요.
+> 2. 작업이 끝나면 **PR**(합치기 요청)을 올려요. PR을 올리면 **그 브랜치는 끝**이고, 합치기는 **매일 저녁 홍진성**이 리뷰하고 해요.
 > 3. **`.env`, API 키, 비밀번호, 실제 사용자 사진·음성은 절대 올리지 않아요.** 이 저장소는 공개(public)라서 누구나 볼 수 있어요.
 
 ## 10분 안에 실행
@@ -27,7 +27,7 @@
 | Python 3.12 | 서버 실행 | <https://www.python.org/downloads/> 3.12.x, 설치 첫 화면에서 **Add python.exe to PATH** 체크 | `brew install python@3.12` 또는 python.org | Windows `py -3.12 --version` / Mac `python3.12 --version` |
 | uv | Python 라이브러리 설치기 | PowerShell: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 \| iex"` | `curl -LsSf https://astral.sh/uv/install.sh \| sh` | `uv --version` (터미널 껐다 켜기) |
 
-박유승은 Git·VS Code 만 설치하고 ②까지만 하면 돼요. 명령은 Windows 는 **PowerShell**, Mac 은 **터미널** 앱에 한 줄씩 입력해요.
+명령은 Windows 는 **PowerShell**, Mac 은 **터미널** 앱에 한 줄씩 입력해요.
 
 ### ② 저장소 받기
 
@@ -184,12 +184,12 @@ gitGraph
 
 | 폴더/파일 | 들어가는 것 | 담당 | 브랜치 이름 예시 |
 |---|---|---|---|
-| `frontend/` | 화면 전부. `src/screens/elder/` 어르신 화면 10개, `src/screens/family/` 가족 화면 15개. **파일 이름 = 화면설계서 화면 ID** (예: `ELDER_HOME_001.tsx`). 경로 표는 `src/App.tsx` | 김승희 (+홍진성: `src/components/VoiceSession/`) | `feature/fe-elder-today` |
-| `backend/app/routers/` | API 주소별 서버 코드 (로그인·가족방·사진·세션·일기·주간·알림). 빈 API 는 `stubs.py` | 천주웅 (세션 `sessions.py` 는 홍진성) | `feature/be-photo-upload` |
-| `backend/app/ai/` | AI 부품: `llm.py`(Claude) `stt.py` `tts.py` `image.py` `coach.py` `prompts/`(지시문 5종) | 홍진성 (분류·일기·음성 비교는 11/9 배정) | `feature/ai-memory-coach` |
-| `backend/app/models.py` | 테이블 12개의 모양을 서버 코드로 적은 파일 (`db/schema.sql` 과 짝) | 천주웅 | `feature/db-diary-table` |
+| `frontend/` | 화면 전부. `src/screens/elder/` 어르신 화면 10개, `src/screens/family/` 가족 화면 15개. **파일 이름 = 화면설계서 화면 ID** (예: `ELDER_HOME_001.tsx`). 경로 표는 `src/App.tsx` | 김승희 18개 (박유승: 사진 올리기 `UPLOAD_001~003`·가족방 `GROUP_001~003`·`JOIN_001` 7개, 홍진성: `src/components/VoiceSession/`) | `feature/fe-elder-today` |
+| `backend/app/routers/`, `backend/app/schemas/` | API 주소별 서버 코드 (로그인·가족방·사진·세션·일기·주간·알림)와 요청·응답 모양. 빈 API 는 `stubs.py` | **각자 자기 API**: 박유승(사진 올리기·가족방·일기), 천주웅(사진첩 제한·가족 소식·알림·주간·기기 해제), 홍진성(세션 `sessions.py`) | `feature/be-photo-upload` |
+| `backend/app/ai/` | AI 부품: `llm.py`(Claude) `stt.py` `tts.py` `image.py` `coach.py` `prompts/`(지시문 5종) | 홍진성 | `feature/ai-memory-coach` |
+| `backend/app/models.py`, `backend/app/services/` | 테이블 12개의 모양을 서버 코드로 적은 파일 (`db/schema.sql` 과 짝) / 예약 작업 `scheduler.py`, 오늘의 한 장 고르기 `picks.py`, 사진 저장 `storage.py` | 천주웅 (`storage.py` 는 박유승). 내 API 안에서 데이터를 읽고 저장하는 코드는 각자 써요 | `feature/be-daily-pick-job` |
 | `db/schema.sql`, `db/seed/` | 테이블 생성 SQL(기준 문서) / 시드·더미 데이터 | **천주웅·홍진성만 수정** | `feature/db-diary-table` |
-| `data/` | 문제 은행 `question_bank.json`, 사진 분류 목록 `taxonomy.json`, 금지어 `banned_words.json`, 평가용 가짜 데이터 | 박유승 (문제 은행·목록), 평가 데이터는 11/9 배정 | `feature/data-question-bank` |
+| `data/` | 문제 은행 `question_bank.json`, 사진 분류 목록 `taxonomy.json`, 금지어 `banned_words.json`, 평가용 가짜 데이터 | 홍진성 | `feature/data-question-bank` |
 | `docs/` | `DECISIONS.md`(기술 결정 기록), `ARCHITECTURE.md`(구조 설명) | 홍진성 | `docs/decisions-stt` |
 | `.env.example`, `docker-compose.yml`, `Caddyfile` | 설정 파일 (복사해서 `.env`), 내 PC 의 DB / 배포(서버+Caddy) | 홍진성 | `chore/compose-port` |
 | `README.md`, `.gitignore` 등 최상위 | 팀 공용 설정과 문서 | 모두 (고치기 전에 단톡방에 한 마디) | `docs/readme-run-guide` |
@@ -300,9 +300,9 @@ flowchart LR
   B --> C["③ 작업하고<br/>커밋"]
   C --> D["④ GitHub에<br/>push"]
   D --> E["⑤ PR<br/>만들기"]
-  E --> F["⑥ 팀원 1명<br/>승인"]
-  F --> G["⑦ Merge"]
-  G -. 다음 작업 .-> A
+  E --> F["⑥ 저녁에 홍진성<br/>리뷰"]
+  F --> G["⑦ 홍진성이<br/>Merge"]
+  E -. 다음 작업은 바로 .-> A
 ```
 
 ### ①~④ 내 컴퓨터에서
@@ -328,7 +328,9 @@ git push -u origin feature/be-photo-upload
 
 [7. PR 올리기와 리뷰하기](#7-pr-올리기와-리뷰하기)를 따라 해요.
 
-### Merge가 끝나면 정리
+### 합쳐진 다음 날 정리
+
+다음 날 아침 내 PR이 보라색 **Merged**면 이 3줄을 쳐요. (Merged가 아니면 마지막 줄은 치지 않아요)
 
 ```bash
 git checkout develop
@@ -336,12 +338,12 @@ git pull origin develop
 git branch -d feature/be-photo-upload
 ```
 
-그리고 다음 작업은 다시 ①부터 시작해요.
+다음 작업은 합쳐지길 기다리지 않아요. PR을 올렸으면 바로 ①부터 새 브랜치로 시작해요.
 
 > [!TIP]
 > - `git add .` 대신 `git add backend/`처럼 **내 폴더만** 담아요. 남의 파일이나 `.env`가 실수로 같이 올라가는 걸 막아 줘요.
 > - 커밋은 기능 조각마다 자주, push는 적어도 하루에 한 번 해요. 컴퓨터가 고장 나도 GitHub에 남아 있어요.
-> - PR이 Merge되기 전까지는 같은 브랜치에서 계속 커밋하고 push 하면 PR에 자동으로 추가돼요. Merge된 뒤에는 새 브랜치를 만들어요.
+> - PR을 올리면 **그 브랜치에는 더 커밋하지 않아요.** push 하면 PR에 섞여 들어가요. 고칠 점은 홍진성이 합치면서 정리해요.
 
 ### 작업이 이틀 넘게 걸리면
 
@@ -380,9 +382,13 @@ git push
 2. 위쪽이 `base: develop` ← `compare: 내 브랜치`인지 확인해요. **base가 main이면 develop으로 바꿔요.**
 3. 제목은 커밋 메시지처럼 써요. 예: `feat(be): 사진 업로드 API 추가`
 4. 본문은 자동으로 나오는 템플릿 칸을 채워요. 관련 이슈가 있으면 `Closes #12`처럼 적어요.
-5. 오른쪽 **Reviewers** 옆 톱니바퀴를 눌러 리뷰어를 지정해요. **기본은 홍진성**(반나절 안에 봐요). API 응답 모양이나 테이블을 바꾸는 PR 은 영향받는 담당자(화면이면 김승희, 테이블이면 천주웅)를 추가해요. 홍진성이 올린 PR 은 서버 쪽이면 천주웅, 화면 쪽이면 김승희가 리뷰해요. 연습 PR 만 옆 사람끼리 서로 승인해요.
+5. 오른쪽 **Reviewers** 옆 톱니바퀴를 눌러 리뷰어를 지정해요. **기본은 홍진성**(매일 저녁 17:30 push 뒤에 봐요). 이런 PR 은 한 명 더 추가해요.
+   - 서버 PR: 천주웅·박유승이 서로 (Swagger `http://localhost:8000/docs` 에서 눌러 보기)
+   - 박유승 화면 PR, API 응답 모양을 바꾼 PR: 김승희 (Figma와 같은지, 화면이 안 깨지는지)
+   - 테이블을 바꿔야 하는 PR: 천주웅 (`db/schema.sql` PR 을 기능 PR 보다 먼저 따로)
+   - 홍진성이 올린 PR 은 서버 쪽이면 천주웅, 화면 쪽이면 김승희가 리뷰해요.
 6. **Create pull request**를 눌러요.
-7. 승인(Approved)을 받으면 **Merge pull request** → **Confirm merge**. 이어서 **Delete branch** 버튼이 보이면 눌러요.
+7. 내 할 일은 여기까지예요. **Merge 는 누르지 않아요.** 저녁에 홍진성이 리뷰하고 합쳐요.
 
 ### 리뷰하는 사람
 
@@ -391,12 +397,11 @@ git push
    - 담당 폴더 밖을 고치지 않았나? (고쳤다면 이유가 적혀 있나?)
    - `.env`, API 키, 비밀번호, 실제 사진이나 개인정보가 들어 있지 않나?
    - PR 설명만 보고 무엇을 했는지 알 수 있나?
-3. 괜찮으면 **Review changes**(또는 **Submit review**) → **Approve** → **Submit review**를 눌러요.
-   고칠 게 있으면 **Request changes**를 고르고 코멘트를 남겨요.
-4. 수정 요청을 받은 사람은 같은 브랜치에서 고쳐서 다시 push 하면 돼요. PR에 자동으로 반영돼요.
+3. 괜찮으면 PR 아래 댓글로 **"확인했어요"** 를 남겨요. 이상한 곳이 있으면 어디가 왜 이상한지 댓글로 적어요. (Approve·Merge 는 홍진성이 저녁에 해요)
+4. PR 을 올린 사람은 같은 브랜치에서 고치지 않아요. 고칠 점은 홍진성이 합치면서 정리하고, 무엇을 왜 바꿨는지 PR 댓글로 알려 줘요. 발표 때 내 코드를 설명해야 하니 그 댓글은 꼭 읽어요.
 
 > [!NOTE]
-> 내가 올린 PR은 내가 승인할 수 없어요. 리뷰 요청을 받으면 **반나절 안에** 봐 주세요. 다들 서로 기다리고 있어요.
+> 확인 요청을 받으면 **그날 17:30 전에** 봐 주세요. 저녁에 홍진성이 그 댓글을 보고 합쳐요.
 
 ## 8. 충돌(Conflict) 해결하기
 
@@ -495,7 +500,7 @@ git push
 
 ## 11. 할 일 관리 (Issues, Projects)
 
-- 할 일은 **Issue**로 만들어요. **Issues** 탭 → **New issue** → 제목(예: `사진 업로드 API`) → 오른쪽 **Assignees**에 담당자, **Labels**에 `FE`/`BE`/`DB`/`AI`/`DATA`/`DOCS`를 지정해요. WBS 의 작업 하나하나를 이슈로 만드는 건 박유승이 해요.
+- 할 일은 **Issue**로 만들어요. **Issues** 탭 → **New issue** → 제목(예: `사진 업로드 API`) → 오른쪽 **Assignees**에 담당자, **Labels**에 `FE`/`BE`/`DB`/`AI`/`DATA`/`DOCS`를 지정해요. 일정표의 작업은 이미 이슈로 만들어 뒀어요(#2~#68, 담당·주차 지정). 새로 생긴 일만 이슈로 만들어요.
 - 진행 상황은 **Projects 보드**에서 `Todo` → `In Progress` → `Done`으로 옮기면서 봐요. PM의 WBS와 맞춰요.
 - PR 본문에 `Closes #12`를 쓰면 Merge될 때 12번 이슈가 자동으로 닫혀요.
 
@@ -619,15 +624,14 @@ git checkout feature/fe-photo-upload
 
 ## 13. 팀원
 
-11/9(월) 파트 배분이 확정되면 홍진성이 한 번에 고쳐요. (여럿이 동시에 고치면 충돌이 나요)
+11/9(월) 확정. 날짜별 할 일은 팀 Drive 「개발계획_주차별_일별_ONly_1109」에 있어요. 담당이 바뀌면 홍진성이 고쳐요. (여럿이 동시에 고치면 충돌이 나요)
 
 | 이름 | 역할 | 담당 폴더 | GitHub |
 |---|---|---|---|
-| 박유승 | PM (팀장) — 문제 은행·분류 목록, WBS→이슈, 문서 | `data/question_bank.json`, `data/taxonomy.json` | @starjr125 |
-| 김승희 | 프론트엔드(화면) — 화면 25개, 실기기 테스트 | `frontend/` | @jjudahui933-art |
-| 천주웅 | 백엔드·DB(서버) — API, 테이블, 예약 작업 | `backend/app/routers/`, `backend/app/models.py`, `db/` | @rudmeon |
-| 김영중 | 데이터 — [11/9 배정. 코드 개발은 하지 않음] | — | — |
-| 홍진성 | AI 에이전트·개발 총괄 — 회상 대화, VoiceSession, 모든 PR 리뷰, 배포(EC2) | `backend/app/ai/`, `frontend/src/components/VoiceSession/`, `docs/`, 설정 파일 | @hongjinkong |
+| 김승희 | 화면 — 화면 18개(어르신 10개 전부 + 로그인·가족 홈·일기 상세·가족 일기·주간 이야기·알림), 갤럭시 실기기 확인, 화면설계서 최종본, 시연 영상 촬영 | `frontend/src/screens/` | @jjudahui933-art |
+| 천주웅 | DB — 테이블·시드, 예약 작업 3개(오늘의 한 장·19시 일기 알림·주간 집계), DB 중심 API(사진첩 제한·가족 소식·알림·주간·기기 해제), 사진 정답표 합치기, DB 문서 최종본 | `db/`, `backend/app/models.py`, `backend/app/services/`, 내 API 파일 | @rudmeon |
+| 박유승 | 팀장 · 기능 주인 — 사진 올리기·가족방·일기 API와 그 화면 7개, 멘토링 일지, 테스트 사진 모으기, 사용자 검증 섭외·운영, 기획서·요구사항·WBS 최종본, 시연 영상 편집 | `backend/app/routers/`·`schemas/` 의 내 API, 내 화면 파일 | @starjr125 |
+| 홍진성 | AI·음성·배포·개발 총괄 — 회상 대화, STT·TTS, 사진 분류, 일기 동무, 주간 요약, VoiceSession, 문제 은행·분류 목록, 모든 PR 리뷰·합치기, develop → main | `backend/app/ai/`, `frontend/src/components/VoiceSession/`, `data/`, `docs/`, 설정 파일 | @hongjinkong |
 
 <details>
 <summary><b>팀장·Owner만 보세요: 저장소 설정 체크리스트</b></summary>
