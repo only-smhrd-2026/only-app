@@ -101,7 +101,7 @@ GET /elder/home: now ≥ memory_time 이고 오늘 pick 없음 → services/pick
 ### 사진
 
 ```
-업로드(박유승): 장당 10MB·30M 픽셀 검사 → EXIF 제거 → JPEG 재인코딩 → storage.put(key)  key=rooms/{room}/{batch}/{i}.jpg
+업로드(박유승, #10): 장당 10MB·30M 픽셀 검사(11/10 예정) → 그림 끝까지 풀기(깨지면 400) → EXIF·주석 제거 → JPEG 재인코딩 → storage.put(key)  key=rooms/{room}/{batch}/{i}.jpg
 조회: <img src="/api/media/{key}"> → 쿠키로 구성원/기기 확인 → storage.get(key) 바이트 반환 (서명 URL 없음)
 STORAGE=local: uploads/ 폴더 (git 제외) / STORAGE=r2: Cloudflare R2 (boto3, R2_* 키)
 ```

@@ -3,6 +3,7 @@
 from datetime import datetime, time, timedelta
 
 import pytest
+from sqlalchemy import text
 
 from app.config import TZ, today_kst
 from app.db import SessionLocal
@@ -48,13 +49,17 @@ def test_upload_kst_midnight(room_photo, offset_us):
 
 
 @pytest.mark.parametrize("status", ["SKIPPED", "EXPIRED", "PENDING"])
-def test_unfinished_photo_available_next_day(room_photo, status):
-    room_id, photo_id = room_photo
+def test_unfinished_photo_available_next_day(client, monkeypatch, status):
+    """어제 건너뛰거나 못 한 사진(X)은 다음 날 다시 후보 — 사진 2장이라 '후보 0장' 대체 경로를 타지 않는다."""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    photo_x, _ = add_photos(room_id, 2)
+    monkeypatch.setattr(picks.random, "choice", lambda seq: photo_x if photo_x in seq else seq[0])
     today = today_kst()
     with SessionLocal() as db:
-        db.add(DailyPick(room_id=room_id, photo_id=photo_id, pick_date=today - timedelta(days=1), status=status))
+        db.add(DailyPick(room_id=room_id, photo_id=photo_x, pick_date=today - timedelta(days=1), status=status))
         db.commit()
-        assert picks.select_pick(db, room_id, today).photo_id == photo_id
+        assert picks.select_pick(db, room_id, today).photo_id == photo_x
 
 
 def _completed(db, room_id: int, photo_id: int, days_ago: int) -> None:
@@ -85,10 +90,11 @@ def test_all_recently_completed_repeats_oldest(client):
     room_id = make_room(client)["room_id"]
     photo_a, photo_b = add_photos(room_id, 2)
     with SessionLocal() as db:
-        _completed(db, room_id, photo_a, 3)
-        _completed(db, room_id, photo_b, 1)
+        _completed(db, room_id, photo_a, 20)  # A 는 20일 전에도 했지만 마지막은 어제
+        _completed(db, room_id, photo_a, 1)
+        _completed(db, room_id, photo_b, 3)  # B 의 마지막이 더 오래됨 → B
         db.commit()
-        assert picks.select_pick(db, room_id, today_kst()).photo_id == photo_a
+        assert picks.select_pick(db, room_id, today_kst()).photo_id == photo_b
 
 
 def test_scheduler_respects_memory_time_and_existing_pick(client, monkeypatch):
@@ -148,8 +154,8 @@ def test_scheduler_skips_closed_room_and_survives_room_error(client, monkeypatch
     real = picks.select_pick
 
     def flaky(db, room_id, day):
-        if room_id == broken:
-            raise RuntimeError("boom")
+        if room_id == broken:  # DB 트랜잭션까지 깨뜨린다 — rollback 이 없으면 다음 방(ok)도 실패
+            db.execute(text("SELECT 1/0"))
         return real(db, room_id, day)
 
     monkeypatch.setattr(picks, "select_pick", flaky)

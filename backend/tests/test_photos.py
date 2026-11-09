@@ -1,6 +1,7 @@
 """사진 올리기 (BE-02, D17) — JPEG 로 다시 만들어 저장, 사진 보기 주소로 열림, 사진이 아니면 거절."""
 
 import io
+import zlib
 
 from PIL import Image
 
@@ -81,4 +82,17 @@ def test_broken_png_is_400_not_500(client):
     data = good.getvalue()
     broken = data[:11] + bytes([12]) + data[12:]  # IHDR 길이 13 → 12
     r = _upload_one(client, broken, "b.png", "image/png")
+    assert r.status_code == 400 and r.json()["code"] == "BAD_IMAGE"
+
+
+def test_png_with_broken_pixels_is_400_not_black_photo(client):
+    """그림 데이터(IDAT) 가운데가 깨진 PNG — 반쯤 검은 사진으로 저장(201)하지 않고 400 으로 거절."""
+    good = io.BytesIO()
+    Image.linear_gradient("L").resize((128, 96)).convert("RGB").save(good, "PNG")
+    data = bytearray(good.getvalue())
+    i = data.index(b"IDAT")
+    size = int.from_bytes(data[i - 4 : i], "big")
+    data[i + 4 + size // 2] ^= 0xFF  # 압축된 그림 한가운데 1바이트를 뒤집고
+    data[i + 4 + size : i + 8 + size] = zlib.crc32(bytes(data[i : i + 4 + size])).to_bytes(4, "big")  # 검사합은 맞춤
+    r = _upload_one(client, bytes(data), "p.png", "image/png")
     assert r.status_code == 400 and r.json()["code"] == "BAD_IMAGE"

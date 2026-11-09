@@ -31,11 +31,13 @@ def select_daily_picks() -> None:
     with SessionLocal() as db:
         already_picked = select(DailyPick.room_id).where(DailyPick.pick_date == today)
         room_ids = db.scalars(
-            select(FamilyRoom.room_id).where(
+            select(FamilyRoom.room_id)
+            .where(
                 FamilyRoom.status == "ACTIVE",
                 FamilyRoom.memory_time <= now.time(),
                 FamilyRoom.room_id.not_in(already_picked),
             )
+            .order_by(FamilyRoom.room_id)  # 처리 순서를 고정 (로그·테스트가 매번 같게)
         ).all()
         for room_id in room_ids:
             try:
