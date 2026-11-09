@@ -15,7 +15,7 @@
 ## 10분 안에 실행
 
 > 11/9(월) 오전 전원이 이 절대로 실행해 봐요. 안 되면 단톡방에 **입력한 명령 + 오류 메시지 전체**를 붙이고 @홍진성.
-> 설계·구조 설명은 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), 기술 결정의 이유는 [docs/DECISIONS.md](docs/DECISIONS.md). Figma: [링크 적기 — 김승희]
+> 설계·구조 설명은 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), 기술 결정의 이유는 [docs/DECISIONS.md](docs/DECISIONS.md). Figma(흐름별 와이어프레임): [하루한장 | 흐름별 와이어프레임](https://www.figma.com/design/O6xQ0c4ot7FXsFYLrlOFbB/%ED%95%98%EB%A3%A8%ED%95%9C%EC%9E%A5-%7C-%ED%9D%90%EB%A6%84%EB%B3%84-%EC%99%80%EC%9D%B4%EC%96%B4%ED%94%84%EB%A0%88%EC%9E%84?node-id=0-1)
 
 ### ① 설치 (처음 한 번, 30~60분)
 
