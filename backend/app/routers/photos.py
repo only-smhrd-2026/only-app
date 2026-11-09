@@ -13,12 +13,14 @@ from app.schemas.photos import PhotoBatchOut, PhotoOut
 from app.services import storage
 
 router = APIRouter(prefix="/rooms/{room_id}/photos", tags=["photos"])
+ALLOWED_FORMATS = ["JPEG", "PNG"]  # D17. HEIC 는 pillow-heif 를 켜는 날(11/12) "HEIF" 추가
 
 
 def to_jpeg(data: bytes) -> bytes:
     """그림만 꺼내 JPEG 로 새로 만든다. 원본의 EXIF(위치정보 포함)는 따라오지 않는다 (D17)."""
     try:
-        img = ImageOps.exif_transpose(Image.open(io.BytesIO(data)))  # 폰이 적어 둔 '돌려 찍음'을 실제로 돌려 둔다
+        img = Image.open(io.BytesIO(data), formats=ALLOWED_FORMATS)  # 그 밖의 형식(GIF·BMP·TIFF…)은 열지 않음
+        img = ImageOps.exif_transpose(img)  # 폰이 적어 둔 '돌려 찍음'을 실제로 돌려 둔다
         out = io.BytesIO()
         img.convert("RGB").save(out, "JPEG", quality=85)
     except OSError as e:  # 사진이 아니거나 깨진 파일 (UnidentifiedImageError 도 OSError)

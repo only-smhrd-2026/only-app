@@ -31,3 +31,13 @@ def test_not_an_image_is_rejected(client):
     room_id = make_room(client)["room_id"]
     r = client.post(f"/api/rooms/{room_id}/photos", files=[("files", ("x.jpg", b"not an image", "image/jpeg"))])
     assert r.status_code == 400 and r.json()["code"] == "BAD_IMAGE"
+
+
+def test_gif_is_rejected(client):
+    """D17 허용 형식(JPEG/PNG/HEIC) 밖이면 진짜 그림 파일이어도 거절."""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    buf = io.BytesIO()
+    Image.new("RGB", (40, 30), "red").save(buf, "GIF")
+    r = client.post(f"/api/rooms/{room_id}/photos", files=[("files", ("a.gif", buf.getvalue(), "image/gif"))])
+    assert r.status_code == 400 and r.json()["code"] == "BAD_IMAGE"
