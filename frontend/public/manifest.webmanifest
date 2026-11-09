@@ -1,0 +1,16 @@
+{
+  "name": "하루한장",
+  "short_name": "하루한장",
+  "description": "가족 사진 한 장으로 매일 어르신께 말을 거는 회상 대화 앱",
+  "lang": "ko",
+  "start_url": "/elder",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFDF7",
+  "theme_color": "#145A32",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

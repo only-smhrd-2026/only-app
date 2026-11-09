@@ -1,0 +1,5 @@
+{
+  "_comment": "사진 분류 이름표 견본(3개씩). 박유승이 각각 약 20개로 늘립니다(11/11까지). activity = 사진 속 활동(노하우 질문의 열쇠), category = 떠올리기 주제(떠올리기 질문의 열쇠). 값은 photos.activity/category(VARCHAR 20) 와 question_bank 의 activity/category 에 그대로 들어가므로 20자 이내, 띄어쓰기 포함 정확히 같은 글자를 씁니다.",
+  "activity": ["김장", "모내기", "잔치"],
+  "category": ["잔칫상 음식", "김치 재료", "명절 놀이"]
+}

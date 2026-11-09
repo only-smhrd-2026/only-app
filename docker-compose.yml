@@ -1,0 +1,65 @@
+# 개발:  docker compose up -d db              → 내 PC 에 PostgreSQL 16 만 띄움 (127.0.0.1:5432)
+# 배포:  docker compose --profile deploy up -d → caddy(80/443, https 자동) → api(8000) → db  컨테이너 3개 (D7)
+# 값은 .env 에서 읽음 (.env.example 참고). 시간대는 전부 Asia/Seoul (D12).
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-only}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-only}
+      POSTGRES_DB: ${POSTGRES_DB:-only_app}
+      TZ: Asia/Seoul
+      PGTZ: Asia/Seoul
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"  # 내 PC 에 이미 Postgres 가 있으면 .env 의 DB_PORT 를 5433 으로
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-only} -d ${POSTGRES_DB:-only_app}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    profiles: [deploy]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file: .env
+    environment:
+      APP_ENV: deploy
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-only}:${POSTGRES_PASSWORD:-only}@db:5432/${POSTGRES_DB:-only_app}
+      UPLOAD_DIR: /app/uploads
+      TZ: Asia/Seoul
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  caddy:
+    profiles: [deploy]
+    build:
+      context: ./frontend
+    environment:
+      # 배포 전 .env 에 DOMAIN 을 적는다 (예 haru.duckdns.org). 비어 있으면 localhost(자체 서명 인증서)로 뜬다
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  uploads:
+  caddy_data:
+  caddy_config:

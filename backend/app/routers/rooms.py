@@ -1,0 +1,110 @@
+"""가족방 생성·목록, 초대 링크 발급·조회·폐기 (방장만)."""
+
+from datetime import timedelta
+
+from fastapi import APIRouter, Request
+from sqlalchemy import distinct, func, select
+
+from app.config import now_kst
+from app.deps import DB, CurrentUser, require_owner
+from app.errors import ApiError
+from app.models import FamilyRoom, Photo, RoomMember
+from app.schemas.common import OkOut
+from app.schemas.rooms import InviteCreatedOut, InviteCreateIn, InviteKind, InviteOut, RoomCreateIn, RoomOut
+from app.security import new_token, sha256_hex
+
+router = APIRouter(prefix="/rooms", tags=["rooms"])
+
+ELDER_DEVICE_MIN_PHOTOS = 3
+# 링크 종류 → family_rooms 칸 (해시, 만료). 종류마다 링크 1개 (D38). routers/invites.py 도 쓴다
+INVITE_COLS = {
+    "FAMILY": ("family_invite_hash", "family_invite_expires_at"),
+    "ELDER_DEVICE": ("elder_invite_hash", "elder_invite_expires_at"),
+}
+
+
+def room_out(room: FamilyRoom, user_id: int) -> RoomOut:
+    out = RoomOut.model_validate(room)
+    out.is_owner = room.owner_user_id == user_id
+    return out
+
+
+@router.post("", response_model=RoomOut, status_code=201)
+def create_room(body: RoomCreateIn, user: CurrentUser, db: DB):
+    room = FamilyRoom(elder_name=body.elder_name, elder_honorific=body.elder_honorific, owner_user_id=user.user_id)
+    db.add(room)
+    db.flush()
+    db.add(
+        RoomMember(
+            room_id=room.room_id,
+            user_id=user.user_id,
+            relation_tag=body.relation_tag,
+            nickname=body.nickname,
+        )
+    )
+    db.commit()
+    db.refresh(room)
+    return room_out(room, user.user_id)
+
+
+@router.get("", response_model=list[RoomOut])
+def list_rooms(user: CurrentUser, db: DB):
+    rooms = db.scalars(
+        select(FamilyRoom)
+        .join(RoomMember, RoomMember.room_id == FamilyRoom.room_id)
+        .where(
+            RoomMember.user_id == user.user_id,
+            RoomMember.removed_at.is_(None),
+            FamilyRoom.status == "ACTIVE",
+        )
+        .order_by(FamilyRoom.room_id)
+    ).all()
+    return [room_out(r, user.user_id) for r in rooms]
+
+
+@router.post("/{room_id}/invites", response_model=InviteCreatedOut, status_code=201)
+def create_invite(room_id: int, body: InviteCreateIn, request: Request, user: CurrentUser, db: DB):
+    room = require_owner(room_id, user, db)
+    now = now_kst()
+    if body.kind == "ELDER_DEVICE":
+        n = db.scalar(
+            select(func.count(distinct(Photo.object_key))).where(
+                Photo.room_id == room_id, Photo.status == "ACTIVE", Photo.source == "FAMILY"
+            )
+        )
+        if (n or 0) < ELDER_DEVICE_MIN_PHOTOS:
+            raise ApiError(409, "NEED_PHOTOS", "사진을 3장 이상 올린 뒤에 어르신 기기를 연결할 수 있어요")
+        expires_at, path = now + timedelta(hours=24), "elder/connect"
+    else:
+        expires_at, path = now + timedelta(days=7), "join"
+    # 칸을 덮어쓰므로 같은 종류의 이전 링크는 바로 무효 (D16 방당 기기 링크 1, D38 가족 링크도 1)
+    token = new_token()
+    hash_col, exp_col = INVITE_COLS[body.kind]
+    setattr(room, hash_col, sha256_hex(token))
+    setattr(room, exp_col, expires_at)
+    db.commit()
+    # 토큰은 # 뒤 → 서버 로그·Referer·미리보기 봇에 안 감 (D16). 이 응답 한 번만 원문을 보여 준다.
+    base = str(request.base_url).rstrip("/")
+    return InviteCreatedOut(kind=body.kind, url=f"{base}/{path}#{token}", expires_at=expires_at)
+
+
+@router.get("/{room_id}/invites", response_model=list[InviteOut])
+def list_invites(room_id: int, user: CurrentUser, db: DB):
+    """아직 쓸 수 있는 링크 (종류마다 최대 1개)."""
+    room = require_owner(room_id, user, db)
+    now = now_kst()
+    alive = {kind: getattr(room, exp_col) for kind, (_, exp_col) in INVITE_COLS.items()}
+    return [InviteOut(kind=kind, expires_at=exp) for kind, exp in alive.items() if exp and exp > now]
+
+
+@router.delete("/{room_id}/invites/{kind}", response_model=OkOut)
+def revoke_invite(room_id: int, kind: InviteKind, user: CurrentUser, db: DB):
+    """폐기 = 만료 시각을 지금으로 (해시는 남겨 링크를 열면 '더 쓸 수 없어요' 안내, D38)."""
+    room = require_owner(room_id, user, db)
+    _, exp_col = INVITE_COLS[kind]
+    now = now_kst()
+    expires_at = getattr(room, exp_col)
+    if expires_at and expires_at > now:
+        setattr(room, exp_col, now)
+        db.commit()
+    return OkOut()
