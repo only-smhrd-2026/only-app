@@ -21,7 +21,7 @@ export const SCREENS: ScreenDef[] = [
   // ---- 어르신 (10)
   { id: 'ELDER_CONNECT_001', path: '/elder/connect', title: '어르신 기기 연결', Screen: ELDER_CONNECT_001 },
   { id: 'ELDER_HOME_001', path: '/elder', title: '어르신 홈', Screen: ELDER_HOME_001 },
-  { id: 'ELDER_TODAY_001', path: '/elder/today', title: '오늘의 한 장' },
+  { id: 'ELDER_TODAY_001', path: '/elder/today', title: '오늘의 한 장', Screen: ELDER_HOME_001 },
   { id: 'ELDER_MEMORY_001', path: '/elder/memory/:sessionId', title: '회상 대화', Screen: ELDER_MEMORY_001 },
   { id: 'ELDER_MEMORY_002', path: '/elder/memory/:sessionId/done', title: '회상 마무리' },
   { id: 'ELDER_ALBUM_001', path: '/elder/album', title: '사진첩' },
