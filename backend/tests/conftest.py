@@ -97,8 +97,12 @@ def add_photos(room_id: int, n: int = 3) -> list[int]:
             key = f"rooms/{room_id}/{batch}/{i}.jpg"
             storage.put(key, b"\xff\xd8\xff\xd9")  # 최소 JPEG 마커
             p = Photo(
-                room_id=room_id, upload_batch_id=batch, object_key=key, source="FAMILY",
-                caption=f"사진 {i}", uploaded_at=now_kst() - timedelta(days=1),
+                room_id=room_id,
+                upload_batch_id=batch,
+                object_key=key,
+                source="FAMILY",
+                caption=f"사진 {i}",
+                uploaded_at=now_kst() - timedelta(days=1),
             )
             db.add(p)
             db.flush()

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { ElderHomeOut, SessionOut } from '../../api/types'
-import todayPreview from '../../assets/today-preview.svg'
+import todayPreview from '../../assets/today-preview.svg?inline' // 미리보기 전용 — 배포 빌드에 파일이 따로 남지 않게
 import { useLive } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
 import ELDER_TODAY_001 from './ELDER_TODAY_001'
@@ -87,12 +87,12 @@ export default function ELDER_HOME_001() {
         <h1 className="elder-home-greeting">{home.greeting}</h1>
         <div className="elder-home-tiles">
           <button className="elder-home-tile elder-home-tile--secondary" onClick={() => nav('/elder/album')}><span>사진첩</span></button>
-          <button className="elder-home-tile" onClick={() => nav('/elder/diary', { state: { home } })}><span>오늘<br />이야기하기</span></button>
+          <button className="elder-home-tile" onClick={() => nav('/elder/diary', { state: { home } })}><span>오늘<br />이야기<wbr />하기</span></button>
         </div>
         {home.unread_family_news > 0 && <p className="elder-home-news">새로운 가족 소식이 {home.unread_family_news}개 있어요.</p>}
         {pick?.status === 'PENDING' && !showToday && (
           <button className="elder-btn elder-home-pick" onClick={preview ? () => { setStartError(undefined); setTodayDismissed(false) } : startMemory} disabled={busy}>
-            {busy ? '잠시만요…' : preview ? '팝업 다시 보기' : '오늘 사진 보기'}
+            {busy ? '잠시만요' : preview ? '팝업 다시 보기' : '오늘 사진 보기'}
           </button>
         )}
         {!pick && <p className="elder-home-news">오늘은 아직 사진이 없어요.</p>}

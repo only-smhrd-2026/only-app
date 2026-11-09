@@ -24,19 +24,29 @@ scheduler = BackgroundScheduler(timezone=TZ)
 
 
 def select_daily_picks() -> None:
-    """설정 시간이 지났고 오늘의 한 장이 없는 가족방을 채운다."""
+    """설정 시간이 지났고 오늘의 한 장이 없는 가족방(ACTIVE)을 채운다. 방 하나가 실패해도 나머지 방은 계속."""
     now = now_kst()
     today = today_kst()
+    picked = failed = 0
     with SessionLocal() as db:
         already_picked = select(DailyPick.room_id).where(DailyPick.pick_date == today)
         room_ids = db.scalars(
-            select(FamilyRoom.room_id).where(
+            select(FamilyRoom.room_id)
+            .where(
+                FamilyRoom.status == "ACTIVE",
                 FamilyRoom.memory_time <= now.time(),
                 FamilyRoom.room_id.not_in(already_picked),
             )
+            .order_by(FamilyRoom.room_id)  # 처리 순서를 고정 (로그·테스트가 매번 같게)
         ).all()
         for room_id in room_ids:
-            picks.select_pick(db, room_id, today)
+            try:
+                picked += picks.select_pick(db, room_id, today) is not None
+            except Exception as e:  # 실패한 방은 다음 정각·홈 보정이 다시 시도한다
+                db.rollback()  # 안 하면 PG 가 'current transaction is aborted' 로 다음 방까지 거부
+                failed += 1
+                log.warning("job select_daily_picks room=%s error=%s", room_id, type(e).__name__)
+    log.info("job select_daily_picks rooms=%d picked=%d failed=%d", len(room_ids), picked, failed)
 
 
 def diary_reminders() -> None:

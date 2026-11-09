@@ -179,7 +179,7 @@ def test_drawing_waits_then_attaches_and_only_room_members_see_it(client, monkey
     client.cookies.clear()
     signup(client)  # 다른 가족(구성원 아님): 그림·목록·열람 기록 모두 막힘, 일기가 있는지도 모르게 404
     assert client.get(url).status_code == 404
-    assert client.get(f"/api/rooms/{room_id}/diaries").status_code == 403
+    assert client.get(f"/api/rooms/{room_id}/diaries").status_code == 404
     assert client.post(f"/api/diaries/{posted['diary_id']}/read").status_code == 404
 
 

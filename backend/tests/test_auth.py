@@ -39,7 +39,7 @@ def test_family_to_elder_flow(client):
     assert client.get("/api/auth/me").status_code == 401
 
     signup(client)  # 다른 가족 계정은 남의 가족방을 못 본다
-    assert client.get(f"/api/rooms/{room['room_id']}/invites").status_code == 403
+    assert client.get(f"/api/rooms/{room['room_id']}/invites").status_code == 404  # 있는지도 모르게 (D43)
     assert client.get(home["today_pick"]["photo_url"]).status_code == 404  # 구성원 아닌 가족 쿠키 → 존재 비노출
     client.post("/api/auth/logout")
     assert client.get(home["today_pick"]["photo_url"]).status_code == 200  # 기기 쿠키만 남으면 그대로 유효

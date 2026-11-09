@@ -43,8 +43,10 @@ html[data-font='XXL'] { --elder-font-size: 38px; --elder-font-size-lg: 48px; --e
   color: var(--elder-primary-fg);
   cursor: pointer;
 }
-.elder-btn:disabled { opacity: .45; }
+/* 누른 뒤 기다리는 버튼도 대비 7:1 이상 — 흐리게(opacity) 하면 2:1 대로 떨어진다. 회색 #4a4a4a ↔ 흰색 8.9:1 */
+.elder-btn:disabled { background: #4a4a4a; color: #ffffff; cursor: default; }
 .elder-btn--secondary { background: #ffffff; color: var(--elder-fg); border: 4px solid var(--elder-fg); }
+.elder-btn--secondary:disabled { background: #ffffff; color: #4a4a4a; border-color: #4a4a4a; }
 .elder-chip {
   min-height: 72px;
   font-size: var(--elder-font-size);

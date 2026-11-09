@@ -1,9 +1,9 @@
 .elder-home {
   position: relative;
   display: block;
-  width: min(100%, 360px);
-  max-width: 360px;
+  width: 100%; /* 폰 폭을 꽉 채운다(412px 갤럭시에서 양옆이 비지 않게). 최대 폭은 elder.css 의 .elder 560px */
   min-height: 100dvh;
+  word-break: keep-all; /* 한글을 단어 중간에서 끊지 않는다. 끊을 자리는 <wbr> 로 */
   padding: 0;
   overflow: hidden;
   background: #fffbf4;

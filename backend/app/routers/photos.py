@@ -1,6 +1,7 @@
 """사진 올리기 (BE-02, FR-ME-001/002/004, D17). 목록 보기·정정은 아직 stubs.py 에 있다."""
 
 import io
+import logging
 import uuid
 
 from fastapi import APIRouter, File, UploadFile
@@ -12,18 +13,29 @@ from app.models import Photo
 from app.schemas.photos import PhotoBatchOut, PhotoOut
 from app.services import storage
 
+log = logging.getLogger("app.photos")
 router = APIRouter(prefix="/rooms/{room_id}/photos", tags=["photos"])
 ALLOWED_FORMATS = ["JPEG", "PNG"]  # D17. HEIC 는 pillow-heif 를 켜는 날(11/12) "HEIF" 추가
 
 
 def to_jpeg(data: bytes) -> bytes:
-    """그림만 꺼내 JPEG 로 새로 만든다. 원본의 EXIF(위치정보 포함)는 따라오지 않는다 (D17)."""
+    """그림만 꺼내 JPEG 로 새로 만든다. 원본의 EXIF(위치정보 포함)·주석은 따라오지 않는다 (D17)."""
     try:
         img = Image.open(io.BytesIO(data), formats=ALLOWED_FORMATS)  # 그 밖의 형식(GIF·BMP·TIFF…)은 열지 않음
-        img = ImageOps.exif_transpose(img)  # 폰이 적어 둔 '돌려 찍음'을 실제로 돌려 둔다
+        # (11/10 픽셀 제한은 여기, 그림을 풀기 전에: img.width * img.height 를 직접 비교해 ApiError 로 거절)
+        img.load()  # 그림을 먼저 끝까지 푼다 — 픽셀이 깨진 파일은 여기서 오류(400). 아래 회전 단계로 넘기지 않는다
+        try:
+            img = ImageOps.exif_transpose(img)  # 폰이 적어 둔 '돌려 찍음'을 실제로 돌려 둔다
+        except Exception as e:  # 회전 정보(EXIF)만 깨진 사진은 돌리지 않고 그대로 저장한다
+            log.warning("photo exif_transpose skipped error=%s", type(e).__name__)
+        rgb = img.convert("RGB")
+        rgb.info.clear()  # 원본 주석(JPEG COM·PNG comment)이 새 JPEG 에 따라오지 않게 — 위치를 글로 적어 둔 경우가 있다
         out = io.BytesIO()
-        img.convert("RGB").save(out, "JPEG", quality=85)
-    except OSError as e:  # 사진이 아니거나 깨진 파일 (UnidentifiedImageError 도 OSError)
+        rgb.save(out, "JPEG", quality=85)
+    except ApiError:
+        raise  # 위에서 일부러 낸 거절(예: 픽셀 제한)은 그 코드 그대로 — 아래에서 BAD_IMAGE 로 바뀌지 않게
+    except Exception as e:  # 사진이 아니거나 깨진 파일. Pillow 는 OSError 말고도 ValueError·SyntaxError 등을 낸다
+        log.info("photo rejected error=%s", type(e).__name__)  # 예외 종류만 (D15)
         raise ApiError(400, "BAD_IMAGE", "사진 파일을 열 수 없어요") from e
     return out.getvalue()
 
