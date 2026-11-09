@@ -24,7 +24,7 @@ Claude Code 는 이 파일을 자동으로 읽는다. 다른 AI(ChatGPT·Cursor 
 
 ## 2. 폴더와 담당
 
-- 누가 어느 폴더를 맡는지는 `README.md` **3절 표**가 기준이다(11/9 파트 배분 뒤 홍진성이 갱신). 고치기 전에 그 표에서 사용자 담당인지 확인한다.
+- 누가 어느 폴더를 맡는지는 `README.md` **3절 표**가 기준이다. 고치기 전에 그 표에서 사용자 담당인지 확인한다.
 - 바뀌지 않는 것: `db/schema.sql` 은 천주웅·홍진성만. `backend/app/ai/`·`frontend/src/components/VoiceSession/` 은 홍진성 담당이고, 이것들과 `schema.sql` 을 고친 PR 은 홍진성이 리뷰한다. API 응답 모양을 바꾼 PR 은 김승희(화면)를 리뷰어로.
 - 화면 파일 이름 = 화면설계서 화면 ID (예 `frontend/src/screens/elder/ELDER_HOME_001.tsx`), 경로 표는 `frontend/src/App.tsx` 한 곳.
 
@@ -73,4 +73,5 @@ PR 을 올리기 전에 위 테스트·빌드가 통과하고 **브라우저에�
 - 브랜치 `feature/fe-…`·`feature/be-…`·`feature/db-…`·`feature/ai-…`·`fix/…`·`docs/…` (영어 소문자, `-`). 일정표 작업 번호의 브랜치 이름을 그대로 쓴다.
 - 커밋 `종류(영역): 무엇을 했는지` — 예 `feat(be): 사진 업로드 API`. 종류 feat·fix·docs·refactor·chore.
 - PR 은 `.github/pull_request_template.md` 칸을 채운다. 이슈가 있으면 `Closes #번호`. 「리뷰어에게」에 **AI 가 만든 코드 중 이해 못 한 부분**을 적는다.
+- PR 을 올리면 **그 브랜치에는 더 커밋하지 않는다**(리뷰 지적도 같은 브랜치에서 고치지 않는다). 합치기·다듬기는 저녁에 홍진성이 한다. 다음 작업은 `develop` 최신본에서 새 브랜치로 시작하게 안내한다.
 - 기술 결정을 바꾸면 `docs/DECISIONS.md` 에 D번호로 한 줄(이유·대안·트레이드오프).
