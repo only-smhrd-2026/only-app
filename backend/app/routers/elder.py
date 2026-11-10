@@ -1,11 +1,12 @@
 """어르신 홈·오늘의 한 장·사진첩 (기기 쿠키)."""
 
 from fastapi import APIRouter
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from app.config import now_kst, today_kst
 from app.deps import DB, CurrentDevice
-from app.models import Diary, FamilyRoom, Photo
+from app.models import DailyPick, Diary, FamilyRoom, Photo
+from app.routers.devices import notify_family
 from app.schemas.common import OkOut
 from app.schemas.elder import AlbumOut, AlbumPhotoOut, ElderHomeOut, ElderSettingsOut, TodayPickOut
 from app.services import picks
@@ -71,11 +72,31 @@ def listened(device: CurrentDevice, db: DB):
 
 @router.post("/picks/today/skip", response_model=OkOut)
 def skip(device: CurrentDevice, db: DB):
-    """오늘의 한 장 건너뛰기 — 당일 다시 안 뜸. TODO(천주웅): 같은 사진 2회 건너뛰면 PICK_SKIPPED_2X 가족 알림."""
-    pick = picks.today_pick(db, device.room_id, today_kst())
-    if pick and pick.status == "PENDING":
-        pick.status = "SKIPPED"
-        pick.skipped_at = now_kst()
+    """오늘의 한 장을 건너뛰고, 같은 사진의 두 번째 건너뛰기에 가족에게 알린다."""
+    # 상태 변경과 확인을 한 문장으로 처리해 중복 요청도 한 번만 센다.
+    photo_id = db.scalar(
+        update(DailyPick)
+        .where(
+            DailyPick.room_id == device.room_id,
+            DailyPick.pick_date == today_kst(),
+            DailyPick.status == "PENDING",
+        )
+        .values(status="SKIPPED", skipped_at=now_kst())
+        .returning(DailyPick.photo_id)
+    )
+    if photo_id is not None:
+        skipped_count = db.scalar(
+            select(func.count())
+            .select_from(DailyPick)
+            .where(
+                DailyPick.room_id == device.room_id,
+                DailyPick.photo_id == photo_id,
+                DailyPick.status == "SKIPPED",
+            )
+        )
+        if skipped_count == 2:
+            room = db.get(FamilyRoom, device.room_id)
+            notify_family(db, device.room_id, "PICK_SKIPPED_2X", f"{room.elder_name} 님이 같은 사진을 두 번 넘기셨어요")
         db.commit()
     return OkOut()
 

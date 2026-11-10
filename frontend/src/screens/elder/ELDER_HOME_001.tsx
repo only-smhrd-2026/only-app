@@ -32,6 +32,7 @@ export default function ELDER_HOME_001() {
   const [busy, setBusy] = useState(false)
   const [startError, setStartError] = useState<string>()
   const [todayDismissed, setTodayDismissed] = useState(false)
+  const [todaySkipped, setTodaySkipped] = useState(false)
   const [todayLabel] = useState(() => new Intl.DateTimeFormat('ko-KR', {
     timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'long',
   }).format(new Date()))
@@ -66,6 +67,26 @@ export default function ELDER_HOME_001() {
     }
   }
 
+  async function skipToday() {
+    if (busy) return
+    if (preview) {
+      setTodayDismissed(true)
+      return
+    }
+    setBusy(true)
+    setStartError(undefined)
+    try {
+      await api('/api/elder/picks/today/skip', { method: 'POST' })
+      if (!live.current) return
+      setTodaySkipped(true)
+      setTodayDismissed(true)
+    } catch (e) {
+      if (live.current) setStartError((e as ApiError).message)
+    } finally {
+      if (live.current) setBusy(false)
+    }
+  }
+
   if (loading && !preview) return <main className="elder"><p className="elder-text">잠시만요…</p></main>
   if (error && !preview)
     return (
@@ -77,7 +98,7 @@ export default function ELDER_HOME_001() {
     )
   if (!home) return null
 
-  const pick = home.today_pick
+  const pick = todaySkipped && home.today_pick ? { ...home.today_pick, status: 'SKIPPED' } : home.today_pick
   const showToday = pick?.status === 'PENDING' && !todayDismissed
   const date = preview ? '11월 4일 (수) 아침' : todayLabel
   return (
@@ -99,7 +120,7 @@ export default function ELDER_HOME_001() {
         {pick && pick.status !== 'PENDING' && <p className="elder-home-news">오늘 이야기는 다 나눴어요.</p>}
         {!showToday && startError && <p className="elder-home-news" role="alert">{startError}</p>}
       </div>
-      {showToday && <ELDER_TODAY_001 home={home} busy={busy} error={startError} preview={preview} onTalk={startMemory} onSkip={() => setTodayDismissed(true)} />}
+      {showToday && <ELDER_TODAY_001 home={home} busy={busy} error={startError} preview={preview} onTalk={startMemory} onSkip={skipToday} />}
     </main>
   )
 }
