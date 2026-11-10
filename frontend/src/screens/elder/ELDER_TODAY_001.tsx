@@ -1,19 +1,39 @@
 /** ELDER_TODAY_001 — 홈 위에 뜨는 오늘의 한 장 시트. */
+import { useEffect } from 'react'
 import type { ElderHomeOut } from '../../api/types'
 import todayHandle from '../../assets/today-handle.svg'
+import { speak, stopSpeaking } from '../../lib/audio'
 import './ELDER_TODAY_001.css'
 
 type Props = {
   home: ElderHomeOut
   busy: boolean
   error?: string
-  preview: boolean
   onTalk: () => void
   onSkip: () => void
 }
 
-export default function ELDER_TODAY_001({ home, busy, error, preview, onTalk, onSkip }: Props) {
+export default function ELDER_TODAY_001({ home, busy, error, onTalk, onSkip }: Props) {
   const photo = home.today_pick
+  const prompt = `${home.elder_name} ${home.elder_honorific}, 이 사진 보니 어떠세요?`
+  const speed = Number(home.settings.tts_speed) || 0.85
+
+  useEffect(() => {
+    if (!photo) return
+    const retryAfterGesture = () => {
+      window.removeEventListener('pointerdown', retryAfterGesture)
+      window.removeEventListener('keydown', retryAfterGesture)
+      if (!('speechSynthesis' in window) || !window.speechSynthesis.speaking) void speak(prompt, speed)
+    }
+    window.addEventListener('pointerdown', retryAfterGesture, { once: true })
+    window.addEventListener('keydown', retryAfterGesture, { once: true })
+    void speak(prompt, speed)
+    return () => {
+      window.removeEventListener('pointerdown', retryAfterGesture)
+      window.removeEventListener('keydown', retryAfterGesture)
+      stopSpeaking()
+    }
+  }, [photo, prompt, speed])
   if (!photo) return null
 
   return (
@@ -23,9 +43,9 @@ export default function ELDER_TODAY_001({ home, busy, error, preview, onTalk, on
         <h1 id="elder-today-title">오늘의 한 장이 왔어요</h1>
         <div className="elder-today-photo-wrap">
           <img className="elder-today-photo" src={photo.photo_url} alt="가족이 올린 오늘의 사진" />
-          <p className="elder-today-prompt">이 사진, 어떠세요?</p>
-          <span className="elder-today-caption">{preview ? '첫째딸이 올린 사진' : '가족이 올린 사진'}</span>
+          <span className="elder-today-caption">가족이 올린 사진</span>
         </div>
+        <p className="elder-today-prompt">{prompt}</p>
         {error && <p className="elder-text" role="alert">{error}</p>}
         <div className="elder-today-actions">
           <button className="elder-btn" onClick={onTalk} disabled={busy} autoFocus>
