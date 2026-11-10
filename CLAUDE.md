@@ -75,3 +75,17 @@ PR 을 올리기 전에 위 테스트·빌드가 통과하고 **브라우저에�
 - PR 은 `.github/pull_request_template.md` 칸을 채운다. 이슈가 있으면 `Closes #번호`. 「리뷰어에게」에 **AI 가 만든 코드 중 이해 못 한 부분**을 적는다.
 - PR 을 올리면 **그 브랜치에는 더 커밋하지 않는다**(리뷰 지적도 같은 브랜치에서 고치지 않는다). 합치기·다듬기는 저녁에 홍진성이 한다. 다음 작업은 `develop` 최신본에서 새 브랜치로 시작하게 안내한다.
 - 기술 결정을 바꾸면 `docs/DECISIONS.md` 에 D번호로 한 줄(이유·대안·트레이드오프).
+
+## 8. 안드로이드 실기기 테스트 (갤럭시 S23+, USB-C)
+(홍진성 맥 기준. Windows 는 README ⑦ 폰(갤럭시)에서 테스트)
+- 하루한장은 Android PWA라서 실기기 테스트는 USB로 연결한 갤럭시 S23+의 크롬에서 한다.
+- adb는 `~/platform-tools`에 Google 공식 zip(platform-tools-latest-darwin.zip)으로 설치했고 ~/.zshrc PATH에 등록돼 있다. Homebrew cask(android-platform-tools)로 다시 설치하지 말 것: cask 다운로드가 404로 실패한 적이 있고, 중복 설치하면 adb 서버 버전 충돌이 난다.
+- 화면 미러링: `scrcpy --stay-awake`, 시연 녹화: `scrcpy --record demo.mp4`
+- 개발 서버를 폰에서 열기: 서버를 실행한 뒤 `adb reverse tcp:<포트> tcp:<포트>`, 폰 크롬에서 `http://localhost:<포트>`로 연다.
+  - 와이파이 IP(192.168.x.x)로 열지 말 것. localhost여야 secure context라서 마이크(getUserMedia)와 서비스워커가 HTTPS 없이 동작한다.
+  - 케이블을 다시 꽂으면 reverse가 풀리므로 다시 실행한다.
+- 폰 콘솔 디버깅: 맥 크롬 `chrome://inspect#devices`에서 inspect
+- 연결 진단 순서 (`adb devices` 결과 기준)
+  - 목록이 비어 있음: 폰 USB 용도를 '파일 전송'으로, 설정 > 보안 및 개인정보 보호 > 자동 차단 OFF, 개발자 옵션 > USB 디버깅 ON인지 확인
+  - `unauthorized`: 폰 잠금을 풀고 'USB 디버깅 허용' 팝업을 승인한다. 팝업이 안 뜨면 `adb kill-server && adb devices`, 그래도 안 되면 개발자 옵션 > USB 디버깅 권한 승인 취소 후 재연결
+- 실기기 테스트를 요청받으면 먼저 `adb devices`로 연결 상태를 확인하고, 위 순서대로 진단한다.
