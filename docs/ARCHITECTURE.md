@@ -70,7 +70,7 @@ signup → POST /rooms (가족방+구성원) → 사진 3장 이상 → POST /ro
 ```
 
 서버가 지키는 상한: 8턴(`sessions.turn_count CHECK`), 5분, 무응답 3단계(재질문 → 칩만 → 종료), 저신뢰 2회 → `input_locked`.
-화면 타이머: 4초 "조금만 기다려 주세요", 8초 음성 안내, 15초 → `POST /end {reason: ERROR}` (하루 3회면 가족 알림).
+화면 타이머: 4초 "조금만 기다려 주세요", 8초 음성 안내, 15초 → `POST /end {reason: ERROR}` (하루 3회면 가족 알림). `/api/stt` 는 15초 → "잘 못 들었어요"(소리로도) + 다시 말하기.
 
 ### 오늘 이야기하기 (일기·그림일기, D36)
 
@@ -95,13 +95,13 @@ ELDER_DIARY_003: POST /elder/sessions/{id}/draft
 매시 정각 잡(services/scheduler.select_daily_picks — ACTIVE 방 중 추억 시간이 지나고 오늘 pick 없는 방)  ─┐
 GET /elder/home: now ≥ memory_time 이고 오늘 pick 없음 → services/picks.select_pick() ─┴─► INSERT … ON CONFLICT DO NOTHING
 후보: ACTIVE + source=FAMILY + usable≠false + 어제까지 올린 사진 − 최근 14일 안에 이야기 끝낸(COMPLETED) 사진.
-후보 0장이면 가장 오래전에 이야기한 사진부터 다시(D44). 건너뛰기: POST /elder/picks/today/skip → SKIPPED
+후보 0장이면 가장 오래전에 이야기한 사진부터 다시(D44). 건너뛰기: POST /elder/picks/today/skip → SKIPPED, 같은 사진의 2번째 건너뛰기면 PICK_SKIPPED_2X 가족 알림 1건(skipped_at 으로 셈, config PICK_SKIP_ALERT)
 ```
 
 ### 사진
 
 ```
-업로드(박유승, #10): 장당 10MB·30M 픽셀 검사(11/10 예정) → 그림 끝까지 풀기(깨지면 400) → EXIF·주석 제거 → JPEG 재인코딩 → storage.put(key)  key=rooms/{room}/{batch}/{i}.jpg
+업로드(박유승, #10): 본문을 다 받은 뒤(배포 Caddy 220MB 상한) 로그인·구성원 확인 → 한 번에 20장·장당 10MB 검사 → 변환은 서버 전체에서 한 번에 한 요청(60초 기다려도 차례가 안 오면 503 UPLOAD_BUSY) → 장마다 열기 전 EXIF 조각 4개·JPEG 스캔 300개 검사 → 30M 픽셀·한 변 65,500 검사 → 그림 끝까지 풀기(깨지면 400) → 촬영일(EXIF DateTimeOriginal, 1900년~오늘)·회전은 EXIF 64KB 이하일 때만 → 긴 변 2560 으로 줄이기 → EXIF·주석 없이 JPEG 재인코딩 → 전부 성공하면 storage.put(key)·photos(taken_at) 저장·commit (오류 문구 앞에 'N번째 사진:')  key=rooms/{room}/{batch}/{i}.jpg
 조회: <img src="/api/media/{key}"> → 쿠키로 구성원/기기 확인 → storage.get(key) 바이트 반환 (서명 URL 없음)
 STORAGE=local: uploads/ 폴더 (git 제외) / STORAGE=r2: Cloudflare R2 (boto3, R2_* 키)
 ```

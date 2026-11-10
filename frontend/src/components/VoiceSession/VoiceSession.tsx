@@ -106,7 +106,7 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
     setHeard(undefined)
     setPhase('THINKING')
     later(SLOW_MS, () => setNote('조금만 기다려 주세요.'))
-    later(VERY_SLOW_MS, () => speak('생각하는 중이에요. 잠깐만요.', speed)) // 키 없는 동안 mp3 대신 브라우저 TTS
+    later(VERY_SLOW_MS, () => speak('생각하는 중이에요. 잠깐만요.', speed)) // 고정 안내는 브라우저 TTS — 서버 TTS(google)를 켜면 AI 목소리와 다르게 들림 (AI-03 #15 에서 통일)
     const ctrl = new AbortController()
     later(GIVE_UP_MS, () => ctrl.abort())
     let r: SessionOut
@@ -118,6 +118,7 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
       if (e instanceof ApiError && e.code === 'INPUT_LOCKED') {
         setLocked(true)
         setNote('버튼으로 답해 주세요.')
+        speak('버튼으로 답해 주세요.', speed)
         return startWaiting()
       }
       if (e instanceof ApiError && e.code === 'SESSION_ENDED') return endWith(ended(ERROR_AI, null))
@@ -154,6 +155,7 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
       if (!alive.current) return
       setLocked(true)
       setNote('마이크를 쓸 수 없어요. 버튼으로 답해 주세요.')
+      speak('마이크를 쓸 수 없어요. 버튼으로 답해 주세요.', speed)
       return startWaiting()
     }
     if (!alive.current) {
@@ -176,7 +178,7 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
     const form = new FormData()
     form.append('audio', blob, 'speech.webm')
     try {
-      const r = await api<SttOut>('/api/stt', { form })
+      const r = await api<SttOut>('/api/stt', { form, signal: AbortSignal.timeout(GIVE_UP_MS) }) // 망이 멈춰도 15초면 다시 말하기로
       if (!alive.current) return
       setHeard(r)
       setPhase('CONFIRMING')
@@ -185,6 +187,7 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
     } catch {
       if (!alive.current) return
       setNote('잘 못 들었어요. 다시 말씀해 주세요.')
+      speak('잘 못 들었어요. 다시 말씀해 주세요.', speed) // 기다리지 않는다: [말하기]를 누르면 녹음 전에 stopSpeaking 이 끊는다
       startWaiting()
     }
   }
@@ -201,6 +204,7 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
     if (retries.current >= MAX_RETRY) {
       setLocked(true)
       setNote('이번에는 버튼으로 답해 주세요.')
+      speak('이번에는 버튼으로 답해 주세요.', speed)
       return startWaiting()
     }
     beginRecording()

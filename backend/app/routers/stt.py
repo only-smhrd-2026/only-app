@@ -6,7 +6,7 @@ from fastapi import APIRouter, File, Form, Request, UploadFile
 
 from app.ai import stt
 from app.config import STT_MAX_BYTES, STT_MAX_CHARS
-from app.deps import CurrentActor
+from app.deps import DB, CurrentActor
 from app.errors import ApiError
 from app.schemas.elder import SttOut
 from app.security import stt_allowed
@@ -19,6 +19,7 @@ router = APIRouter(tags=["stt"])
 def transcribe(
     request: Request,
     actor: CurrentActor,
+    db: DB,
     audio: UploadFile = File(description="webm/opus 등, 5MB 이하"),
     hints: str | None = Form(default=None, description="이름·호칭 힌트, 쉼표 구분"),
 ):
@@ -30,6 +31,7 @@ def transcribe(
         raise ApiError(413, "AUDIO_TOO_LARGE", "녹음 파일이 너무 커요 (5MB 초과)")
     if not data:
         raise ApiError(422, "AUDIO_EMPTY", "녹음이 비어 있어요")
+    db.close()  # 인증 확인에 쓴 DB 연결(CurrentActor 와 같은 세션)을 STT(최대 8초) 동안 쥐지 않게 돌려준다
     try:
         text, confidence = stt.transcribe(data, [h.strip() for h in hints.split(",")] if hints else [])
     except stt.BadAudio:

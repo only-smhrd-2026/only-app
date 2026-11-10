@@ -1,4 +1,4 @@
-/** 녹음·재생·브라우저 TTS. VoiceSession 이 쓴다. 서버 STT/TTS 가 mock 인 동안 재생은 speechSynthesis (D5). */
+/** 녹음·재생·브라우저 TTS. 서버 TTS 음성(audio_b64)은 playBase64, 그것이 없을 때(mock·실패)와 화면 고정 안내는 speechSynthesis (D5·D46). */
 
 export type Recorder = { stop: () => Promise<Blob> }
 

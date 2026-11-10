@@ -32,7 +32,7 @@ from app.deps import DB, CurrentDevice, CurrentUser, require_member
 from app.errors import ApiError
 from app.models import Diary, FamilyRoom, Photo, RoomMember, User
 from app.routers.devices import notify_family
-from app.routers.sessions import DIARY_SAVED, coach_context, load_session
+from app.routers.sessions import DIARY_SAVED, _tts_failed, coach_context, load_session
 from app.schemas.diaries import DiaryListOut, DiaryOut, DraftOut, ElderDiaryIn
 from app.services import storage
 
@@ -88,15 +88,15 @@ def _draw(room_id: int, session_id: uuid.UUID, draw_spec: dict) -> tuple[str, by
 MOOD_LABEL = {code: label for label, code in coach.DIARY_MOODS.items()}  # SUNNY → 맑음
 
 
-def _speech(body: str, mood: str, room: FamilyRoom) -> str | None:
+def _speech(body: str, mood: str, room: FamilyRoom) -> tuple[str | None, bool]:
     """본문 + 기분 + '이대로 올릴까요?' 서버 TTS (ONLY_500). None 이면 화면이 같은 문장을 브라우저 TTS 로 읽는다 (D5).
-    문장을 바꾸면 ELDER_DIARY_003.tsx 의 readAloud 도 같이."""
+    반환 (음성 base64, 실패했나). 문장을 바꾸면 ELDER_DIARY_003.tsx 의 readAloud 도 같이."""
     try:
         audio = tts.synthesize(f"{body} 오늘 기분은 {MOOD_LABEL[mood]}. 이대로 올릴까요?", float(room.tts_speed))
     except Exception as e:
         log.warning("tts failed type=%s", type(e).__name__)
-        return None
-    return base64.b64encode(audio).decode() if audio else None
+        return None, True
+    return (base64.b64encode(audio).decode() if audio else None), False
 
 
 @router.post("/elder/sessions/{session_id}/draft", response_model=DraftOut)
@@ -120,6 +120,11 @@ def make_draft(session_id: uuid.UUID, device: CurrentDevice, db: DB):
         photo = db.get(Photo, session.photo_id) if session.photo_id else None
         draw_spec = {"objects": draft.draw_objects} if draft.draw_objects and not photo else None
         drawn = _draw(room.room_id, session_id, draw_spec) if draw_spec else None
+        audio_b64, failed = _speech(draft.body, draft.mood, room)
+        if failed and session_id not in _tts_failed:  # 낭독 실패도 가족 알림은 대화에 1건 (D5, _ai_out 과 같이)
+            _tts_failed.add(session_id)
+            notify_family(db, room.room_id, "TTS_ERROR", f"{room.elder_name} 님 기기에서 음성 재생에 문제가 있어요")
+            db.commit()
         out = DraftOut(
             session_id=session_id,
             body=draft.body,
@@ -128,7 +133,7 @@ def make_draft(session_id: uuid.UUID, device: CurrentDevice, db: DB):
             illustration_type="PHOTO" if photo else ("AI_DRAWING" if drawn else "NONE"),
             illustration_url=f"/api/media/{photo.object_key}" if photo else None,
             illustration_b64=base64.b64encode(drawn[1]).decode() if drawn else None,
-            audio_b64=_speech(draft.body, draft.mood, room),
+            audio_b64=audio_b64,
         )
         _drafts[session_id] = _Draft(out, draw_spec, drawn[0] if drawn else None, now_kst())
         return out

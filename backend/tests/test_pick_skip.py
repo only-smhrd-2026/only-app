@@ -1,5 +1,6 @@
 """같은 사진을 두 번 건너뛸 때의 가족 알림을 검증한다."""
 
+import uuid
 from datetime import timedelta
 
 import pytest
@@ -37,6 +38,8 @@ def test_second_skip_alert_and_third_skip_no_more_alerts(client):
 
     response = client.post("/api/elder/picks/today/skip")
     assert response.status_code == 200, response.text
+    # 홈은 같은 pick·사진을 SKIPPED 로 돌려준다(다시 안 뽑음 → 그날 팝업이 다시 안 뜸).
+    assert client.get("/api/elder/home").json()["today_pick"] == ctx["pick"] | {"status": "SKIPPED"}
     with SessionLocal() as db:
         pick = db.get(DailyPick, ctx["pick"]["pick_id"])
         assert pick.status == "SKIPPED"
@@ -46,9 +49,10 @@ def test_second_skip_alert_and_third_skip_no_more_alerts(client):
         room = db.get(FamilyRoom, ctx["room_id"])
         assert alerts[0].title == f"{room.elder_name} 님이 같은 사진을 두 번 넘기셨어요"
 
-    # 같은 날 재요청하면 알림과 건너뛴 시각을 그대로 둔다.
+    # 같은 날 재요청하면 상태·알림·건너뛴 시각을 그대로 둔다.
     assert client.post("/api/elder/picks/today/skip").status_code == 200
     with SessionLocal() as db:
+        assert db.get(DailyPick, ctx["pick"]["pick_id"]).status == "SKIPPED"
         assert db.get(DailyPick, ctx["pick"]["pick_id"]).skipped_at == pick.skipped_at
         assert len(_alerts(db, ctx["room_id"])) == 1
         # 오늘 기록을 과거로 옮기고, 같은 사진의 세 번째 날짜를 준비한다.
@@ -92,3 +96,53 @@ def test_finished_pick_is_unchanged(client, status):
         assert pick.status == status
         assert pick.skipped_at is None
         assert _alerts(db, ctx["room_id"]) == []
+
+
+@pytest.mark.parametrize("status", ["COMPLETED", "EXPIRED", "PENDING"])
+def test_past_unskipped_same_photo_not_counted_or_changed(client, status):
+    """같은 사진의 지난 날 행이라도 건너뛴 기록(skipped_at)이 없으면 세지 않고, 오늘 것이 아니니 바꾸지도 않는다."""
+    ctx = setup_elder(client)
+    with SessionLocal() as db:
+        past = DailyPick(
+            room_id=ctx["room_id"],
+            photo_id=ctx["pick"]["photo_id"],
+            pick_date=today_kst() - timedelta(days=1),
+            status=status,
+        )
+        db.add(past)
+        db.commit()
+        past_id = past.pick_id
+    assert client.post("/api/elder/picks/today/skip").status_code == 200
+    with SessionLocal() as db:
+        assert _alerts(db, ctx["room_id"]) == []
+        past = db.get(DailyPick, past_id)
+        assert (past.status, past.skipped_at) == (status, None)
+
+
+def test_skipped_then_completed_still_counts(client):
+    """건너뛴 pick 으로 대화를 끝내 COMPLETED 로 덮여도 건너뛴 기록은 남아, 같은 사진 알림이 또 가지 않는다."""
+    ctx = setup_elder(client)
+    pick_id = ctx["pick"]["pick_id"]
+    with SessionLocal() as db:
+        _past_skip(db, ctx, 1)
+        db.commit()
+    assert client.post("/api/elder/picks/today/skip").status_code == 200  # 두 번째 건너뛰기 → 알림 1건
+
+    # 서버는 건너뛴 pick 으로도 대화를 열어 준다(create_session 은 방만 확인). 끝내면 COMPLETED 로 덮인다.
+    sid = str(uuid.uuid4())
+    body = {"session_id": sid, "kind": "MEMORY", "pick_id": pick_id}
+    assert client.post("/api/elder/sessions", json=body).status_code == 201
+    assert client.post(f"/api/elder/sessions/{sid}/end", json={"reason": "USER_STOP"}).status_code == 200
+    with SessionLocal() as db:
+        pick = db.get(DailyPick, pick_id)
+        assert pick.status == "COMPLETED" and pick.skipped_at is not None
+        assert len(_alerts(db, ctx["room_id"])) == 1
+        # 그 기록을 과거로 옮기고, 같은 사진이 다시 뽑힌 오늘을 준비한다(세 번째 건너뛰기).
+        pick.pick_date = today_kst() - timedelta(days=2)
+        db.flush()
+        db.add(DailyPick(room_id=ctx["room_id"], photo_id=ctx["pick"]["photo_id"], pick_date=today_kst()))
+        db.commit()
+
+    assert client.post("/api/elder/picks/today/skip").status_code == 200
+    with SessionLocal() as db:
+        assert len(_alerts(db, ctx["room_id"])) == 1

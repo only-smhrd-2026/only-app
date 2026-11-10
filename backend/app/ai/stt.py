@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import subprocess
 import threading
@@ -33,7 +34,8 @@ RTZR_AUTH_URL = "https://openapi.vito.ai/v1/authenticate"
 RTZR_WS_URL = "wss://openapi.vito.ai/v1/transcribe:streaming"
 RATE = 16000  # ffmpeg 가 맞춰 주는 샘플레이트. 16-bit mono 라 1초에 RATE * 2 바이트
 CHUNK = RATE * 2  # 1초 분량씩 보낸다
-# 변환 + 토큰 + 연결 + 전사를 합친 상한. 실측 최장(58초 말)이 2.0초. 화면은 /api/stt 를 따로 끊지 않으므로 여기서 끊는다
+# 변환 + 토큰 + 연결 + 전사를 합친 상한. 실측 최장(58초 말)이 2.0초.
+# 화면도 15초(VoiceSession GIVE_UP_MS)에서 끊지만, 서버 자원·과금 때문에 여기서도 끊는다
 RTZR_TIMEOUT_SEC = 8.0
 TOKEN_MARGIN_SEC = 1800  # 토큰 수명은 6시간. 만료 30분 전부터 새로 받는다
 KEYWORD = re.compile(r"[가-힣 ]{1,20}")  # 리턴제로 키워드 규칙: 한글·공백만, 20자 이하 (100개까지)
@@ -68,15 +70,22 @@ def _pcm(audio: bytes, timeout: float) -> bytes:
     -protocol_whitelist pipe: 재생목록(m3u8 등)이어도 서버 파일·다른 주소를 열지 못한다.
     -format_whitelist·-codec_whitelist: 브라우저 녹음 형식(webm·ogg/opus, mp4/aac)만 연다. 그림·영상을 풀게 두면
       1MB 안 되는 파일 하나가 메모리 700MB 를 쓴다(실측. 좁히면 12MB 에서 거절).
+    -fs: -t 는 파일 속 시간표를 믿어 조작한 파일(시간표가 모두 0)에는 안 먹는다 → 출력 바이트로도 60초에서 멈춘다.
     -v quiet: 깨진 파일은 오류 글을 100MB 넘게 쏟는다. 쓰지 않는 글이라 끈다.
     """
     cmd = ["ffmpeg", "-v", "quiet", "-protocol_whitelist", "pipe"]
     cmd += ["-format_whitelist", "matroska,webm,mov,mp4,ogg", "-codec_whitelist", "opus,libopus,vorbis,aac"]
-    cmd += ["-i", "pipe:0", "-t", str(STT_MAX_SEC), "-f", "s16le", "-ac", "1", "-ar", str(RATE), "pipe:1"]
-    p = subprocess.run(cmd, input=audio, capture_output=True, timeout=timeout)
+    cmd += ["-i", "pipe:0", "-t", str(STT_MAX_SEC), "-fs", str(STT_MAX_SEC * CHUNK)]
+    cmd += ["-f", "s16le", "-ac", "1", "-ar", str(RATE), "pipe:1"]
+    # 올라온 파일을 푸는 ffmpeg 에는 어디서나 PATH 만 물려준다(키가 든 환경 변수 제외).
+    # 배포 컨테이너(root)면 nobody(65534)로도 낮춘다 — 구멍이 있어도 키를 못 읽게.
+    # 개발 PC(root 아님·Windows)는 사용자만 그대로
+    low = {"user": 65534, "group": 65534, "extra_groups": []} if hasattr(os, "geteuid") and os.geteuid() == 0 else {}
+    env = {"PATH": os.environ.get("PATH", "")}
+    p = subprocess.run(cmd, input=audio, capture_output=True, timeout=timeout, env=env, **low)
     if p.returncode != 0:
         raise BadAudio
-    return p.stdout
+    return p.stdout[: STT_MAX_SEC * CHUNK]  # -fs 는 조금 넘겨 쓸 수 있어 과금 60초를 바이트로 보장
 
 
 def _get_token(left: Callable[[], float]) -> str:
@@ -137,6 +146,8 @@ def _rtzr(audio: bytes, hints: list[str], stats: dict[str, float]) -> tuple[str,
             close_timeout=0.1,  # 리턴제로는 닫기 신호를 보낸 뒤 2초쯤 있다가 연결을 끊는다. 그걸 기다리지 않는다
         ) as ws:
             for i in range(0, len(pcm), CHUNK):  # 실시간보다 빨리 보내도 받는다 (문서에는 없음, 11/10 실측)
+                if time.monotonic() > deadline:  # left() 는 최소 0.1초라, 이 검사가 없으면 상한이 지나도 계속 보낸다
+                    raise TimeoutError
                 ws.socket.settimeout(left())  # 보내기에도 상한: 상대가 읽지 않으면 send 가 끝없이 기다린다
                 ws.send(pcm[i : i + CHUNK])
             ws.socket.settimeout(left())
@@ -165,9 +176,10 @@ def _rtzr(audio: bytes, hints: list[str], stats: dict[str, float]) -> tuple[str,
             raise RuntimeError("리턴제로가 전사 도중 연결을 비정상 종료")
     except InvalidStatus as e:  # 연결 거부: 401 토큰, 429 사용량·동시 5채널 초과 등
         log.warning("stt rtzr connect status=%d", e.response.status_code)
-        if e.response.status_code == 401:
-            with _token_lock:
-                _token = None  # 다음 요청이 새 토큰을 받는다
+        # 락 대기도 상한 안(앞 요청이 토큰을 받는 중일 수 있다). 락 없이 지우면 _get_token 이 읽는 도중 None 이 된다
+        if e.response.status_code == 401 and _token_lock.acquire(timeout=left()):
+            _token = None  # 다음 요청이 새 토큰을 받는다. 락을 못 잡으면 다음 401 이 지운다
+            _token_lock.release()
         raise
     spoken = [(text, conf) for text, conf in finals if text]
     # 말 사이가 0.5초 넘게 뜨면 문장이 나뉘어 온다. 신뢰도는 가장 낮은 문장을 따른다(하나라도 애매하면 확인받는다)
