@@ -3,7 +3,7 @@
 from fastapi import APIRouter
 from sqlalchemy import func, select, update
 
-from app.config import now_kst, today_kst
+from app.config import PICK_SKIP_ALERT, now_kst, today_kst
 from app.deps import DB, CurrentDevice
 from app.models import DailyPick, Diary, FamilyRoom, Photo
 from app.routers.devices import notify_family
@@ -91,10 +91,10 @@ def skip(device: CurrentDevice, db: DB):
             .where(
                 DailyPick.room_id == device.room_id,
                 DailyPick.photo_id == photo_id,
-                DailyPick.status == "SKIPPED",
+                DailyPick.skipped_at.is_not(None),  # 건너뛴 기록 — 나중에 대화로 COMPLETED 가 되어도 줄지 않음
             )
         )
-        if skipped_count == 2:
+        if skipped_count == PICK_SKIP_ALERT:
             room = db.get(FamilyRoom, device.room_id)
             notify_family(db, device.room_id, "PICK_SKIPPED_2X", f"{room.elder_name} 님이 같은 사진을 두 번 넘기셨어요")
         db.commit()
