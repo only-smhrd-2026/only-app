@@ -15,21 +15,25 @@ type Props = {
 
 export default function ELDER_TODAY_001({ home, busy, error, onTalk, onSkip }: Props) {
   const photo = home.today_pick
-  const prompt = `${home.elder_name} ${home.elder_honorific}, 이 사진 보니 어떠세요?`
+  const prompt = `${home.elder_name} ${home.elder_honorific}, 같이 이야기해 볼까요?`
   const speed = Number(home.settings.tts_speed) || 0.85
 
   useEffect(() => {
     if (!photo) return
     const retryAfterGesture = () => {
-      window.removeEventListener('pointerdown', retryAfterGesture)
+      window.removeEventListener('pointerup', retryAfterGesture)
       window.removeEventListener('keydown', retryAfterGesture)
-      if (!('speechSynthesis' in window) || !window.speechSynthesis.speaking) void speak(prompt, speed)
+      void speak(prompt, speed)
     }
-    window.addEventListener('pointerdown', retryAfterGesture, { once: true })
-    window.addEventListener('keydown', retryAfterGesture, { once: true })
     void speak(prompt, speed)
+    // 자동 읽기가 막혔을 때만(크롬은 막히면 대기 줄에 안 넣어 speaking=false) 첫 터치·키에 다시 읽는다.
+    // 터치는 손을 뗄 때(pointerup)부터 소리가 허용된다 — pointerdown 이면 폰에서 또 막힌다.
+    if (!('speechSynthesis' in window) || !window.speechSynthesis.speaking) {
+      window.addEventListener('pointerup', retryAfterGesture, { once: true })
+      window.addEventListener('keydown', retryAfterGesture, { once: true })
+    }
     return () => {
-      window.removeEventListener('pointerdown', retryAfterGesture)
+      window.removeEventListener('pointerup', retryAfterGesture)
       window.removeEventListener('keydown', retryAfterGesture)
       stopSpeaking()
     }
