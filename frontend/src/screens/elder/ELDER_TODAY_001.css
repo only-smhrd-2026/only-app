@@ -55,14 +55,7 @@
   line-height: 1.2;
 }
 .elder-today-prompt {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  right: 8px;
   margin: 0;
-  padding: 4px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, .96);
   color: #292e2e;
   font-size: max(32px, var(--elder-font-size));
   line-height: 1.2;
