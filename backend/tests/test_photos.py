@@ -2,11 +2,16 @@
 
 import io
 import zlib
+from datetime import date
 from pathlib import Path
 
+import pytest
 from PIL import ExifTags, Image
 
 from app.config import settings
+from app.db import SessionLocal
+from app.models import Photo
+from app.routers import photos as photo_api
 from tests.conftest import make_room, signup
 
 
@@ -131,6 +136,8 @@ def test_taken_date_is_saved(client):
     Image.new("RGB", (40, 30), "red").save(buf, "JPEG", exif=exif.tobytes())
     r = _upload_one(client, buf.getvalue(), "d.jpg", "image/jpeg")
     assert r.status_code == 201 and r.json()["photos"][0]["taken_at"] == "2019-05-04"
+    with SessionLocal() as db:  # 응답만이 아니라 DB 에도 (응답은 commit 뒤 메모리 값이라 저장이 빠져도 같게 보인다)
+        assert db.get(Photo, r.json()["photos"][0]["photo_id"]).taken_at == date(2019, 5, 4)
 
     assert _upload_one(client, _jpeg(), "n.jpg", "image/jpeg").json()["photos"][0]["taken_at"] is None
 
@@ -184,6 +191,7 @@ def test_broken_photo_in_batch_leaves_no_file(client):
     files = [("files", ("a.jpg", _jpeg(), "image/jpeg")), ("files", ("b.jpg", b"broken", "image/jpeg"))]
     r = client.post(f"/api/rooms/{room_id}/photos", files=files)
     assert r.status_code == 400 and r.json()["code"] == "BAD_IMAGE"
+    assert r.json()["detail"].startswith("2번째 사진")  # 20장 중 어느 사진인지 알려 준다
     assert set(room_dir.rglob("*.jpg")) == before
 
 
@@ -197,3 +205,107 @@ def test_gps_is_removed(client):
 
     stored = _stored(client, _upload_one(client, buf.getvalue(), "g.jpg", "image/jpeg"))
     assert not stored.getexif().get_ifd(ExifTags.IFD.GPSInfo)
+
+
+def test_very_long_side_is_too_large(client):
+    """1×3천만 PNG — 픽셀 수는 한도 안이지만 한 변이 65,500 을 넘는다 → 풀기 전에 거절 (예전엔 풀다가 BAD_IMAGE)."""
+    r = _upload_one(client, _png_header(1, 30_000_000), "l.png", "image/png")
+    assert r.status_code == 400 and r.json()["code"] == "IMAGE_TOO_LARGE"
+
+
+def test_jpeg_with_too_many_scans_is_400(client):
+    """마지막 스캔(FF DA)을 301번 덧붙인 progressive JPEG → 열기 전에 거절(스캔마다 CPU). 보통 progressive 는 통과."""
+    buf = io.BytesIO()
+    Image.new("RGB", (64, 64), "red").save(buf, "JPEG", progressive=True)
+    j = buf.getvalue()
+    assert _upload_one(client, j, "p.jpg", "image/jpeg").status_code == 201
+    last_scan = j[j.rfind(b"\xff\xda") : -2]  # 끝 표시(FF D9) 앞까지
+    r = _upload_one(client, j[:-2] + last_scan * 301 + j[-2:], "s.jpg", "image/jpeg")
+    assert r.status_code == 400 and r.json()["code"] == "BAD_IMAGE"
+
+
+def test_big_exif_is_not_read(client):
+    """EXIF 가 64KB 를 넘는 PNG(조작된 EXIF 는 풀면 수백 MB) → 사진은 저장하고 촬영일·회전은 읽지 않는다."""
+    exif = Image.Exif()
+    ifd = exif.get_ifd(ExifTags.IFD.Exif)
+    ifd[ExifTags.Base.DateTimeOriginal] = "2019:05:04 10:30:00"
+    ifd[ExifTags.Base.UserComment] = b"\0" * 100_000
+    buf = io.BytesIO()
+    Image.new("RGB", (40, 30), "red").save(buf, "PNG", exif=exif.tobytes())
+    r = _upload_one(client, buf.getvalue(), "x.png", "image/png")
+    assert r.status_code == 201 and r.json()["photos"][0]["taken_at"] is None
+
+
+def test_many_exif_segments_is_400(client):
+    """EXIF 조각이 5개 이상인 JPEG → 열기 전에 거절 (JPEG 는 여는 단계에서 EXIF 를 푼다). 4개까지는 통과."""
+    t = Image.Exif().tobytes()  # b"Exif\0\0" 로 시작
+    app1 = b"\xff\xe1" + (len(t) + 2).to_bytes(2, "big") + t
+    data = _jpeg()
+    assert _upload_one(client, data[:2] + app1 * 4 + data[2:], "e4.jpg", "image/jpeg").status_code == 201
+    r = _upload_one(client, data[:2] + app1 * 5 + data[2:], "e5.jpg", "image/jpeg")
+    assert r.status_code == 400 and r.json()["code"] == "BAD_IMAGE"
+
+
+def test_big_photo_is_shrunk_to_2560(client):
+    """긴 변이 2560 을 넘으면 비율 그대로 줄여 저장 (저장 용량·메모리 보호). 작은 사진은 그대로(여러 장 테스트)."""
+    buf = io.BytesIO()
+    Image.new("RGB", (6000, 4000), "red").save(buf, "JPEG")
+    assert _stored(client, _upload_one(client, buf.getvalue(), "w.jpg", "image/jpeg")).size == (2560, 1707)
+
+
+def test_busy_upload_is_503_then_ok(client, monkeypatch):
+    """다른 요청이 사진을 바꾸는 중(잠금)이면 기다리다 503 UPLOAD_BUSY. 잠금이 풀리면 올라간다.
+    요청은 서버 쪽 다른 스레드에서 돈다 — 테스트가 잠금을 쥐고 있으면 그 스레드는 잡지 못한다."""
+    monkeypatch.setattr(photo_api, "UPLOAD_LOCK_WAIT_SEC", 0.1)
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    files = [("files", ("a.jpg", _jpeg(), "image/jpeg"))]
+    with photo_api._upload_lock:
+        r = client.post(f"/api/rooms/{room_id}/photos", files=files)
+    assert r.status_code == 503 and r.json()["code"] == "UPLOAD_BUSY"
+    assert client.post(f"/api/rooms/{room_id}/photos", files=files).status_code == 201
+
+
+def test_photos_keep_order_and_dates(client):
+    """여러 장을 한 번에 → 보낸 순서대로 저장되고, 촬영일이 제 사진에 붙는다."""
+    dated = _jpeg_with_exif(
+        lambda e: e.get_ifd(ExifTags.IFD.Exif).__setitem__(ExifTags.Base.DateTimeOriginal, "2019:05:04 10:30:00")
+    )
+    png, wide = io.BytesIO(), io.BytesIO()
+    Image.new("RGB", (50, 20)).save(png, "PNG")
+    Image.new("RGB", (60, 10)).save(wide, "JPEG")
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    files = [
+        ("files", ("a.jpg", dated, "image/jpeg")),
+        ("files", ("b.png", png.getvalue(), "image/png")),
+        ("files", ("c.jpg", wide.getvalue(), "image/jpeg")),
+    ]
+    r = client.post(f"/api/rooms/{room_id}/photos", files=files)
+    assert r.status_code == 201, r.text
+    photos = r.json()["photos"]
+    assert [p["taken_at"] for p in photos] == ["2019-05-04", None, None]
+    sizes = [Image.open(io.BytesIO(client.get(p["url"]).content)).size for p in photos]
+    assert sizes == [(40, 30), (50, 20), (60, 10)]
+
+
+def test_20_photos_is_ok(client):
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    files = [("files", (f"{i}.jpg", _jpeg(), "image/jpeg")) for i in range(20)]
+    r = client.post(f"/api/rooms/{room_id}/photos", files=files)
+    assert r.status_code == 201 and len(r.json()["photos"]) == 20
+
+
+def test_exactly_30m_pixels_passes_pixel_check(client):
+    """정확히 3천만 픽셀은 픽셀 검사를 통과한다(그림 내용이 없어 BAD_IMAGE). 1줄 더 많으면 IMAGE_TOO_LARGE."""
+    assert _upload_one(client, _png_header(6000, 5000), "e.png", "image/png").json()["code"] == "BAD_IMAGE"
+    assert _upload_one(client, _png_header(6000, 5001), "e.png", "image/png").json()["code"] == "IMAGE_TOO_LARGE"
+
+
+@pytest.mark.parametrize("raw", ["0000:00:00 00:00:00", "1899:12:31 23:59:59"])
+def test_odd_taken_date_is_dropped(client, raw):
+    """'0000:00:00'(날짜를 모르는 카메라)·1900년 이전 → 사진은 저장하고 촬영일만 비운다."""
+    data = _jpeg_with_exif(lambda e: e.get_ifd(ExifTags.IFD.Exif).__setitem__(ExifTags.Base.DateTimeOriginal, raw))
+    r = _upload_one(client, data, "o.jpg", "image/jpeg")
+    assert r.status_code == 201 and r.json()["photos"][0]["taken_at"] is None

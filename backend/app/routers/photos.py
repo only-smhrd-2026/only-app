@@ -2,13 +2,25 @@
 
 import io
 import logging
+import threading
 import uuid
 from datetime import date
 
 from fastapi import APIRouter, File, UploadFile
 from PIL import ExifTags, Image, ImageOps
 
-from app.config import UPLOAD_MAX_BYTES, UPLOAD_MAX_FILES, UPLOAD_MAX_PIXELS, today_kst
+from app.config import (
+    JPEG_MAX_SCANS,
+    PHOTO_MAX_SIDE,
+    UPLOAD_LOCK_WAIT_SEC,
+    UPLOAD_MAX_BYTES,
+    UPLOAD_MAX_EXIF_BYTES,
+    UPLOAD_MAX_EXIF_SEGMENTS,
+    UPLOAD_MAX_FILES,
+    UPLOAD_MAX_PIXELS,
+    UPLOAD_MAX_SIDE,
+    today_kst,
+)
 from app.deps import DB, CurrentUser, require_member
 from app.errors import ApiError
 from app.models import Photo
@@ -18,6 +30,10 @@ from app.services import storage
 log = logging.getLogger("app.photos")
 router = APIRouter(prefix="/rooms/{room_id}/photos", tags=["photos"])
 ALLOWED_FORMATS = ["JPEG", "PNG"]  # D17. HEIC 는 pillow-heif 를 켜는 날(11/12) "HEIF" 추가
+PIXELS_TOO_HIGH = f"사진 화소가 너무 높아요 ({UPLOAD_MAX_PIXELS // 10_000}만 화소까지)"  # 용량(10MB) 오류와 구분
+# ponytail: 사진 변환·저장은 서버 전체에서 한 번에 한 요청 — 요청 하나가 수백 MB 를 쓴다(D9 워커 1개, 서버 2GB).
+# 기다리는 요청도 스레드풀 한 칸을 차지해서 UPLOAD_LOCK_WAIT_SEC 까지만 기다린다. 느려지면 가족방별 잠금·큐로
+_upload_lock = threading.Lock()
 
 
 def taken_date(img: Image.Image) -> date | None:
@@ -35,23 +51,37 @@ def to_jpeg(data: bytes) -> tuple[bytes, date | None]:
     """그림만 꺼내 JPEG 로 새로 만든다. 원본의 EXIF(위치정보 포함)·주석은 따라오지 않는다 (D17).
     EXIF 가 사라지기 전에 촬영일만 따로 읽어 (JPEG 바이트, 촬영일) 로 돌려준다."""
     try:
+        # 열기 전에 — JPEG 는 Image.open 안에서 EXIF 일부(해상도)를 벌써 푼다. 조작된 조각이 많으면 그것만으로 수백 MB
+        if data.count(b"Exif\x00\x00") > UPLOAD_MAX_EXIF_SEGMENTS:
+            raise ApiError(400, "BAD_IMAGE", "사진 파일을 열 수 없어요")
+        # progressive JPEG 는 스캔마다 그림 전체를 다시 훑는다 — 스캔 2천 개를 붙인 222KB 사진 한 장에 CPU 25초(실측)
+        # ponytail: FF DA 를 파일 전체에서 셈 — 더 촘촘히(64개) 하려면 EOI 까지 마커를 따라가며 SOS 만 세기
+        if data[:2] == b"\xff\xd8" and data.count(b"\xff\xda") > JPEG_MAX_SCANS:
+            raise ApiError(400, "BAD_IMAGE", "사진 파일을 열 수 없어요")
         img = Image.open(io.BytesIO(data), formats=ALLOWED_FORMATS)  # 그 밖의 형식(GIF·BMP·TIFF…)은 열지 않음
-        if img.width * img.height > UPLOAD_MAX_PIXELS:  # 그림을 풀기 전에 크기만 보고 거절 (메모리 보호)
-            raise ApiError(400, "IMAGE_TOO_LARGE", "사진이 너무 커요")
+        # 그림을 풀기 전에 크기만 보고 거절 (메모리 보호). 1×3천만처럼 한 변이 아주 길면 줄 주소표만 240MB
+        if img.width * img.height > UPLOAD_MAX_PIXELS or max(img.size) > UPLOAD_MAX_SIDE:
+            raise ApiError(400, "IMAGE_TOO_LARGE", PIXELS_TOO_HIGH)
         img.load()  # 그림을 먼저 끝까지 푼다 — 픽셀이 깨진 파일은 여기서 오류(400). 아래 회전 단계로 넘기지 않는다
-        taken_at = taken_date(img)  # load 다음에 — PNG 는 getexif() 가 그림을 풀면서 깨짐 오류를 삼킬 수 있다
-        try:
-            img = ImageOps.exif_transpose(img)  # 폰이 적어 둔 '돌려 찍음'을 실제로 돌려 둔다
-        except Exception as e:  # 회전 정보(EXIF)만 깨진 사진은 돌리지 않고 그대로 저장한다
-            log.warning("photo exif_transpose skipped error=%s", type(e).__name__)
-        rgb = img.convert("RGB")
+        # 촬영일·회전(EXIF)은 load 다음에 — PNG 는 getexif() 가 그림을 풀면서 깨짐 오류를 삼킬 수 있다.
+        # 그림 뒤에 둔 PNG EXIF 도 load 때 읽히므로 크기도 여기서 본다
+        exif = img.info.get("exif") or img.info.get("Raw profile type exif") or b""  # getexif() 가 읽는 두 곳
+        taken_at = None
+        if len(exif) <= UPLOAD_MAX_EXIF_BYTES:  # 조작된 큰 EXIF 는 풀면 수백 MB — 넘으면 촬영일·회전 없이 그림만 저장
+            taken_at = taken_date(img)
+            try:
+                ImageOps.exif_transpose(img, in_place=True)  # 폰이 적어 둔 '돌려 찍음'을 실제로 돌려 둔다 (사본 없이)
+            except Exception as e:  # 회전 정보(EXIF)만 깨진 사진은 돌리지 않고 그대로 저장한다
+                log.warning("photo exif_transpose skipped error=%s", type(e).__name__)
+        img.thumbnail((PHOTO_MAX_SIDE, PHOTO_MAX_SIDE))  # 긴 변 상한, 비율 그대로 — 저장 용량·메모리 보호 (D17)
+        rgb = img if img.mode == "RGB" else img.convert("RGB")  # 이미 RGB 면 사본을 만들지 않는다 (메모리)
         rgb.info.clear()  # 원본 주석(JPEG COM·PNG comment)이 새 JPEG 에 따라오지 않게 — 위치를 글로 적어 둔 경우가 있다
         out = io.BytesIO()
         rgb.save(out, "JPEG", quality=85)
     except ApiError:
         raise  # 위에서 일부러 낸 거절(예: 픽셀 제한)은 그 코드 그대로 — 아래에서 BAD_IMAGE 로 바뀌지 않게
     except (Image.DecompressionBombError, Image.DecompressionBombWarning) as e:  # 아주 큰 그림은 Pillow 가 먼저 막는다
-        raise ApiError(400, "IMAGE_TOO_LARGE", "사진이 너무 커요") from e
+        raise ApiError(400, "IMAGE_TOO_LARGE", PIXELS_TOO_HIGH) from e
     except Exception as e:  # 사진이 아니거나 깨진 파일. Pillow 는 OSError 말고도 ValueError·SyntaxError 등을 낸다
         log.info("photo rejected error=%s", type(e).__name__)  # 예외 종류만 (D15)
         raise ApiError(400, "BAD_IMAGE", "사진 파일을 열 수 없어요") from e
@@ -83,27 +113,39 @@ def upload_photos(
     require_member(room_id, user, db)
     if len(files) > UPLOAD_MAX_FILES:
         raise ApiError(400, "TOO_MANY_PHOTOS", f"사진은 한 번에 {UPLOAD_MAX_FILES}장까지 올릴 수 있어요")
-    # 그림을 풀기 전에 장당 크기부터. 요청 전체는 여기 오기 전에 이미 다 받은 뒤 — 전체 상한은 Caddy(배포 서버)가 막는다
-    for f in files:
+    # 그림을 풀기 전에 장당 크기부터.
+    # ponytail: 요청 본문은 로그인·구성원 확인 전에 이미 다 받은 뒤다(상한은 배포 Caddy 220MB).
+    # 11/12~13 사진 PR 다듬기 때 '구성원 확인 뒤 20장까지만 파싱'으로 바꾼다
+    for n, f in enumerate(files, 1):
         if f.size is None or f.size > UPLOAD_MAX_BYTES:
-            raise ApiError(400, "PHOTO_TOO_BIG", f"사진 한 장은 {UPLOAD_MAX_BYTES // (1024 * 1024)}MB까지예요")
+            raise ApiError(400, "PHOTO_TOO_BIG", f"{n}번째 사진: 한 장은 {UPLOAD_MAX_BYTES // (1024 * 1024)}MB까지예요")
     # 전부 JPEG 로 바꾼 뒤에 저장소에 넣는다 — 중간에 깨진 사진이 있으면 앞 사진 파일만 남지 않게 (한 장씩 차례로, D17)
     # 한계: 저장소에 넣는 도중 고장·DB 저장 실패 때는 파일이 남을 수 있음. 막으려면 storage 에 지우기 기능 필요
-    converted = [to_jpeg(f.file.read()) for f in files]
-    batch_id = uuid.uuid4()
-    photos = []
-    for i, (jpeg, taken_at) in enumerate(converted):
-        key = f"rooms/{room_id}/{batch_id}/{i}.jpg"
-        storage.put(key, jpeg)
-        photo = Photo(
-            room_id=room_id,
-            uploaded_by=user.user_id,
-            upload_batch_id=batch_id,
-            object_key=key,
-            taken_at=taken_at,
-            source="FAMILY",
-        )
-        db.add(photo)
-        photos.append(photo)
-    db.commit()
+    if not _upload_lock.acquire(timeout=UPLOAD_LOCK_WAIT_SEC):  # 싼 검사는 위에서 끝냄. 무거운 변환·저장만 한 요청씩
+        raise ApiError(503, "UPLOAD_BUSY", "다른 사진을 올리는 중이에요. 잠시 뒤 다시 올려 주세요")
+    try:
+        converted = []
+        for n, f in enumerate(files, 1):
+            try:
+                converted.append(to_jpeg(f.file.read()))
+            except ApiError as e:  # 몇 번째 사진인지 문구 앞에 붙인다 — 응답 모양 {detail, code}·상태 코드는 그대로
+                raise ApiError(e.status_code, e.code, f"{n}번째 사진: {e.detail}") from e
+        batch_id = uuid.uuid4()
+        photos = []
+        for i, (jpeg, taken_at) in enumerate(converted):
+            key = f"rooms/{room_id}/{batch_id}/{i}.jpg"
+            storage.put(key, jpeg)
+            photo = Photo(
+                room_id=room_id,
+                uploaded_by=user.user_id,
+                upload_batch_id=batch_id,
+                object_key=key,
+                taken_at=taken_at,
+                source="FAMILY",
+            )
+            db.add(photo)
+            photos.append(photo)
+        db.commit()
+    finally:
+        _upload_lock.release()
     return PhotoBatchOut(upload_batch_id=batch_id, photos=[photo_out(p) for p in photos])
