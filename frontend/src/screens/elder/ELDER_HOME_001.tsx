@@ -8,8 +8,11 @@ import type { ElderHomeOut, SessionOut } from '../../api/types'
 import todayPreview from '../../assets/today-preview.svg?inline' // 미리보기 전용 — 배포 빌드에 파일이 따로 남지 않게
 import { useLive } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
+import { stopSpeaking } from '../../lib/audio'
 import ELDER_TODAY_001 from './ELDER_TODAY_001'
 import './ELDER_HOME_001.css'
+
+let closedPickId: number | null = null
 
 // 백엔드 없이 11/10 화면을 확인하기 위한 개발 서버 전용 데이터.
 const previewHome: ElderHomeOut = {
@@ -25,14 +28,13 @@ export default function ELDER_HOME_001() {
   const nav = useNavigate()
   const { search } = useLocation()
   const preview = import.meta.env.DEV && new URLSearchParams(search).get('preview') === '1'
-  const { data: serverHome, error, loading } = useFetch<ElderHomeOut>(preview ? null : '/api/elder/home')
+  const { data: serverHome, error, loading, reload } = useFetch<ElderHomeOut>(preview ? null : '/api/elder/home')
   const home = preview ? previewHome : serverHome
   // 같은 화면에서는 같은 session_id 를 쓴다 → 두 번 눌러도 서버가 멱등으로 세션 하나만 만든다
   const [sessionId] = useState(() => crypto.randomUUID())
   const [busy, setBusy] = useState(false)
   const [startError, setStartError] = useState<string>()
-  const [todayDismissed, setTodayDismissed] = useState(false)
-  const [todaySkipped, setTodaySkipped] = useState(false)
+  const [dismissedPickId, setDismissedPickId] = useState<number | null>(null)
   const [todayLabel] = useState(() => new Intl.DateTimeFormat('ko-KR', {
     timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'long',
   }).format(new Date()))
@@ -67,23 +69,28 @@ export default function ELDER_HOME_001() {
     }
   }
 
-  async function skipToday() {
-    if (busy) return
-    if (preview) {
-      setTodayDismissed(true)
-      return
-    }
-    setBusy(true)
+  function closeToday() {
+    if (!home?.today_pick) return
+    if (!preview) closedPickId = home.today_pick.pick_id
+    setDismissedPickId(home.today_pick.pick_id)
     setStartError(undefined)
+    stopSpeaking()
+  }
+
+  function talkFromToday() {
+    closeToday()
+    void startMemory()
+  }
+
+  async function skipToday() {
+    closeToday()
+    if (preview) return
     try {
       await api('/api/elder/picks/today/skip', { method: 'POST' })
-      if (!live.current) return
-      setTodaySkipped(true)
-      setTodayDismissed(true)
-    } catch (e) {
-      if (live.current) setStartError((e as ApiError).message)
+    } catch {
+      // 서버에 닿지 않아도 이 실행에서는 팝업을 닫아 둔다.
     } finally {
-      if (live.current) setBusy(false)
+      reload()
     }
   }
 
@@ -98,8 +105,8 @@ export default function ELDER_HOME_001() {
     )
   if (!home) return null
 
-  const pick = todaySkipped && home.today_pick ? { ...home.today_pick, status: 'SKIPPED' } : home.today_pick
-  const showToday = pick?.status === 'PENDING' && !todayDismissed
+  const pick = home.today_pick
+  const showToday = pick?.status === 'PENDING' && pick.pick_id !== closedPickId && pick.pick_id !== dismissedPickId
   const date = preview ? '11월 4일 (수) 아침' : todayLabel
   return (
     <main className={`elder elder-home${preview ? ' elder-home--preview' : ''}`}>
@@ -112,15 +119,16 @@ export default function ELDER_HOME_001() {
         </div>
         {home.unread_family_news > 0 && <p className="elder-home-news">새로운 가족 소식이 {home.unread_family_news}개 있어요.</p>}
         {pick?.status === 'PENDING' && !showToday && (
-          <button className="elder-btn elder-home-pick" onClick={preview ? () => { setStartError(undefined); setTodayDismissed(false) } : startMemory} disabled={busy}>
+          <button className="elder-btn elder-home-pick" onClick={preview ? () => { setStartError(undefined); setDismissedPickId(null) } : startMemory} disabled={busy}>
             {busy ? '잠시만요' : preview ? '팝업 다시 보기' : '오늘 사진 보기'}
           </button>
         )}
         {!pick && <p className="elder-home-news">오늘은 아직 사진이 없어요.</p>}
-        {pick && pick.status !== 'PENDING' && <p className="elder-home-news">오늘 이야기는 다 나눴어요.</p>}
+        {pick?.status === 'COMPLETED' && <p className="elder-home-news">오늘 이야기는 다 나눴어요.</p>}
+        {pick?.status === 'SKIPPED' && <p className="elder-home-news">오늘 사진은 건너뛰었어요.</p>}
         {!showToday && startError && <p className="elder-home-news" role="alert">{startError}</p>}
       </div>
-      {showToday && <ELDER_TODAY_001 home={home} busy={busy} error={startError} preview={preview} onTalk={startMemory} onSkip={skipToday} />}
+      {showToday && <ELDER_TODAY_001 home={home} busy={busy} error={startError} onTalk={talkFromToday} onSkip={() => void skipToday()} />}
     </main>
   )
 }
