@@ -35,8 +35,12 @@ STT_FAIL_LOCK = 2  # 세션 안 저신뢰 2회 → input_locked
 NO_RESPONSE_END = 3  # 무응답 3단계째 종료
 SESSION_ERROR_ALERT = 3  # 하루 ERROR 종료 3회 → 가족 알림
 STT_MAX_BYTES = 5 * 1024 * 1024
+STT_MAX_SEC = 60  # 녹음 상한 (FR-VS-001, 화면 RECORD_MS). 더 긴 소리는 변환할 때 잘라 STT 과금·메모리를 막는다
+# 전사 상한. 턴 본문 상한(schemas/sessions.py TurnIn.text)과 같게 — 넘으면 턴이 422 로 대화를 끝낸다
+STT_MAX_CHARS = 500
 UPLOAD_MAX_BYTES = 10 * 1024 * 1024
 LOGIN_RATE_PER_MIN = 10
+STT_RATE_PER_MIN = 20  # 같은 IP 의 /api/stt 분당 상한. 대화 한 번(5분)에 많아야 16번 부른다 (D46)
 SESSION_COOKIE_DAYS = 7
 DEVICE_COOKIE_DAYS = 365
 

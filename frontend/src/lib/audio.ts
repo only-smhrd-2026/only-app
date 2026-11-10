@@ -28,10 +28,14 @@ export async function startRecording(maxMs = 60_000): Promise<Recorder> {
 
 let current: HTMLAudioElement | null = null
 
-/** 서버 TTS(base64 mp3) 재생. 끝나면 resolve. 자동재생이 막히면 reject. stopSpeaking() 으로 멈출 수 있다. */
-export function playBase64(b64: string, mime = 'audio/mpeg'): Promise<void> {
+/**
+ * 서버 TTS(base64 mp3) 재생. 끝나면 resolve. 자동재생이 막히면 reject. stopSpeaking() 으로 멈출 수 있다.
+ * rate = 말 속도(0.70·0.85·1.00). 서버는 1.0배로 합성하고 여기서 늦춘다 (D46). 음높이는 브라우저가 그대로 둔다.
+ */
+export function playBase64(b64: string, rate = 1, mime = 'audio/mpeg'): Promise<void> {
   return new Promise((resolve, reject) => {
     const audio = new Audio(`data:${mime};base64,${b64}`)
+    audio.defaultPlaybackRate = audio.playbackRate = rate // default 도 같이: 다시 불러올 때 1.0 으로 돌아가지 않게
     current = audio
     audio.onended = () => resolve()
     audio.onpause = () => resolve() // stopSpeaking() 으로 멈춘 경우

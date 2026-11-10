@@ -65,7 +65,7 @@ signup → POST /rooms (가족방+구성원) → 사진 3장 이상 → POST /ro
 [맞아요] ─► POST /api/elder/sessions/{id}/turns {text, input_type:VOICE, stt_confidence, retried}
    서버: ELDER 턴 저장 → (회상 4번째 질문이면 quiz.pick 이 문제 은행에서 고름) → coach.next_question(LLM 또는 mock) → 금지어·형식 검사 → AI 턴 저장(문제면 question_code) → TTS(mock 이면 None)
    ◄─ {ai:{text, audio_b64?, suggestions[], choice_mode, question_type}, state, turn_no, input_locked}
-화면: audio_b64 재생 또는 speechSynthesis → 칩 표시 → WAITING(20초 무조작이면 event:NO_RESPONSE)
+화면: audio_b64 재생(말 속도는 playbackRate, D46) 또는 speechSynthesis → 칩 표시 → WAITING(20초 무조작이면 event:NO_RESPONSE)
 8번째 답 → AI 마무리(CLOSING) + state:ENDED(COMPLETED) → daily_picks COMPLETED → [다 들었어요] → POST /elder/picks/today/listened
 ```
 
@@ -111,8 +111,8 @@ STORAGE=local: uploads/ 폴더 (git 제외) / STORAGE=r2: Cloudflare R2 (boto3, 
 | 부품 | 파일 | env | mock 동작 | 실제 연결 |
 |---|---|---|---|---|
 | 회상·일기 대화·요약·분류 | `app/ai/llm.py` `call_json(prompt_name, data, Schema)` | `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `LLM_MODEL` | 회상: 고정 질문 7개 순환 / 일기: 고정 질문 3개 + 어르신 말 이어 붙인 초안(그림 없음) | Anthropic SDK, 구조화 출력(JSON 스키마) + pydantic 검사(`app/ai/schemas.py`), 검증 실패만 1회 재시도. 시도당 상한 말하기 턴 6초·초안 15초, SDK 재시도 없음 |
-| 음성→글 | `app/ai/stt.py` `transcribe(audio, hints)` | `STT_PROVIDER` | 고정 문장, 0.95 | 담당자가 제공자 분기 추가 (11/15 비교 후) |
-| 글→음성 | `app/ai/tts.py` `synthesize(text, speed)` | `TTS_PROVIDER` | None → 브라우저 TTS | mp3 바이트 반환 → 턴 응답 `audio_b64` |
+| 음성→글 | `app/ai/stt.py` `transcribe(audio, hints)` | `STT_PROVIDER=rtzr`, `RTZR_CLIENT_ID`, `RTZR_CLIENT_SECRET` (+ PC 에 ffmpeg) | 고정 문장, 0.95 | **연결됨(D46)**: 리턴제로 스트리밍 STT. ffmpeg 로 16kHz PCM 변환(파이프) → WebSocket 에 한꺼번에 보내고 문장을 이어 붙임. 전체 상한 8초(실측 0.4~2.0초). 말소리 없음 422·장애 503·같은 IP 분당 20번 넘으면 429 (`routers/stt.py`) |
+| 글→음성 | `app/ai/tts.py` `synthesize(text, speed)` | `TTS_PROVIDER=google`, `GOOGLE_TTS_API_KEY` | None → 브라우저 TTS | **연결됨(D46)**: Google Chirp 3 HD ko-KR(REST, mp3) → 턴 응답 `audio_b64`. 1.0배로 합성하고 말 속도는 화면이 `playbackRate` 로. 같은 문장은 캐시, 상한 3초 + 글자당 0.03초 — 실패하면 자막만 (D5) |
 | 그림일기 | `app/ai/image.py` `generate(draw_spec, seed)` | `IMAGE_PROVIDER=cloudflare`, `CF_ACCOUNT_ID`, `CF_API_TOKEN` | 개발: 도형 자리표시 그림(JPEG, 글자 없음) / 배포: None → 글만 | **연결됨(D37)**: Workers AI `flux-2-klein-4b` 768px, 고정 화풍 문장 + 사물 이름만, 20초 상한(실측 7~10초), JPEG 다시 인코딩 — 실패·None 이면 글만 게시 (D36) |
 
 프롬프트는 `app/ai/prompts/*.md`(system). 어르신 말·사진 설명은 JSON **데이터**로만 user 메시지에 넣는다(인젝션 방어). 출력은 코드가 검사: 금지어(`data/banned_words.json` — 목록은 모든 프롬프트 끝에도 자동으로 붙음), 물음표 ≤1, 추천 답변 ≤3개×12자(4개인 일기 기분 칩은 모델이 만들지 않는 고정 문장), 일기 본문 ≤400자·그릴 사물 ≤3개. 일기 초안이 LLM 없이 만들어질 때도 금지어가 든 답은 본문에서 뺀다.

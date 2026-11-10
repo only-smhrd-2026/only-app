@@ -77,7 +77,7 @@ export default function ELDER_DIARY_003() {
   // 본문·기분을 읽어 주고 "이대로 올릴까요?" (서버 TTS 음성이 있으면 그것, 없으면 브라우저 TTS)
   useEffect(() => {
     if (!draft) return
-    if (draft.audio_b64) playBase64(draft.audio_b64).catch(() => speak(readAloud(draft), speed))
+    if (draft.audio_b64) playBase64(draft.audio_b64, speed).catch(() => speak(readAloud(draft), speed))
     else speak(readAloud(draft), speed)
     return () => stopSpeaking()
   }, [draft, speed])
