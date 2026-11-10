@@ -77,7 +77,7 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
 
   async function speakAi(a: AiOut) {
     setPhase('SPEAKING')
-    if (a.audio_b64) await playBase64(a.audio_b64).catch(() => speak(a.text, speed))
+    if (a.audio_b64) await playBase64(a.audio_b64, speed).catch(() => speak(a.text, speed))
     else await speak(a.text, speed)
   }
 

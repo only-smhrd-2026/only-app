@@ -1,4 +1,4 @@
-"""비밀번호 해시(bcrypt), 가족 세션 JWT, 토큰 해시, 쿠키, 로그인 속도 제한 (D2, D20)."""
+"""비밀번호 해시(bcrypt), 가족 세션 JWT, 토큰 해시, 쿠키, 로그인·음성 인식 속도 제한 (D2, D20, D46)."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from app.config import (
     DEVICE_COOKIE_DAYS,
     LOGIN_RATE_PER_MIN,
     SESSION_COOKIE_DAYS,
+    STT_RATE_PER_MIN,
     now_kst,
     settings,
 )
@@ -84,14 +85,23 @@ def clear_cookie(response: Response, name: str) -> None:
 
 # ponytail: 프로세스 메모리 카운터 (uvicorn --workers 1 전제, D9). 재시작하면 초기화되지만 무방 (D20).
 _login_hits: dict[str, deque[float]] = defaultdict(deque)
+_stt_hits: dict[str, deque[float]] = defaultdict(deque)
 
 
-def login_allowed(ip: str) -> bool:
+def _allowed(hits: deque[float], per_min: int) -> bool:
     now = time.monotonic()
-    hits = _login_hits[ip]
     while hits and now - hits[0] > 60:
         hits.popleft()
-    if len(hits) >= LOGIN_RATE_PER_MIN:
+    if len(hits) >= per_min:
         return False
     hits.append(now)
     return True
+
+
+def login_allowed(ip: str) -> bool:
+    return _allowed(_login_hits[ip], LOGIN_RATE_PER_MIN)
+
+
+def stt_allowed(ip: str) -> bool:
+    """음성 인식은 부를 때마다 돈이 든다(리턴제로는 연결마다 최소 10초 과금). 같은 IP 에서 분당 상한까지만 (D46)."""
+    return _allowed(_stt_hits[ip], STT_RATE_PER_MIN)

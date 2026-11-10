@@ -1,5 +1,8 @@
 # 배포용 API 이미지. 빌드 컨텍스트는 저장소 루트 (db/, data/ 도 필요). docker-compose.yml 의 api 서비스가 사용.
 FROM python:3.12-slim
+# ffmpeg: 녹음(webm/opus) → 16kHz PCM 변환 (app/ai/stt.py, D46). 이미지가 약 420MB 커진다.
+# uv 복사보다 앞에 둔다 — uv 새 판이 나올 때마다 이 층을 다시 받지 않게
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PROJECT_ENVIRONMENT=/opt/venv TZ=Asia/Seoul

@@ -240,7 +240,7 @@ def _finish(db, session: TalkSession, reason: str) -> None:
             notify_family(db, room.room_id, "SESSION_ERROR_3X", f"{room.elder_name} 님 대화가 오늘 3번 중단됐어요")
     for store in (_no_response, _low_conf, _last_reply):
         store.pop(session.session_id, None)
-    _tts_failed.discard(session.session_id)
+    # _tts_failed 는 여기서 지우지 않는다: 끝인사를 읽다가 또 실패하면 가족 알림이 한 번 더 간다 (D5 는 대화에 1건)
 
 
 def _out(db, session, room, reply, state="CONTINUE", end_reason=None) -> SessionOut:
