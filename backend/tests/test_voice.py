@@ -24,7 +24,7 @@ from websockets.protocol import State
 from app import security
 from app.ai import stt, tts
 from app.config import STT_MAX_CHARS, settings
-from app.db import SessionLocal
+from app.db import SessionLocal, engine
 from app.models import Notification
 from tests.conftest import setup_elder, signup
 
@@ -44,9 +44,11 @@ def test_stt_endpoint_rules(client, monkeypatch):
     r = client.post("/api/stt", files=AUDIO)
     assert r.status_code == 200, r.text
     assert r.json() == {"transcript": "옛날에 가족들이랑 같이 찍은 사진이에요", "confidence": 0.95}
+    held = []  # STT 하는 동안 쥐고 있는 DB 연결 수
 
     def answer(result):
         def fake(audio, hints):
+            held.append(engine.pool.checkedout())
             if isinstance(result, Exception):
                 raise result
             return result
@@ -62,6 +64,7 @@ def test_stt_endpoint_rules(client, monkeypatch):
     assert r.status_code == 503 and r.json()["code"] == "STT_UNAVAILABLE" and "secret" not in r.text
     r = answer(("가" * (STT_MAX_CHARS + 100), 0.9))
     assert r.status_code == 200 and len(r.json()["transcript"]) == STT_MAX_CHARS
+    assert held == [0] * 4  # 인증 확인에 쓴 DB 연결은 STT(최대 8초) 전에 돌려준다 — 몰려도 다른 API 가 안 멈추게
 
 
 def test_stt_rate_limit(client, monkeypatch):
@@ -106,8 +109,9 @@ def _rtzr(monkeypatch, script, pcm: bytes | None = b"\0" * 80_000) -> dict:
     """STT_PROVIDER=rtzr 로 켜고 바깥으로 나가는 길 3개(ffmpeg·토큰·WebSocket)를 막는다. pcm=None 은 ffmpeg 실패."""
     calls = {"ffmpeg": [], "auth": 0, "ws": []}
 
-    def fake_run(cmd, input, capture_output, timeout):
+    def fake_run(cmd, input, capture_output, timeout, **kw):
         calls["ffmpeg"].append(cmd)
+        calls["ffmpeg_kw"] = kw  # 환경 변수·권한 (env·user)
         return subprocess.CompletedProcess(cmd, 1 if pcm is None else 0, stdout=pcm or b"", stderr=b"")
 
     def fake_post(url, data, timeout):
@@ -141,6 +145,7 @@ def test_rtzr_sends_whole_recording_and_joins_sentences(monkeypatch, caplog):
     script = [partial, _final("옛날에 찍었어요.", 0.99), "CLOSE", _final(" 네, 맞아요. ", 0.62)]
     calls = _rtzr(monkeypatch, script)
     caplog.set_level(logging.INFO)
+    monkeypatch.setenv("RTZR_CLIENT_SECRET", "secret")  # 배포처럼 키가 환경 변수에 있다 (docker-compose env_file)
 
     assert stt.transcribe(b"webm", ["순자 할머니", "bad1", "가" * 21]) == ("옛날에 찍었어요. 네, 맞아요.", 0.62)
     # 로그에는 숫자만 (D15): 전사 글·이름 힌트·토큰이 없다
@@ -149,9 +154,14 @@ def test_rtzr_sends_whole_recording_and_joins_sentences(monkeypatch, caplog):
     cmd = calls["ffmpeg"][0]  # 파이프로만 주고받고, 60초 뒤는 버리고, 다른 주소·파일은 못 열게
     assert cmd[0] == "ffmpeg" and "pipe:0" in cmd and cmd[-1] == "pipe:1"
     assert cmd[cmd.index("-t") + 1] == "60" and cmd[cmd.index("-protocol_whitelist") + 1] == "pipe"
+    assert cmd[cmd.index("-fs") + 1] == str(60 * stt.CHUNK)  # -t 는 파일 속 시간표를 믿는다 → 출력 바이트로도 60초
     assert cmd[cmd.index("-v") + 1] == "quiet" and cmd[-7:-1] == ["-f", "s16le", "-ac", "1", "-ar", "16000"]
-    # 그림·영상 디코더는 열지 않는다 (입력 옵션이라 -i 앞에 있어야 먹는다)
+    # 그림·영상 디코더는 열지 않는다 (입력 옵션이라 -i 앞에 있어야 먹는다) (D46 ②, 아이폰 mp4/aac 포함)
     assert cmd.index("-format_whitelist") < cmd.index("-i") and cmd.index("-codec_whitelist") < cmd.index("-i")
+    assert cmd[cmd.index("-format_whitelist") + 1] == "matroska,webm,mov,mp4,ogg"
+    assert cmd[cmd.index("-codec_whitelist") + 1] == "opus,libopus,vorbis,aac"
+    # 올라온 파일을 푸는 ffmpeg 에는 키가 든 환경 변수를 물려주지 않는다 (PATH 만)
+    assert "RTZR_CLIENT_SECRET" not in calls["ffmpeg_kw"]["env"] and list(calls["ffmpeg_kw"]["env"]) == ["PATH"]
     url, headers, ws = calls["ws"][0]
     query = parse_qs(urlsplit(url).query)
     assert url.startswith("wss://openapi.vito.ai/v1/transcribe:streaming?")
@@ -167,6 +177,32 @@ def test_rtzr_sends_whole_recording_and_joins_sentences(monkeypatch, caplog):
     monkeypatch.setattr(stt, "_token", ("old", time.time() + 60))  # 만료 30분 전부터는 새로 받는다
     stt.transcribe(b"webm")
     assert calls["auth"] == 2 and calls["ws"][2][1] == {"Authorization": "Bearer tok"}
+
+    monkeypatch.setattr(stt.os, "geteuid", lambda: 0, raising=False)  # 배포 컨테이너는 root: ffmpeg 만 nobody 로
+    stt.transcribe(b"webm")
+    kw = calls["ffmpeg_kw"]
+    assert kw["user"] == kw["group"] == 65534 and kw["extra_groups"] == [] and list(kw["env"]) == ["PATH"]
+
+
+def test_rtzr_caps_sound_at_60s_and_stops_sending_at_deadline(monkeypatch):
+    """시간표를 조작한 녹음은 ffmpeg 가 60초보다 길게 내놓을 수 있다 → 60초 분량만 보낸다(과금 상한).
+    조각을 보내는 동안 상한이 지나면 남은 조각·EOS 를 보내지 않고 끊는다(TimeoutError → /api/stt 503)."""
+    long_pcm = b"\0" * (61 * stt.CHUNK)
+    calls = _rtzr(monkeypatch, [_final("네.", 0.9), "CLOSE"], pcm=long_pcm)
+    assert stt.transcribe(b"webm") == ("네.", 0.9)
+    assert sum(map(len, calls["ws"][0][2].sent[:-1])) == 60 * stt.CHUNK
+
+    calls = _rtzr(monkeypatch, [_final("네.", 0.9), "CLOSE"], pcm=long_pcm)
+    monkeypatch.setattr(stt, "RTZR_TIMEOUT_SEC", 0.05)
+
+    def slow_send(self, data):  # 상대가 천천히 받는다: 조각마다 0.01초 (left() 최소 0.1초보다 짧게)
+        time.sleep(0.01)
+        self.sent.append(data)
+
+    monkeypatch.setattr(FakeWs, "send", slow_send)
+    with pytest.raises(TimeoutError):
+        stt.transcribe(b"webm")
+    assert "EOS" not in calls["ws"][0][2].sent
 
 
 def test_rtzr_failures(monkeypatch):
@@ -212,14 +248,49 @@ def test_rtzr_token_wait_is_inside_deadline(monkeypatch):
     """앞 요청이 토큰을 받는 중(락을 쥠)이면 기다린 시간도 상한에 넣는다 — 겹친 요청이 8초씩 쌓이지 않게."""
     calls = _rtzr(monkeypatch, [])
     monkeypatch.setattr(stt, "RTZR_TIMEOUT_SEC", 0.05)
-    t = threading.Thread(target=lambda: pytest.raises(TimeoutError, stt.transcribe, b"webm"))
+    errs = []  # 스레드 안의 pytest.raises 는 실패해도 경고로만 남아, 예외 종류는 여기 모아 본 스레드에서 비교한다
+
+    def run():
+        try:
+            stt.transcribe(b"webm")
+        except Exception as e:
+            errs.append(type(e))
+
+    t = threading.Thread(target=run)
     stt._token_lock.acquire()  # 다른 요청이 토큰을 받는 중인 상황
     t.start()
     t.join(2)
     stuck = t.is_alive()
     stt._token_lock.release()
     t.join()  # 가짜(monkeypatch)가 풀리기 전에 끝낸다
-    assert not stuck and calls["auth"] == 0
+    assert not stuck and errs == [TimeoutError] and calls["auth"] == 0
+
+
+def test_rtzr_401_waits_for_token_lock_only_until_deadline(monkeypatch):
+    """401 로 토큰을 버릴 때도 락 대기는 상한 안 — 앞 요청이 토큰을 받는 중(락을 쥠)이어도 8초를 넘기지 않는다."""
+    _rtzr(monkeypatch, [])
+    monkeypatch.setattr(stt, "RTZR_TIMEOUT_SEC", 0.05)
+    held = threading.Event()
+
+    def hold():  # 느린 토큰 발급 흉내: 다른 요청이 락을 1초 쥔다
+        with stt._token_lock:
+            held.set()
+            time.sleep(1)
+
+    other = threading.Thread(target=hold)
+
+    def refuse(*args, **kwargs):
+        other.start()
+        held.wait()
+        raise InvalidStatus(Response(401, "Unauthorized", Headers()))
+
+    monkeypatch.setattr(stt, "connect", refuse)
+    t0 = time.monotonic()
+    with pytest.raises(InvalidStatus):
+        stt.transcribe(b"webm")
+    took = time.monotonic() - t0
+    other.join()
+    assert took < 0.5
 
 
 def test_google_tts_adapter(monkeypatch):

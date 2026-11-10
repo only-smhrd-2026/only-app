@@ -10,7 +10,7 @@ import pytest
 from PIL import Image
 from sqlalchemy import func, select
 
-from app.ai import coach, image, llm
+from app.ai import coach, image, llm, tts
 from app.ai.schemas import BANNED_WORDS, CoachReply, DiaryDraft
 from app.config import DIARY_DRAFT_MIN, settings
 from app.db import SessionLocal
@@ -44,11 +44,9 @@ def _post(client, sid: str, rid: str | None = None):
     return client.post("/api/elder/diaries", json={"request_id": rid or str(uuid.uuid4()), "session_id": sid})
 
 
-def _sent(room_id: int) -> int:
+def _sent(room_id: int, kind: str = "DIARY_POSTED") -> int:
     with SessionLocal() as db:
-        return db.scalar(
-            select(func.count()).where(Notification.room_id == room_id, Notification.kind == "DIARY_POSTED")
-        )
+        return db.scalar(select(func.count()).where(Notification.room_id == room_id, Notification.kind == kind))
 
 
 def test_three_questions_then_post_once_and_family_sees_new(client, monkeypatch):
@@ -197,6 +195,22 @@ def test_drawing_failure_posts_text_only(client, monkeypatch):
     assert draft["illustration_type"] == "NONE" and draft["illustration_b64"] is None  # 실패 → 글만
     posted = _post(client, sid)
     assert posted.status_code == 201 and posted.json()["illustration_url"] is None
+
+
+def test_read_aloud_tts_failure_alerts_family_once(client, monkeypatch):
+    """일기 낭독 TTS 가 실패하면 음성 없이(화면이 브라우저 TTS 로 읽음) + 가족 알림 TTS_ERROR 는 그 대화에 1건 (D5)."""
+    room_id = _family_and_elder(client)
+
+    def read_aloud_fails(text, speed):  # 대화 질문은 되고 낭독('… 이대로 올릴까요?')만 실패
+        if text.endswith("이대로 올릴까요?"):
+            raise httpx.ReadTimeout("slow")
+        return None
+
+    monkeypatch.setattr(tts, "synthesize", read_aloud_fails)
+    sid, _ = _talk(client)
+    assert _draft(client, sid).json()["audio_b64"] is None and _sent(room_id, "TTS_ERROR") == 1
+    diaries._drafts[uuid.UUID(sid)].made_at -= timedelta(minutes=DIARY_DRAFT_MIN + 1)  # 30분 지나 다시 만들다 또 실패
+    assert _draft(client, sid).status_code == 200 and _sent(room_id, "TTS_ERROR") == 1
 
 
 def test_fallback_draft_drops_banned_words_and_reads_spoken_mood():
