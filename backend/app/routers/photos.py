@@ -4,12 +4,16 @@ import io
 import logging
 import threading
 import uuid
+from collections.abc import AsyncIterator
 from datetime import date
+from typing import Annotated
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, Depends, Request
 from PIL import ExifTags, Image, ImageOps
-from pillow_heif import register_heif_opener
 from sqlalchemy import select
+from starlette.datastructures import FormData, UploadFile  # fastapi.UploadFile 은 자식이라 isinstance 안 맞음
+from starlette.exceptions import HTTPException
+from starlette.requests import ClientDisconnect
 
 from app.config import (
     JPEG_MAX_SCANS,
@@ -19,6 +23,7 @@ from app.config import (
     UPLOAD_MAX_EXIF_BYTES,
     UPLOAD_MAX_EXIF_SEGMENTS,
     UPLOAD_MAX_FILES,
+    UPLOAD_MAX_ICC_BYTES,
     UPLOAD_MAX_PIXELS,
     UPLOAD_MAX_SIDE,
     today_kst,
@@ -31,8 +36,11 @@ from app.services import storage
 
 log = logging.getLogger("app.photos")
 router = APIRouter(prefix="/rooms/{room_id}/photos", tags=["photos"])
-register_heif_opener()  # Image.open 이 아이폰 사진(HEIC)도 열게 — 서버가 켜질 때 한 번
-ALLOWED_FORMATS = ["JPEG", "PNG", "HEIF"]  # D17
+# HEIC 는 꺼 둔다 (11/11). pillow-heif 를 켜면 조작된 1MB HEIC 하나가 Image.open 만으로 1~2GB 넘게 메모리를 쓴다
+# (같은 데이터를 가리키는 메타데이터 항목마다 따로 복사) — 아래 픽셀 검사보다 먼저라 못 막고, 서버는 2GB·워커 1개.
+# 다시 켜려면: 열기 전에 모든 이미지의 메타데이터 바이트 합계를 막는 검사 + 실제 아이폰 사진으로 시험.
+# 아이폰 Safari 는 사진 보관함에서 고르면 보통 JPEG 로 바꿔 보낸다
+ALLOWED_FORMATS = ["JPEG", "PNG"]  # D17
 PIXELS_TOO_HIGH = f"사진 화소가 너무 높아요 ({UPLOAD_MAX_PIXELS // 10_000}만 화소까지)"  # 용량(10MB) 오류와 구분
 # ponytail: 사진 변환·저장은 서버 전체에서 한 번에 한 요청 — 요청 하나가 수백 MB 를 쓴다(D9 워커 1개, 서버 2GB).
 # 기다리는 요청도 스레드풀 한 칸을 차지해서 UPLOAD_LOCK_WAIT_SEC 까지만 기다린다. 느려지면 가족방별 잠금·큐로
@@ -79,8 +87,10 @@ def to_jpeg(data: bytes) -> tuple[bytes, date | None]:
         img.thumbnail((PHOTO_MAX_SIDE, PHOTO_MAX_SIDE))  # 긴 변 상한, 비율 그대로 — 저장 용량·메모리 보호 (D17)
         # 색 프로필(아이폰 사진 등) — RGB 사진일 때만 맞는 정보라 그때만 남긴다. info.clear() 전에 꺼내 둔다
         icc = img.info.get("icc_profile") if img.mode in ("RGB", "RGBA") else None
-        if icc and len(icc) > UPLOAD_MAX_EXIF_BYTES:  # 조작된 큰 프로필은 버림 — 사진을 줄여도 저장본이 MB 단위가 된다
-            icc = None  # 보통 프로필은 수 KB(아이폰 Display P3 약 0.5KB). EXIF 와 같은 64KB 상한을 같이 쓴다
+        # 남기는 것: 64KB 이하(조작된 큰 프로필은 사진을 줄여도 저장본이 MB 단위)·ICC 표시('acsp')·RGB 색 공간.
+        # 흑백·CMYK 프로필을 RGB JPEG 에 붙이면 보는 앱이 색을 틀리게 그리거나 못 연다
+        if icc and not (len(icc) <= UPLOAD_MAX_ICC_BYTES and icc[36:40] == b"acsp" and icc[16:20] == b"RGB "):
+            icc = None
         if img.mode in ("I;16", "I"):  # 16비트 흑백 PNG — 그대로 바꾸면 255 넘는 값이 전부 새하양
             img = img.point(lambda v: v / 256).convert("L")
         # 투명 정보: RGBA·LA 는 칸으로, P·L·RGB 는 '이 색을 투명으로'(tRNS → info["transparency"])로 들어 있다
@@ -114,25 +124,73 @@ def photo_out(p: Photo) -> PhotoOut:
     )
 
 
-@router.post("", response_model=PhotoBatchOut, status_code=201)
-def upload_photos(
-    room_id: int,
-    user: CurrentUser,
-    db: DB,
-    files: list[UploadFile] = File(
-        description="JPEG/PNG/HEIC",
-        json_schema_extra={"items": {"type": "string", "format": "binary"}},  # Swagger 에 [파일 선택] 버튼이 뜨게
-    ),
-    upload_batch_id: uuid.UUID | None = Form(None, description="같은 요청 번호로 다시 보내면 새로 저장하지 않음"),
-):
-    """받은 사진을 JPEG 로 다시 만들어 저장. 20장·10MB·30M 픽셀 제한, HEIC 도 받음.
-    화면이 upload_batch_id 를 보내면 같은 번호의 두 번째 요청은 저장하지 않고 처음 저장본을 돌려준다 (D17)."""
+# Swagger 에 [파일 선택] 버튼이 뜨게 — 본문을 아래 _upload_form 이 직접 읽어서 FastAPI 가 모양을 못 만든다
+_UPLOAD_BODY = {
+    "requestBody": {
+        "required": True,
+        "content": {
+            "multipart/form-data": {
+                "schema": {
+                    "type": "object",
+                    "required": ["files"],
+                    "properties": {
+                        "files": {
+                            "type": "array",
+                            "items": {"type": "string", "format": "binary"},
+                            "description": "JPEG/PNG",
+                        },
+                        "upload_batch_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "description": "같은 요청 번호로 다시 보내면 새로 저장하지 않음",
+                        },
+                    },
+                }
+            }
+        },
+    }
+}
+
+
+def _member_first(room_id: int, user: CurrentUser, db: DB) -> None:
+    """로그인(401)·구성원(404) 확인 — 본문(사진, 최대 220MB)을 읽기 전에 끝낸다."""
     require_member(room_id, user, db)
-    if len(files) > UPLOAD_MAX_FILES:
-        raise ApiError(400, "TOO_MANY_PHOTOS", f"사진은 한 번에 {UPLOAD_MAX_FILES}장까지 올릴 수 있어요")
+    # 본문을 받는 동안·잠금을 기다리는 동안 DB 연결을 쥐지 않게 돌려준다 (stt.py 와 같은 방법).
+    # user 는 이미 읽어 둔 user_id 만 쓴다. 잠금 안의 조회·저장은 같은 db(요청 안에서 한 세션)가 새 연결을 받아 한다
+    db.close()
+
+
+async def _upload_form(request: Request, _: Annotated[None, Depends(_member_first)]) -> AsyncIterator[FormData]:
+    """구성원 확인 뒤에야 본문을 읽는다. 21번째 사진을 만나면 그 자리에서 멈춘다 (D17)."""
+    try:
+        form = await request.form(max_files=UPLOAD_MAX_FILES, max_fields=1)  # 글 칸은 upload_batch_id 하나
+    except HTTPException as e:  # Starlette 가 400 으로 멈춤. 장수 초과만 우리 코드로, 깨진 본문은 그대로
+        if str(e.detail).startswith("Too many files"):
+            raise ApiError(400, "TOO_MANY_PHOTOS", f"사진은 한 번에 {UPLOAD_MAX_FILES}장까지 올릴 수 있어요") from None
+        raise
+    except ClientDisconnect:  # 폰이 올리는 도중 끊김 — 서버 오류(500 로그)가 아니다. 예전 FastAPI 처럼 400
+        raise ApiError(400, "UPLOAD_CUT", "사진을 다 받지 못했어요. 다시 올려 주세요") from None
+    try:
+        yield form
+    finally:
+        await form.close()  # 1MB 넘는 사진은 임시 파일(디스크)에 있다
+
+
+@router.post("", response_model=PhotoBatchOut, status_code=201, openapi_extra=_UPLOAD_BODY)
+def upload_photos(room_id: int, user: CurrentUser, db: DB, form: Annotated[FormData, Depends(_upload_form)]):
+    """받은 사진을 JPEG 로 다시 만들어 저장. 20장·10MB·30M 픽셀 제한, JPEG/PNG 만(HEIC 는 위 ALLOWED_FORMATS).
+    upload_batch_id: 화면이 사진을 고를 때마다 새 번호를 만들고, 같은 요청을 다시 보낼 때([올리기] 두 번·재전송)만
+    같은 번호를 쓴다. 같은 번호의 두 번째 요청은 사진을 보지 않고 처음 저장본을 돌려준다 — 사진이 달라도 (D17)."""
+    files = [f for f in form.getlist("files") if isinstance(f, UploadFile)]
+    if not files:
+        raise ApiError(422, "VALIDATION", "사진을 골라 주세요")
+    raw = form.get("upload_batch_id")
+    try:
+        upload_batch_id = uuid.UUID(str(raw)) if raw else None  # 빈 칸("")은 번호 없음
+    except ValueError:
+        raise ApiError(422, "VALIDATION", "입력값이 올바르지 않습니다") from None
     # 그림을 풀기 전에 장당 크기부터.
-    # ponytail: 요청 본문은 로그인·구성원 확인 전에 이미 다 받은 뒤다(상한은 배포 Caddy 220MB).
-    # 11/12~13 사진 PR 다듬기 때 '구성원 확인 뒤 20장까지만 파싱'으로 바꾼다
+    # ponytail: 10MB 는 본문을 다 받은 뒤에 본다(구성원만, 합계는 배포 Caddy 220MB). 받는 도중 끊으려면 스트림 감싸기
     for n, f in enumerate(files, 1):
         if f.size is None or f.size > UPLOAD_MAX_BYTES:
             raise ApiError(400, "PHOTO_TOO_BIG", f"{n}번째 사진: 한 장은 {UPLOAD_MAX_BYTES // (1024 * 1024)}MB까지예요")
@@ -146,14 +204,7 @@ def upload_photos(
             done = db.scalars(
                 select(Photo)
                 .where(Photo.room_id == room_id, Photo.upload_batch_id == upload_batch_id)
-                # 정렬 기준: photo_id(사진을 저장할 때 DB 가 1, 2, 3… 차례로 붙이는 번호) = 보낸 순서.
-                # 그래서 두 번째 응답도 처음 응답과 사진 순서가 똑같다.
-                .order_by(Photo.photo_id)
-                # .order_by(Photo.object_key)
-                # 제작해달라고 부탁한 방법: object_key(저장 파일 이름 …/0.jpg, …/1.jpg …) 순서.
-                # 이 방법 사용하니, 파일 이름을 숫자가 아니라 글자로 비교해서
-                # '10.jpg' 가 '1.jpg' 바로 뒤, '2.jpg' 앞에 온다.
-                # 11장 넘게 올리면 11번째 사진이 2번째 자리로 가서 순서가 섞인다 (11/11 사진 11장으로 실측).
+                .order_by(Photo.photo_id)  # photo_id = 저장한 차례 = 보낸 순서. object_key 는 '10.jpg' 가 '2.jpg' 앞
             ).all()
             if done:
                 return PhotoBatchOut(upload_batch_id=upload_batch_id, photos=[photo_out(p) for p in done])

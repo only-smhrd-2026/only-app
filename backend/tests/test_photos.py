@@ -6,12 +6,13 @@ import zlib
 from datetime import date
 from pathlib import Path
 
+import pillow_heif
 import pytest
 from PIL import ExifTags, Image, ImageCms
 from sqlalchemy import func, select
 
-from app.config import UPLOAD_MAX_EXIF_BYTES, settings
-from app.db import SessionLocal
+from app.config import UPLOAD_MAX_ICC_BYTES, settings
+from app.db import SessionLocal, engine
 from app.models import Photo
 from app.routers import photos as photo_api
 from tests.conftest import make_room, signup
@@ -44,7 +45,7 @@ def test_not_an_image_is_rejected(client):
 
 
 def test_gif_is_rejected(client):
-    """D17 허용 형식(JPEG/PNG/HEIC) 밖이면 진짜 그림 파일이어도 거절."""
+    """D17 허용 형식(JPEG/PNG) 밖이면 진짜 그림 파일이어도 거절."""
     signup(client)
     room_id = make_room(client)["room_id"]
     buf = io.BytesIO()
@@ -313,11 +314,12 @@ def test_odd_taken_date_is_dropped(client, raw):
     assert r.status_code == 201 and r.json()["photos"][0]["taken_at"] is None
 
 
-def test_heic_is_saved_as_jpeg(client):
-    """아이폰 사진(HEIC) → 201, 저장본은 JPEG."""
+def test_heic_is_rejected(client):
+    """아이폰 사진(HEIC)은 지금 받지 않는다 → 400 BAD_IMAGE. 조작된 HEIC 는 열기만 해도 1~2GB (ALLOWED_FORMATS 주석)."""
     buf = io.BytesIO()
-    Image.new("RGB", (40, 30), "red").save(buf, "HEIF")
-    assert _stored(client, _upload_one(client, buf.getvalue(), "a.heic", "image/heic")).format == "JPEG"
+    pillow_heif.from_pillow(Image.new("RGB", (40, 30), "red")).save(buf)  # Pillow 에 HEIC 여는 기능을 켜지 않고 만든다
+    r = _upload_one(client, buf.getvalue(), "a.heic", "image/heic")
+    assert r.status_code == 400 and r.json()["code"] == "BAD_IMAGE"
 
 
 def test_16bit_gray_png_is_not_white(client):
@@ -354,12 +356,22 @@ def test_color_profile_is_kept(client):
 def test_huge_color_profile_is_dropped(client):
     """색 프로필이 64KB 넘으면 버린다 — 9MB 짜리를 붙이면 작은 사진도 저장본이 9MB 가 됐다 (11/11 /code-review 재현).
     아이폰 Display P3 프로필은 약 0.5KB 라 영향 없음."""
-    icc = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes() + b"A" * (UPLOAD_MAX_EXIF_BYTES + 1)
+    icc = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes() + b"A" * (UPLOAD_MAX_ICC_BYTES + 1)
     buf = io.BytesIO()
     Image.new("RGB", (40, 30), "red").save(buf, "JPEG", icc_profile=icc)
     r = _upload_one(client, buf.getvalue(), "c.jpg", "image/jpeg")
     assert "icc_profile" not in _stored(client, r).info
     assert len(client.get(r.json()["photos"][0]["url"]).content) < 64 * 1024
+
+
+def test_gray_color_profile_on_color_photo_is_dropped(client):
+    """컬러(RGB) 사진에 흑백(GRAY) 색 프로필 → 저장본에 붙이지 않는다. RGB 프로필(sRGB)은 test_color_profile_is_kept."""
+    srgb = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+    gray = srgb[:16] + b"GRAY" + srgb[20:]  # 머리의 색 공간 칸(16~19바이트)만 흑백으로
+    buf = io.BytesIO()
+    Image.new("RGB", (40, 30), "red").save(buf, "JPEG", icc_profile=gray)
+    assert Image.open(io.BytesIO(buf.getvalue())).info["icc_profile"] == gray  # 원본에는 흑백 프로필이 있다
+    assert "icc_profile" not in _stored(client, _upload_one(client, buf.getvalue(), "g.jpg", "image/jpeg")).info
 
 
 def _batch_count(batch_id: str) -> int:
@@ -404,3 +416,68 @@ def test_no_batch_id_saves_twice(client):
     assert r1.status_code == 201 and r2.status_code == 201
     assert r1.json()["upload_batch_id"] != r2.json()["upload_batch_id"]
     assert r1.json()["photos"][0]["photo_id"] != r2.json()["photos"][0]["photo_id"]
+
+
+def test_login_and_member_checked_before_body_is_read(client, monkeypatch):
+    """로그인 안 함(401)·남의 가족방(404)은 사진 본문(최대 220MB)을 읽기 전에 끝난다. 구성원이면 그때 읽는다."""
+    from starlette import formparsers
+
+    parsed, orig = [], formparsers.MultiPartParser.parse
+
+    async def spy(self):
+        parsed.append(1)
+        return await orig(self)
+
+    monkeypatch.setattr(formparsers.MultiPartParser, "parse", spy)
+    files = [("files", ("a.jpg", _jpeg(), "image/jpeg"))]
+    assert client.post("/api/rooms/1/photos", files=files).status_code == 401
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    assert client.post(f"/api/rooms/{room_id + 999}/photos", files=files).status_code == 404
+    assert parsed == []
+    assert client.post(f"/api/rooms/{room_id}/photos", files=files).status_code == 201 and parsed == [1]
+
+
+def test_waiting_for_lock_holds_no_db_connection(client, monkeypatch):
+    """잠금을 기다리는 동안(최대 60초) DB 연결을 쥐지 않는다 — 15명이 기다리면 연결(5+10개)이 바닥나 다른 화면도 멈춘다.
+    db.close() 를 빼면 [1]."""
+    seen = []
+
+    class SpyLock:
+        def acquire(self, timeout):
+            seen.append(engine.pool.checkedout())
+            return True
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(photo_api, "_upload_lock", SpyLock())
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    r = client.post(f"/api/rooms/{room_id}/photos", files=[("files", ("a.jpg", _jpeg(), "image/jpeg"))])
+    assert r.status_code == 201 and seen == [0]
+
+
+def test_cut_upload_is_400_not_500(client, monkeypatch):
+    """폰이 올리는 도중 끊김(ClientDisconnect) → 서버 오류(500)가 아니라 400 UPLOAD_CUT."""
+    from starlette import formparsers
+    from starlette.requests import ClientDisconnect
+
+    async def cut(self):
+        raise ClientDisconnect()
+
+    monkeypatch.setattr(formparsers.MultiPartParser, "parse", cut)
+    r = _upload_one(client, _jpeg(), "a.jpg", "image/jpeg")
+    assert r.status_code == 400 and r.json()["code"] == "UPLOAD_CUT"
+
+
+def test_blank_batch_id_is_none_and_bad_one_is_422(client):
+    """upload_batch_id 빈 칸은 번호 없음(201), uuid 가 아니면 422. 사진 없이 보내도 422."""
+    signup(client)
+    url = f"/api/rooms/{make_room(client)['room_id']}/photos"
+    files = [("files", ("a.jpg", _jpeg(), "image/jpeg"))]
+    assert client.post(url, files=files, data={"upload_batch_id": ""}).status_code == 201
+    r = client.post(url, files=files, data={"upload_batch_id": "not-a-uuid"})
+    assert r.status_code == 422 and r.json()["code"] == "VALIDATION"
+    r = client.post(url, data={"upload_batch_id": str(uuid.uuid4())})
+    assert r.status_code == 422 and r.json()["code"] == "VALIDATION"
