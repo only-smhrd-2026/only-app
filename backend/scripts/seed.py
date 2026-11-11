@@ -3,6 +3,9 @@
 순서: public 스키마 비움 → db/schema.sql → db/seed/seed.sql → 사진 파일 3장 생성(uploads/) → data/question_bank.json
 → 오늘의 한 장 1행(한국 날짜). 기존 데이터는 전부 지워진다. 배포 DB(APP_ENV=deploy)는 --force 없이는 거부.
 테스트 계정·어르신 연결 링크는 db/seed/seed.sql 머리 주석과 README 에 있다.
+
+배포 서버 처음 한 번:  python -m scripts.seed --no-sample --force
+→ 테이블 + 문제 은행만. seed.sql 의 시험 계정·어르신 연결 링크는 공개 저장소에 적혀 있어 서버에 넣지 않는다.
 """
 
 from __future__ import annotations
@@ -35,17 +38,23 @@ def placeholder_jpeg(index: int, caption: str) -> bytes:
 def main() -> None:
     if not settings.is_dev and "--force" not in sys.argv:
         sys.exit("APP_ENV=deploy 에서는 데이터가 전부 지워지므로 --force 를 붙여야 합니다")
+    sample = "--no-sample" not in sys.argv
     with engine.begin() as conn:
         conn.exec_driver_sql("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
         conn.exec_driver_sql((ROOT / "db" / "schema.sql").read_text("utf-8"))
-        conn.exec_driver_sql((ROOT / "db" / "seed" / "seed.sql").read_text("utf-8"))
+        if sample:
+            conn.exec_driver_sql((ROOT / "db" / "seed" / "seed.sql").read_text("utf-8"))
     with SessionLocal() as db:
-        photos = db.scalars(select(Photo).order_by(Photo.photo_id)).all()
-        for i, p in enumerate(photos):
-            storage.put(p.object_key, placeholder_jpeg(i, p.caption or ""))
         bank = json.loads((ROOT / "data" / "question_bank.json").read_text("utf-8"))["questions"]
         for q in bank:
             db.add(QuestionBank(**q, created_by="seed"))
+        if not sample:
+            db.commit()
+            print(f"시드 완료(--no-sample): 테이블 + 문제 {len(bank)} (시험 계정·가족방·사진 없음)")
+            return
+        photos = db.scalars(select(Photo).order_by(Photo.photo_id)).all()
+        for i, p in enumerate(photos):
+            storage.put(p.object_key, placeholder_jpeg(i, p.caption or ""))
         room = db.scalar(select(FamilyRoom).order_by(FamilyRoom.room_id))
         db.add(DailyPick(room_id=room.room_id, pick_date=today_kst(), photo_id=photos[0].photo_id))
         db.commit()
