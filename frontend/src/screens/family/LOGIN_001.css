@@ -1,0 +1,179 @@
+.login-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #fff;
+  color: #292e2e;
+  font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', system-ui, sans-serif;
+}
+
+.login-shell {
+  max-width: 360px;
+  margin: 0 auto;
+  padding: 57.55px 24.179px 48px;
+}
+
+.login-brand {
+  text-align: center;
+}
+
+.login-brand h1 {
+  margin: 0;
+  font-size: 32.239px;
+  font-weight: 700;
+  line-height: 47.94px;
+}
+
+.login-brand p {
+  margin: 4px 0 0;
+  font-size: 16.119px;
+  line-height: 24px;
+  word-break: keep-all;
+}
+
+.login-preview {
+  margin-top: 22.57px;
+}
+
+.login-preview img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.login-intro {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 77.91px;
+  margin: 13.44px 0 0;
+  padding: 12px 12.537px;
+  border: 0.896px solid #bfbdb2;
+  border-radius: 8.955px;
+  font-size: 17.91px;
+  line-height: 1.25;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.login-button {
+  width: 100%;
+  min-height: 55.522px;
+  padding: 12px 12.537px;
+  border: 0;
+  border-radius: 8.955px;
+  background: #407357;
+  color: #fff;
+  font: inherit;
+  font-size: 17.91px;
+  font-weight: 700;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.login-start {
+  margin-top: 34.92px;
+}
+
+.login-policy-note {
+  margin: 20px 0 0;
+  color: #7a8080;
+  font-size: 11.642px;
+  line-height: 1.5;
+  text-align: center;
+  word-break: keep-all;
+}
+
+.login-shell--email {
+  padding-top: 32px;
+}
+
+.login-email {
+  margin-top: 32px;
+}
+
+.login-email h2 {
+  margin: 0 0 24px;
+  font-size: 23px;
+  line-height: 1.5;
+}
+
+.login-form,
+.login-form label {
+  display: grid;
+  min-width: 0;
+}
+
+.login-form {
+  gap: 16px;
+}
+
+.login-form label {
+  gap: 8px;
+  font-size: 14px;
+}
+
+.login-form input:not([type='checkbox']) {
+  width: 100%;
+  min-width: 0;
+  min-height: 51.045px;
+  padding: 12px;
+  border: 1px solid #bfbdb2;
+  border-radius: 8.955px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 16px;
+}
+
+.login-form .login-terms {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  line-height: 1.5;
+}
+
+.login-terms input {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: #407357;
+}
+
+.login-error {
+  margin: 0;
+  color: #b00020;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.login-button--secondary {
+  background: #edede8;
+  color: #292e2e;
+  font-weight: 400;
+}
+
+.login-back {
+  display: block;
+  min-height: 44px;
+  margin: 16px auto 0;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  color: #18557b;
+  font: inherit;
+  font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.login-screen button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.login-screen :is(button, input):focus-visible {
+  outline: 3px solid #18557b;
+  outline-offset: 3px;
+}
