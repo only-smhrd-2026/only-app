@@ -184,10 +184,13 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
       setPhase('CONFIRMING')
       if (r.confidence >= LOW_CONF) later(CONFIRM_MS, () => confirmHeard(r))
       else later(WAIT_MS, () => sendTurn({ input_type: 'BUTTON', event: 'NO_RESPONSE' }))
-    } catch {
+    } catch (e) {
       if (!alive.current) return
-      setNote('잘 못 들었어요. 다시 말씀해 주세요.')
-      speak('잘 못 들었어요. 다시 말씀해 주세요.', speed) // 기다리지 않는다: [말하기]를 누르면 녹음 전에 stopSpeaking 이 끊는다
+      // 429(분당·하루 상한)는 서버 문장을 읽는다. 하루 상한이면 이 대화는 버튼만 (D46)
+      const msg = e instanceof ApiError && e.status === 429 ? e.message : '잘 못 들었어요. 다시 말씀해 주세요.'
+      if (e instanceof ApiError && e.code === 'STT_DAILY_LIMIT') setLocked(true)
+      setNote(msg)
+      speak(msg, speed) // 기다리지 않는다: [말하기]를 누르면 녹음 전에 stopSpeaking 이 끊는다
       startWaiting()
     }
   }

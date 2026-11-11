@@ -18,7 +18,8 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from app.ai.schemas import BANNED_WORDS
-from app.config import ROOT, settings
+from app.config import LLM_PER_DAY, ROOT, settings
+from app.security import daily_allowed
 
 log = logging.getLogger("app.ai")
 PROMPTS_DIR = ROOT / "backend" / "app" / "ai" / "prompts"
@@ -53,6 +54,9 @@ def call_json(prompt_name: str, data: dict[str, Any], schema: type[T]) -> T:
         if provider == "mock":
             out = _mock(prompt_name, data, schema)
         elif provider == "anthropic":
+            if not daily_allowed("llm", LLM_PER_DAY):
+                log.warning("llm daily cap prompt=%s", prompt_name)
+                raise LlmError("하루 상한")  # 호출자가 고정 문장으로 이어 간다 (D14·D46)
             out, tokens = _anthropic(prompt_name, data, schema)
         else:
             raise LlmError(f"LLM_PROVIDER={provider} 는 지원하지 않습니다")
