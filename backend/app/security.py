@@ -1,11 +1,12 @@
-"""비밀번호 해시(bcrypt), 가족 세션 JWT, 토큰 해시, 쿠키, 로그인·음성 인식 속도 제한 (D2, D20, D46)."""
+"""비밀번호 해시(bcrypt), 가족 세션 JWT, 토큰 해시, 쿠키, 로그인·음성 인식 속도 제한, 하루 상한 (D2, D20, D46)."""
 
 from __future__ import annotations
 
 import hashlib
 import secrets
 import time
-from collections import defaultdict, deque
+from collections import Counter, defaultdict, deque
+from datetime import date
 
 import bcrypt
 import jwt
@@ -18,6 +19,7 @@ from app.config import (
     STT_RATE_PER_MIN,
     now_kst,
     settings,
+    today_kst,
 )
 
 SESSION_COOKIE = "session"  # 가족 (JWT)
@@ -105,3 +107,17 @@ def login_allowed(ip: str) -> bool:
 def stt_allowed(ip: str) -> bool:
     """음성 인식은 부를 때마다 돈이 든다(리턴제로는 연결마다 최소 10초 과금). 같은 IP 에서 분당 상한까지만 (D46)."""
     return _allowed(_stt_hits[ip], STT_RATE_PER_MIN)
+
+
+# ponytail: 서버 전체 하루 횟수도 프로세스 메모리 (워커 1개 D9). 날짜가 키라 한국 자정에 저절로 0.
+# 재시작하면 0 부터(그날 재시작 수만큼 더 샐 수 있음), 지난 날 키가 하루 3개씩 남는다. 넘치면 DB 로.
+_daily_hits: Counter[tuple[str, date]] = Counter()
+
+
+def daily_allowed(kind: str, cap: int) -> bool:
+    """유료 외부 호출(stt·tts·llm) 서버 전체 하루 상한 (D46). 같은 IP 분당 상한과 별개. 허용하면 1 센다."""
+    key = (kind, today_kst())
+    if _daily_hits[key] >= cap:
+        return False
+    _daily_hits[key] += 1
+    return True

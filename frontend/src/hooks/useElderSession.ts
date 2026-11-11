@@ -43,19 +43,27 @@ export function useElderSession(sessionId: string) {
 
   useEffect(() => {
     if (session && home) return
-    Promise.all([api<SessionGetOut>(`/api/elder/sessions/${sessionId}`), api<ElderHomeOut>('/api/elder/home')])
+    // 없는 것만 읽는다. 넘겨받은 세션을 다시 읽어 덮으면 첫 질문의 서버 음성(audio_b64)을 잃는다
+    Promise.all([
+      session ? null : api<SessionGetOut>(`/api/elder/sessions/${sessionId}`),
+      home ?? api<ElderHomeOut>('/api/elder/home'),
+    ])
       .then(([s, h]) => {
         if (!live.current) return
-        if (!s.last_ai) return nav('/elder', { replace: true }) // 질문이 없는 세션은 이어 갈 수 없다
+        if (s) {
+          if (!s.last_ai) return nav('/elder', { replace: true }) // 질문이 없는 세션은 이어 갈 수 없다
+          setSession({
+            session_id: s.session_id,
+            kind: s.kind,
+            photo_url: s.photo_url,
+            ai: s.last_ai,
+            state: s.state,
+            end_reason: s.end_reason,
+            turn_no: s.turn_no,
+            input_locked: s.input_locked,
+          })
+        }
         setHome(h)
-        setSession({
-          session_id: s.session_id,
-          ai: s.last_ai,
-          state: s.state,
-          end_reason: s.end_reason,
-          turn_no: s.turn_no,
-          input_locked: s.input_locked,
-        })
       })
       .catch(() => live.current && nav('/elder', { replace: true }))
   }, [sessionId, session, home, nav, live])

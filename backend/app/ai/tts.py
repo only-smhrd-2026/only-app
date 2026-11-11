@@ -17,7 +17,8 @@ from functools import lru_cache
 
 import httpx
 
-from app.config import settings
+from app.config import TTS_PER_DAY, settings
+from app.security import daily_allowed
 
 log = logging.getLogger("app.ai")
 
@@ -38,6 +39,9 @@ def synthesize(text: str, speed: float = 0.85) -> bytes | None:
         if provider == "mock":
             return None
         if provider == "google":
+            if not daily_allowed("tts", TTS_PER_DAY):  # 실패가 아니라 상한 → 가족 알림 없이 브라우저 목소리 (D5·D46)
+                log.warning("tts daily cap")
+                return None
             return _google(text)
         raise NotImplementedError(f"TTS_PROVIDER={provider} 는 아직 없습니다")
     finally:

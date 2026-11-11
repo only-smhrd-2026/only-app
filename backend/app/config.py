@@ -44,12 +44,18 @@ UPLOAD_MAX_FILES = 20  # 한 번에 올리는 사진 수 (D17)
 UPLOAD_MAX_PIXELS = 30_000_000  # 사진 한 장 픽셀 수(가로×세로). 넘으면 거절 — 서버 메모리 보호 (D17)
 UPLOAD_MAX_SIDE = 65_500  # 사진 한 변 픽셀. 길쭉한 조작 그림(1×3천만)은 줄 주소표만 240MB — JPEG 한계와 같게 (D17)
 UPLOAD_MAX_EXIF_BYTES = 64 * 1024  # 사진 정보(EXIF). 폰 사진은 64KB 안 — 넘으면 회전·촬영일을 읽지 않음 (D17)
+UPLOAD_MAX_ICC_BYTES = 64 * 1024  # 색 프로필(ICC). 넘거나 RGB 프로필이 아니면 프로필 없이 저장 (D17)
 UPLOAD_MAX_EXIF_SEGMENTS = 4  # 파일 속 EXIF 조각 수. 보통 1개, 여러 장 묶음도 2~3개 — 넘으면 거절 (D17)
 JPEG_MAX_SCANS = 300  # JPEG 스캔(FF DA) 수. 보통 1~10개, 움직이는 사진 뒤 영상에서 우연히 나오는 것까지 넉넉히 (D17)
 PHOTO_MAX_SIDE = 2560  # 저장 사진 긴 변(px). 넘으면 비율 그대로 줄여 저장 (D17)
 UPLOAD_LOCK_WAIT_SEC = 60  # 사진 변환은 서버 전체에서 한 번에 한 요청. 이만큼 기다려도 차례가 안 오면 503 (D17)
 LOGIN_RATE_PER_MIN = 10
 STT_RATE_PER_MIN = 20  # 같은 IP 의 /api/stt 분당 상한. 대화 한 번(5분)에 많아야 16번 부른다 (D46)
+# 서버 전체 하루 상한 — 돈이 드는 호출(rtzr·google·anthropic)만 세고 한국 자정에 0 (D46 ⑨). 가입은 누구나 된다.
+# 회상 대화 1번 ≈ Claude 9·TTS 10·STT 최대 16번. 300 이면 하루 대화 20~30번 — 11/27 검증판 배포 때 다시 정함
+STT_PER_DAY = 300  # 리턴제로. 넘으면 429 → 화면이 그 문장을 읽고 버튼으로
+TTS_PER_DAY = 300  # Google. 넘으면 브라우저 목소리 (D5, 가족 알림 없음)
+LLM_PER_DAY = 300  # Claude call_json 1번(검증 재시도 포함 최대 2요청). 넘으면 고정 문장 (D14)
 SESSION_COOKIE_DAYS = 7
 DEVICE_COOKIE_DAYS = 365
 

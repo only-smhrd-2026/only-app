@@ -22,8 +22,9 @@ from websockets.http11 import Response
 from websockets.protocol import State
 
 from app import security
-from app.ai import stt, tts
-from app.config import STT_MAX_CHARS, settings
+from app.ai import llm, stt, tts
+from app.ai.schemas import CoachTurn
+from app.config import LLM_PER_DAY, STT_MAX_CHARS, STT_PER_DAY, TTS_PER_DAY, settings, today_kst
 from app.db import SessionLocal, engine
 from app.models import Notification
 from tests.conftest import setup_elder, signup
@@ -35,6 +36,7 @@ AUDIO = {"audio": ("speech.webm", b"\x1a\x45\xdf\xa3 fake", "audio/webm")}
 def _fresh_stt_rate_counter():
     """호출 횟수 카운터는 프로세스 메모리라 테스트마다 비운다 (TestClient 는 전부 같은 IP)."""
     security._stt_hits.clear()
+    security._daily_hits.clear()
 
 
 def test_stt_endpoint_rules(client, monkeypatch):
@@ -74,6 +76,33 @@ def test_stt_rate_limit(client, monkeypatch):
     signup(client)
     codes = [client.post("/api/stt", files=AUDIO).status_code for _ in range(3)]
     assert codes == [200, 200, 429]
+
+
+def test_stt_daily_cap(client, monkeypatch):
+    """서버 전체 하루 상한을 넘으면 429 STT_DAILY_LIMIT, 리턴제로는 부르지 않는다 (D46)."""
+    signup(client)
+    monkeypatch.setattr(settings, "STT_PROVIDER", "rtzr")
+    monkeypatch.setattr(stt, "transcribe", lambda *a, **k: pytest.fail("상한을 넘었는데 STT 를 불렀다"))
+    monkeypatch.setitem(security._daily_hits, ("stt", today_kst()), STT_PER_DAY)
+    r = client.post("/api/stt", files=AUDIO)
+    assert r.status_code == 429 and r.json()["code"] == "STT_DAILY_LIMIT"
+
+
+def test_tts_llm_daily_cap(monkeypatch):
+    """하루 상한을 넘으면 Google TTS 는 None(브라우저 목소리), Claude 는 LlmError(고정 문장).
+
+    유료 API 는 부르지 않는다 (D46)."""
+    monkeypatch.setattr(settings, "TTS_PROVIDER", "google")
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "anthropic")
+    calls = []
+    monkeypatch.setattr(tts, "_google", lambda text: calls.append(text) or b"mp3")
+    monkeypatch.setitem(security._daily_hits, ("tts", today_kst()), TTS_PER_DAY - 1)
+    assert tts.synthesize("가") == b"mp3"  # 상한 전 마지막 1번은 부르고 센다
+    assert tts.synthesize("나") is None and calls == ["가"]
+    monkeypatch.setattr(llm, "_anthropic", lambda *a: pytest.fail("상한을 넘었는데 Claude 를 불렀다"))
+    monkeypatch.setitem(security._daily_hits, ("llm", today_kst()), LLM_PER_DAY)
+    with pytest.raises(llm.LlmError):
+        llm.call_json("memory_coach", {}, CoachTurn)
 
 
 class FakeWs:

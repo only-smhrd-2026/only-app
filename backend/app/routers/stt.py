@@ -5,11 +5,11 @@ import logging
 from fastapi import APIRouter, File, Form, Request, UploadFile
 
 from app.ai import stt
-from app.config import STT_MAX_BYTES, STT_MAX_CHARS
+from app.config import STT_MAX_BYTES, STT_MAX_CHARS, STT_PER_DAY, settings
 from app.deps import DB, CurrentActor
 from app.errors import ApiError
 from app.schemas.elder import SttOut
-from app.security import stt_allowed
+from app.security import daily_allowed, stt_allowed
 
 log = logging.getLogger("app.stt")
 router = APIRouter(tags=["stt"])
@@ -31,6 +31,9 @@ def transcribe(
         raise ApiError(413, "AUDIO_TOO_LARGE", "녹음 파일이 너무 커요 (5MB 초과)")
     if not data:
         raise ApiError(422, "AUDIO_EMPTY", "녹음이 비어 있어요")
+    # 서버 전체 하루 상한은 유료 호출만 센다(mock 은 안 셈). 아래 try 안에서 던지면 503 으로 바뀌므로 그 앞에서 (D46)
+    if settings.STT_PROVIDER != "mock" and not daily_allowed("stt", STT_PER_DAY):
+        raise ApiError(429, "STT_DAILY_LIMIT", "오늘은 말로 답하기를 다 썼어요. 버튼을 눌러 답해 주세요.")
     db.close()  # 인증 확인에 쓴 DB 연결(CurrentActor 와 같은 세션)을 STT(최대 8초) 동안 쥐지 않게 돌려준다
     try:
         text, confidence = stt.transcribe(data, [h.strip() for h in hints.split(",")] if hints else [])

@@ -244,9 +244,16 @@ def _finish(db, session: TalkSession, reason: str) -> None:
     # _tts_failed 는 여기서 지우지 않는다: 끝인사를 읽다가 또 실패하면 가족 알림이 한 번 더 간다 (D5 는 대화에 1건)
 
 
+def _photo_url(db, session: TalkSession) -> str | None:
+    photo = db.get(Photo, session.photo_id) if session.photo_id else None
+    return f"/api/media/{photo.object_key}" if photo else None
+
+
 def _out(db, session, room, reply, state="CONTINUE", end_reason=None) -> SessionOut:
     return SessionOut(
         session_id=session.session_id,
+        kind=session.kind,
+        photo_url=_photo_url(db, session),
         ai=_ai_out(db, session, room, reply),
         state=state,
         end_reason=end_reason,
@@ -320,6 +327,8 @@ def get_session(session_id: uuid.UUID, device: CurrentDevice, db: DB):
         )
     return SessionGetOut(
         session_id=session.session_id,
+        kind=session.kind,
+        photo_url=_photo_url(db, session),
         state="ENDED" if ended else "CONTINUE",
         end_reason=session.end_reason,
         last_ai=AiOut(

@@ -64,12 +64,14 @@ signup → POST /rooms (가족방+구성원) → 사진 3장 이상 → POST /ro
    ◄─ {transcript, confidence}  → 화면에 전사 표시, [맞아요]/[다시 말할게요], 3초 무조작 확정
 [맞아요] ─► POST /api/elder/sessions/{id}/turns {text, input_type:VOICE, stt_confidence, retried}
    서버: ELDER 턴 저장 → (회상 4번째 질문이면 quiz.pick 이 문제 은행에서 고름) → coach.next_question(LLM 또는 mock) → 금지어·형식 검사 → AI 턴 저장(문제면 question_code) → TTS(mock 이면 None)
-   ◄─ {ai:{text, audio_b64?, suggestions[], choice_mode, question_type}, state, turn_no, input_locked}
+   ◄─ {kind, photo_url, ai:{text, audio_b64?, suggestions[], choice_mode, question_type}, state, turn_no, input_locked}
 화면: audio_b64 재생(말 속도는 playbackRate, D46) 또는 speechSynthesis → 칩 표시 → WAITING(20초 무조작이면 event:NO_RESPONSE)
-8번째 답 → AI 마무리(CLOSING) + state:ENDED(COMPLETED) → daily_picks COMPLETED → [다 들었어요] → POST /elder/picks/today/listened
+8번째 답 → AI 마무리(CLOSING) + state:ENDED(COMPLETED) → daily_picks COMPLETED → [다 들었어요] → POST /elder/picks/today/listened (오늘의 한 장 대화 kind=MEMORY 만)
+회상 화면(ELDER_MEMORY_001)은 오늘의 한 장·사진첩(ELDER_ALBUM_001) 둘 다 쓴다. 두 화면 모두 {session, photoUrl, home} 을 넘기고,
+새로고침하면 useElderSession 이 없는 것만 다시 읽는다(넘겨받은 세션을 덮으면 첫 질문 서버 음성을 잃음). 사진은 photoUrl → session.photo_url → (MEMORY 만) 오늘의 한 장 (D47)
 ```
 
-서버가 지키는 상한: 8턴(`sessions.turn_count CHECK`), 5분, 무응답 3단계(재질문 → 칩만 → 종료), 저신뢰 2회 → `input_locked`.
+서버가 지키는 상한: 8턴(`sessions.turn_count CHECK`), 5분, 무응답 3단계(재질문 → 칩만 → 종료), 저신뢰 2회 → `input_locked`, 사진첩 대화 가족방당 하루 3번(`ALBUM_PER_DAY`, 오늘 한국 0시부터 시작한 ALBUM 대화 수, 오류로 끝난 것도 셈 → 409 `ALBUM_LIMIT`, D8), 유료 호출 서버 전체 하루 상한(D46 ⑨).
 화면 타이머: 4초 "조금만 기다려 주세요", 8초 음성 안내, 15초 → `POST /end {reason: ERROR}` (하루 3회면 가족 알림). `/api/stt` 는 15초 → "잘 못 들었어요"(소리로도) + 다시 말하기.
 
 ### 오늘 이야기하기 (일기·그림일기, D36)
@@ -101,7 +103,7 @@ GET /elder/home: now ≥ memory_time 이고 오늘 pick 없음 → services/pick
 ### 사진
 
 ```
-업로드(박유승, #10): 본문을 다 받은 뒤(배포 Caddy 220MB 상한) 로그인·구성원 확인 → 한 번에 20장·장당 10MB 검사 → 변환은 서버 전체에서 한 번에 한 요청(60초 기다려도 차례가 안 오면 503 UPLOAD_BUSY) → 장마다 열기 전 EXIF 조각 4개·JPEG 스캔 300개 검사 → 30M 픽셀·한 변 65,500 검사 → 그림 끝까지 풀기(깨지면 400) → 촬영일(EXIF DateTimeOriginal, 1900년~오늘)·회전은 EXIF 64KB 이하일 때만 → 긴 변 2560 으로 줄이기 → EXIF·주석 없이 JPEG 재인코딩 → 전부 성공하면 storage.put(key)·photos(taken_at) 저장·commit (오류 문구 앞에 'N번째 사진:')  key=rooms/{room}/{batch}/{i}.jpg
+업로드(박유승, #10·#93): 로그인·구성원 확인(401/404, 본문 읽기 전) → DB 연결 반납(db.close) → 본문 읽기(21번째 파일에서 멈추고 400 TOO_MANY_PHOTOS, 글 칸은 upload_batch_id 하나, 합계는 배포 Caddy 220MB) → 장당 10MB 검사 → 변환은 서버 전체에서 한 번에 한 요청(60초 기다려도 차례가 안 오면 503 UPLOAD_BUSY) → 같은 upload_batch_id 저장본이 있으면 그대로 돌려줌 → 장마다 열기 전 EXIF 조각 4개·JPEG 스캔 300개 검사 → JPEG/PNG 만 열기(HEIC 끔, D17) → 30M 픽셀·한 변 65,500 검사 → 그림 끝까지 풀기(깨지면 400) → 촬영일(EXIF DateTimeOriginal, 1900년~오늘)·회전은 EXIF 64KB 이하일 때만 → 긴 변 2560 으로 줄이기 → 16비트 흑백은 8비트로, 투명은 흰 바탕 → EXIF·주석 없이 JPEG 재인코딩(색 프로필은 RGB·64KB 이하만) → 전부 성공하면 storage.put(key)·photos(taken_at) 저장·commit (오류 문구 앞에 'N번째 사진:')  key=rooms/{room}/{batch}/{i}.jpg
 조회: <img src="/api/media/{key}"> → 쿠키로 구성원/기기 확인 → storage.get(key) 바이트 반환 (서명 URL 없음)
 STORAGE=local: uploads/ 폴더 (git 제외) / STORAGE=r2: Cloudflare R2 (boto3, R2_* 키)
 ```
@@ -110,9 +112,9 @@ STORAGE=local: uploads/ 폴더 (git 제외) / STORAGE=r2: Cloudflare R2 (boto3, 
 
 | 부품 | 파일 | env | mock 동작 | 실제 연결 |
 |---|---|---|---|---|
-| 회상·일기 대화·요약·분류 | `app/ai/llm.py` `call_json(prompt_name, data, Schema)` | `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `LLM_MODEL` | 회상: 고정 질문 7개 순환 / 일기: 고정 질문 3개 + 어르신 말 이어 붙인 초안(그림 없음) | Anthropic SDK, 구조화 출력(JSON 스키마) + pydantic 검사(`app/ai/schemas.py`), 검증 실패만 1회 재시도. 시도당 상한 말하기 턴 6초·초안 15초, SDK 재시도 없음 |
-| 음성→글 | `app/ai/stt.py` `transcribe(audio, hints)` | `STT_PROVIDER=rtzr`, `RTZR_CLIENT_ID`, `RTZR_CLIENT_SECRET` (+ PC 에 ffmpeg) | 고정 문장, 0.95 | **연결됨(D46)**: 리턴제로 스트리밍 STT. ffmpeg 로 16kHz PCM 변환(파이프) → WebSocket 에 한꺼번에 보내고 문장을 이어 붙임. 전체 상한 8초(실측 0.4~2.0초). 말소리 없음 422·장애 503·같은 IP 분당 20번 넘으면 429 (`routers/stt.py`) |
-| 글→음성 | `app/ai/tts.py` `synthesize(text, speed)` | `TTS_PROVIDER=google`, `GOOGLE_TTS_API_KEY` | None → 브라우저 TTS | **연결됨(D46)**: Google Chirp 3 HD ko-KR(REST, mp3) → 턴 응답 `audio_b64`. 1.0배로 합성하고 말 속도는 화면이 `playbackRate` 로. 같은 문장은 캐시, 상한 3초 + 글자당 0.03초 — 실패하면 자막만 (D5) |
+| 회상·일기 대화·요약·분류 | `app/ai/llm.py` `call_json(prompt_name, data, Schema)` | `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `LLM_MODEL` | 회상: 고정 질문 7개 순환 / 일기: 고정 질문 3개 + 어르신 말 이어 붙인 초안(그림 없음) | Anthropic SDK, 구조화 출력(JSON 스키마) + pydantic 검사(`app/ai/schemas.py`), 검증 실패만 1회 재시도. 시도당 상한 말하기 턴 6초·초안 15초, SDK 재시도 없음. 서버 전체 하루 300번(`call_json` 기준) 넘으면 LlmError → 고정 문장 (D46 ⑨) |
+| 음성→글 | `app/ai/stt.py` `transcribe(audio, hints)` | `STT_PROVIDER=rtzr`, `RTZR_CLIENT_ID`, `RTZR_CLIENT_SECRET` (+ PC 에 ffmpeg) | 고정 문장, 0.95 | **연결됨(D46)**: 리턴제로 스트리밍 STT. ffmpeg 로 16kHz PCM 변환(파이프) → WebSocket 에 한꺼번에 보내고 문장을 이어 붙임. 전체 상한 8초(실측 0.4~2.0초). 말소리 없음 422·장애 503·같은 IP 분당 20번 넘으면 429 `TOO_MANY_REQUESTS`·서버 전체 하루 300번 넘으면 429 `STT_DAILY_LIMIT`(화면이 읽고 그 대화는 버튼으로) (`routers/stt.py`) |
+| 글→음성 | `app/ai/tts.py` `synthesize(text, speed)` | `TTS_PROVIDER=google`, `GOOGLE_TTS_API_KEY` | None → 브라우저 TTS | **연결됨(D46)**: Google Chirp 3 HD ko-KR(REST, mp3) → 턴 응답 `audio_b64`. 1.0배로 합성하고 말 속도는 화면이 `playbackRate` 로. 같은 문장은 캐시, 상한 3초 + 글자당 0.03초 — 실패하면 자막만 (D5). 서버 전체 하루 300번 넘으면 None → 브라우저 TTS(가족 알림 없음, D46 ⑨) |
 | 그림일기 | `app/ai/image.py` `generate(draw_spec, seed)` | `IMAGE_PROVIDER=cloudflare`, `CF_ACCOUNT_ID`, `CF_API_TOKEN` | 개발: 도형 자리표시 그림(JPEG, 글자 없음) / 배포: None → 글만 | **연결됨(D37)**: Workers AI `flux-2-klein-4b` 768px, 고정 화풍 문장 + 사물 이름만, 20초 상한(실측 7~10초), JPEG 다시 인코딩 — 실패·None 이면 글만 게시 (D36) |
 
 프롬프트는 `app/ai/prompts/*.md`(system). 어르신 말·사진 설명은 JSON **데이터**로만 user 메시지에 넣는다(인젝션 방어). 출력은 코드가 검사: 금지어(`data/banned_words.json` — 목록은 모든 프롬프트 끝에도 자동으로 붙음), 물음표 ≤1, 추천 답변 ≤3개×12자(4개인 일기 기분 칩은 모델이 만들지 않는 고정 문장), 일기 본문 ≤400자·그릴 사물 ≤3개. 일기 초안이 LLM 없이 만들어질 때도 금지어가 든 답은 본문에서 뺀다.
