@@ -6,8 +6,10 @@ import threading
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, File, Form, UploadFile
 from PIL import ExifTags, Image, ImageOps
+from pillow_heif import register_heif_opener
+from sqlalchemy import select
 
 from app.config import (
     JPEG_MAX_SCANS,
@@ -29,7 +31,8 @@ from app.services import storage
 
 log = logging.getLogger("app.photos")
 router = APIRouter(prefix="/rooms/{room_id}/photos", tags=["photos"])
-ALLOWED_FORMATS = ["JPEG", "PNG"]  # D17. HEIC 는 pillow-heif 를 켜는 날(11/12) "HEIF" 추가
+register_heif_opener()  # Image.open 이 아이폰 사진(HEIC)도 열게 — 서버가 켜질 때 한 번
+ALLOWED_FORMATS = ["JPEG", "PNG", "HEIF"]  # D17
 PIXELS_TOO_HIGH = f"사진 화소가 너무 높아요 ({UPLOAD_MAX_PIXELS // 10_000}만 화소까지)"  # 용량(10MB) 오류와 구분
 # ponytail: 사진 변환·저장은 서버 전체에서 한 번에 한 요청 — 요청 하나가 수백 MB 를 쓴다(D9 워커 1개, 서버 2GB).
 # 기다리는 요청도 스레드풀 한 칸을 차지해서 UPLOAD_LOCK_WAIT_SEC 까지만 기다린다. 느려지면 가족방별 잠금·큐로
@@ -74,10 +77,22 @@ def to_jpeg(data: bytes) -> tuple[bytes, date | None]:
             except Exception as e:  # 회전 정보(EXIF)만 깨진 사진은 돌리지 않고 그대로 저장한다
                 log.warning("photo exif_transpose skipped error=%s", type(e).__name__)
         img.thumbnail((PHOTO_MAX_SIDE, PHOTO_MAX_SIDE))  # 긴 변 상한, 비율 그대로 — 저장 용량·메모리 보호 (D17)
-        rgb = img if img.mode == "RGB" else img.convert("RGB")  # 이미 RGB 면 사본을 만들지 않는다 (메모리)
+        # 색 프로필(아이폰 사진 등) — RGB 사진일 때만 맞는 정보라 그때만 남긴다. info.clear() 전에 꺼내 둔다
+        icc = img.info.get("icc_profile") if img.mode in ("RGB", "RGBA") else None
+        if icc and len(icc) > UPLOAD_MAX_EXIF_BYTES:  # 조작된 큰 프로필은 버림 — 사진을 줄여도 저장본이 MB 단위가 된다
+            icc = None  # 보통 프로필은 수 KB(아이폰 Display P3 약 0.5KB). EXIF 와 같은 64KB 상한을 같이 쓴다
+        if img.mode in ("I;16", "I"):  # 16비트 흑백 PNG — 그대로 바꾸면 255 넘는 값이 전부 새하양
+            img = img.point(lambda v: v / 256).convert("L")
+        # 투명 정보: RGBA·LA 는 칸으로, P·L·RGB 는 '이 색을 투명으로'(tRNS → info["transparency"])로 들어 있다
+        if img.mode in ("RGBA", "LA") or "transparency" in img.info:
+            rgba = img.convert("RGBA")  # 투명한 곳은 흰 바탕 — 그냥 RGB 로 바꾸면 검게 된다
+            rgb = Image.new("RGB", img.size, "white")
+            rgb.paste(rgba, mask=rgba.getchannel("A"))
+        else:
+            rgb = img if img.mode == "RGB" else img.convert("RGB")  # 이미 RGB 면 사본을 만들지 않는다 (메모리)
         rgb.info.clear()  # 원본 주석(JPEG COM·PNG comment)이 새 JPEG 에 따라오지 않게 — 위치를 글로 적어 둔 경우가 있다
         out = io.BytesIO()
-        rgb.save(out, "JPEG", quality=85)
+        rgb.save(out, "JPEG", quality=85, icc_profile=icc)  # 위치정보(EXIF)·주석은 남기지 않는다 (D17)
     except ApiError:
         raise  # 위에서 일부러 낸 거절(예: 픽셀 제한)은 그 코드 그대로 — 아래에서 BAD_IMAGE 로 바뀌지 않게
     except (Image.DecompressionBombError, Image.DecompressionBombWarning) as e:  # 아주 큰 그림은 Pillow 가 먼저 막는다
@@ -105,11 +120,13 @@ def upload_photos(
     user: CurrentUser,
     db: DB,
     files: list[UploadFile] = File(
-        description="JPEG/PNG",
+        description="JPEG/PNG/HEIC",
         json_schema_extra={"items": {"type": "string", "format": "binary"}},  # Swagger 에 [파일 선택] 버튼이 뜨게
     ),
+    upload_batch_id: uuid.UUID | None = Form(None, description="같은 요청 번호로 다시 보내면 새로 저장하지 않음"),
 ):
-    """받은 사진을 JPEG 로 다시 만들어 저장. 20장·10MB·30M 픽셀 제한. HEIC·같은 요청 한 번만은 이어서 채운다 (D17)."""
+    """받은 사진을 JPEG 로 다시 만들어 저장. 20장·10MB·30M 픽셀 제한, HEIC 도 받음.
+    화면이 upload_batch_id 를 보내면 같은 번호의 두 번째 요청은 저장하지 않고 처음 저장본을 돌려준다 (D17)."""
     require_member(room_id, user, db)
     if len(files) > UPLOAD_MAX_FILES:
         raise ApiError(400, "TOO_MANY_PHOTOS", f"사진은 한 번에 {UPLOAD_MAX_FILES}장까지 올릴 수 있어요")
@@ -124,13 +141,29 @@ def upload_photos(
     if not _upload_lock.acquire(timeout=UPLOAD_LOCK_WAIT_SEC):  # 싼 검사는 위에서 끝냄. 무거운 변환·저장만 한 요청씩
         raise ApiError(503, "UPLOAD_BUSY", "다른 사진을 올리는 중이에요. 잠시 뒤 다시 올려 주세요")
     try:
+        # 같은 요청이 다시 옴(느린 인터넷에 [올리기] 두 번·재전송) — 잠금 안에서 찾아야 앞 요청의 저장이 끝난 뒤에 본다
+        if upload_batch_id:
+            done = db.scalars(
+                select(Photo)
+                .where(Photo.room_id == room_id, Photo.upload_batch_id == upload_batch_id)
+                # 정렬 기준: photo_id(사진을 저장할 때 DB 가 1, 2, 3… 차례로 붙이는 번호) = 보낸 순서.
+                # 그래서 두 번째 응답도 처음 응답과 사진 순서가 똑같다.
+                .order_by(Photo.photo_id)
+                # .order_by(Photo.object_key)
+                # 제작해달라고 부탁한 방법: object_key(저장 파일 이름 …/0.jpg, …/1.jpg …) 순서.
+                # 이 방법 사용하니, 파일 이름을 숫자가 아니라 글자로 비교해서
+                # '10.jpg' 가 '1.jpg' 바로 뒤, '2.jpg' 앞에 온다.
+                # 11장 넘게 올리면 11번째 사진이 2번째 자리로 가서 순서가 섞인다 (11/11 사진 11장으로 실측).
+            ).all()
+            if done:
+                return PhotoBatchOut(upload_batch_id=upload_batch_id, photos=[photo_out(p) for p in done])
         converted = []
         for n, f in enumerate(files, 1):
             try:
                 converted.append(to_jpeg(f.file.read()))
             except ApiError as e:  # 몇 번째 사진인지 문구 앞에 붙인다 — 응답 모양 {detail, code}·상태 코드는 그대로
                 raise ApiError(e.status_code, e.code, f"{n}번째 사진: {e.detail}") from e
-        batch_id = uuid.uuid4()
+        batch_id = upload_batch_id or uuid.uuid4()
         photos = []
         for i, (jpeg, taken_at) in enumerate(converted):
             key = f"rooms/{room_id}/{batch_id}/{i}.jpg"

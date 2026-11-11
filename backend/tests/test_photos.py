@@ -1,14 +1,16 @@
 """사진 올리기 (BE-02, D17) — JPEG 로 다시 만들어 저장, 사진 보기 주소로 열림, 사진이 아니면 거절."""
 
 import io
+import uuid
 import zlib
 from datetime import date
 from pathlib import Path
 
 import pytest
-from PIL import ExifTags, Image
+from PIL import ExifTags, Image, ImageCms
+from sqlalchemy import func, select
 
-from app.config import settings
+from app.config import UPLOAD_MAX_EXIF_BYTES, settings
 from app.db import SessionLocal
 from app.models import Photo
 from app.routers import photos as photo_api
@@ -309,3 +311,96 @@ def test_odd_taken_date_is_dropped(client, raw):
     data = _jpeg_with_exif(lambda e: e.get_ifd(ExifTags.IFD.Exif).__setitem__(ExifTags.Base.DateTimeOriginal, raw))
     r = _upload_one(client, data, "o.jpg", "image/jpeg")
     assert r.status_code == 201 and r.json()["photos"][0]["taken_at"] is None
+
+
+def test_heic_is_saved_as_jpeg(client):
+    """아이폰 사진(HEIC) → 201, 저장본은 JPEG."""
+    buf = io.BytesIO()
+    Image.new("RGB", (40, 30), "red").save(buf, "HEIF")
+    assert _stored(client, _upload_one(client, buf.getvalue(), "a.heic", "image/heic")).format == "JPEG"
+
+
+def test_16bit_gray_png_is_not_white(client):
+    """16비트 흑백 PNG(값 30000) — 그대로 RGB 로 바꾸면 새하양(255). 256 으로 나눠 회색(117)이 되어야 한다."""
+    buf = io.BytesIO()
+    Image.new("I;16", (40, 30), 30000).save(buf, "PNG")
+    pixel = _stored(client, _upload_one(client, buf.getvalue(), "g.png", "image/png")).getpixel((20, 15))
+    assert pixel != (255, 255, 255) and abs(pixel[0] - 117) <= 3  # JPEG 라 값이 조금 흔들림
+
+
+def test_transparent_png_gets_white_background(client):
+    """투명 PNG(RGBA·팔레트·'이 색을 투명으로'(tRNS) 쓰는 흑백·컬러) — 투명했던 곳은 검정이 아니라 흰색."""
+    rgba = io.BytesIO()
+    Image.new("RGBA", (40, 30), (0, 0, 0, 0)).save(rgba, "PNG")
+    pal = Image.new("P", (40, 30), 0)
+    pal.putpalette([0, 0, 0])
+    p = io.BytesIO()
+    pal.save(p, "PNG", transparency=0)
+    gray, color = io.BytesIO(), io.BytesIO()  # 11/11 /code-review 재현: 이 두 가지가 검정으로 저장됐다
+    Image.new("L", (40, 30), 0).save(gray, "PNG", transparency=0)
+    Image.new("RGB", (40, 30), (0, 0, 0)).save(color, "PNG", transparency=(0, 0, 0))
+    for data in (rgba.getvalue(), p.getvalue(), gray.getvalue(), color.getvalue()):
+        assert _stored(client, _upload_one(client, data, "t.png", "image/png")).getpixel((20, 15)) == (255, 255, 255)
+
+
+def test_color_profile_is_kept(client):
+    """색 프로필(ICC)이 있는 사진 → 저장본에도 같은 색 프로필. 위치정보(EXIF)는 test_gps_is_removed 가 본다."""
+    icc = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+    buf = io.BytesIO()
+    Image.new("RGB", (40, 30), "red").save(buf, "JPEG", icc_profile=icc)
+    assert _stored(client, _upload_one(client, buf.getvalue(), "c.jpg", "image/jpeg")).info.get("icc_profile") == icc
+
+
+def test_huge_color_profile_is_dropped(client):
+    """색 프로필이 64KB 넘으면 버린다 — 9MB 짜리를 붙이면 작은 사진도 저장본이 9MB 가 됐다 (11/11 /code-review 재현).
+    아이폰 Display P3 프로필은 약 0.5KB 라 영향 없음."""
+    icc = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes() + b"A" * (UPLOAD_MAX_EXIF_BYTES + 1)
+    buf = io.BytesIO()
+    Image.new("RGB", (40, 30), "red").save(buf, "JPEG", icc_profile=icc)
+    r = _upload_one(client, buf.getvalue(), "c.jpg", "image/jpeg")
+    assert "icc_profile" not in _stored(client, r).info
+    assert len(client.get(r.json()["photos"][0]["url"]).content) < 64 * 1024
+
+
+def _batch_count(batch_id: str) -> int:
+    with SessionLocal() as db:
+        return db.scalar(select(func.count()).select_from(Photo).where(Photo.upload_batch_id == uuid.UUID(batch_id)))
+
+
+def test_same_batch_id_is_saved_once(client):
+    """같은 upload_batch_id 로 2장을 두 번 → 두 번 다 201, DB 에는 2장(4장 아님), 두 응답의 photo_id 가 같다."""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    files = [("files", (f"{i}.jpg", _jpeg(), "image/jpeg")) for i in range(2)]
+    batch = str(uuid.uuid4())  # DB 는 테스트마다 비우지 않아서 테스트마다 새 번호
+    r1 = client.post(f"/api/rooms/{room_id}/photos", files=files, data={"upload_batch_id": batch})
+    r2 = client.post(f"/api/rooms/{room_id}/photos", files=files, data={"upload_batch_id": batch})
+    assert r1.status_code == 201 and r2.status_code == 201
+    assert _batch_count(batch) == 2
+    assert [p["photo_id"] for p in r1.json()["photos"]] == [p["photo_id"] for p in r2.json()["photos"]]
+    assert r2.json()["upload_batch_id"] == batch
+
+
+def test_same_batch_id_keeps_order_over_10_photos(client):
+    """11장을 같은 번호로 두 번 → 두 번째 응답도 보낸 순서 그대로.
+    파일 이름(object_key) 순서로 바꾸면 '10.jpg' 가 '2.jpg' 앞에 와서 이 테스트가 실패한다 (11/11 실측)."""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    files = [("files", (f"{i}.jpg", _jpeg(), "image/jpeg")) for i in range(11)]
+    batch = str(uuid.uuid4())
+    r1 = client.post(f"/api/rooms/{room_id}/photos", files=files, data={"upload_batch_id": batch})
+    r2 = client.post(f"/api/rooms/{room_id}/photos", files=files, data={"upload_batch_id": batch})
+    assert r1.status_code == 201 and r2.status_code == 201  # 실패 응답이면 KeyError 대신 상태 코드로 알려 준다
+    assert [p["photo_id"] for p in r2.json()["photos"]] == [p["photo_id"] for p in r1.json()["photos"]]
+
+
+def test_no_batch_id_saves_twice(client):
+    """upload_batch_id 없이 두 번 보내면 따로 두 번 저장된다 (지금까지와 같음)."""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    files = [("files", ("a.jpg", _jpeg(), "image/jpeg"))]
+    r1 = client.post(f"/api/rooms/{room_id}/photos", files=files)
+    r2 = client.post(f"/api/rooms/{room_id}/photos", files=files)
+    assert r1.status_code == 201 and r2.status_code == 201
+    assert r1.json()["upload_batch_id"] != r2.json()["upload_batch_id"]
+    assert r1.json()["photos"][0]["photo_id"] != r2.json()["photos"][0]["photo_id"]
