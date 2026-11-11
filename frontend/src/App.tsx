@@ -5,6 +5,7 @@
 import type { ComponentType } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import NotYet from './screens/NotYet'
+import ELDER_ALBUM_001 from './screens/elder/ELDER_ALBUM_001'
 import ELDER_CONNECT_001 from './screens/elder/ELDER_CONNECT_001'
 import ELDER_DIARY_001 from './screens/elder/ELDER_DIARY_001'
 import ELDER_DIARY_002 from './screens/elder/ELDER_DIARY_002'
@@ -24,7 +25,7 @@ export const SCREENS: ScreenDef[] = [
   { id: 'ELDER_TODAY_001', path: '/elder/today', title: '오늘의 한 장', Screen: ELDER_HOME_001 },
   { id: 'ELDER_MEMORY_001', path: '/elder/memory/:sessionId', title: '회상 대화', Screen: ELDER_MEMORY_001 },
   { id: 'ELDER_MEMORY_002', path: '/elder/memory/:sessionId/done', title: '회상 마무리' },
-  { id: 'ELDER_ALBUM_001', path: '/elder/album', title: '사진첩' },
+  { id: 'ELDER_ALBUM_001', path: '/elder/album', title: '사진첩', Screen: ELDER_ALBUM_001 },
   { id: 'ELDER_DIARY_001', path: '/elder/diary', title: '오늘 일기', Screen: ELDER_DIARY_001 },
   { id: 'ELDER_DIARY_002', path: '/elder/diary/:sessionId', title: '일기 대화', Screen: ELDER_DIARY_002 },
   { id: 'ELDER_DIARY_003', path: '/elder/diary/:sessionId/confirm', title: '일기 확인', Screen: ELDER_DIARY_003 },
