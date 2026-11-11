@@ -1,23 +1,37 @@
 /** LOGIN_001 — 가족 시작 화면과 이메일 로그인/가입. */
 import './LOGIN_001.css'
-import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
+import type { UserOut } from '../../api/types'
 import loginPreview from '../../assets/login-preview.svg'
+import { useFetch } from '../../hooks/useFetch'
 
 type LoginScreen = 'start' | 'login' | 'signup'
 
 export default function LOGIN_001() {
   const nav = useNavigate()
-  const [screen, setScreen] = useState<LoginScreen>('start')
-  const [error, setError] = useState<string>()
+  // 단계는 주소에 둔다(?mode=login|signup). 폰 뒤로 가기가 앱을 닫지 않고 시작 화면으로 돌아온다.
+  const [params, setParams] = useSearchParams()
+  const mode = params.get('mode')
+  const screen: LoginScreen = mode === 'login' || mode === 'signup' ? mode : 'start'
+  // 오류는 난 단계와 함께 둔다. 뒤로 가기로 단계가 바뀌면 안 보인다.
+  const [error, setError] = useState<{ screen: LoginScreen; text: string }>()
   const [busy, setBusy] = useState(false)
+  const emailRef = useRef<HTMLInputElement>(null)
   const emailOpen = screen !== 'start'
   const signup = screen === 'signup'
+  // 단계마다 주소 기록이 남아서, 로그인한 뒤 홈에서 뒤로 가기를 하면 여기로 온다 → 이미 로그인했으면 홈으로
+  const me = useFetch<UserOut>('/api/auth/me')
+
+  // 단계가 바뀌면 이메일 칸으로 초점을 옮긴다(시작 화면이면 칸이 없어 그대로).
+  useEffect(() => {
+    emailRef.current?.focus()
+  }, [screen, me.loading])
 
   function changeScreen(next: LoginScreen) {
     setError(undefined)
-    setScreen(next)
+    setParams(next === 'start' ? {} : { mode: next })
   }
 
   async function submit(e: FormEvent<HTMLFormElement>) {
@@ -34,11 +48,13 @@ export default function LOGIN_001() {
       await api(signup ? '/api/auth/signup' : '/api/auth/login', { body })
       nav('/', { replace: true })
     } catch (err) {
-      setError((err as ApiError).message)
+      setError({ screen, text: (err as ApiError).message })
       setBusy(false)
     }
   }
 
+  if (me.loading) return null
+  if (me.data) return <Navigate to="/" replace />
   return (
     <main className="login-screen">
       <div className={`login-shell${emailOpen ? ' login-shell--email' : ''}`}>
@@ -49,7 +65,7 @@ export default function LOGIN_001() {
         {!emailOpen ? (
           <>
             <div className="login-preview">
-              <img src={loginPreview} alt="" />
+              <img src={loginPreview} alt="" width={312} height={203} />
             </div>
             <p className="login-intro">
               <span>가족과 함께 추억을 나눠요<br />사진 한 장으로 매일 이야기해요</span>
@@ -64,11 +80,12 @@ export default function LOGIN_001() {
         ) : (
           <section className="login-email" aria-labelledby="login-form-title">
             <h2 id="login-form-title">{signup ? '가족 가입' : '가족 로그인'}</h2>
-            <form key={screen} className="login-form" onSubmit={submit} aria-busy={busy}>
-              <label>이메일<input name="email" type="email" required autoComplete="email" /></label>
+            <form className="login-form" onSubmit={submit} aria-busy={busy}>
+              <label>이메일<input ref={emailRef} name="email" type="email" required autoComplete="email" /></label>
               <label>
                 비밀번호
-                <input name="password" type="password" required minLength={8} autoComplete={signup ? 'new-password' : 'current-password'} />
+                {/* 로그인↔가입을 바꾸면 이메일은 두고 비밀번호만 비운다(key 로 새로 만든다). */}
+                <input key={screen} name="password" type="password" required minLength={8} autoComplete={signup ? 'new-password' : 'current-password'} />
               </label>
               {signup && (
                 <>
@@ -79,7 +96,7 @@ export default function LOGIN_001() {
                   </label>
                 </>
               )}
-              {error && <p className="login-error" role="alert">{error}</p>}
+              {error?.screen === screen && <p className="login-error" role="alert">{error.text}</p>}
               <button className="login-button" disabled={busy}>
                 {busy ? '잠시만요' : signup ? '가입하기' : '로그인'}
               </button>
