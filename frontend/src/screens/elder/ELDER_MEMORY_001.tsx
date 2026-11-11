@@ -1,5 +1,5 @@
 /**
- * ELDER_MEMORY_001 — 회상 대화 (사진 + VoiceSession). ELDER_HOME_001 이 세션을 만들어 state 로 넘긴다.
+ * ELDER_MEMORY_001 — 회상 대화 (사진 + VoiceSession). ELDER_HOME_001(오늘의 한 장)·ELDER_ALBUM_001(사진첩)이 세션을 만들어 state 로 넘긴다.
  * 새로고침 등으로 state 가 없으면 서버에서 세션을 다시 읽는다 (30분 안 복귀, useElderSession).
  */
 import { useState } from 'react'
@@ -16,18 +16,19 @@ export default function ELDER_MEMORY_001() {
   const [ended, setEnded] = useState<SessionOut>()
 
   async function finish() {
-    // 오류로 끝났으면 오늘의 한 장은 PENDING 그대로라(D27) '다 들었어요' 기록을 남기지 않는다
-    if (ended?.end_reason !== 'ERROR') {
+    // 오류로 끝났으면 오늘의 한 장은 PENDING 그대로라(D27) '다 들었어요' 기록을 남기지 않는다. 사진첩 대화는 오늘의 한 장이 아니다
+    if (session?.kind === 'MEMORY' && ended?.end_reason !== 'ERROR') {
       await api('/api/elder/picks/today/listened', { method: 'POST' }).catch(() => {})
     }
     nav('/elder', { replace: true })
   }
 
   if (!session || !home) return <main className="elder"><p className="elder-text">잠시만요…</p></main>
-  const shownPhoto = photoUrl ?? home.today_pick?.photo_url
+  // 앞 화면이 넘긴 사진 → 세션의 사진(새로고침) → 오늘의 한 장 (사진첩 대화는 오늘 사진으로 바꾸지 않는다)
+  const shownPhoto = photoUrl ?? session.photo_url ?? (session.kind === 'MEMORY' ? home.today_pick?.photo_url : undefined)
   return (
     <main className="elder">
-      {shownPhoto && <img className="elder-photo" src={shownPhoto} alt="오늘의 사진" />}
+      {shownPhoto && <img className="elder-photo" src={shownPhoto} alt={session.kind === 'ALBUM' ? '사진첩 사진' : '오늘의 사진'} />}
       {ended ? (
         <>
           <p className="elder-text">{ended.ai.text}</p>

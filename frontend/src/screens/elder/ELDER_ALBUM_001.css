@@ -29,6 +29,10 @@
 
 .elder-album-photo:disabled {
   border-color: #4a4a4a;
+}
+
+/* 기다리는 동안만 모래시계 — 오늘 횟수를 다 써서 잠긴 사진은 기본 커서 */
+.elder-album-grid[aria-busy='true'] .elder-album-photo {
   cursor: wait;
 }
 

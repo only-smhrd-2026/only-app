@@ -128,7 +128,7 @@ export default function ELDER_HOME_001() {
         <p className="elder-home-date">{date}</p>
         <h1 className="elder-home-greeting">{home.greeting}</h1>
         <div className="elder-home-tiles">
-          <button className="elder-home-tile elder-home-tile--secondary" onClick={() => nav('/elder/album')}><span>사진첩</span></button>
+          <button className="elder-home-tile elder-home-tile--secondary" onClick={() => nav('/elder/album', { state: { home } })}><span>사진첩</span></button>
           <button className="elder-home-tile" onClick={() => nav('/elder/diary', { state: { home } })}><span>오늘<br />이야기<wbr />하기</span></button>
         </div>
         {home.unread_family_news > 0 && <p className="elder-home-news">새로운 가족 소식이 {home.unread_family_news}개 있어요.</p>}

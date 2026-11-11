@@ -50,8 +50,11 @@ export type AiOut = {
 }
 export type SessionState = 'CONTINUE' | 'ENDED'
 export type EndReason = 'COMPLETED' | 'USER_STOP' | 'NO_RESPONSE' | 'ERROR' | 'LIMIT'
+export type SessionKind = 'MEMORY' | 'ALBUM' | 'DIARY'
 export type SessionOut = {
   session_id: string
+  kind: SessionKind
+  photo_url: string | null
   ai: AiOut
   state: SessionState
   end_reason: EndReason | null
@@ -60,6 +63,8 @@ export type SessionOut = {
 }
 export type SessionGetOut = {
   session_id: string
+  kind: SessionKind
+  photo_url: string | null
   state: SessionState
   end_reason: EndReason | null
   last_ai: AiOut | null

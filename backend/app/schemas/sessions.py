@@ -30,6 +30,8 @@ class SessionCreateIn(BaseModel):
 
 class SessionOut(BaseModel):
     session_id: uuid.UUID
+    kind: SessionKind  # 회상 화면을 사진첩 대화에도 쓰므로 화면이 둘을 가른다
+    photo_url: str | None  # /api/media/{key}. 사진 없는 대화(사진 안 고른 일기)는 None
     ai: AiOut
     state: SessionState
     end_reason: EndReason | None = None
@@ -39,6 +41,8 @@ class SessionOut(BaseModel):
 
 class SessionGetOut(BaseModel):
     session_id: uuid.UUID
+    kind: SessionKind
+    photo_url: str | None  # 새로고침 뒤에도 이 대화의 사진을 다시 보여 주게
     state: SessionState
     end_reason: EndReason | None = None
     last_ai: AiOut | None

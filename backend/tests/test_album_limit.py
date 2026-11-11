@@ -5,17 +5,17 @@ from datetime import timedelta
 
 from app.config import ALBUM_PER_DAY, now_kst
 from app.db import SessionLocal
-from app.models import TalkSession
+from app.models import Photo, TalkSession
 from tests.conftest import setup_elder
 
 
-def _create(client, ctx, session_id=None):
+def _create(client, ctx, session_id=None, photo_id=None):
     return client.post(
         "/api/elder/sessions",
         json={
             "session_id": session_id or str(uuid.uuid4()),
             "kind": "ALBUM",
-            "photo_id": ctx["photo_ids"][0],
+            "photo_id": photo_id or ctx["photo_ids"][0],
         },
     )
 
@@ -65,3 +65,35 @@ def test_album_previous_day_and_other_room_do_not_count(client):
     assert _create(client, ctx).status_code == 409
     other = setup_elder(client)
     assert _create(client, other).status_code == 201
+
+
+def test_album_limit_counts_from_kst_midnight(client):
+    """한국 0시 1초에 시작한 대화도 오늘로 센다. UTC 0시로 세면 한국 9시 이후엔 어제로 빠져 201 이 된다."""
+    ctx = setup_elder(client)
+    start = now_kst().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(seconds=1)
+    for _ in range(ALBUM_PER_DAY):
+        created = _create(client, ctx)
+        assert created.status_code == 201
+        with SessionLocal() as db:
+            db.get(TalkSession, uuid.UUID(created.json()["session_id"])).started_at = start
+            db.commit()
+    limited = _create(client, ctx)
+    assert limited.status_code == 409
+    assert limited.json()["code"] == "ALBUM_LIMIT"
+
+
+def test_session_kind_and_photo_url(client):
+    """회상 화면이 사진첩 대화를 가를 수 있게 kind·photo_url 을 준다. 새로고침(GET)도 같고, 회상은 오늘의 한 장 사진."""
+    ctx = setup_elder(client)
+    photo_id = next(p for p in ctx["photo_ids"] if p != ctx["pick"]["photo_id"])  # 오늘의 한 장과 다른 사진
+    with SessionLocal() as db:
+        url = f"/api/media/{db.get(Photo, photo_id).object_key}"
+    album = _create(client, ctx, photo_id=photo_id).json()
+    assert (album["kind"], album["photo_url"]) == ("ALBUM", url)
+    got = client.get(f"/api/elder/sessions/{album['session_id']}").json()
+    assert (got["kind"], got["photo_url"]) == ("ALBUM", url)
+    memory = client.post(
+        "/api/elder/sessions",
+        json={"session_id": str(uuid.uuid4()), "kind": "MEMORY", "pick_id": ctx["pick"]["pick_id"]},
+    ).json()
+    assert (memory["kind"], memory["photo_url"]) == ("MEMORY", ctx["pick"]["photo_url"])
