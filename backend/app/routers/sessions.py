@@ -24,6 +24,7 @@ from sqlalchemy import func, select
 from app.ai import coach, quiz, tts
 from app.ai.schemas import CoachReply
 from app.config import (
+    ALBUM_PER_DAY,
     DIARY_TURNS,
     MAX_SESSION_SEC,
     MAX_TURNS,
@@ -264,6 +265,18 @@ def create_session(body: SessionCreateIn, device: CurrentDevice, db: DB):
         reply = _last_reply.get(existing.session_id) or _fallback(existing)
         state = "ENDED" if existing.ended_at else "CONTINUE"
         return _out(db, existing, room, reply, state, existing.end_reason)
+    if body.kind == "ALBUM":
+        albums_today = db.scalar(
+            select(func.count())
+            .select_from(TalkSession)
+            .where(
+                TalkSession.room_id == room.room_id,
+                TalkSession.kind == "ALBUM",
+                TalkSession.started_at >= now_kst().replace(hour=0, minute=0, second=0, microsecond=0),
+            )
+        )
+        if (albums_today or 0) >= ALBUM_PER_DAY:
+            raise ApiError(409, "ALBUM_LIMIT", "오늘은 사진첩 이야기를 다 했어요. 내일 또 해요")
     pick = None
     if body.pick_id:
         pick = db.get(DailyPick, body.pick_id)
