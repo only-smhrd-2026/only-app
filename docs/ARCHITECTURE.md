@@ -71,7 +71,7 @@ signup → POST /rooms (가족방+구성원) → 사진 3장 이상 → POST /ro
 새로고침하면 useElderSession 이 없는 것만 다시 읽는다(넘겨받은 세션을 덮으면 첫 질문 서버 음성을 잃음). 사진은 photoUrl → session.photo_url → (MEMORY 만) 오늘의 한 장 (D47)
 ```
 
-서버가 지키는 상한: 8턴(`sessions.turn_count CHECK`), 5분, 무응답 3단계(재질문 → 칩만 → 종료), 저신뢰 2회 → `input_locked`, 사진첩 대화 가족방당 하루 3번(`ALBUM_PER_DAY`, 오늘 한국 0시부터 시작한 ALBUM 대화 수, 오류로 끝난 것도 셈 → 409 `ALBUM_LIMIT`, D8), 유료 호출 서버 전체 하루 상한(D46 ⑨).
+서버가 지키는 상한: 오늘의 한 장 8턴·사진첩 2턴·일기 3턴(`MAX_TURNS`·`ALBUM_TURNS`·`DIARY_TURNS`, `sessions.turn_count CHECK` 는 8까지), 5분, 무응답 3단계(재질문 → 칩만 → 종료), 저신뢰 2회 → `input_locked`, 사진첩 대화 가족방당 하루 3번(`ALBUM_PER_DAY`, 오늘 한국 0시부터 시작한 ALBUM 대화 수, 오류로 끝난 것도 셈 → 409 `ALBUM_LIMIT`, D8), 유료 호출 서버 전체 하루 상한(D46 ⑨).
 화면 타이머: 4초 "조금만 기다려 주세요", 8초 음성 안내, 15초 → `POST /end {reason: ERROR}` (하루 3회면 가족 알림). `/api/stt` 는 15초 → "잘 못 들었어요"(소리로도) + 다시 말하기.
 
 ### 오늘 이야기하기 (일기·그림일기, D36)
@@ -88,7 +88,7 @@ ELDER_DIARY_003: POST /elder/sessions/{id}/draft
    서버: diaries INSERT + 가족 전원 notifications(DIARY_POSTED) 1건씩
 가족 홈(HOME_001): GET /rooms/{id}/diaries → read_by_me=false 가 '새 일기 N개' 한 줄 (실시간 아님, 열 때 읽음)
    [다 봤어요] ─► POST /diaries/{id}/read (가족 쿠키 전용, diaries.family_read_by). 그림은 <img src="/api/media/rooms/{room}/{session}.jpg"> (게시된 것만)
-   앱으로 돌아올 때(visibilitychange)도 다시 읽는다. 어르신 '다 들었어요'는 기기 쿠키 전용 /elder/diaries/{id}/read (빈 API)
+   앱으로 돌아올 때(visibilitychange)도 다시 읽는다. 어르신 가족 소식: GET /elder/family-news (안 들은 가족 일기, 쓴 사람 별명 author_nickname 포함) → '다 들었어요'는 기기 쿠키 전용 POST /elder/diaries/{id}/read (#99)
 ```
 
 ### 오늘의 한 장
@@ -97,13 +97,15 @@ ELDER_DIARY_003: POST /elder/sessions/{id}/draft
 매시 정각 잡(services/scheduler.select_daily_picks — ACTIVE 방 중 추억 시간이 지나고 오늘 pick 없는 방)  ─┐
 GET /elder/home: now ≥ memory_time 이고 오늘 pick 없음 → services/picks.select_pick() ─┴─► INSERT … ON CONFLICT DO NOTHING
 후보: ACTIVE + source=FAMILY + usable≠false + 어제까지 올린 사진 − 최근 14일 안에 이야기 끝낸(COMPLETED) 사진.
-후보 0장이면 가장 오래전에 이야기한 사진부터 다시(D44). 건너뛰기: POST /elder/picks/today/skip → SKIPPED, 같은 사진의 2번째 건너뛰기면 PICK_SKIPPED_2X 가족 알림 1건(skipped_at 으로 셈, config PICK_SKIP_ALERT)
+후보 0장이면 가장 오래전에 이야기한 사진부터 다시(D44). 대화 열기: pick 이 오늘 것이 아니면 409 PICK_EXPIRED, 건너뛴 것이면 409 PICK_SKIPPED → 홈이 다시 읽는다(D49 ①). 건너뛰기: POST /elder/picks/today/skip → SKIPPED, 같은 사진의 2번째 건너뛰기면 PICK_SKIPPED_2X 가족 알림 1건(skipped_at 으로 셈, config PICK_SKIP_ALERT)
 ```
 
 ### 사진
 
 ```
 업로드(박유승, #10·#93): 로그인·구성원 확인(401/404, 본문 읽기 전) → DB 연결 반납(db.close) → 본문 읽기(21번째 파일에서 멈추고 400 TOO_MANY_PHOTOS, 글 칸은 upload_batch_id 하나, 합계는 배포 Caddy 220MB) → 장당 10MB 검사 → 변환은 서버 전체에서 한 번에 한 요청(60초 기다려도 차례가 안 오면 503 UPLOAD_BUSY) → 같은 upload_batch_id 저장본이 있으면 그대로 돌려줌 → 장마다 열기 전 EXIF 조각 4개·JPEG 스캔 300개 검사 → JPEG/PNG 만 열기(HEIC 끔, D17) → 30M 픽셀·한 변 65,500 검사 → 그림 끝까지 풀기(깨지면 400) → 촬영일(EXIF DateTimeOriginal, 1900년~오늘)·회전은 EXIF 64KB 이하일 때만 → 긴 변 2560 으로 줄이기 → 16비트 흑백은 8비트로, 투명은 흰 바탕 → EXIF·주석 없이 JPEG 재인코딩(색 프로필은 RGB·64KB 이하만) → 전부 성공하면 storage.put(key)·photos(taken_at) 저장·commit (오류 문구 앞에 'N번째 사진:')  key=rooms/{room}/{batch}/{i}.jpg
+어르신 카메라(천주웅, #96): POST /elder/photos — 기기 확인 → DB 연결 반납 → 1장만 읽기 → 위와 같은 잠금·변환·요청 번호 → source=ELDER_CAMERA (배포 Caddy 12MB, D49 ③)
+목록: GET /rooms/{id}/photos(가족, #98)와 GET /elder/album(어르신)은 같은 조건·순서·상한(config PHOTO_LIST_LIMIT)
 조회: <img src="/api/media/{key}"> → 쿠키로 구성원/기기 확인 → storage.get(key) 바이트 반환 (서명 URL 없음)
 STORAGE=local: uploads/ 폴더 (git 제외) / STORAGE=r2: Cloudflare R2 (boto3, R2_* 키)
 ```
