@@ -12,6 +12,16 @@
 		reverse_proxy api:8000
 	}
 
+	# 어르신 카메라 사진 1장(서버 UPLOAD_MAX_BYTES 10MB + 여유). 기기 쿠키만 있으면 부르는 주소라 위 220MB 에 넣지 않는다.
+	# 이 칸이 없으면 아래 5MB 에 걸려 5~10MB 폰 사진이 서버에 닿기도 전에 413 으로 끊긴다
+	@camera path /api/elder/photos
+	handle @camera {
+		request_body {
+			max_size 12MB
+		}
+		reverse_proxy api:8000
+	}
+
 	handle /api/* {
 		request_body {
 			max_size 5MB
