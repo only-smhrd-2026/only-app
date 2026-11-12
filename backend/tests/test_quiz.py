@@ -12,6 +12,7 @@ from app.ai.schemas import CoachTurn
 from app.config import ALBUM_TURNS, MAX_TURNS, QUIZ_TURN, ROOT, TZ, now_kst
 from app.db import SessionLocal
 from app.models import Photo, QuestionBank, TalkSession
+from app.routers import sessions
 from app.schemas.sessions import AiOut
 from tests.conftest import setup_elder
 
@@ -208,12 +209,35 @@ def test_classified_photo_knowhow_then_remember_then_daily_cap(client, question_
     assert types == ["KNOWHOW", "REMEMBER", "RECALL"]  # 김장 노하우 → 14일 안에 쓴 김장은 빼고 김치 재료 → 오늘 2개 끝
 
 
-def test_album_has_no_quiz(client, question_bank):
+def test_album_has_no_quiz(client, question_bank, monkeypatch):
     ctx = setup_elder(client)
     sid = _create(client, ctx, "ALBUM")
     assert _answer(client, sid, ALBUM_TURNS)["state"] == "ENDED"
     turns, _ = _turns(sid)
     assert not any(t.get("question_code") for t in turns)
+    # 사진첩은 2턴에 끝나 4번째 질문(문제 차례)에 닿지 않는다 — 위 검사만으로는
+    # '문제는 오늘의 한 장 대화에만'을 못 잡는다. 턴 수를 문제 차례까지 늘려도 사진첩 4번째 질문은 문제가 아니어야 한다
+    monkeypatch.setattr(sessions, "ALBUM_TURNS", QUIZ_TURN)
+    sid = _create(client, ctx, "ALBUM")
+    assert _answer(client, sid, QUIZ_TURN - 1)["ai"]["question_type"] == "RECALL"
+    assert not any(t.get("question_code") for t in _turns(sid)[0])
+
+
+def test_llm_is_told_each_kinds_max_turns(client, monkeypatch):
+    """AI 에 넘기는 최대 질문 수(max_turns): 사진첩은 ALBUM_TURNS, 오늘의 한 장은 MAX_TURNS — 질문·마무리 둘 다."""
+    sent = []
+    real = llm.call_json
+    monkeypatch.setattr(llm, "call_json", lambda name, data, schema: sent.append(data) or real(name, data, schema))
+    ctx = setup_elder(client)
+    _answer(client, _create(client, ctx, "ALBUM"), ALBUM_TURNS)
+    questions = [(n, ALBUM_TURNS, False) for n in range(1, ALBUM_TURNS + 1)]
+    assert [(d["turn_no"], d["max_turns"], d["closing"]) for d in sent] == [
+        *questions,
+        (ALBUM_TURNS, ALBUM_TURNS, True),
+    ]
+    sent.clear()
+    _create(client, ctx)
+    assert (sent[0]["turn_no"], sent[0]["max_turns"]) == (1, MAX_TURNS)
 
 
 def test_empty_bank_no_quiz(client):

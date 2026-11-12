@@ -38,6 +38,7 @@ from app.config import (
     STT_CONF_MIN,
     STT_FAIL_LOCK,
     now_kst,
+    today_kst,
 )
 from app.deps import DB, CurrentDevice
 from app.errors import ApiError
@@ -148,10 +149,11 @@ def _ask(
         else:  # "일기를 써 볼게요"는 일기를 쓸 때만. 무응답으로 끝나면 저장하지 않으니 다른 인사
             reply = coach.DIARY_CLOSING if end in DIARY_SAVED else coach.DIARY_STOP
     elif end:
-        reply, signal = coach.closing(ctx, turn_no)
+        reply, signal = coach.closing(ctx, turn_no, _max_turns(session))
     else:
         picked = quiz.pick(db, session) if session.kind == "MEMORY" and turn_no == QUIZ_TURN else None
-        reply, signal = coach.next_question(ctx, turn_no, picked)
+        # 최대 질문 수도 같이 넘긴다 — 사진첩은 2, 오늘의 한 장은 8 (AI 가 몇 번째 질문인지 알고 말하게)
+        reply, signal = coach.next_question(ctx, turn_no, picked, _max_turns(session))
         code = picked.code if picked and signal == "NONE" else None
     if signal == "SAD":
         session.emotion_flag = "SAD"  # 가족 대시보드·주간 요약용 (FR-AI-005, FR-FD-006)
@@ -295,6 +297,13 @@ def create_session(body: SessionCreateIn, device: CurrentDevice, db: DB):
         pick = db.get(DailyPick, body.pick_id)
         if not pick or pick.room_id != room.room_id:
             raise ApiError(404, "PICK_NOT_FOUND", "오늘의 한 장을 찾을 수 없어요")
+        # 옛 화면에서 누른 경우를 막는다 (D45 ④): 홈을 켜 둔 채 날이 바뀌었거나, 건너뛴 사진을 다른 창에서 누름.
+        # 안 막으면 어제 사진으로 대화가 열리고, 끝날 때 어제 pick 이 COMPLETED 가 된다.
+        # 화면(ELDER_HOME_001)은 이 두 코드를 받으면 홈을 다시 읽는다
+        if pick.pick_date != today_kst():
+            raise ApiError(409, "PICK_EXPIRED", "날짜가 바뀌었어요. 오늘 사진을 다시 보여 드릴게요")
+        if pick.status == "SKIPPED":
+            raise ApiError(409, "PICK_SKIPPED", "오늘 사진은 건너뛰었어요")
     photo_id = body.photo_id or (pick.photo_id if pick else None)
     if photo_id:
         photo = db.get(Photo, photo_id)
@@ -407,6 +416,7 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
             last = last.model_copy(
                 update={"choice_mode": "TWO_BUTTONS", "suggestions": (last.suggestions or ["네", "아니요"])[:2]}
             )
+        db.commit()  # 저장할 것은 없다 — 세션 행 잠금을 여기서 푼다. 아래 _out 이 음성을 만드는 몇 초 동안 쥐지 않게
         return _out(db, session, room, last)
 
     text = (body.text or "").strip()
@@ -418,6 +428,7 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
         body
     ):  # 저신뢰: 저장하지 않고 확인 질문만 (D5). "맞아요" 면 같은 문장을 retried=true 로 다시 보낸다.
         _low_conf[session.session_id] += 1
+        db.commit()  # 위 재질문과 같은 이유 — 음성을 만들기 전에 세션 행 잠금을 푼다
         return _out(db, session, room, coach.confirm_question(text))
 
     _no_response[session.session_id] = 0

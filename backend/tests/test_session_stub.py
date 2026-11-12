@@ -3,11 +3,13 @@
 import uuid
 from datetime import timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
+from sqlalchemy.exc import OperationalError
 
-from app.config import now_kst
-from app.db import SessionLocal
-from app.models import Notification, TalkSession
+from app.ai import tts
+from app.config import now_kst, today_kst
+from app.db import SessionLocal, engine
+from app.models import DailyPick, Notification, TalkSession
 from tests.conftest import setup_elder
 
 
@@ -154,3 +156,51 @@ def test_low_confidence_echo_with_banned_word_is_not_500(client):
     r = client.post(f"/api/elder/sessions/{sid}/turns", json=body)
     assert r.status_code == 200 and r.json()["ai"]["suggestions"] == ["맞아요", "다시 말할게요"]
     assert "저하" not in r.json()["ai"]["text"]
+
+
+def test_old_or_skipped_pick_cannot_start(client):
+    """옛 화면에서 누른 [이야기하기] (D45 ④): 어제 pick·건너뛴 pick 으로는 새 대화가 안 열린다.
+
+    이미 연 대화를 같은 번호로 다시 요청하는 것은 그대로 된다.
+    """
+    ctx = setup_elder(client)
+    pick_id = ctx["pick"]["pick_id"]
+    opened = _create(client, ctx)  # 날이 바뀌기 전에 연 대화
+    with SessionLocal() as db:  # 날이 바뀜: 오늘 pick 이 어제 것이 된다 (홈을 켜 둔 채 자정을 넘긴 폰)
+        db.get(DailyPick, pick_id).pick_date = today_kst() - timedelta(days=1)
+        db.commit()
+    body = {"session_id": str(uuid.uuid4()), "kind": "MEMORY", "pick_id": pick_id}
+    r = client.post("/api/elder/sessions", json=body)
+    assert r.status_code == 409 and r.json()["code"] == "PICK_EXPIRED"
+    again = client.post("/api/elder/sessions", json=body | {"session_id": opened["session_id"]})
+    assert again.status_code == 201 and again.json()["session_id"] == opened["session_id"]  # 같은 번호 재요청은 멱등
+
+    today = client.get("/api/elder/home").json()["today_pick"]  # 홈을 다시 읽으면 오늘 pick 이 새로 뽑힌다
+    assert today["pick_id"] != pick_id and today["status"] == "PENDING"
+    assert client.post("/api/elder/picks/today/skip").status_code == 200
+    r = client.post("/api/elder/sessions", json=body | {"pick_id": today["pick_id"]})
+    assert r.status_code == 409 and r.json()["code"] == "PICK_SKIPPED"
+    with SessionLocal() as db:  # 거절된 요청은 대화를 만들지 않는다
+        assert db.get(TalkSession, uuid.UUID(body["session_id"])) is None
+
+
+def test_reask_and_confirm_release_row_lock_before_tts(client, monkeypatch):
+    """재질문(무응답 1단계)·저신뢰 확인 질문은 음성을 만들기 전에 세션 행 잠금을 푼다 — 음성 합성은 몇 초가 걸린다."""
+    ctx = setup_elder(client)
+    sid = _create(client, ctx)["session_id"]
+    locked = []
+
+    def synth(sentence, speed):
+        with engine.connect() as other:  # 다른 연결이 그 행을 바로 잡을 수 있어야 한다 (기다리지 않고 확인: NOWAIT)
+            try:
+                other.execute(text("SELECT 1 FROM sessions WHERE session_id = :id FOR UPDATE NOWAIT"), {"id": sid})
+                locked.append(False)
+            except OperationalError:
+                locked.append(True)
+        return b""
+
+    monkeypatch.setattr(tts, "synthesize", synth)
+    url = f"/api/elder/sessions/{sid}/turns"
+    assert client.post(url, json={"input_type": "BUTTON", "event": "NO_RESPONSE"}).status_code == 200
+    assert client.post(url, json={"text": "웅얼웅얼", "input_type": "VOICE", "stt_confidence": 0.4}).status_code == 200
+    assert locked == [False, False]

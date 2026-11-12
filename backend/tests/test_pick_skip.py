@@ -126,12 +126,14 @@ def test_skipped_then_completed_still_counts(client):
     with SessionLocal() as db:
         _past_skip(db, ctx, 1)
         db.commit()
-    assert client.post("/api/elder/picks/today/skip").status_code == 200  # 두 번째 건너뛰기 → 알림 1건
-
-    # 서버는 건너뛴 pick 으로도 대화를 열어 준다(create_session 은 방만 확인). 끝내면 COMPLETED 로 덮인다.
+    # 대화를 먼저 연 뒤에 건너뛴 경우(창 두 개)만 남는다 — 건너뛴 뒤에는 새 대화가 안 열린다(409 PICK_SKIPPED, D45 ④).
+    # 열려 있던 대화를 끝내면 pick 이 COMPLETED 로 덮인다.
     sid = str(uuid.uuid4())
     body = {"session_id": sid, "kind": "MEMORY", "pick_id": pick_id}
     assert client.post("/api/elder/sessions", json=body).status_code == 201
+    assert client.post("/api/elder/picks/today/skip").status_code == 200  # 두 번째 건너뛰기 → 알림 1건
+    late = client.post("/api/elder/sessions", json=body | {"session_id": str(uuid.uuid4())})
+    assert late.status_code == 409 and late.json()["code"] == "PICK_SKIPPED"
     assert client.post(f"/api/elder/sessions/{sid}/end", json={"reason": "USER_STOP"}).status_code == 200
     with SessionLocal() as db:
         pick = db.get(DailyPick, pick_id)
