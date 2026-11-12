@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.ai import coach, llm, quiz
 from app.ai.schemas import CoachTurn
-from app.config import MAX_TURNS, QUIZ_TURN, ROOT, TZ, now_kst
+from app.config import ALBUM_TURNS, MAX_TURNS, QUIZ_TURN, ROOT, TZ, now_kst
 from app.db import SessionLocal
 from app.models import Photo, QuestionBank, TalkSession
 from app.schemas.sessions import AiOut
@@ -210,7 +210,10 @@ def test_classified_photo_knowhow_then_remember_then_daily_cap(client, question_
 
 def test_album_has_no_quiz(client, question_bank):
     ctx = setup_elder(client)
-    assert _answer(client, _create(client, ctx, "ALBUM"), QUIZ_TURN - 1)["ai"]["question_type"] == "RECALL"
+    sid = _create(client, ctx, "ALBUM")
+    assert _answer(client, sid, ALBUM_TURNS)["state"] == "ENDED"
+    turns, _ = _turns(sid)
+    assert not any(t.get("question_code") for t in turns)
 
 
 def test_empty_bank_no_quiz(client):

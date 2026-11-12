@@ -3,6 +3,7 @@
 턴 정의: AI 질문 1 + 어르신 답 1 = 1턴. sessions.turn_count = 지금까지 낸 AI 질문 수 (만들 때 1, 최대 MAX_TURNS=8).
 8번째 답을 받으면 AI 가 마무리 인사(CLOSING) 를 하고 state=ENDED, end_reason=COMPLETED.
 kind=DIARY(일기 대화)는 질문 3개(DIARY_TURNS)로 끝난다. 초안·그림일기·게시는 routers/diaries.py (D36).
+kind=ALBUM(사진첩)은 질문 2개(ALBUM_TURNS)로 끝난다 (FR-ME-008).
 턴은 sessions.turns JSON 배열에 한 칸씩 (D38). turn_no 는 순번 (1=AI, 2=ELDER, 3=AI …).
 서버가 지키는 상한: 8턴, 5분(대화한 시간 — 보류는 빼고 잼), 무응답 3단계, 저신뢰 2회 → input_locked (D5, D8).
 마지막 턴 뒤 30분이 지나면 끝난 대화로 본다 (보류 30분 복귀).
@@ -25,6 +26,7 @@ from app.ai import coach, quiz, tts
 from app.ai.schemas import CoachReply
 from app.config import (
     ALBUM_PER_DAY,
+    ALBUM_TURNS,
     DIARY_TURNS,
     MAX_SESSION_SEC,
     MAX_TURNS,
@@ -116,7 +118,11 @@ def _turn_times(session: TalkSession) -> list[datetime]:
 
 
 def _max_turns(session: TalkSession) -> int:
-    return DIARY_TURNS if session.kind == "DIARY" else MAX_TURNS
+    if session.kind == "DIARY":
+        return DIARY_TURNS
+    if session.kind == "ALBUM":
+        return ALBUM_TURNS
+    return MAX_TURNS
 
 
 def _fallback(session: TalkSession) -> CoachReply:
