@@ -28,6 +28,7 @@ PHOTO_CONF_MIN = 0.7  # 사진 분류 신뢰도가 이 미만이면 none 사진�
 MAX_SESSION_SEC = 300  # 5분 (대화한 시간)
 PAUSE_GAP_SEC = 90  # 턴 사이가 이보다 길면 보류로 보고 90초만 센다 (무응답 3단계 60초 + 여유)
 ALBUM_PER_DAY = 3
+ALBUM_TURNS = 2  # 사진첩 대화 장당 AI 질문 수 (FR-ME-008)
 ELDER_PUSH_PER_DAY = 2
 SESSION_RESUME_MIN = 30  # 마지막 턴 후 30분 지나면 ENDED 취급
 STT_CONF_MIN = 0.7  # 이 미만이면 확인 질문

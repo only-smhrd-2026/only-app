@@ -3,7 +3,7 @@
 import uuid
 from datetime import timedelta
 
-from app.config import ALBUM_PER_DAY, now_kst
+from app.config import ALBUM_PER_DAY, ALBUM_TURNS, now_kst
 from app.db import SessionLocal
 from app.models import Photo, TalkSession
 from tests.conftest import setup_elder
@@ -18,6 +18,25 @@ def _create(client, ctx, session_id=None, photo_id=None):
             "photo_id": photo_id or ctx["photo_ids"][0],
         },
     )
+
+
+def test_album_two_turns_then_ended(client):
+    ctx = setup_elder(client)
+    created = _create(client, ctx)
+    assert created.status_code == 201, created.text
+    sid = created.json()["session_id"]
+    for turn_no in range(2, ALBUM_TURNS + 1):
+        response = client.post(f"/api/elder/sessions/{sid}/turns", json={"text": "네, 기억나요", "input_type": "CHIP"})
+        assert response.status_code == 200, response.text
+        assert response.json()["state"] == "CONTINUE"
+        assert response.json()["turn_no"] == turn_no
+    response = client.post(f"/api/elder/sessions/{sid}/turns", json={"text": "네, 기억나요", "input_type": "CHIP"})
+    assert response.status_code == 200, response.text
+    ended = response.json()
+    assert ended["state"] == "ENDED"
+    assert ended["end_reason"] == "COMPLETED"
+    assert ended["turn_no"] == ALBUM_TURNS
+    assert ended["ai"]["question_type"] == "CLOSING"
 
 
 def test_album_limit_and_memory_allowed(client):
