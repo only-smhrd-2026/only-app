@@ -8,7 +8,8 @@
 4. GET /rooms/{id}/diaries — 가족 홈(HOME_001) 목록. read_by_me=false 가 '새 일기'.
    실시간 반영은 없다(가족이 홈을 열 때 읽는다).
 5. POST /diaries/{id}/read — 가족 '다 봤어요' 열람 기록(diaries.family_read_by). 여러 번 불러도 1번.
-   어르신 가족 소식 '다 들었어요'는 기기 쿠키 전용 POST /elder/diaries/{id}/read (빈 API, ELDER_FAMILY_001 과 함께).
+   어르신 가족 소식 '다 들었어요'는 기기 쿠키 전용 POST /elder/diaries/{id}/read
+   (안 들은 소식 목록은 GET /elder/family-news).
 
 담당: 일기 프롬프트·그림 화풍(image.STYLE) 다듬기 홍진성 / 사진 일기(카메라)·가족 일기·목록 세부 천주웅.
 그림 제공자는 Workers AI FLUX.2 klein 4B 로 연결됨(D37, IMAGE_PROVIDER=cloudflare).
@@ -218,6 +219,25 @@ def list_diaries(room_id: int, user: CurrentUser, db: DB):
     """가족 홈 일기 목록 최소판 (FR-FD-001) — 최근 50개. 페이지·어르신 칩·가족 일기 세부는 천주웅."""
     require_member(room_id, user, db)
     return DiaryListOut(diaries=_rows(db, db.get(FamilyRoom, room_id), me=user.user_id))
+
+
+@router.get("/elder/family-news", response_model=DiaryListOut)
+def elder_family_news(device: CurrentDevice, db: DB):
+    """어르신이 아직 안 들은 이 가족방의 가족 일기 (FR-FD-003)."""
+    room = db.get(FamilyRoom, device.room_id)
+    return DiaryListOut(diaries=_rows(db, room, Diary.author_type == "FAMILY", Diary.elder_read_at.is_(None)))
+
+
+@router.post("/elder/diaries/{diary_id}/read", status_code=204)
+def elder_mark_read(diary_id: int, device: CurrentDevice, db: DB):
+    """어르신 '다 들었어요'. 첫 열람 시각만 기록하고 다른 가족방 일기는 숨긴다 (FR-FD-004)."""
+    diary = db.get(Diary, diary_id)
+    if diary is None or diary.room_id != device.room_id or diary.author_type != "FAMILY" or diary.status != "POSTED":
+        raise ApiError(404, "DIARY_NOT_FOUND", "일기를 찾을 수 없어요")
+    db.execute(
+        update(Diary).where(Diary.diary_id == diary_id, Diary.elder_read_at.is_(None)).values(elder_read_at=now_kst())
+    )
+    db.commit()
 
 
 @router.post("/diaries/{diary_id}/read", status_code=204)

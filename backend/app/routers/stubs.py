@@ -11,9 +11,9 @@ from typing import Literal
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from app.deps import CurrentDevice, CurrentUser
+from app.deps import CurrentUser
 from app.errors import ApiError
-from app.schemas.diaries import DiaryListOut, DiaryOut
+from app.schemas.diaries import DiaryOut
 from app.schemas.photos import PhotoOut
 
 
@@ -56,21 +56,6 @@ class DiaryCreateIn(BaseModel):
 
 @diaries.post("/rooms/{room_id}/diaries", response_model=DiaryOut, status_code=201)
 def post_family_diary(room_id: int, body: DiaryCreateIn, user: CurrentUser):
-    todo("천주웅")
-
-
-@diaries.get("/elder/family-news", response_model=DiaryListOut)
-def elder_family_news(device: CurrentDevice):
-    """어르신이 아직 안 들은 가족 소식 (FR-FD-003)."""
-    todo("천주웅")
-
-
-@diaries.post("/elder/diaries/{diary_id}/read", status_code=204)
-def elder_mark_read(diary_id: int, device: CurrentDevice):
-    """어르신 '다 들었어요' (diaries.elder_read_at 을 지금으로, FR-FD-004). 기기 쿠키 전용.
-
-    이미 값이 있으면 그대로 두는 UPDATE 한 문장 (가족 '다 봤어요' mark_read 와 같은 방식). 다른 방 일기는 404.
-    """
     todo("천주웅")
 
 
