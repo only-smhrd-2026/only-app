@@ -1,4 +1,4 @@
-"""사진 올리기 (BE-02, FR-ME-001/002/004, D17). 목록 보기·정정은 아직 stubs.py 에 있다."""
+"""사진 올리기 (BE-02, FR-ME-001/002/004, D17). 정정은 아직 stubs.py 에 있다."""
 
 import io
 import logging
@@ -31,7 +31,7 @@ from app.config import (
 from app.deps import DB, CurrentUser, require_member
 from app.errors import ApiError
 from app.models import Photo
-from app.schemas.photos import PhotoBatchOut, PhotoOut
+from app.schemas.photos import PhotoBatchOut, PhotoListOut, PhotoOut
 from app.services import storage
 
 log = logging.getLogger("app.photos")
@@ -233,3 +233,21 @@ def upload_photos(room_id: int, user: CurrentUser, db: DB, form: Annotated[FormD
     finally:
         _upload_lock.release()
     return PhotoBatchOut(upload_batch_id=batch_id, photos=[photo_out(p) for p in photos])
+
+
+@router.get("", response_model=PhotoListOut)
+def list_photos(room_id: int, user: CurrentUser, db: DB):
+    """가족 화면에 올린 사진 목록, 최신 먼저 (FR-ME-004)."""
+    require_member(room_id, user, db)  # 로그인 안 함 401, 남의 가족방 404
+    # 어르신 사진첩(elder.py album)과 같은 조건 — 지운 사진·그림일기 사진(FAMILY_DIARY)은 빼고 같은 사진만 보인다
+    photos = db.scalars(
+        select(Photo)
+        .where(
+            Photo.room_id == room_id,
+            Photo.status == "ACTIVE",
+            Photo.source.in_(["FAMILY", "ELDER_CAMERA"]),
+        )
+        .order_by(Photo.uploaded_at.desc(), Photo.photo_id.desc())
+        .limit(100)  # 어르신 사진첩 album 과 같은 값 — 다듬기 때 config 로
+    ).all()
+    return PhotoListOut(photos=[photo_out(p) for p in photos])
