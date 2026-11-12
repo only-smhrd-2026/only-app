@@ -192,7 +192,8 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
       return present(r)
     }
     if (err instanceof ApiError && err.code === 'INPUT_LOCKED') return buttonsOnly(PROMPT.buttons)
-    if (err instanceof ApiError && err.code === 'SESSION_ENDED') return sayBye(ERROR_AI, null)
+    // 이미 끝난 대화(30분 지남·다른 곳에서 끝냄)는 오류가 아니다: 서버에 남은 종료 사유로 인사하고 끝낸다
+    if (err instanceof ApiError && err.code === 'SESSION_ENDED') return finish('NO_RESPONSE', PROMPT.thanks)
     // 15초 초과·네트워크 오류: 서버에 ERROR 로 끝내 달라고 한다 (하루 3회면 서버가 가족에게 알림).
     // 응답만 잃고 서버는 이미 끝냈을 수 있다(마지막 답 → COMPLETED·LIMIT). 그때는 서버가 돌려준 종료 사유를 따른다
     // — 일기는 COMPLETED 여야 확인 화면으로 가서 남는다.
@@ -333,6 +334,7 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
 
   useEffect(() => {
     alive.current = true
+    awayAt.current = Date.now() // 숨은 채로 열렸으면 이때부터 센다 (0 이면 돌아오자마자 '30분 지남'으로 끝남)
     // 한 틱 미뤄 시작: StrictMode 의 가짜 언마운트가 이 타이머를 지워서 첫 질문은 한 번만 읽힌다
     const start = window.setTimeout(() => present(initial), 0)
     const onShow = () => (document.hidden ? leave() : comeBack())
