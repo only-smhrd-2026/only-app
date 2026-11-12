@@ -1,0 +1,42 @@
+.elder-connect {
+  gap: 24px;
+  padding: 32px 24px;
+  background: #fffbf4;
+  color: #292e2e;
+  text-align: center;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.elder-connect .elder-text { font-size: max(32px, var(--elder-font-size)); }
+.elder-connect .elder-text--lg { font-size: max(40px, var(--elder-font-size-lg)); }
+.elder-connect-header { display: grid; gap: 8px; }
+.elder-connect-photo { display: block; align-self: center; max-width: 100%; height: auto; }
+.elder-connect-invitation { font-weight: 700; }
+.elder-connect-start {
+  flex-shrink: 0;
+  margin-top: 24px;
+  border-radius: 10px;
+  font-size: max(32px, var(--elder-btn-font));
+}
+.elder-connect-install {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid #bfbdb2;
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+}
+.elder-connect-permissions { display: grid; gap: 24px; text-align: left; }
+.elder-connect-bubble {
+  padding: 16px;
+  border: 1px solid #ff7a14;
+  border-radius: 14px;
+  background: #fff;
+  font-weight: 700;
+  text-align: center;
+}
+.elder-connect-mic { padding: 16px; border: 1px solid #ff7a14; border-radius: 10px; background: #fff7c7; }
+.elder-connect-message { text-align: left; }
+.elder-connect-start:focus-visible { outline: 4px solid #292e2e; outline-offset: 4px; }

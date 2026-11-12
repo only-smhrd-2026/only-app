@@ -10,28 +10,57 @@
 }
 
 .elder-home--preview {
-  height: 780px;
-  min-height: 0;
+  min-height: 780px;
   margin: 12px auto;
 }
 
-.elder-home-content { padding: 24px 24px 24px; }
+.elder-home-content { padding: 24px; }
+/* 팝업 뒤의 홈이 커져도 시트 기준은 휴대폰 화면 높이로 유지한다. */
+.elder-home-content[inert] { height: 100dvh; overflow: hidden; }
 .elder-home-date { margin: 0; font-size: max(32px, var(--elder-font-size)); line-height: 1.2; color: #292e2e; word-break: keep-all; }
-.elder-home-greeting { margin: 8px 0 0; font-size: max(32px, var(--elder-font-size)); line-height: 1.25; word-break: keep-all; }
+.elder-home-greeting { margin: 8px 0 0; font-size: max(32px, var(--elder-font-size)); line-height: 1.25; color: #292e2e; word-break: keep-all; }
+.elder-home-guide { display: flex; align-items: center; gap: 12px; margin-top: 24px; }
+.elder-home-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: #ff7a14;
+  color: #000;
+  font-size: 32px;
+  font-weight: 700;
+}
+.elder-home-bubble {
+  flex: 1;
+  min-width: 0;
+  padding: 16px 12px;
+  border: 1px solid #ff7a14;
+  border-radius: 14px;
+  background: #fff;
+  color: #292e2e;
+  font-size: max(32px, var(--elder-font-size));
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
 .elder-home-tiles {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
-  gap: 12px;
-  margin: 25px -10px 0;
+  align-items: stretch;
+  gap: 18px;
+  margin: 24px 0 0;
 }
 .elder-home-tile {
   width: 100%;
   min-height: 88px;
-  aspect-ratio: 1;
-  padding: 4px;
-  display: grid;
-  place-items: center;
+  padding: 20px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
   border: 2px solid var(--elder-primary);
   border-radius: 10px;
   background: var(--elder-primary);
@@ -43,10 +72,14 @@
   cursor: pointer;
 }
 .elder-home-tile--secondary { border-color: #292e2e; background: #fff; color: #292e2e; }
+.elder-home-tile img { display: block; flex-shrink: 0; }
 .elder-home-tile span { max-width: 100%; overflow-wrap: anywhere; }
 .elder-home-news { margin: 24px 0 0; font-size: max(32px, var(--elder-font-size)); line-height: 1.3; }
+.elder-home-news--card { padding: 16px 12px; border: 1px solid #bfbdb2; border-radius: 10px; background: #fff; color: #292e2e; }
+.elder-home-news--new { border: 2px solid #ff7a14; }
 .elder-home-pick { margin-top: 24px; font-size: max(32px, var(--elder-btn-font)); }
+.elder-home-tile:focus-visible, .elder-home-pick:focus-visible { outline: 4px solid #292e2e; outline-offset: 4px; }
 
 @media (max-width: 430px) {
-  .elder-home--preview { width: 100%; height: 100dvh; margin: 0; }
+  .elder-home--preview { width: 100%; min-height: 100dvh; margin: 0; }
 }
