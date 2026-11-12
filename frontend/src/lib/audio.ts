@@ -86,19 +86,26 @@ let current: HTMLAudioElement | null = null
 
 /**
  * mp3 재생. 끝까지 들려주면 true, stopSpeaking() 으로 멈추면 true, 전화벨·알람이 소리를 멈추면 false.
- * 재생하지 못하면 reject — 자동 재생 막힘은 NotAllowedError, 3초 안에 소리가 시작되지 않으면(망이 멈춤: error 없이 stalled 만 옴) Error.
+ * 재생하지 못하면 reject — 자동 재생 막힘은 NotAllowedError, 소리가 3초 안에 시작되지 않거나 나오다 끊긴 채 3초면
+ * (망이 멈춤: error 없이 stalled·waiting 만 옴) Error.
  */
 function play(src: string, rate: number): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const audio = new Audio(src)
     audio.defaultPlaybackRate = audio.playbackRate = rate // default 도 같이: 다시 불러올 때 1.0 으로 돌아가지 않게
     current = audio
-    const stalled = setTimeout(() => {
-      audio.onpause = null
-      audio.pause()
-      reject(new Error('stalled'))
-    }, 3_000)
+    let stalled = 0
     const settle = () => clearTimeout(stalled)
+    const wait = () => {
+      settle()
+      stalled = window.setTimeout(() => {
+        audio.onpause = null
+        audio.pause()
+        reject(new Error('stalled'))
+      }, 3_000)
+    }
+    wait()
+    audio.onwaiting = wait
     audio.onplaying = settle
     audio.onended = () => (settle(), resolve(true))
     // stopSpeaking() 은 current 를 비운 뒤 pause 이벤트가 온다 → 우리가 멈춘 것. current 그대로면 시스템이 멈춘 것(전화벨)
