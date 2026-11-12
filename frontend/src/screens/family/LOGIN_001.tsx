@@ -6,6 +6,7 @@ import { api, ApiError } from '../../api/client'
 import type { UserOut } from '../../api/types'
 import loginPreview from '../../assets/login-preview.svg'
 import { useFetch } from '../../hooks/useFetch'
+import { clearUploadDraft } from '../../lib/uploadDraft'
 
 type LoginScreen = 'start' | 'login' | 'signup'
 
@@ -46,6 +47,7 @@ export default function LOGIN_001() {
     setError(undefined)
     try {
       await api(signup ? '/api/auth/signup' : '/api/auth/login', { body })
+      clearUploadDraft() // 같은 창에서 앞 계정이 고르다 만 사진을 지운다 (뒤로 가기로 거슬러 가면 보이고 보낼 수 있었다)
       nav('/', { replace: true })
     } catch (err) {
       setError({ screen, text: (err as ApiError).message })
