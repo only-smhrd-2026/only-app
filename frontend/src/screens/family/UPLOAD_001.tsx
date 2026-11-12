@@ -72,7 +72,14 @@ export default function UPLOAD_001() {
   }
 
   if (rooms.error?.status === 401) return <Navigate to="/login" replace />
-  if (rooms.error) return <main className="page"><p className="error">{rooms.error.message}</p></main>
+  if (rooms.error) {
+    return (
+      <main className="page">
+        <p className="error">{rooms.error.message}</p>
+        <button className="btn" onClick={rooms.reload}>다시 시도</button>
+      </main>
+    )
+  }
   if (!rooms.data) return <main className="page"><p className="muted">불러오는 중…</p></main>
 
   if (rooms.data.length === 0) {

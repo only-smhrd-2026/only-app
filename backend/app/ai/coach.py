@@ -61,11 +61,13 @@ def _data(ctx: CoachContext, turn_no: int, closing: bool = False, max_turns: int
     }
 
 
-def _memory_data(ctx: CoachContext, turn_no: int, closing: bool = False, quiz: Quiz | None = None) -> dict[str, Any]:
+def _memory_data(
+    ctx: CoachContext, turn_no: int, closing: bool = False, quiz: Quiz | None = None, max_turns: int = MAX_TURNS
+) -> dict[str, Any]:
     """회상 대화용 데이터. 오늘 날짜·요일은 묻지 않고 말에 섞어 알려 주기 위해 넘긴다 (FR-AI-003)."""
     d = today_kst()
     quiz_data = {"prompt_text": quiz.prompt_text, "choices": quiz.choices} if quiz else None
-    return _data(ctx, turn_no, closing) | {
+    return _data(ctx, turn_no, closing, max_turns) | {
         "today": f"{d.month}월 {d.day}일 {WEEKDAYS[d.weekday()]}요일",
         "quiz": quiz_data,
     }
@@ -101,13 +103,16 @@ def _skipped_quiz(ctx: CoachContext) -> bool:
     return len(ctx.turns) >= 2 and bool(ctx.turns[-2].get("quiz")) and _is_skip(ctx.turns[-1]["text"])
 
 
-def next_question(ctx: CoachContext, turn_no: int, quiz: Quiz | None = None) -> tuple[CoachReply, str]:
+def next_question(
+    ctx: CoachContext, turn_no: int, quiz: Quiz | None = None, max_turns: int = MAX_TURNS
+) -> tuple[CoachReply, str]:
     """turn_no 번째 AI 말과 signal(NONE|SAD|STOP). quiz 가 있으면 맞장구 + 문제 은행 원문 (FR-AI-002).
 
+    max_turns = 이 대화의 최대 질문 수 (오늘의 한 장 8, 사진첩 2 — routers/sessions.py 가 넘긴다).
     signal 이 SAD·STOP 이면 reply 는 마무리 인사다 — 호출자가 대화를 끝낸다 (FR-AI-005).
     """
     try:
-        out = llm.call_json("memory_coach", _memory_data(ctx, turn_no, quiz=quiz), CoachTurn)
+        out = llm.call_json("memory_coach", _memory_data(ctx, turn_no, quiz=quiz, max_turns=max_turns), CoachTurn)
     except (llm.LlmError, NotImplementedError):
         return (_quiz_reply(quiz, "", []) if quiz else FALLBACK_QUESTION), "NONE"
     if out.signal != "NONE":
@@ -121,10 +126,10 @@ def next_question(ctx: CoachContext, turn_no: int, quiz: Quiz | None = None) -> 
     return CoachReply(text=out.text, suggestions=out.suggestions, question_type="RECALL"), "NONE"
 
 
-def closing(ctx: CoachContext, turn_no: int) -> tuple[CoachReply, str]:
+def closing(ctx: CoachContext, turn_no: int, max_turns: int = MAX_TURNS) -> tuple[CoachReply, str]:
     """마무리 인사와 signal. 마지막 답이 슬프면 SAD 로 남기도록 signal 도 돌려준다."""
     try:
-        out = llm.call_json("memory_coach", _memory_data(ctx, turn_no, closing=True), CoachTurn)
+        out = llm.call_json("memory_coach", _memory_data(ctx, turn_no, closing=True, max_turns=max_turns), CoachTurn)
     except (llm.LlmError, NotImplementedError):
         return FALLBACK_CLOSING, "NONE"
     return _closing_reply(out.text), out.signal

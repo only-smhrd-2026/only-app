@@ -2,8 +2,10 @@
 
 import uuid
 
+from sqlalchemy import select
+
 from app.db import SessionLocal
-from app.models import Diary, FamilyRoom
+from app.models import Diary, FamilyRoom, RoomMember
 from tests.conftest import setup_elder, signup
 
 
@@ -76,3 +78,18 @@ def test_family_cookie_is_not_device_auth(client):
     for response in (client.get("/api/elder/family-news"), client.post("/api/elder/diaries/999999/read")):
         assert response.status_code == 401
         assert response.json()["code"] == "DEVICE_REQUIRED"
+
+
+def test_news_carries_writer_nickname(client):
+    """가족 소식은 쓴 사람의 가족방 별명을 같이 준다 — 화면이 "큰딸 ○○" 로 읽는다. 어르신 일기·별명 없는 사람은 null."""
+    room_id = setup_elder(client)["room_id"]
+    first = _diary(room_id)
+    assert client.get("/api/elder/family-news").json()["diaries"][0]["author_nickname"] is None  # 별명을 안 정함
+    with SessionLocal() as db:
+        db.scalar(select(RoomMember).where(RoomMember.room_id == room_id)).nickname = "큰딸"
+        db.commit()
+    _diary(room_id, "ELDER")
+    news = client.get("/api/elder/family-news").json()["diaries"]
+    assert [(d["diary_id"], d["author_nickname"], d["author_name"]) for d in news] == [(first, "큰딸", "테스터")]
+    family = client.get(f"/api/rooms/{room_id}/diaries").json()["diaries"]  # 가족 목록도 같은 칸 (어르신 일기는 null)
+    assert {d["author_type"]: d["author_nickname"] for d in family} == {"FAMILY": "큰딸", "ELDER": None}

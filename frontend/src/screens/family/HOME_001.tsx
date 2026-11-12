@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import { MOOD_LABEL, type DiaryListOut, type InviteCreatedOut, type InviteKind, type RoomOut, type UserOut } from '../../api/types'
 import { useFetch } from '../../hooks/useFetch'
+import { clearUploadDraft } from '../../lib/uploadDraft'
 
 /**
  * 가족방 하나의 소식 (D36). 어르신이 일기를 올리면 가족 모두의 홈에 '새 일기 N개' 한 줄이 뜬다.
@@ -89,6 +90,7 @@ export default function HOME_001() {
 
   async function logout() {
     await api('/api/auth/logout', { method: 'POST' }).catch(() => {})
+    clearUploadDraft() // 고르다 만 사진을 다음 사람에게 남기지 않는다
     nav('/login', { replace: true })
   }
 

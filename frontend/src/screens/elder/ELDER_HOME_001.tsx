@@ -1,7 +1,7 @@
 /**
  * ELDER_HOME_001 — 어르신 홈. 오늘의 한 장이 있으면 홈 위에 시트를 띄운다.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { ElderHomeOut, SessionOut } from '../../api/types'
@@ -15,7 +15,11 @@ import ELDER_TODAY_001 from './ELDER_TODAY_001'
 import './ELDER_HOME_001.css'
 
 let closedPickId: number | null = null
-const STALE_MS = 30 * 60 * 1000
+const STALE_MS = 30 * 60 * 1000 // 이만큼 넘게 숨어 있다 돌아오면 홈을 다시 읽는다 (FR-ME-006, D45 ④)
+const RETRY_MS = 5_000 // 홈 읽기가 실패하면 이만큼 뒤에 다시 — 성공할 때까지
+
+/** 오늘 날짜(한국 시간) 글자. 날이 바뀌었는지 볼 때만 쓴다 */
+const kstDate = () => new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })
 
 // 백엔드 없이 11/10 화면을 확인하기 위한 개발 서버 전용 데이터.
 const previewHome: ElderHomeOut = {
@@ -35,7 +39,8 @@ export default function ELDER_HOME_001() {
   const home = preview ? previewHome : serverHome
   // 같은 pick 재시도는 같은 id, 날짜가 바뀌어 새 pick 이 오면 새 id 를 쓴다.
   const sessionIds = useRef(new Map<number, string>())
-  const hiddenAt = useRef<{ time: number; date: string } | null>(null)
+  const hiddenAt = useRef<number | null>(null) // 화면이 숨은 시각
+  const loadedDate = useRef<string | null>(null) // 홈을 마지막으로 읽은 날(한국 시간)
   const [busy, setBusy] = useState(false)
   const [startError, setStartError] = useState<string>()
   const [dismissedPickId, setDismissedPickId] = useState<number | null>(null)
@@ -52,23 +57,47 @@ export default function ELDER_HOME_001() {
   }, [home])
 
   useEffect(() => {
+    if (serverHome) loadedDate.current = kstDate()
+  }, [serverHome])
+
+  // 홈을 다시 읽는다. 날짜 글자도 같이 바꾸고, 앞서 뜬 오류 문장과 대화 번호는 비운다
+  // (서버는 30분 지난 대화를 끝난 것으로 봐서, 오래된 번호를 다시 쓰면 들어가자마자 끝난다)
+  const refresh = useCallback(() => {
+    sessionIds.current.clear()
+    setStartError(undefined)
+    setToday(new Date())
+    reload()
+  }, [reload])
+
+  useEffect(() => {
     if (preview) return
     const onVisibilityChange = () => {
-      const date = new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })
       if (document.visibilityState === 'hidden') {
-        hiddenAt.current = { time: Date.now(), date }
-      } else if (document.visibilityState === 'visible' && hiddenAt.current) {
-        const hidden = hiddenAt.current
-        hiddenAt.current = null
-        if (date !== hidden.date || Date.now() - hidden.time >= STALE_MS) {
-          setToday(new Date())
-          reload()
-        }
+        hiddenAt.current = Date.now()
+        return
       }
+      const hidden = hiddenAt.current
+      hiddenAt.current = null
+      // 마지막으로 읽은 날과 오늘이 다르거나(켜 둔 채 자정을 넘긴 경우 포함) 30분 넘게 숨어 있었을 때만 다시 읽는다
+      const dayChanged = loadedDate.current !== null && loadedDate.current !== kstDate()
+      const longHidden = hidden !== null && Date.now() - hidden >= STALE_MS
+      if (dayChanged || longHidden) refresh()
     }
     document.addEventListener('visibilitychange', onVisibilityChange)
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)
-  }, [preview, reload])
+  }, [preview, refresh])
+
+  // 홈 읽기가 실패하면 성공할 때까지 다시 읽는다 — 폰을 켠 직후에는 망이 아직 안 붙어 있을 때가 있다.
+  // 실패한 채 두면 어제 화면이 오늘 날짜로 남고, 그 팝업의 [건너뛰기]는 오늘 사진을 건너뛴다.
+  // 연결이 풀린 기기(401)는 다시 읽어도 같으니 그만둔다
+  useEffect(() => {
+    if (preview || !error || error.code === 'DEVICE_REQUIRED') return
+    const timer = window.setTimeout(reload, RETRY_MS)
+    return () => window.clearTimeout(timer)
+  }, [preview, error, reload])
+
+  // 홈을 떠나면 읽던 오류 문장을 끊는다 — 다음 화면 소리 위로 이어지지 않게
+  useEffect(() => () => stopSpeaking(), [])
 
   async function startMemory() {
     if (!home?.today_pick || busy) return
@@ -98,10 +127,13 @@ export default function ELDER_HOME_001() {
       nav(`/elder/memory/${sessionId}`, { state: { session: s, photoUrl: home.today_pick.photo_url, home } })
     } catch (e) {
       if (!live.current) return
-      const message = (e as ApiError).message
+      setBusy(false)
+      // 옛 화면에서 눌렀다(켜 둔 채 날이 바뀜·이미 건너뜀) → 서버가 409 로 알려 준다. 홈을 다시 읽어 오늘 것을 보여 준다 (D45 ④)
+      if (e instanceof ApiError && (e.code === 'PICK_EXPIRED' || e.code === 'PICK_SKIPPED')) return refresh()
+      // 서버 문장이 아닌 오류(응답이 중간에 끊김 등)는 영어라 그대로 보여 주거나 읽지 않는다
+      const message = e instanceof ApiError ? e.message : '대화를 시작하지 못했어요. 다시 눌러 주세요.'
       setStartError(message)
       void speak(message, Number(home.settings.tts_speed) || 0.85)
-      setBusy(false)
     }
   }
 
@@ -143,16 +175,18 @@ export default function ELDER_HOME_001() {
     }
   }
 
-  if (loading && !serverHome && !preview) return <main className="elder"><p className="elder-text">잠시만요…</p></main>
-  if (error && !serverHome && !preview)
+  // 읽은 홈이 있으면 다시 읽기에 실패해도 그대로 보여 준다(위에서 5초마다 다시 읽는 중). 연결이 풀린 기기만 안내로 바꾼다
+  if (error && !preview && (!serverHome || error.code === 'DEVICE_REQUIRED'))
     return (
       <main className="elder">
         <p className="elder-text">
-          {error.code === 'DEVICE_REQUIRED' ? '가족이 보낸 연결 링크를 먼저 열어 주세요.' : (error as ApiError).message}
+          {error.code === 'DEVICE_REQUIRED'
+            ? '가족이 보낸 연결 링크를 먼저 열어 주세요.'
+            : '연결이 잠깐 끊겼어요. 잠시 뒤에 다시 열어 볼게요.'}
         </p>
       </main>
     )
-  if (!home) return null
+  if (!home) return loading ? <main className="elder"><p className="elder-text">잠시만요…</p></main> : null
 
   const pick = home.today_pick
   const status = pick && pick.pick_id === skippedPickId ? 'SKIPPED' : pick?.status

@@ -4,16 +4,19 @@
  * 사진 설명(한마디)·사진 속 사람 칸은 서버 올리기 요청이 아직 받지 않아 없다(서버가 받게 되면 붙임).
  * 결과 화면 UPLOAD_003 은 나중에. 디자인 없음 (김승희 교체).
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { PhotoBatchOut, RoomOut } from '../../api/types'
 import { useFetch } from '../../hooks/useFetch'
-import { uploadDraft } from '../../lib/uploadDraft'
+import { clearUploadDraft, uploadDraft } from '../../lib/uploadDraft'
 import { PhotoGrid } from './UPLOAD_001'
 import './UPLOAD_002.css'
 
 type Result = { ok: boolean; text: string }
+
+// 사진 자체가 문제일 때 서버가 주는 코드 (routers/photos.py) — 어느 가족방에 보내도 같은 답이다
+const PHOTO_PROBLEMS = ['BAD_IMAGE', 'IMAGE_TOO_LARGE', 'PHOTO_TOO_BIG', 'TOO_MANY_PHOTOS']
 
 export default function UPLOAD_002() {
   const nav = useNavigate()
@@ -24,10 +27,26 @@ export default function UPLOAD_002() {
   const [unchecked, setUnchecked] = useState<Set<number>>(() => new Set())
   const [results, setResults] = useState<Record<number, Result>>({})
   const [busy, setBusy] = useState(false)
+  // 화면을 떠나면(뒤로 가기 등) 올리던 요청을 멈춘다. 안 멈추면 남은 가족방에 계속 올라가고,
+  // 그 사이 사진을 다시 골라 보내면 요청 번호가 달라 같은 사진이 두 번 저장된다
+  const leaving = useRef<AbortController | null>(null)
+  useEffect(() => {
+    const controller = new AbortController()
+    leaving.current = controller
+    return () => controller.abort()
+  }, [])
 
   if (draft.files.length === 0) return <Navigate to="/upload" replace /> // 새로고침 등으로 고른 사진이 없음
   if (rooms.error?.status === 401) return <Navigate to="/login" replace />
-  if (rooms.error) return <main className="page"><p className="error">{rooms.error.message}</p></main>
+  if (rooms.error) {
+    // 새로고침하면 고른 사진이 사라진다 — 그 자리에서 다시 읽게 한다
+    return (
+      <main className="page">
+        <p className="error">{rooms.error.message}</p>
+        <button className="btn" onClick={rooms.reload}>다시 시도</button>
+      </main>
+    )
+  }
   if (!rooms.data) return <main className="page"><p className="muted">불러오는 중…</p></main>
   if (rooms.data.length === 0) {
     return (
@@ -55,6 +74,7 @@ export default function UPLOAD_002() {
   }
 
   async function send(targets: RoomOut[]) {
+    const signal = leaving.current?.signal
     setBusy(true)
     const form = new FormData()
     draft.files.forEach((f) => form.append('files', f))
@@ -65,22 +85,31 @@ export default function UPLOAD_002() {
     for (const room of targets) {
       const name = `${room.elder_name} ${room.elder_honorific}`
       try {
-        const r = await api<PhotoBatchOut>(`/api/rooms/${room.room_id}/photos`, { form })
+        const r = await api<PhotoBatchOut>(`/api/rooms/${room.room_id}/photos`, { form, signal })
         next[room.room_id] = { ok: true, text: `${name}께 ${r.photos.length}장 보냈어요` }
       } catch (e) {
+        // 화면을 떠났다 — 남은 가족방에는 보내지 않는다. 고른 사진(uploadDraft)은 그대로 둔다
+        if (signal?.aborted) return
         // 고르는 사이 로그인이 풀림 — 다시 눌러도 계속 실패하니 로그인 화면으로
         if (e instanceof ApiError && e.status === 401) return nav('/login', { replace: true })
         const why = e instanceof ApiError ? e.message : '연결이 잠깐 끊겼어요. 다시 해 주세요.'
         next[room.room_id] = { ok: false, text: `${name}: ${why}` }
+        // 사진 자체가 문제면 남은 가족방에 같은 사진을 또 올리지 않는다(같은 답을 받으려고 수십 MB 를 다시 보냄).
+        // 아직 못 보낸 방에도 같은 이유를 적어 두고 멈춘다
+        if (e instanceof ApiError && PHOTO_PROBLEMS.includes(e.code)) {
+          for (const rest of targets) {
+            if (!next[rest.room_id]?.ok) next[rest.room_id] = { ok: false, text: `${rest.elder_name} ${rest.elder_honorific}: ${why}` }
+          }
+          setResults({ ...next })
+          break
+        }
       }
       setResults({ ...next }) // 한 곳씩 끝날 때마다 보여 준다
     }
     setBusy(false)
-    // 전부 성공하면 다음 사진 올리기를 위해 비운다. 실패가 남으면 그대로 — 뒤로 가도 같은 사진·같은 번호
-    if (Object.values(next).every((x) => x.ok)) {
-      uploadDraft.files = []
-      uploadDraft.batchId = ''
-    }
+    // 전부 성공하면 다음 사진 올리기를 위해 비운다. 실패가 남으면 그대로 — 뒤로 가도 같은 사진·같은 번호.
+    // 그 사이 사진을 새로 골랐으면(번호가 다름) 건드리지 않는다
+    if (Object.values(next).every((x) => x.ok) && uploadDraft.batchId === draft.batchId) clearUploadDraft()
   }
 
   return (

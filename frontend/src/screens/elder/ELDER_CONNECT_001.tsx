@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { DeviceOut, InviteStatusOut } from '../../api/types'
 import connectPreview from '../../assets/elder-connect-preview.svg'
-import { speak } from '../../lib/audio'
+import { speak, stopSpeaking } from '../../lib/audio'
 import './ELDER_CONNECT_001.css'
 
 export default function ELDER_CONNECT_001() {
@@ -24,12 +24,18 @@ export default function ELDER_CONNECT_001() {
   useEffect(() => {
     if (!token) return
     api<InviteStatusOut>('/api/invites/status', { body: { token } })
-      .then(setStatus)
+      .then(async (s) => {
+        // 이미 연결된 폰이 쓴 링크를 다시 연 경우(카톡의 같은 링크를 또 누름, 연결 도중 새로고침):
+        // '이 링크는 더 쓸 수 없어요'에서 막히지 않게 홈으로 보낸다. 기기 쿠키가 살아 있으면 홈이 열린다
+        if (!s.valid && (await api('/api/elder/home').then(() => true, () => false))) return nav('/elder', { replace: true })
+        setStatus(s)
+      })
       .catch((e: ApiError) => setError(e.message))
-  }, [token])
+  }, [token, nav])
 
   async function start() {
     if (busy) return
+    stopSpeaking() // 앞서 읽던 오류 문장을 끊는다 — 다시 눌러 성공하면 홈까지 이어져 읽힌다
     setBusy(true)
     setError(undefined)
     try {
@@ -50,7 +56,8 @@ export default function ELDER_CONNECT_001() {
       await api('/api/devices/me/permissions', { method: 'PATCH', body: { perm_mic } })
       nav('/elder', { replace: true })
     } catch (e) {
-      const message = (e as ApiError).message
+      // 서버 문장이 아닌 오류(응답이 중간에 끊김 등)는 영어라 그대로 보여 주거나 읽지 않는다
+      const message = e instanceof ApiError ? e.message : '연결하지 못했어요. 다시 눌러 주세요.'
       setError(message)
       void speak(message)
       setBusy(false)

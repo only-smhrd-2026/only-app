@@ -10,7 +10,14 @@ from starlette.datastructures import FormData, UploadFile
 from starlette.exceptions import HTTPException
 from starlette.requests import ClientDisconnect
 
-from app.config import PICK_SKIP_ALERT, UPLOAD_LOCK_WAIT_SEC, UPLOAD_MAX_BYTES, now_kst, today_kst
+from app.config import (
+    PHOTO_LIST_LIMIT,
+    PICK_SKIP_ALERT,
+    UPLOAD_LOCK_WAIT_SEC,
+    UPLOAD_MAX_BYTES,
+    now_kst,
+    today_kst,
+)
 from app.deps import DB, CurrentDevice
 from app.errors import ApiError
 from app.models import DailyPick, Diary, FamilyRoom, Photo
@@ -187,7 +194,7 @@ def album(device: CurrentDevice, db: DB):
             Photo.source.in_(["FAMILY", "ELDER_CAMERA"]),
         )
         .order_by(Photo.uploaded_at.desc(), Photo.photo_id.desc())
-        .limit(100)
+        .limit(PHOTO_LIST_LIMIT)  # 가족 사진 목록(routers/photos.py list_photos)과 같은 조건·순서·상한
     ).all()
     return AlbumOut(
         photos=[

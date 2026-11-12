@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import and_, func, or_, select, update
 
 from app.ai import coach, image, tts
 from app.config import DIARY_DRAFT_MIN, now_kst
@@ -143,15 +143,18 @@ def make_draft(session_id: uuid.UUID, device: CurrentDevice, db: DB):
 def _rows(db, room: FamilyRoom, *cond, me: int | None = None) -> list[DiaryOut]:
     """일기 행 → DiaryOut (최근 50개). me = 보는 가족 user_id, None 이면 어르신 기기가 보는 것."""
     rows = db.execute(
-        select(Diary, User.name, Photo.object_key)
+        select(Diary, User.name, Photo.object_key, RoomMember.nickname)
         .outerjoin(User, User.user_id == Diary.author_user_id)
         .outerjoin(Photo, Photo.photo_id == Diary.photo_id)
+        # 쓴 사람의 가족방 별명. (room_id, user_id) 는 한 줄뿐이라 일기가 겹쳐 나오지 않는다.
+        # 방에서 나간 사람도 그 줄은 남아 있다
+        .outerjoin(RoomMember, and_(RoomMember.room_id == Diary.room_id, RoomMember.user_id == Diary.author_user_id))
         .where(Diary.room_id == room.room_id, Diary.status == "POSTED", *cond)
         .order_by(Diary.posted_at.desc(), Diary.diary_id.desc())
         .limit(50)
     ).all()
     out = []
-    for d, name, photo_key in rows:
+    for d, name, photo_key, nickname in rows:
         mine = d.author_user_id == me if me is not None else d.author_type == "ELDER"
         by_elder = d.elder_read_at is not None
         by_me = me in d.family_read_by if me is not None else by_elder
@@ -162,6 +165,7 @@ def _rows(db, room: FamilyRoom, *cond, me: int | None = None) -> list[DiaryOut]:
                 room_id=d.room_id,
                 author_type=d.author_type,
                 author_name=f"{room.elder_name} {room.elder_honorific}" if d.author_type == "ELDER" else name,
+                author_nickname=nickname if d.author_type == "FAMILY" else None,
                 body=d.body,
                 mood=d.mood,
                 illustration_type=d.illustration_type,
@@ -223,7 +227,10 @@ def list_diaries(room_id: int, user: CurrentUser, db: DB):
 
 @router.get("/elder/family-news", response_model=DiaryListOut)
 def elder_family_news(device: CurrentDevice, db: DB):
-    """어르신이 아직 안 들은 이 가족방의 가족 일기 (FR-FD-003)."""
+    """어르신이 아직 안 들은 이 가족방의 가족 일기, 최근 50개 (FR-FD-003).
+
+    홈의 안 들은 소식 수(elder.py home)와 같은 조건. 50개가 넘으면 들은 뒤 다시 부를 때 나머지가 나온다.
+    """
     room = db.get(FamilyRoom, device.room_id)
     return DiaryListOut(diaries=_rows(db, room, Diary.author_type == "FAMILY", Diary.elder_read_at.is_(None)))
 
