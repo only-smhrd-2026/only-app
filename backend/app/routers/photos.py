@@ -17,6 +17,7 @@ from starlette.requests import ClientDisconnect
 
 from app.config import (
     JPEG_MAX_SCANS,
+    PHOTO_LIST_LIMIT,
     PHOTO_MAX_SIDE,
     UPLOAD_LOCK_WAIT_SEC,
     UPLOAD_MAX_BYTES,
@@ -248,6 +249,6 @@ def list_photos(room_id: int, user: CurrentUser, db: DB):
             Photo.source.in_(["FAMILY", "ELDER_CAMERA"]),
         )
         .order_by(Photo.uploaded_at.desc(), Photo.photo_id.desc())
-        .limit(100)  # 어르신 사진첩 album 과 같은 값 — 다듬기 때 config 로
+        .limit(PHOTO_LIST_LIMIT)  # 어르신 사진첩 album 과 같은 상수
     ).all()
     return PhotoListOut(photos=[photo_out(p) for p in photos])

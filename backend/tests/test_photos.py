@@ -11,11 +11,11 @@ import pytest
 from PIL import ExifTags, Image, ImageCms
 from sqlalchemy import func, select
 
-from app.config import UPLOAD_MAX_ICC_BYTES, settings
+from app.config import PHOTO_LIST_LIMIT, UPLOAD_MAX_ICC_BYTES, settings
 from app.db import SessionLocal, engine
 from app.models import Photo
 from app.routers import photos as photo_api
-from tests.conftest import make_room, signup
+from tests.conftest import add_photos, connect_device, make_room, signup
 
 
 def _jpeg() -> bytes:
@@ -521,6 +521,9 @@ def test_list_needs_login_and_membership(client):
     room_id = make_room(client)["room_id"]
     r = client.get(f"/api/rooms/{room_id + 999}/photos")
     assert r.status_code == 404 and r.json()["code"] == "ROOM_NOT_FOUND"
+    signup(client)  # 다른 가족 — 방은 있지만 구성원이 아니다. 없는 방과 똑같이 404
+    r = client.get(f"/api/rooms/{room_id}/photos")
+    assert r.status_code == 404 and r.json()["code"] == "ROOM_NOT_FOUND"
 
 
 def test_list_shows_elder_camera_but_not_diary_photo(client):
@@ -551,3 +554,16 @@ def test_list_same_batch_twice_is_3(client):
         r = client.post(f"/api/rooms/{room_id}/photos", files=files, data={"upload_batch_id": batch})
         assert r.status_code == 201
     assert len(_list(client, room_id)) == 3
+
+
+def test_list_same_as_elder_album(client):
+    """가족 사진 목록과 어르신 사진첩은 같은 사진·순서·상한(PHOTO_LIST_LIMIT) — 한쪽만 바꾸면 여기서 걸린다."""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    client.post(f"/api/rooms/{room_id}/photos", files=[("files", ("a.jpg", _jpeg(), "image/jpeg"))])
+    add_photos(room_id, PHOTO_LIST_LIMIT)  # 번호는 더 크지만 하루 전에 올린 사진 → 모두 상한 + 1장
+    connect_device(client, room_id)
+    album = [p["photo_id"] for p in client.get("/api/elder/album").json()["photos"]]
+    listed = [p["photo_id"] for p in _list(client, room_id)]
+    assert listed == album and len(album) == PHOTO_LIST_LIMIT
+    assert listed[0] == min(listed)  # 방금 올린 사진(번호는 가장 작음)이 맨 앞 — 올린 시각이 번호보다 먼저
