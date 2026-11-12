@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { DeviceOut, InviteStatusOut } from '../../api/types'
 import connectPreview from '../../assets/elder-connect-preview.svg'
-import { speak } from '../../lib/audio'
+import { speak, stopSpeaking } from '../../lib/audio'
 import './ELDER_CONNECT_001.css'
 
 export default function ELDER_CONNECT_001() {
@@ -30,6 +30,7 @@ export default function ELDER_CONNECT_001() {
 
   async function start() {
     if (busy) return
+    stopSpeaking() // 앞서 읽던 오류 문장을 끊는다 — 다시 눌러 성공하면 홈까지 이어져 읽힌다
     setBusy(true)
     setError(undefined)
     try {
@@ -50,7 +51,8 @@ export default function ELDER_CONNECT_001() {
       await api('/api/devices/me/permissions', { method: 'PATCH', body: { perm_mic } })
       nav('/elder', { replace: true })
     } catch (e) {
-      const message = (e as ApiError).message
+      // 서버 문장이 아닌 오류(응답이 중간에 끊김 등)는 영어라 그대로 보여 주거나 읽지 않는다
+      const message = e instanceof ApiError ? e.message : '연결하지 못했어요. 다시 눌러 주세요.'
       setError(message)
       void speak(message)
       setBusy(false)
