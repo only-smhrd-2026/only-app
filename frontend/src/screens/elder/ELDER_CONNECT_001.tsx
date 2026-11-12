@@ -24,9 +24,14 @@ export default function ELDER_CONNECT_001() {
   useEffect(() => {
     if (!token) return
     api<InviteStatusOut>('/api/invites/status', { body: { token } })
-      .then(setStatus)
+      .then(async (s) => {
+        // 이미 연결된 폰이 쓴 링크를 다시 연 경우(카톡의 같은 링크를 또 누름, 연결 도중 새로고침):
+        // '이 링크는 더 쓸 수 없어요'에서 막히지 않게 홈으로 보낸다. 기기 쿠키가 살아 있으면 홈이 열린다
+        if (!s.valid && (await api('/api/elder/home').then(() => true, () => false))) return nav('/elder', { replace: true })
+        setStatus(s)
+      })
       .catch((e: ApiError) => setError(e.message))
-  }, [token])
+  }, [token, nav])
 
   async function start() {
     if (busy) return
