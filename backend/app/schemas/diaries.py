@@ -35,6 +35,9 @@ class DiaryOut(BaseModel):
     room_id: int
     author_type: Literal["ELDER", "FAMILY"]
     author_name: str | None  # 어르신 일기면 "순자 할머니", 가족 일기면 가족 이름
+    # 가족 일기를 쓴 사람이 가족방에 들어올 때 정한 별명(예: "큰딸"). 없거나 어르신 일기면 null.
+    # 어르신 가족 소식 화면이 "큰딸 ○○" 처럼 관계와 이름을 같이 읽는다 (화면설계서 ELDER_FAMILY_001 ①)
+    author_nickname: str | None = None
     body: str
     mood: Mood
     illustration_type: IllustrationType

@@ -104,6 +104,7 @@ export type DiaryOut = {
   room_id: number
   author_type: 'ELDER' | 'FAMILY'
   author_name: string | null
+  author_nickname: string | null // 가족방 별명(예: 큰딸). 가족 일기에만, 없으면 null — 어르신 가족 소식이 '큰딸 ○○'로 읽는다
   body: string
   mood: Mood
   illustration_type: IllustrationType
