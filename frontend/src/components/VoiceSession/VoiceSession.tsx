@@ -51,13 +51,12 @@ type Props = {
   speed: number
   inputMode: 'VOICE' | 'BUTTON'
   onEnded: (result: SessionOut) => void
-  maxTurns?: number // 회상 8 (서버 MAX_TURNS), 일기 3 (서버 DIARY_TURNS)
+  maxTurns?: number // 회상 8 (서버 MAX_TURNS), 일기 3 (서버 DIARY_TURNS). 진행 숫자는 11/12 뺐다(설계서에 없음) — 받기만 함
 }
 
-export default function VoiceSession({ sessionId, initial, speed, inputMode, onEnded, maxTurns = 8 }: Props) {
+export default function VoiceSession({ sessionId, initial, speed, inputMode, onEnded }: Props) {
   const [phase, setPhase] = useState<Phase>('IDLE')
   const [ai, setAi] = useState<AiOut>(initial.ai)
-  const [turnNo, setTurnNo] = useState(initial.turn_no)
   const [locked, setLocked] = useState(initial.input_locked || inputMode === 'BUTTON')
   const [heard, setHeard] = useState<SttOut>()
   const [note, setNote] = useState<string>()
@@ -135,7 +134,6 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
     clearTimers() // 다시 듣기: 기다리던 20초 무응답을 멈추고 다 읽은 뒤 새로 센다
     last.current = r
     setAi(r.ai)
-    setTurnNo(r.turn_no)
     setNote(undefined) // 4초 '조금만 기다려 주세요'·실패 안내는 새 질문에서 지운다 (남으면 어르신이 기다리기만 함)
     if (r.input_locked) setLocked(true)
     if (away.current) return // 숨어 있으면 돌아와서 이 질문부터 읽는다
@@ -353,11 +351,6 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 글이 바뀌면 맨 아래로: 사진이 크고 질문이 길면(40자 넘음) 글 끝이 아래에 붙인 버튼에 가려진다 → 대신 사진 위쪽이 밀린다
-  useEffect(() => {
-    window.scrollTo(0, document.documentElement.scrollHeight)
-  }, [ai.text, heard, phase, note])
-
   // 칩이 없으면 기본 칩. 마무리 인사에는 칩이 없다
   const given = ai.suggestions
   const chips =
@@ -367,53 +360,48 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
   const confirming = phase === 'CONFIRMING' && heard
   const canStop = phase === 'WAITING' || phase === 'CONFIRMING' || phase === 'TAP'
   const bold = { fontWeight: 700 } // 자막은 32px 굵게 — 40px 이면 긴 질문(40자 넘음)이 6줄이라 한 화면을 넘는다 (11/12 갤럭시)
+  // 아래 버튼 높이 (11/12 사용자: 갤럭시에서 아래가 너무 큼 → 칩 56·결정 64·보조 48, D48). 요구사항(결정 88·칩 64px)보다 작다
+  const main = { minHeight: 64 }
+  const chip = { minHeight: 56, flex: '1 1 40%' }
+  const aid = { minHeight: 48, fontSize: 28 }
+  const row = { display: 'flex', gap: 12 }
   return (
-    <section className="elder-stack" aria-live="polite" style={{ flex: 1 }}>
-      <p className="muted" style={{ margin: 0 }}>{turnNo} / {maxTurns}</p>
-
-      {confirming ? (
-        <>
-          <p className="elder-text" style={bold}>“{heard.transcript}”</p>
-          {heard.confidence < LOW_CONF && <p className="elder-text">잘 들었는지 확인해 주세요. 맞으면 [맞아요]를 눌러 주세요.</p>}
-        </>
-      ) : (
-        <>
-          <p className="elder-text" style={bold}>{ai.text}</p>
-          {note && <p className="elder-text">{note}</p>}
-          {phase === 'THINKING' && <p className="elder-text">생각하고 있어요…</p>}
-          {phase === 'RECORDING' && <p className="elder-text">듣고 있어요…</p>}
-        </>
-      )}
-
-      {/* 누르는 버튼은 화면 아래에 붙여 둔다: 사진·질문이 길어도 스크롤 없이 누른다 (11/12 갤럭시). 위 글은 그 뒤로 밀린다.
-          대화 중에는 단계가 바뀌어도 같은 자리에 같은 버튼: 손 밑에 다른 버튼이 오지 않게 */}
-      <div
-        className="elder-stack"
-        style={{ position: 'sticky', bottom: 0, marginTop: 'auto', paddingBlock: 'var(--elder-gap)', background: 'var(--elder-bg)' }}
-      >
+    <section className="elder-stack" aria-live="polite">
+      <div className="elder-stack">
         {confirming ? (
           <>
-            <button className="elder-btn" onClick={() => confirmHeard(heard)}>맞아요</button>
-            <button className="elder-btn elder-btn--secondary" onClick={retryHeard}>다시 말할게요</button>
+            <p className="elder-text" style={bold}>“{heard.transcript}”</p>
+            {heard.confidence < LOW_CONF && <p className="elder-text">잘 들었는지 확인해 주세요. 맞으면 [맞아요]를 눌러 주세요.</p>}
+          </>
+        ) : (
+          <>
+            <p className="elder-text" style={bold}>{ai.text}</p>
+            {note && <p className="elder-text">{note}</p>}
+            {phase === 'THINKING' && <p className="elder-text">생각하고 있어요…</p>}
+            {phase === 'RECORDING' && <p className="elder-text">듣고 있어요…</p>}
+          </>
+        )}
+      </div>
+
+      {/* 버튼은 글 아래 순서대로, 스크롤 없음(화면 높이는 부르는 화면이 맞춘다 — ELDER_MEMORY_001 은 사진이 줄어듦, 11/12).
+          대화 중에는 단계가 바뀌어도 같은 자리에 같은 버튼: 손 밑에 다른 버튼이 오지 않게 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {confirming ? (
+          <>
+            <button className="elder-btn" style={main} onClick={() => confirmHeard(heard)}>맞아요</button>
+            <button className="elder-btn elder-btn--secondary" style={main} onClick={retryHeard}>다시 말할게요</button>
           </>
         ) : (
           phase !== 'ENDED' && (
             <>
               {chips.length > 0 && (
                 // 칩은 한 줄에 둘씩. 기다릴 때만 보이고, 그 밖에는 자리만 남긴다 (visibility)
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: 'var(--elder-gap)',
-                    visibility: phase === 'WAITING' ? 'visible' : 'hidden',
-                  }}
-                >
+                <div style={{ ...row, flexWrap: 'wrap', visibility: phase === 'WAITING' ? 'visible' : 'hidden' }}>
                   {chips.map((s) => (
                     <button
                       key={s}
                       className="elder-chip"
-                      style={{ flex: '1 1 40%' }}
+                      style={chip}
                       onClick={() => sendTurn({ text: s, input_type: ai.choice_mode === 'TWO_BUTTONS' ? 'BUTTON' : 'CHIP' })}
                     >
                       {s}
@@ -422,17 +410,17 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
                 </div>
               )}
               {phase === 'TAP' ? (
-                <button className="elder-btn" onClick={() => present(last.current)}>
+                <button className="elder-btn" style={main} onClick={() => present(last.current)}>
                   눌러서 들어 보세요
                 </button>
               ) : phase === 'RECORDING' ? (
                 // 처음 1초는 끔: [말하기]를 두 번 톡톡 누르면 빈 녹음이 STT 실패로 세어진다
-                <button className="elder-btn" onClick={finishRecording} disabled={left >= RECORD_MS / 1000}>
+                <button className="elder-btn" style={main} onClick={finishRecording} disabled={left >= RECORD_MS / 1000}>
                   다 말했어요 ({left}초)
                 </button>
               ) : (
                 !locked && (
-                  <button className="elder-btn" onClick={beginRecording} disabled={phase !== 'WAITING'}>
+                  <button className="elder-btn" style={main} onClick={beginRecording} disabled={phase !== 'WAITING'}>
                     {phase === 'WAITING' ? '말하기' : phase === 'SPEAKING' ? '말하는 중…' : '잠깐만요…'}
                   </button>
                 )
@@ -442,9 +430,10 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
         )}
 
         {/* 보조 버튼은 늘 맨 아래 같은 자리, 한 줄에 반씩 (화면설계서: 왼쪽 아래 다시 듣기, 오른쪽 아래 그만) */}
-        <div style={{ display: 'flex', gap: 'var(--elder-gap)' }}>
+        <div style={row}>
           <button
             className="elder-btn elder-btn--secondary"
+            style={aid}
             onClick={() => present(last.current)}
             disabled={phase !== 'WAITING' && phase !== 'TAP'}
           >
@@ -452,6 +441,7 @@ export default function VoiceSession({ sessionId, initial, speed, inputMode, onE
           </button>
           <button
             className="elder-btn elder-btn--secondary"
+            style={aid}
             onClick={() => void finish('USER_STOP', PROMPT.bye)}
             disabled={!canStop}
           >
