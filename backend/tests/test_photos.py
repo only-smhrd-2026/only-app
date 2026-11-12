@@ -481,3 +481,73 @@ def test_blank_batch_id_is_none_and_bad_one_is_422(client):
     assert r.status_code == 422 and r.json()["code"] == "VALIDATION"
     r = client.post(url, data={"upload_batch_id": str(uuid.uuid4())})
     assert r.status_code == 422 and r.json()["code"] == "VALIDATION"
+
+
+# ---------------------------------------------------------------- 사진 목록 (GET, FR-ME-004)
+def _list(client, room_id: int) -> list[dict]:
+    r = client.get(f"/api/rooms/{room_id}/photos")
+    assert r.status_code == 200, r.text
+    return r.json()["photos"]
+
+
+def test_list_newest_first(client):
+    """1장 → 2장 올리면 목록 3장. 나중에 올린 2장이 앞, 같은 요청 안에서는 photo_id 큰 것이 앞."""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    url = f"/api/rooms/{room_id}/photos"
+    first = client.post(url, files=[("files", ("a.jpg", _jpeg(), "image/jpeg"))]).json()["photos"]
+    files = [("files", (f"{i}.jpg", _jpeg(), "image/jpeg")) for i in range(2)]
+    second = client.post(url, files=files).json()["photos"]
+    ids = [p["photo_id"] for p in _list(client, room_id)]
+    assert ids == [second[1]["photo_id"], second[0]["photo_id"], first[0]["photo_id"]]
+
+
+def test_list_hides_deleted_photo(client):
+    """지운 사진(DELETED)은 목록에 없다."""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    files = [("files", (f"{i}.jpg", _jpeg(), "image/jpeg")) for i in range(2)]
+    kept, gone = client.post(f"/api/rooms/{room_id}/photos", files=files).json()["photos"]
+    with SessionLocal() as db:
+        db.get(Photo, gone["photo_id"]).status = "DELETED"
+        db.commit()
+    assert [p["photo_id"] for p in _list(client, room_id)] == [kept["photo_id"]]
+
+
+def test_list_needs_login_and_membership(client):
+    """로그인 안 함 401, 남의 가족방 404 ROOM_NOT_FOUND (있는지도 모르게)."""
+    assert client.get("/api/rooms/1/photos").status_code == 401
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    r = client.get(f"/api/rooms/{room_id + 999}/photos")
+    assert r.status_code == 404 and r.json()["code"] == "ROOM_NOT_FOUND"
+
+
+def test_list_shows_elder_camera_but_not_diary_photo(client):
+    """어르신 사진첩(album)과 같은 사진만 — 어르신 카메라(ELDER_CAMERA)는 보이고 그림일기(FAMILY_DIARY)는 빠짐."""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    files = [("files", (f"{i}.jpg", _jpeg(), "image/jpeg")) for i in range(2)]
+    camera, diary = client.post(f"/api/rooms/{room_id}/photos", files=files).json()["photos"]
+    with SessionLocal() as db:
+        db.get(Photo, camera["photo_id"]).source = "ELDER_CAMERA"
+        db.get(Photo, diary["photo_id"]).source = "FAMILY_DIARY"
+        db.commit()
+    assert [p["photo_id"] for p in _list(client, room_id)] == [camera["photo_id"]]
+
+
+def test_list_empty_room(client):
+    signup(client)
+    assert _list(client, make_room(client)["room_id"]) == []
+
+
+def test_list_same_batch_twice_is_3(client):
+    """이슈 #10 다 됐다: 같은 upload_batch_id 로 JPEG 3장을 두 번 보내도 목록은 3장."""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    files = [("files", (f"{i}.jpg", _jpeg(), "image/jpeg")) for i in range(3)]
+    batch = str(uuid.uuid4())
+    for _ in range(2):
+        r = client.post(f"/api/rooms/{room_id}/photos", files=files, data={"upload_batch_id": batch})
+        assert r.status_code == 201
+    assert len(_list(client, room_id)) == 3

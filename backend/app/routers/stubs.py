@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from app.deps import CurrentDevice, CurrentUser
 from app.errors import ApiError
 from app.schemas.diaries import DiaryListOut, DiaryOut
-from app.schemas.photos import PhotoListOut, PhotoOut
+from app.schemas.photos import PhotoOut
 
 
 def todo(owner: str):
@@ -29,12 +29,7 @@ class PhotoCorrectIn(BaseModel):
     corrected_activity: str = Field(max_length=20)
 
 
-# 사진 올리기(POST)는 routers/photos.py 로 옮김 (박유승, BE-02)
-
-
-@photos.get("", response_model=PhotoListOut)
-def list_photos(room_id: int, user: CurrentUser):
-    todo("천주웅")
+# 사진 올리기(POST)·목록(GET)은 routers/photos.py 로 옮김 (박유승, BE-02)
 
 
 @photos.patch("/{photo_id}/correction", response_model=PhotoOut)
