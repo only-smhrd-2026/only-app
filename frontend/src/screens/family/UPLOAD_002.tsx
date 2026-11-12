@@ -1,0 +1,134 @@
+/**
+ * UPLOAD_002 — 사진 올리기 2/2: 보낼 가족방 고르기·보내기 (FR-ME-002 중 받는 가족방 고르기, D17).
+ * UPLOAD_001 이 uploadDraft 에 넣은 사진·요청 번호를 체크한 가족방마다 보낸다.
+ * 사진 설명(한마디)·사진 속 사람 칸은 서버 올리기 요청이 아직 받지 않아 없다(서버가 받게 되면 붙임).
+ * 결과 화면 UPLOAD_003 은 나중에. 디자인 없음 (김승희 교체).
+ */
+import { useState } from 'react'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { api, ApiError } from '../../api/client'
+import type { PhotoBatchOut, RoomOut } from '../../api/types'
+import { useFetch } from '../../hooks/useFetch'
+import { uploadDraft } from '../../lib/uploadDraft'
+import { PhotoGrid } from './UPLOAD_001'
+import './UPLOAD_002.css'
+
+type Result = { ok: boolean; text: string }
+
+export default function UPLOAD_002() {
+  const nav = useNavigate()
+  // 열 때 한 번만 복사 — 전부 성공해서 uploadDraft 를 비워도 이 화면의 사진·결과는 그대로 남게
+  const [draft] = useState(() => ({ ...uploadDraft }))
+  const rooms = useFetch<RoomOut[]>(draft.files.length > 0 ? '/api/rooms' : null)
+  // 처음엔 전부 체크(기본은 내가 속한 가족방 전부). '체크를 푼 가족방'만 적어 두면 목록이 늦게 와도 따로 채울 필요가 없다
+  const [unchecked, setUnchecked] = useState<Set<number>>(() => new Set())
+  const [results, setResults] = useState<Record<number, Result>>({})
+  const [busy, setBusy] = useState(false)
+
+  if (draft.files.length === 0) return <Navigate to="/upload" replace /> // 새로고침 등으로 고른 사진이 없음
+  if (rooms.error?.status === 401) return <Navigate to="/login" replace />
+  if (rooms.error) return <main className="page"><p className="error">{rooms.error.message}</p></main>
+  if (!rooms.data) return <main className="page"><p className="muted">불러오는 중…</p></main>
+  if (rooms.data.length === 0) {
+    return (
+      <main className="page">
+        <h1>올릴 가족방 고르기</h1>
+        <p>먼저 가족방을 만들어 주세요</p>
+        <Link className="btn" to="/groups/new">가족방 만들기</Link>
+      </main>
+    )
+  }
+
+  const list = rooms.data
+  const checked = list.filter((r) => !unchecked.has(r.room_id))
+  const sent = Object.keys(results).length > 0
+  const failed = list.filter((r) => results[r.room_id]?.ok === false)
+  const allOk = sent && !busy && failed.length === 0
+
+  function toggle(roomId: number) {
+    setUnchecked((s) => {
+      const next = new Set(s)
+      if (next.has(roomId)) next.delete(roomId)
+      else next.add(roomId)
+      return next
+    })
+  }
+
+  async function send(targets: RoomOut[]) {
+    setBusy(true)
+    const form = new FormData()
+    draft.files.forEach((f) => form.append('files', f))
+    // 가족방마다 같은 번호여도 된다 — 서버는 '같은 가족방 + 같은 번호'만 같은 요청으로 본다 (D17)
+    form.append('upload_batch_id', draft.batchId)
+    const next = { ...results }
+    // 차례로 보낸다(동시에 말고) — 서버가 사진 변환을 한 번에 한 요청씩 하므로
+    for (const room of targets) {
+      const name = `${room.elder_name} ${room.elder_honorific}`
+      try {
+        const r = await api<PhotoBatchOut>(`/api/rooms/${room.room_id}/photos`, { form })
+        next[room.room_id] = { ok: true, text: `${name}께 ${r.photos.length}장 보냈어요` }
+      } catch (e) {
+        // 고르는 사이 로그인이 풀림 — 다시 눌러도 계속 실패하니 로그인 화면으로
+        if (e instanceof ApiError && e.status === 401) return nav('/login', { replace: true })
+        const why = e instanceof ApiError ? e.message : '연결이 잠깐 끊겼어요. 다시 해 주세요.'
+        next[room.room_id] = { ok: false, text: `${name}: ${why}` }
+      }
+      setResults({ ...next }) // 한 곳씩 끝날 때마다 보여 준다
+    }
+    setBusy(false)
+    // 전부 성공하면 다음 사진 올리기를 위해 비운다. 실패가 남으면 그대로 — 뒤로 가도 같은 사진·같은 번호
+    if (Object.values(next).every((x) => x.ok)) {
+      uploadDraft.files = []
+      uploadDraft.batchId = ''
+    }
+  }
+
+  return (
+    <main className="page">
+      <h1>올릴 가족방 고르기</h1>
+      <section className="card">
+        <p className="upload-count">사진 {draft.files.length}장</p>
+        <PhotoGrid files={draft.files} />
+      </section>
+      <section className="card">
+        {list.map((room) => (
+          <label key={room.room_id} className="row upload-room">
+            {/*
+              한 번 보낸 뒤에는 체크를 계속 잠근다(할 일은 '보내는 동안'만 잠금 — 사용자와 정해 더함).
+              보낸 뒤 체크를 바꾸면 체크·결과 줄·[실패한 곳 다시 보내기] 대상이 서로 달라져 헷갈린다.
+              다른 가족방에 더 보내려면 [사진 더 올리기]로 처음부터.
+            */}
+            <input
+              type="checkbox"
+              checked={!unchecked.has(room.room_id)}
+              onChange={() => toggle(room.room_id)}
+              disabled={busy || sent}
+            />
+            {room.elder_name} {room.elder_honorific}
+          </label>
+        ))}
+        {!sent && (
+          <button className="btn" onClick={() => send(checked)} disabled={busy || checked.length === 0}>
+            {busy ? '보내는 중…' : '보내기'}
+          </button>
+        )}
+        {list.map((room) => {
+          const r = results[room.room_id]
+          return r && <p key={room.room_id} className={r.ok ? undefined : 'error'}>{r.text}</p>
+        })}
+        {sent && busy && <p className="muted">보내는 중…</p>}
+        {allOk && <p>내일부터 오늘의 한 장 후보가 돼요.</p>}
+        {/* 실패가 남아도 나가는 버튼은 늘 보인다 — 계속 실패하는 가족방(예: 방에서 나가짐)이 있어도 다시 보내기만 누르며 갇히지 않게 */}
+        {sent && !busy && (
+          <div className="row">
+            {failed.length > 0 && (
+              <button className="btn" onClick={() => send(failed)}>실패한 곳 다시 보내기</button>
+            )}
+            <Link className="btn secondary" to="/upload">사진 더 올리기</Link>
+            <Link className={failed.length > 0 ? 'btn secondary' : 'btn'} to="/">가족 홈으로</Link>
+          </div>
+        )}
+      </section>
+    </main>
+  )
+}

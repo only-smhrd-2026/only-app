@@ -1,0 +1,4 @@
+/* UPLOAD_002 가족방 고르기. 사진 격자(.upload-grid)는 UPLOAD_001.css, 나머지는 index.css 공통 클래스 */
+.upload-count { margin: 0 0 8px; }
+.upload-room { padding: 8px 0; font-size: 18px; } /* 체크 상자 줄 — 손가락으로 누르기 쉽게 */
+.upload-room input { width: 22px; height: 22px; }
