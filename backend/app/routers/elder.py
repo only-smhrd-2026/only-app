@@ -1,17 +1,92 @@
 """어르신 홈·오늘의 한 장·사진첩 (기기 쿠키)."""
 
-from fastapi import APIRouter
-from sqlalchemy import func, select, update
+import uuid
+from collections.abc import AsyncIterator
+from typing import Annotated
 
-from app.config import PICK_SKIP_ALERT, now_kst, today_kst
+from fastapi import APIRouter, Depends, Request
+from sqlalchemy import func, select, update
+from starlette.datastructures import FormData, UploadFile
+from starlette.exceptions import HTTPException
+from starlette.requests import ClientDisconnect
+
+from app.config import PICK_SKIP_ALERT, UPLOAD_LOCK_WAIT_SEC, UPLOAD_MAX_BYTES, now_kst, today_kst
 from app.deps import DB, CurrentDevice
+from app.errors import ApiError
 from app.models import DailyPick, Diary, FamilyRoom, Photo
 from app.routers.devices import notify_family
+from app.routers.photos import _UPLOAD_BODY, _upload_lock, photo_out, to_jpeg
 from app.schemas.common import OkOut
 from app.schemas.elder import AlbumOut, AlbumPhotoOut, ElderHomeOut, ElderSettingsOut, TodayPickOut
-from app.services import picks
+from app.schemas.photos import PhotoOut
+from app.services import picks, storage
 
 router = APIRouter(prefix="/elder", tags=["elder"])
+
+
+def _device_first(device: CurrentDevice, db: DB) -> None:
+    """기기를 확인한 뒤 본문 수신·잠금 대기 전에 DB 연결을 돌려준다 (D17)."""
+    db.close()
+
+
+async def _camera_form(request: Request, _: Annotated[None, Depends(_device_first)]) -> AsyncIterator[FormData]:
+    """연결된 기기에서 사진 한 장과 재전송 번호만 받는다."""
+    try:
+        form = await request.form(max_files=1, max_fields=1)
+    except HTTPException as e:
+        if str(e.detail).startswith("Too many files"):
+            raise ApiError(400, "TOO_MANY_PHOTOS", "사진은 한 번에 1장만 올려요") from None
+        raise
+    except ClientDisconnect:
+        raise ApiError(400, "UPLOAD_CUT", "사진을 다 받지 못했어요. 다시 올려 주세요") from None
+    try:
+        yield form
+    finally:
+        await form.close()
+
+
+@router.post("/photos", response_model=PhotoOut, status_code=201, openapi_extra=_UPLOAD_BODY)
+def camera_photo(device: CurrentDevice, db: DB, form: Annotated[FormData, Depends(_camera_form)]):
+    """카메라 사진을 JPEG 로 저장하고 같은 요청 번호의 재전송은 기존 사진을 돌려준다."""
+    files = [f for f in form.getlist("files") if isinstance(f, UploadFile)]
+    if not files:
+        raise ApiError(422, "VALIDATION", "사진을 골라 주세요")
+    raw = form.get("upload_batch_id")
+    try:
+        upload_batch_id = uuid.UUID(str(raw)) if raw else None
+    except ValueError:
+        raise ApiError(422, "VALIDATION", "입력값이 올바르지 않습니다") from None
+    photo_file = files[0]
+    if photo_file.size is None or photo_file.size > UPLOAD_MAX_BYTES:
+        raise ApiError(400, "PHOTO_TOO_BIG", f"한 장은 {UPLOAD_MAX_BYTES // (1024 * 1024)}MB까지예요")
+    if not _upload_lock.acquire(timeout=UPLOAD_LOCK_WAIT_SEC):
+        raise ApiError(503, "UPLOAD_BUSY", "다른 사진을 올리는 중이에요. 잠시 뒤 다시 올려 주세요")
+    try:
+        if upload_batch_id:
+            done = db.scalar(
+                select(Photo)
+                .where(Photo.room_id == device.room_id, Photo.upload_batch_id == upload_batch_id)
+                .order_by(Photo.photo_id)
+            )
+            if done:
+                return photo_out(done)
+        jpeg, taken_at = to_jpeg(photo_file.file.read())
+        batch_id = upload_batch_id or uuid.uuid4()
+        key = f"rooms/{device.room_id}/{batch_id}/0.jpg"
+        storage.put(key, jpeg)
+        photo = Photo(
+            room_id=device.room_id,
+            uploaded_by=None,
+            upload_batch_id=batch_id,
+            object_key=key,
+            taken_at=taken_at,
+            source="ELDER_CAMERA",
+        )
+        db.add(photo)
+        db.commit()
+    finally:
+        _upload_lock.release()
+    return photo_out(photo)
 
 
 def _greeting(room: FamilyRoom) -> str:
