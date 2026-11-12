@@ -1,0 +1,11 @@
+/* UPLOAD_001 고른 사진 3칸 격자. 나머지 모양은 index.css 공통 클래스 */
+.upload-file { max-width: 100%; }
+.upload-grid {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)); /* minmax(0,…) — 큰 사진이 칸을 밀어 옆으로 넘치지 않게 */
+  gap: 4px;
+}
+.upload-grid img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; }

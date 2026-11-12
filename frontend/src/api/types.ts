@@ -80,6 +80,9 @@ export type TurnIn = {
 }
 
 export type AlbumOut = { photos: { photo_id: number; url: string; taken_at: string | null; caption: string | null }[] }
+// ---- 사진 올리기 (backend/app/schemas/photos.py, D17)
+export type PhotoOut = { photo_id: number; url: string; taken_at: string | null; caption: string | null; people_note: string | null; status: string }
+export type PhotoBatchOut = { upload_batch_id: string; photos: PhotoOut[] }
 
 // ---- 일기 (backend/app/schemas/diaries.py, D36)
 export type Mood = 'SUNNY' | 'CLOUDY' | 'RAINY' | 'MOON'

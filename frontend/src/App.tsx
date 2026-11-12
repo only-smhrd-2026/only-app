@@ -15,6 +15,7 @@ import ELDER_MEMORY_001 from './screens/elder/ELDER_MEMORY_001'
 import GROUP_001 from './screens/family/GROUP_001'
 import HOME_001 from './screens/family/HOME_001'
 import LOGIN_001 from './screens/family/LOGIN_001'
+import UPLOAD_001 from './screens/family/UPLOAD_001'
 
 export type ScreenDef = { id: string; path: string; title: string; Screen?: ComponentType }
 
@@ -38,7 +39,7 @@ export const SCREENS: ScreenDef[] = [
   { id: 'GROUP_003', path: '/groups/:roomId/settings', title: '가족방 설정' },
   { id: 'HOME_001', path: '/', title: '가족 홈', Screen: HOME_001 },
   { id: 'HOME_002', path: '/diaries/:diaryId', title: '일기 상세' },
-  { id: 'UPLOAD_001', path: '/upload', title: '사진 올리기' },
+  { id: 'UPLOAD_001', path: '/upload', title: '사진 올리기', Screen: UPLOAD_001 },
   { id: 'UPLOAD_002', path: '/upload/target', title: '올릴 가족방 고르기' },
   { id: 'UPLOAD_003', path: '/upload/result', title: '올린 결과' },
   { id: 'FDIARY_001', path: '/fdiary', title: '가족 일기' },
