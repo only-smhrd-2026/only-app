@@ -26,9 +26,17 @@ export default function ELDER_MEMORY_001() {
   if (!session || !home) return <main className="elder"><p className="elder-text">잠시만요…</p></main>
   // 앞 화면이 넘긴 사진 → 세션의 사진(새로고침) → 오늘의 한 장 (사진첩 대화는 오늘 사진으로 바꾸지 않는다)
   const shownPhoto = photoUrl ?? session.photo_url ?? (session.kind === 'MEMORY' ? home.today_pick?.photo_url : undefined)
+  // 스크롤 없이 한 화면(11/12 갤럭시): 보이는 화면 높이(100dvh, 주소창 뺀 높이)에 맞추고 사진이 남는 만큼 줄어든다
   return (
-    <main className="elder">
-      {shownPhoto && <img className="elder-photo" src={shownPhoto} alt={session.kind === 'ALBUM' ? '사진첩 사진' : '오늘의 사진'} />}
+    <main className="elder" style={{ height: '100dvh', minHeight: 0, overflow: 'hidden' }}>
+      {shownPhoto && (
+        <img
+          className="elder-photo"
+          style={{ flex: '0 1 auto', minHeight: 0 }}
+          src={shownPhoto}
+          alt={session.kind === 'ALBUM' ? '사진첩 사진' : '오늘의 사진'}
+        />
+      )}
       {ended ? (
         <>
           <p className="elder-text">{ended.ai.text}</p>
