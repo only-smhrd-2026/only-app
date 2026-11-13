@@ -1,5 +1,5 @@
 /**
- * 화면 25개 ↔ 경로 표 (설계안 v1 4절). 파일 이름 = 화면설계서 화면 ID (D11).
+ * 화면 25개 + 지난 일기(11/13, D60) ↔ 경로 표 (설계안 v1 4절). 파일 이름 = 화면설계서 화면 ID (D11).
  * 아직 없는 화면은 NotYet 이 "준비 중" 을 보여 준다. 화면을 만들면 Screen 칸에 컴포넌트를 넣는다.
  */
 import type { ComponentType } from 'react'
@@ -10,6 +10,7 @@ import ELDER_CONNECT_001 from './screens/elder/ELDER_CONNECT_001'
 import ELDER_DIARY_001 from './screens/elder/ELDER_DIARY_001'
 import ELDER_DIARY_002 from './screens/elder/ELDER_DIARY_002'
 import ELDER_DIARY_003 from './screens/elder/ELDER_DIARY_003'
+import ELDER_DIARY_004 from './screens/elder/ELDER_DIARY_004'
 import ELDER_FAMILY_001 from './screens/elder/ELDER_FAMILY_001'
 import ELDER_HOME_001 from './screens/elder/ELDER_HOME_001'
 import ELDER_MEMORY_001 from './screens/elder/ELDER_MEMORY_001'
@@ -26,7 +27,7 @@ import UPLOAD_003 from './screens/family/UPLOAD_003'
 export type ScreenDef = { id: string; path: string; title: string; Screen?: ComponentType }
 
 export const SCREENS: ScreenDef[] = [
-  // ---- 어르신 (10)
+  // ---- 어르신 (10 + 지난 일기)
   { id: 'ELDER_CONNECT_001', path: '/elder/connect', title: '어르신 기기 연결', Screen: ELDER_CONNECT_001 },
   { id: 'ELDER_HOME_001', path: '/elder', title: '어르신 홈', Screen: ELDER_HOME_001 },
   { id: 'ELDER_TODAY_001', path: '/elder/today', title: '오늘의 한 장', Screen: ELDER_HOME_001 },
@@ -36,6 +37,7 @@ export const SCREENS: ScreenDef[] = [
   { id: 'ELDER_DIARY_001', path: '/elder/diary', title: '오늘 일기', Screen: ELDER_DIARY_001 },
   { id: 'ELDER_DIARY_002', path: '/elder/diary/:sessionId', title: '일기 대화', Screen: ELDER_DIARY_002 },
   { id: 'ELDER_DIARY_003', path: '/elder/diary/:sessionId/confirm', title: '일기 확인', Screen: ELDER_DIARY_003 },
+  { id: 'ELDER_DIARY_004', path: '/elder/diaries', title: '지난 일기', Screen: ELDER_DIARY_004 }, // 11/13 새 화면 (D60)
   { id: 'ELDER_FAMILY_001', path: '/elder/family-news', title: '가족 소식', Screen: ELDER_FAMILY_001 },
   // ---- 가족 (15)
   { id: 'LOGIN_001', path: '/login', title: '로그인', Screen: LOGIN_001 },

@@ -1,0 +1,52 @@
+/* 지난 일기 목록 — 일기 카드는 목업(11/12)의 .dcard 모양. 이 화면만 사진첩처럼 스크롤한다 (D60) */
+.elder-past { min-height: 100dvh; }
+.elder-past-list { display: flex; flex-direction: column; gap: var(--elder-gap); }
+.elder-past-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 8px;
+  border: var(--elder-edge-w) solid var(--elder-fg);
+  border-radius: var(--elder-radius);
+  background: var(--elder-card);
+  color: var(--elder-fg);
+  font: inherit;
+  font-size: var(--elder-font-size-s);
+  font-weight: 800;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+}
+.elder-past-card:focus-visible { outline: 4px solid var(--elder-primary); outline-offset: 4px; }
+.elder-past-thumb {
+  flex: none;
+  width: 96px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--elder-soft);
+  color: var(--elder-primary);
+}
+.elder-past-thumb > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.elder-past-thumb .elder-ic { width: 44px; height: 44px; }
+.elder-past-card small { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 0.85em; font-weight: 600; }
+
+/* 일기 한 편 크게 보기 — 화면 가득, 스크롤 없이 한 화면. [닫기]나 폰의 뒤로 키로 닫힌다 */
+.elder-past-view {
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: var(--elder-pad);
+  border: 0;
+  outline: 0; /* 창 전체에 초점 테두리가 생기지 않게 — 안의 버튼에는 그대로 생긴다 */
+  background: var(--elder-bg);
+  color: var(--elder-fg);
+}
+.elder-past-view[open] { display: flex; flex-direction: column; gap: var(--elder-gap); }
+.elder-past-view::backdrop { background: var(--elder-bg); }
