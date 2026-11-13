@@ -107,7 +107,7 @@ def test_quiz_text_is_bank_original(monkeypatch):
     reply, _ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)  # 맞장구에 질문이 섞임 → 원문만
     assert reply.text == Q_OPEN.prompt_text and reply.suggestions == coach.QUIZ_FALLBACK_CHIPS
 
-    two = CoachTurn(text="딸이랑 하셨군요. 정말 든든하셨겠어요.", suggestions=["네", "네", "다음에 할게요."])
+    two = CoachTurn(text="딸이랑 하셨군요. 정말 든든하셨겠어요.", suggestions=["네", "네", "다음에 할게요"])
     monkeypatch.setattr(llm, "call_json", lambda *a: two)
     reply, _ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)  # 맞장구는 첫 문장만, 칩은 겹침·넘기기를 거름
     assert reply.text == f"딸이랑 하셨군요. {Q_OPEN.prompt_text}"
@@ -315,3 +315,37 @@ def test_sad_last_answer_is_flagged_but_completed(client, monkeypatch):
     sid = _create(client, ctx)
     r = _answer(client, sid, MAX_TURNS)
     assert r["state"] == "ENDED" and r["end_reason"] == "COMPLETED" and _turns(sid)[1] == "SAD"
+
+
+def test_model_output_limits():
+    """모델이 만드는 말: 한 번에 60자까지, 추천 답변은 빈칸을 빼고 6자 이내 (D52 ④·⑨). 고정 답은 그대로 12자."""
+    from pydantic import ValidationError
+
+    from app.ai.schemas import MODEL_TEXT_MAX, CoachReply, DiaryTurn
+
+    assert CoachTurn(text="가" * MODEL_TEXT_MAX, suggestions=["가족 이랑요", "바다요"]).suggestions == [
+        "가족 이랑요",
+        "바다요",
+    ]
+    for bad in ({"text": "가" * (MODEL_TEXT_MAX + 1)}, {"text": "네?", "suggestions": ["가족들이랑 갔어요"]}):
+        try:
+            CoachTurn(**bad)
+            raise AssertionError(bad)
+        except ValidationError:
+            pass
+    try:  # 일기 동무도 모델 답이라 6자
+        DiaryTurn(text="누구랑 계셨어요?", suggestions=["밖에 다녀왔어요"])
+        raise AssertionError("diary chip")
+    except ValidationError:
+        pass
+    assert CoachReply(
+        text="오늘은 뭐 하셨어요?", suggestions=["밖에 다녀왔어요"]
+    ).suggestions  # 고정 답(코드)은 12자까지
+
+
+def test_recall_reply_has_two_chips(monkeypatch):
+    monkeypatch.setattr(
+        llm, "call_json", lambda *a: CoachTurn(text="바다에 가셨군요. 누구랑요?", suggestions=["가족", "친구", "혼자"])
+    )
+    reply, _ = coach.next_question(CTX, 2)
+    assert reply.suggestions == ["가족", "친구"]  # 늘 2개 (D52 ④)
