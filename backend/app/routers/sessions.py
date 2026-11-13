@@ -27,13 +27,15 @@ from fastapi import APIRouter
 from sqlalchemy import func, select
 
 from app.ai import coach, quiz, tts
-from app.ai.schemas import CoachReply
+from app.ai.schemas import CoachReply, has_risk_words
 from app.config import (
     ALBUM_PER_DAY,
     ALBUM_TURNS,
     DIARY_TURNS,
     MAX_SESSION_SEC,
     MAX_TURNS,
+    MOOD_LOW_DAYS,
+    MOOD_LOW_WINDOW_DAYS,
     NO_RESPONSE_END,
     PAUSE_GAP_SEC,
     QUIZ_TURN,
@@ -41,6 +43,7 @@ from app.config import (
     SESSION_RESUME_MIN,
     STT_CONF_MIN,
     STT_FAIL_LOCK,
+    TZ,
     now_kst,
     today_kst,
 )
@@ -145,25 +148,25 @@ def _ask(
 
     turn_no = 이번이 몇 번째 AI 질문인지 (기본 session.turn_count). 회상(MEMORY) 4번째 질문은 문제 은행 문제이고
     출제 기록은 그 AI 턴의 question_code (QUIZ_TURN, D42). 사진첩(ALBUM)·일기는 문제 없음 (FR-ME-008).
-    돌려주는 signal 이 SAD·STOP 이면 reply 는 마무리 인사 — 질문 중이었다면 호출자가 대화를 끝낸다 (FR-AI-005).
+    돌려주는 signal 이 SAD·RISK·STOP 이면 reply 는 마무리 인사 — 질문 중이었다면 호출자가 대화를 끝낸다 (FR-AI-005).
+    LOW·SAD·RISK·private 은 _note_mood 가 대화 기록과 가족 알림으로 남긴다 (D55).
     """
     t0 = time.perf_counter()
     turn_no = turn_no or session.turn_count
-    signal, code = "NONE", None
+    signal, private, code = "NONE", False, None
     if session.kind == "DIARY":
         if end is None:
             reply = coach.diary_question(ctx, turn_no)
         else:  # "일기를 써 볼게요"는 일기를 쓸 때만. 무응답으로 끝나면 저장하지 않으니 다른 인사
             reply = coach.DIARY_CLOSING if end in DIARY_SAVED else coach.DIARY_STOP
     elif end:
-        reply, signal = coach.closing(ctx, turn_no, _max_turns(session))
+        reply, signal, private = coach.closing(ctx, turn_no, _max_turns(session))
     else:
         picked = quiz.pick(db, session) if session.kind == "MEMORY" and turn_no == QUIZ_TURN else None
         # 최대 질문 수도 같이 넘긴다 — 사진첩은 2, 오늘의 한 장은 6 (AI 가 몇 번째 질문인지 알고 말하게)
-        reply, signal = coach.next_question(ctx, turn_no, picked, _max_turns(session))
-        code = picked.code if picked and signal == "NONE" else None
-    if signal == "SAD":
-        session.emotion_flag = "SAD"  # 가족 대시보드·주간 요약용 (FR-AI-005, FR-FD-006)
+        reply, signal, private = coach.next_question(ctx, turn_no, picked, _max_turns(session))
+        code = picked.code if picked and signal not in coach.ENDING_SIGNALS else None
+    _note_mood(db, session, signal, private)  # 가족 마음 카드·알림·주간 요약용 (FR-AI-005, FR-FD-006, D55)
     _add_turn(
         session,
         "AI",
@@ -174,6 +177,80 @@ def _ask(
     )
     _last_reply[session.session_id] = reply
     return reply, signal
+
+
+_MOOD_RANK = {"NONE": 0, "SAD": 1, "LOW": 1, "RISK": 2}  # 대화의 emotion_flag 는 올라가기만 한다
+
+
+def _note_mood(db, session: TalkSession, signal: str, private: bool = False) -> None:
+    """AI 신호·위급 낱말을 대화 기록과 가족 알림으로 (D55). LOW·SAD → LOW, RISK → RISK.
+
+    위급은 대화에 1번(RISK 로 올라갈 때만) 가족 모두에게 바로, 비밀 부탁 대화여도 보낸다(D55 ③).
+    알림에는 대화 내용을 넣지 않는다. 로그에도 말은 남기지 않는다 (D15).
+    """
+    if private:
+        session.private_flag = True  # '애들한테 말하지 마' — 기운 없는 날·주간 요약에서 뺀다
+    flag = {"LOW": "LOW", "SAD": "LOW", "RISK": "RISK"}.get(signal)
+    if flag is None or _MOOD_RANK[flag] <= _MOOD_RANK.get(session.emotion_flag, 0):
+        return
+    session.emotion_flag = flag
+    room = db.get(FamilyRoom, session.room_id)
+    if flag == "RISK":
+        who = f"{room.elder_name} {room.elder_honorific}"
+        body = f"{who}께서 많이 힘드신 것 같아요. 무슨 말씀을 하셨는지는 전하지 않아요."
+        notify_family(db, room.room_id, "MOOD_URGENT", "지금 전화 한 통 드려 보세요", body, "HOME_001")
+        log.info("mood urgent room=%s session=%s", room.room_id, session.session_id)
+    _check_low_days(db, room)
+
+
+def _check_low_days(db, room: FamilyRoom) -> None:
+    """기운 없는 말이 나온 날(한국 날짜)이 최근 7일 중 2일이면 가족에게 1건, 7일에 한 번만 (D55 ②).
+
+    비밀 부탁 대화는 세지 않는다(D55 ③). 대화가 LOW·RISK 로 올라갈 때 부른다 — 예약 작업이 따로 필요 없다.
+    ponytail: 같은 가족방의 두 대화가 같은 순간에 올라가면 2건이 갈 수 있다(워커 1개라 드묾, D9).
+    """
+    db.flush()  # 방금 올린 이 대화도 세도록
+    first = today_kst() - timedelta(days=MOOD_LOW_WINDOW_DAYS - 1)
+    since = datetime.combine(first, datetime.min.time(), tzinfo=TZ)
+    started = db.scalars(
+        select(TalkSession.started_at).where(
+            TalkSession.room_id == room.room_id,
+            TalkSession.started_at >= since,
+            TalkSession.emotion_flag.in_(("SAD", "LOW", "RISK")),
+            TalkSession.private_flag.is_(False),
+        )
+    ).all()
+    if len({t.astimezone(TZ).date() for t in started}) < MOOD_LOW_DAYS:
+        return
+    sent = db.scalar(
+        select(func.count())
+        .select_from(Notification)
+        .where(
+            Notification.room_id == room.room_id,
+            Notification.kind == "MOOD_LOW_2D",
+            Notification.sent_at >= now_kst() - timedelta(days=MOOD_LOW_WINDOW_DAYS),
+        )
+    )
+    if sent:
+        return
+    who = f"{room.elder_name} {room.elder_honorific}"
+    body = f"{who}께서 요즘 기운이 없어 보이는 날이 있었어요. 무슨 말씀을 하셨는지는 전하지 않아요."
+    notify_family(db, room.room_id, "MOOD_LOW_2D", "전화 한 통 드려 보세요", body, "HOME_001")
+    log.info("mood low days room=%s", room.room_id)
+
+
+def _risk_close(db, session: TalkSession, room: FamilyRoom) -> SessionOut:
+    """위급 낱말(안전망): AI 를 부르지 않고 가족 모두에게 바로 알린 뒤 부드럽게 마무리한다 (D55 ①).
+
+    일기 대화는 일기로 남기지 않는다(USER_STOP — 위급한 말이 그대로 일기가 되지 않게).
+    """
+    _note_mood(db, session, "RISK")
+    reply = coach.RISK_CLOSING
+    _add_turn(session, "AI", reply.text, question_type=reply.question_type)
+    reason = "USER_STOP" if session.kind == "DIARY" else "COMPLETED"
+    _finish(db, session, reason)
+    db.commit()
+    return _out(db, session, room, reply, "ENDED", reason)
 
 
 def _ai_out(db, session: TalkSession, room: FamilyRoom, reply: CoachReply) -> AiOut:
@@ -421,6 +498,8 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
             body, text, said_no = _confirmed(session, body, text)  # 확인 질문 뒤 '맞아요'면 맡긴 문장을
             if not said_no:
                 _save_elder(db, session, body, text)
+                if has_risk_words(text):
+                    return _risk_close(db, session, room)
         reply, _ = _ask(db, session, coach_context(db, room, session), end="LIMIT")
         _finish(db, session, "LIMIT")
         db.commit()
@@ -461,6 +540,8 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
 
     _no_response[session.session_id] = 0
     _save_elder(db, session, body, text)
+    if has_risk_words(text):  # 위급 낱말 안전망 — AI 판단을 기다리지 않는다 (D55 ①)
+        return _risk_close(db, session, room)
     ctx = coach_context(db, room, session)
     if session.turn_count >= _max_turns(session):  # 마지막 답(회상 6번째·일기 3번째) → 마무리 인사 후 종료
         reply, _ = _ask(db, session, ctx, end="COMPLETED")
@@ -468,7 +549,7 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
         db.commit()
         return _out(db, session, room, reply, "ENDED", "COMPLETED")
     reply, signal = _ask(db, session, ctx, turn_no=session.turn_count + 1)
-    if signal != "NONE":  # 슬픔·그만 (FR-AI-005): 문제 없이 마무리 인사로 바로 끝낸다. turn_count(질문 수)는 그대로
+    if signal in coach.ENDING_SIGNALS:  # 슬픔·위급·그만 (FR-AI-005, D55): 마무리 인사로 끝낸다. 질문 수는 그대로
         reason = "USER_STOP" if signal == "STOP" else "COMPLETED"
         _finish(db, session, reason)
         db.commit()

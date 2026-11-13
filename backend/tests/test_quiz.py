@@ -96,25 +96,25 @@ def test_quiz_text_is_bank_original(monkeypatch):
     monkeypatch.setattr(
         llm, "call_json", lambda *a: CoachTurn(text="딸이랑 하셨군요.", suggestions=["많이요", "조금요"])
     )
-    reply, signal = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)
+    reply, signal, _ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)
     assert reply.text == f"딸이랑 하셨군요. {Q_OPEN.prompt_text}" and signal == "NONE"
     assert reply.suggestions == ["많이요", "조금요"] and reply.question_type == "KNOWHOW"  # 넘기기 칩 없음 (D52 ⑧)
 
-    reply, _ = coach.next_question(CTX, QUIZ_TURN, Q_CHOICE)  # 2지선다는 선택지가 칩
+    reply, *_ = coach.next_question(CTX, QUIZ_TURN, Q_CHOICE)  # 2지선다는 선택지가 칩
     assert reply.suggestions == ["소금물에", "통소금으로"]
 
     monkeypatch.setattr(llm, "call_json", lambda *a: CoachTurn(text="딸이랑 하셨어요?", suggestions=[]))
-    reply, _ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)  # 맞장구에 질문이 섞임 → 원문만
+    reply, *_ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)  # 맞장구에 질문이 섞임 → 원문만
     assert reply.text == Q_OPEN.prompt_text and reply.suggestions == coach.QUIZ_FALLBACK_CHIPS
 
     two = CoachTurn(text="딸이랑 하셨군요. 정말 든든하셨겠어요.", suggestions=["네", "네", "다음에 할게요"])
     monkeypatch.setattr(llm, "call_json", lambda *a: two)
-    reply, _ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)  # 맞장구는 첫 문장만, 칩은 겹침·넘기기를 거름
+    reply, *_ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)  # 맞장구는 첫 문장만, 칩은 겹침·넘기기를 거름
     assert reply.text == f"딸이랑 하셨군요. {Q_OPEN.prompt_text}"
     assert reply.suggestions == ["네"]
 
     monkeypatch.setattr(llm, "call_json", lambda *a: CoachTurn(text="네.", suggestions=[coach.SKIP_CHIP]))
-    reply, _ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)  # 옛 넘기기 칩만 오면 기본 답 칩
+    reply, *_ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)  # 옛 넘기기 칩만 오면 기본 답 칩
     assert reply.suggestions == coach.QUIZ_FALLBACK_CHIPS
 
 
@@ -123,17 +123,17 @@ def test_llm_failure_still_asks_bank_question(monkeypatch):
         raise llm.LlmError("timeout")
 
     monkeypatch.setattr(llm, "call_json", boom)
-    reply, signal = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)
+    reply, signal, _ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)
     assert reply.text == Q_OPEN.prompt_text and reply.question_type == "KNOWHOW" and signal == "NONE"
-    assert coach.next_question(CTX, 2) == (coach.FALLBACK_QUESTION, "NONE")
+    assert coach.next_question(CTX, 2) == (coach.FALLBACK_QUESTION, "NONE", False)
 
 
 def test_signal_rules(monkeypatch):
     monkeypatch.setattr(llm, "call_json", lambda *a: CoachTurn(text="오늘은 여기까지 해요.", signal="STOP"))
-    reply, signal = coach.next_question(CTX, 3)
+    reply, signal, _ = coach.next_question(CTX, 3)
     assert signal == "STOP" and reply.question_type == "CLOSING" and reply.suggestions == []
     first = coach.CoachContext("순자", "할머니")  # 어르신 말 전에는 끝내자는 신호를 무시
-    assert coach.next_question(first, 1) == (coach.FALLBACK_QUESTION, "NONE")
+    assert coach.next_question(first, 1) == (coach.FALLBACK_QUESTION, "NONE", False)
 
     skipped = coach.CoachContext(  # 문제에 '다음에 할게요' → 모델이 STOP·SAD 를 내도 대화는 이어 간다
         "순자",
@@ -143,7 +143,7 @@ def test_signal_rules(monkeypatch):
     )
     for s in ("STOP", "SAD"):
         monkeypatch.setattr(llm, "call_json", lambda *a, s=s: CoachTurn(text="오늘은 여기까지 해요.", signal=s))
-        assert coach.next_question(skipped, QUIZ_TURN + 1) == (coach.FALLBACK_QUESTION, "NONE")
+        assert coach.next_question(skipped, QUIZ_TURN + 1) == (coach.FALLBACK_QUESTION, "NONE", False)
 
     def quiz_answer(said):  # 넘기기 칩이 없어져 말로 넘긴다 (D52 ⑧)
         return coach.CoachContext(
@@ -154,6 +154,7 @@ def test_signal_rules(monkeypatch):
     assert coach.next_question(quiz_answer("잘 모르겠어요, 넘어가요"), QUIZ_TURN + 1) == (
         coach.FALLBACK_QUESTION,
         "NONE",
+        False,
     )
     assert coach.next_question(quiz_answer("이제 그만할래요"), QUIZ_TURN + 1)[1] == "STOP"  # 진짜 그만은 끝
     monkeypatch.setattr(llm, "call_json", lambda *a: CoachTurn(text="많이 그리우시죠.", signal="SAD"))
@@ -280,7 +281,7 @@ def test_sad_ends_completed_with_flag(client, monkeypatch):
     r = _answer(client, sid)
     assert r["state"] == "ENDED" and r["end_reason"] == "COMPLETED" and r["turn_no"] == 2
     assert r["ai"]["question_type"] == "CLOSING" and r["ai"]["suggestions"] == []
-    assert _turns(sid)[1] == "SAD"
+    assert _turns(sid)[1] == "LOW"  # SAD 는 이제 LOW 로 기록 (D55)
     assert client.get("/api/elder/home").json()["today_pick"]["status"] == "COMPLETED"  # 팝업 다시 안 뜸
 
 
@@ -299,7 +300,7 @@ def test_sad_on_quiz_turn_ends_without_quiz_record(client, question_bank, monkey
     r = _answer(client, sid, QUIZ_TURN - 1)
     assert r["state"] == "ENDED" and r["ai"]["question_type"] == "CLOSING"
     turns, flag = _turns(sid)
-    assert flag == "SAD" and not any(t.get("question_code") for t in turns)  # 안 낸 문제는 기록하지 않는다
+    assert flag == "LOW" and not any(t.get("question_code") for t in turns)  # 안 낸 문제는 기록하지 않는다
 
 
 def test_sad_last_answer_is_flagged_but_completed(client, monkeypatch):
@@ -314,7 +315,7 @@ def test_sad_last_answer_is_flagged_but_completed(client, monkeypatch):
     ctx = setup_elder(client)
     sid = _create(client, ctx)
     r = _answer(client, sid, MAX_TURNS)
-    assert r["state"] == "ENDED" and r["end_reason"] == "COMPLETED" and _turns(sid)[1] == "SAD"
+    assert r["state"] == "ENDED" and r["end_reason"] == "COMPLETED" and _turns(sid)[1] == "LOW"
 
 
 def test_model_output_limits():
@@ -347,5 +348,5 @@ def test_recall_reply_has_two_chips(monkeypatch):
     monkeypatch.setattr(
         llm, "call_json", lambda *a: CoachTurn(text="바다에 가셨군요. 누구랑요?", suggestions=["가족", "친구", "혼자"])
     )
-    reply, _ = coach.next_question(CTX, 2)
+    reply, *_ = coach.next_question(CTX, 2)
     assert reply.suggestions == ["가족", "친구"]  # 늘 2개 (D52 ④)

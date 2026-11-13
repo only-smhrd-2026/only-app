@@ -3,7 +3,8 @@
 
 문제는 코드가 고르고(ai/quiz.py), 모델은 앞에 붙일 맞장구 한 문장과 답 칩만 만든다 — 문제 문장은 원문 그대로.
 question_type 은 모델이 아니라 여기서 정한다: 모델 질문 RECALL, 문제 = 문제 은행 qtype, 마무리 CLOSING.
-모델은 어르신 직전 말로 signal(NONE|SAD|STOP)을 함께 낸다. SAD·STOP 이면 그 턴 말은 마무리 인사다 (FR-AI-005).
+모델은 어르신 직전 말로 signal(NONE|LOW|SAD|RISK|STOP)과 private 을 함께 낸다. LOW 는 기록하고 이어 가고,
+SAD·RISK·STOP 이면 그 턴 말은 마무리 인사다 (FR-AI-005, D55). 위급(RISK) 마무리는 코드 문장.
 되짚기(RECHECK)·story_facts 는 AI-07(#46).
 LLM 이 실패하면(키 없음·검증 실패·장애) 고정 문장으로 대화를 이어 간다 (D14). 문제 턴은 원문만 낸다.
 """
@@ -49,6 +50,14 @@ CONFIRM_YES |= {"네맞아요", "예맞아요", "응맞아"}
 CONFIRM_NO = {"다시말할게요", "아니요", "아니", "아뇨", "아니에요", "틀렸어요", "아니야"}
 SKIP_CHIP = "다음에 할게요"  # 옛 넘기기 칩 (11/12 전). 문제 칩은 답 2개만이라(D52 ⑧) 모델이 이 칩을 내도 거른다
 QUIZ_FALLBACK_CHIPS = ["잘 모르겠어요"]  # 열린 문제인데 모델이 칩을 못 만들었을 때
+ENDING_SIGNALS = ("SAD", "RISK", "STOP")  # 이 신호면 그 턴 말은 마무리 — 호출자가 대화를 끝낸다. LOW 는 이어 감 (D55)
+# 위급 표현 뒤 마무리 (D55, 11/13 사용자: 상담 번호 안내 없이 마무리만). 모델이 지어내지 않게 코드 문장
+RISK_CLOSING = CoachReply(
+    text="많이 힘드셨겠어요. 이야기해 주셔서 고마워요. 오늘은 여기까지 하고 편히 쉬세요.",
+    suggestions=[],
+    question_type="CLOSING",
+    choice_mode="TWO_BUTTONS",
+)
 WEEKDAYS = "월화수목금토일"
 
 
@@ -126,34 +135,39 @@ def confirm_answer(text: str) -> str | None:
 
 def next_question(
     ctx: CoachContext, turn_no: int, quiz: Quiz | None = None, max_turns: int = MAX_TURNS
-) -> tuple[CoachReply, str]:
-    """turn_no 번째 AI 말과 signal(NONE|SAD|STOP). quiz 가 있으면 맞장구 + 문제 은행 원문 (FR-AI-002).
+) -> tuple[CoachReply, str, bool]:
+    """turn_no 번째 AI 말, signal(NONE|LOW|SAD|RISK|STOP), private. quiz 가 있으면 맞장구 + 문제 은행 원문 (FR-AI-002).
 
     max_turns = 이 대화의 최대 질문 수 (오늘의 한 장 6, 사진첩 2 — routers/sessions.py 가 넘긴다).
-    signal 이 SAD·STOP 이면 reply 는 마무리 인사다 — 호출자가 대화를 끝낸다 (FR-AI-005).
+    signal 이 SAD·RISK·STOP 이면 reply 는 마무리 인사다 — 호출자가 대화를 끝낸다 (FR-AI-005, D55). LOW 는 이어 간다.
     """
     try:
         out = llm.call_json("memory_coach", _memory_data(ctx, turn_no, quiz=quiz, max_turns=max_turns), CoachTurn)
     except (llm.LlmError, NotImplementedError):
-        return (_quiz_reply(quiz, "", []) if quiz else FALLBACK_QUESTION), "NONE"
-    if out.signal != "NONE":
-        if not any(t["speaker"] == "ELDER" for t in ctx.turns):  # 아직 어르신 말이 없는데 끝내자고 함 → 무시
-            return FALLBACK_QUESTION, "NONE"
+        return (_quiz_reply(quiz, "", []) if quiz else FALLBACK_QUESTION), "NONE", False
+    if out.signal != "NONE" and not any(t["speaker"] == "ELDER" for t in ctx.turns):  # 어르신 말 전의 신호 → 무시
+        return FALLBACK_QUESTION, "NONE", False
+    if out.signal == "RISK":  # 위급은 문제 넘기기로 보지 않는다
+        return RISK_CLOSING, "RISK", out.private
+    if out.signal in ENDING_SIGNALS:
         if _skipped_quiz(ctx, out.signal):  # 문제를 넘기는 말 — 대화를 끝내지 않는다 (FR-AI-003)
-            return FALLBACK_QUESTION, "NONE"
-        return _closing_reply(out.text), out.signal
+            return FALLBACK_QUESTION, "NONE", out.private
+        return _closing_reply(out.text), out.signal, out.private
     if quiz:
-        return _quiz_reply(quiz, out.text, out.suggestions), "NONE"
-    return CoachReply(text=out.text, suggestions=out.suggestions[:2], question_type="RECALL"), "NONE"  # 늘 2개 (D52 ④)
+        return _quiz_reply(quiz, out.text, out.suggestions), out.signal, out.private
+    reply = CoachReply(text=out.text, suggestions=out.suggestions[:2], question_type="RECALL")  # 늘 2개 (D52 ④)
+    return reply, out.signal, out.private
 
 
-def closing(ctx: CoachContext, turn_no: int, max_turns: int = MAX_TURNS) -> tuple[CoachReply, str]:
-    """마무리 인사와 signal. 마지막 답이 슬프면 SAD 로 남기도록 signal 도 돌려준다."""
+def closing(ctx: CoachContext, turn_no: int, max_turns: int = MAX_TURNS) -> tuple[CoachReply, str, bool]:
+    """마무리 인사와 signal·private. 마지막 답의 기운 없음·위급도 남기도록 signal 을 돌려준다 (D55)."""
     try:
         out = llm.call_json("memory_coach", _memory_data(ctx, turn_no, closing=True, max_turns=max_turns), CoachTurn)
     except (llm.LlmError, NotImplementedError):
-        return FALLBACK_CLOSING, "NONE"
-    return _closing_reply(out.text), out.signal
+        return FALLBACK_CLOSING, "NONE", False
+    if out.signal == "RISK":
+        return RISK_CLOSING, "RISK", out.private
+    return _closing_reply(out.text), out.signal, out.private
 
 
 def confirm_question(heard: str) -> CoachReply:
