@@ -15,9 +15,11 @@ export type RoomOut = {
   is_owner: boolean
 }
 
+export type RelationTag = 'CHILD' | 'GRANDCHILD' | 'OTHER'
 export type InviteKind = 'FAMILY' | 'ELDER_DEVICE'
 export type InviteCreatedOut = { kind: InviteKind; url: string; expires_at: string } // 종류마다 링크 1개 (D38)
 export type InviteStatusOut = { kind: InviteKind; elder_name: string; expires_at: string; valid: boolean }
+export type InviteOut = { kind: InviteKind; expires_at: string }
 
 export type DeviceOut = {
   room_id: number
@@ -40,6 +42,10 @@ export type ElderHomeOut = {
 }
 
 export type SttOut = { transcript: string; confidence: number }
+
+// ---- 알림 (backend/app/schemas/notifications.py)
+export type NotificationOut = { notification_id: number; room_id: number; kind: string; title: string; body: string | null; link_screen: string | null; sent_at: string; read_at: string | null } // read_at이 null이면 안 읽음
+export type NotificationListOut = { notifications: NotificationOut[]; unread: number } // 최신 순 최대 50개, unread는 안 읽은 전체 수
 
 export type AiOut = {
   text: string
@@ -93,7 +99,10 @@ export const MOOD_LABEL: Record<Mood, string> = { SUNNY: '맑음', CLOUDY: '구�
 
 // ---- 가족 홈 마음 카드 (backend/app/schemas/mood.py)
 export type MoodDayOut = { date: string; talked: boolean; diary_mood: Mood | null; low: boolean }
-export type MoodWeekOut = { days: MoodDayOut[]; talked_days: number; low_days: number; last_check: Record<string, unknown> | null } // days 는 7칸, 오래된 날 → 오늘
+export type MoodCheckOut = { check_date: string; level: 'USUAL' | 'DOWN' | 'HARD' } // 마음 체크 마지막 결과. 점수는 오지 않음
+export type MoodWeekOut = { days: MoodDayOut[]; talked_days: number; low_days: number; last_check: MoodCheckOut | null } // days 는 7칸, 오래된 날 → 오늘
+export type MoodCheckDueOut = { due: boolean } // 어르신 홈 마음 체크 초대 (D56)
+export type MoodCheckIn = { answers: number[] } // 8칸, 문항 순서대로 0~3
 export type IllustrationType = 'PHOTO' | 'AI_DRAWING' | 'NONE'
 export type DraftOut = {
   session_id: string

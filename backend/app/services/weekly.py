@@ -1,4 +1,7 @@
-"""주간 이야기 숫자·목록 집계 (D19). AI 요약과 게시·알림은 후속 작업이다."""
+"""주간 이야기 숫자·목록 집계 (D19). AI 요약과 게시는 후속 작업이다.
+
+새 주 줄을 만들 때만 가족에게 WEEKLY_READY 1건씩.
+"""
 
 from datetime import date, datetime, timedelta
 
@@ -7,7 +10,8 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.config import TZ, WEEKLY_HOUR
-from app.models import Diary, TalkSession, WeeklySummary
+from app.models import Diary, FamilyRoom, TalkSession, WeeklySummary
+from app.routers.devices import notify_family
 
 
 def window(now: datetime) -> tuple[datetime, datetime, date]:
@@ -70,6 +74,12 @@ def build(db: Session, room_id: int, now: datetime) -> None:
             model_version="none",
         )
         .on_conflict_do_nothing(constraint="uq_weekly_summaries_room_id_week_start")
+        .returning(WeeklySummary.summary_id)
     )
-    db.execute(stmt)
+    created = db.execute(stmt).scalar_one_or_none()
+    if created is not None:
+        room = db.get(FamilyRoom, room_id)
+        notify_family(
+            db, room_id, "WEEKLY_READY", f"{room.elder_name} 님의 이번 주 이야기가 도착했어요", link="WEEKLY_001"
+        )
     db.commit()

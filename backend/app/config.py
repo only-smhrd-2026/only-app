@@ -29,6 +29,8 @@ MAX_SESSION_SEC = 300  # 5분 (대화한 시간)
 PAUSE_GAP_SEC = 90  # 턴 사이가 이보다 길면 보류로 보고 90초만 센다 (무응답 3단계 60초 + 여유)
 ALBUM_PER_DAY = 3
 ALBUM_TURNS = 2  # 사진첩 대화 장당 AI 질문 수 (FR-ME-008)
+# 어르신 사진첩 '내 일기' 목록이 한 번에 돌려주는 개수(최신 순) — 사진 목록 PHOTO_LIST_LIMIT 와 같은 값 (D8)
+ELDER_DIARY_LIST_LIMIT = 100
 # 가족 사진 목록·어르신 사진첩이 한 번에 돌려주는 장수(최신 순) — 두 화면이 같은 사진을 보이게 한 값으로 (D8)
 PHOTO_LIST_LIMIT = 100
 NOTI_LIST_LIMIT = 50  # 가족 알림 목록이 한 번에 돌려주는 개수, 최신 순
@@ -53,6 +55,8 @@ STT_MAX_SEC = 60  # 녹음 상한 (FR-VS-001, 화면 RECORD_MS). 더 긴 소리�
 STT_MAX_CHARS = 500
 UPLOAD_MAX_BYTES = 10 * 1024 * 1024
 UPLOAD_MAX_FILES = 20  # 한 번에 올리는 사진 수 (D17)
+# 사진 한마디(caption)·사진 속 사람(people_note) 글자 수 — photos 표의 VARCHAR(100) 과 같게 (D17)
+UPLOAD_MAX_NOTE_CHARS = 100
 UPLOAD_MAX_PIXELS = 30_000_000  # 사진 한 장 픽셀 수(가로×세로). 넘으면 거절 — 서버 메모리 보호 (D17)
 UPLOAD_MAX_SIDE = 65_500  # 사진 한 변 픽셀. 길쭉한 조작 그림(1×3천만)은 줄 주소표만 240MB — JPEG 한계와 같게 (D17)
 UPLOAD_MAX_EXIF_BYTES = 64 * 1024  # 사진 정보(EXIF). 폰 사진은 64KB 안 — 넘으면 회전·촬영일을 읽지 않음 (D17)
@@ -71,6 +75,10 @@ LLM_PER_DAY = 300  # Claude call_json 1번(검증 재시도 포함 최대 2요�
 SESSION_COOKIE_DAYS = 7
 DEVICE_COOKIE_DAYS = 365
 MOOD_WEEK_DAYS = 7  # 가족 홈 마음 카드가 보여 주는 날수
+MOOD_CHECK_EVERY_DAYS = 14  # 마음 체크 초대 간격 — 마지막 마음 체크 뒤 이 날수가 지나면 다시 권함, D56
+MOOD_CHECK_QUESTIONS = 8  # PHQ-9에서 9번을 뺀 8문항, D56. mood_checks.answers와 같게
+MOOD_CHECK_DOWN_MIN = 5  # 답 합이 이 이상이면 DOWN '조금 가라앉으신 편이에요'
+MOOD_CHECK_HARD_MIN = 10  # 답 합이 이 이상이면 HARD '많이 힘드신 것 같아요'. DOWN 미만은 USUAL
 
 
 class Settings(BaseSettings):

@@ -10,13 +10,18 @@ import ELDER_CONNECT_001 from './screens/elder/ELDER_CONNECT_001'
 import ELDER_DIARY_001 from './screens/elder/ELDER_DIARY_001'
 import ELDER_DIARY_002 from './screens/elder/ELDER_DIARY_002'
 import ELDER_DIARY_003 from './screens/elder/ELDER_DIARY_003'
+import ELDER_FAMILY_001 from './screens/elder/ELDER_FAMILY_001'
 import ELDER_HOME_001 from './screens/elder/ELDER_HOME_001'
 import ELDER_MEMORY_001 from './screens/elder/ELDER_MEMORY_001'
 import GROUP_001 from './screens/family/GROUP_001'
+import GROUP_002 from './screens/family/GROUP_002'
 import HOME_001 from './screens/family/HOME_001'
+import JOIN_001 from './screens/family/JOIN_001'
 import LOGIN_001 from './screens/family/LOGIN_001'
+import NOTI_001 from './screens/family/NOTI_001'
 import UPLOAD_001 from './screens/family/UPLOAD_001'
 import UPLOAD_002 from './screens/family/UPLOAD_002'
+import UPLOAD_003 from './screens/family/UPLOAD_003'
 
 export type ScreenDef = { id: string; path: string; title: string; Screen?: ComponentType }
 
@@ -31,23 +36,23 @@ export const SCREENS: ScreenDef[] = [
   { id: 'ELDER_DIARY_001', path: '/elder/diary', title: '오늘 일기', Screen: ELDER_DIARY_001 },
   { id: 'ELDER_DIARY_002', path: '/elder/diary/:sessionId', title: '일기 대화', Screen: ELDER_DIARY_002 },
   { id: 'ELDER_DIARY_003', path: '/elder/diary/:sessionId/confirm', title: '일기 확인', Screen: ELDER_DIARY_003 },
-  { id: 'ELDER_FAMILY_001', path: '/elder/family-news', title: '가족 소식' },
+  { id: 'ELDER_FAMILY_001', path: '/elder/family-news', title: '가족 소식', Screen: ELDER_FAMILY_001 },
   // ---- 가족 (15)
   { id: 'LOGIN_001', path: '/login', title: '로그인', Screen: LOGIN_001 },
-  { id: 'JOIN_001', path: '/join', title: '가족방 참여' },
+  { id: 'JOIN_001', path: '/join', title: '가족방 참여', Screen: JOIN_001 },
   { id: 'GROUP_001', path: '/groups/new', title: '가족방 만들기', Screen: GROUP_001 },
-  { id: 'GROUP_002', path: '/groups/:roomId/members', title: '구성원' },
+  { id: 'GROUP_002', path: '/groups/:roomId/members', title: '구성원', Screen: GROUP_002 },
   { id: 'GROUP_003', path: '/groups/:roomId/settings', title: '가족방 설정' },
   { id: 'HOME_001', path: '/', title: '가족 홈', Screen: HOME_001 },
   { id: 'HOME_002', path: '/diaries/:diaryId', title: '일기 상세' },
   { id: 'UPLOAD_001', path: '/upload', title: '사진 올리기', Screen: UPLOAD_001 },
   { id: 'UPLOAD_002', path: '/upload/target', title: '올릴 가족방 고르기', Screen: UPLOAD_002 },
-  { id: 'UPLOAD_003', path: '/upload/result', title: '올린 결과' },
+  { id: 'UPLOAD_003', path: '/upload/result', title: '올린 결과', Screen: UPLOAD_003 },
   { id: 'FDIARY_001', path: '/fdiary', title: '가족 일기' },
   { id: 'FDIARY_002', path: '/fdiary/write', title: '가족 일기 쓰기' },
   { id: 'FDIARY_003', path: '/fdiary/confirm', title: '가족 일기 확인' },
   { id: 'WEEKLY_001', path: '/weekly/:roomId', title: '주간 이야기' },
-  { id: 'NOTI_001', path: '/notifications', title: '알림' },
+  { id: 'NOTI_001', path: '/notifications', title: '알림', Screen: NOTI_001 },
 ]
 
 export default function App() {
