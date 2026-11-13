@@ -20,7 +20,7 @@ only-app/
 │   ├── app/main.py           FastAPI 앱, 라우터 등록, lifespan(스케줄러)
 │   ├── app/config.py         .env 설정 1곳, 시간대 KST, 상한 상수
 │   ├── app/db.py             SQLAlchemy 엔진 (접속마다 timezone=Asia/Seoul)
-│   ├── app/models.py         테이블 12개 (db/schema.sql 의 거울)
+│   ├── app/models.py         테이블 13개 (db/schema.sql 의 거울)
 │   ├── app/deps.py           current_user / current_device / require_member
 │   ├── app/security.py       bcrypt, JWT, 토큰 해시, 쿠키, 로그인 속도 제한
 │   ├── app/errors.py         오류 형식 {detail, code}
@@ -30,7 +30,7 @@ only-app/
 │   ├── app/ai/               llm·stt·tts·image 어댑터, coach(회상 코치·일기 동무), quiz(문제 은행 고르기), schemas(출력 검사), prompts/*.md
 │   ├── scripts/seed.py       DB 초기화 + 시드
 │   └── tests/                test_auth, test_session_stub, test_diary, test_tz (docker Postgres 사용)
-├── db/schema.sql             테이블 원천 (천주웅·홍진성만 수정) / db/seed/seed.sql 시드 데이터
+├── db/schema.sql             테이블 원천 (천주웅·홍진성만 수정) / db/seed/seed.sql 시드 데이터 / db/migrations/ 배포 서버용 ALTER (D57)
 ├── data/                     question_bank.json, taxonomy.json (홍진성), banned_words.json
 ├── docker-compose.yml        db / --profile deploy: api + caddy
 ├── Caddyfile                 https, /api → api:8000, 나머지는 화면 정적 파일

@@ -1,12 +1,15 @@
 -- =====================================================================
--- 하루한장 DB 스키마 (PostgreSQL 16) — 테이블 12개. 이 파일이 원천(source of truth)입니다.
+-- 하루한장 DB 스키마 (PostgreSQL 16) — 테이블 13개. 이 파일이 원천(source of truth)입니다.
 -- 바꾸면 backend/app/models.py 도 같이 고칩니다 (PR 템플릿 체크 항목). DB 담당(천주웅·홍진성)이 PR로 수정.
+-- 배포 서버 DB 는 데이터가 있어 seed 로 다시 만들지 않습니다 → 바꾼 만큼 db/migrations/ 에 ALTER 파일을 같은 PR 에 둡니다 (D57).
 --
 -- 기준: 테이블명세서_ONly_최종_1104 의 DDL 원문 + 수정 제안 S1~S15 (개발설계_초석안내서 부록 A).
 --       수정한 줄에는 끝에 "-- S번호" 를 달았습니다.
 --       11/6 DB 멘토링 반영(D38): 18개 → 12개. 1:1·방당 1개인 표는 칸으로, 대화 턴·출제 기록은 sessions.turns JSON 으로.
+--       11/12 기업 멘토링 반영(D57): 12개 → 13개(mood_checks). diaries.reactions·family_rooms.mood_check_consent_at 칸,
+--       sessions.emotion_flag 에 LOW·RISK, notifications.kind 에 마음 알림 2종.
 --
--- S15 시간대: 이 DB의 DATE/TIME 컬럼(pick_date, fact_date, week_start, memory_time, diary_time)은
+-- S15 시간대: 이 DB의 DATE/TIME 컬럼(pick_date, fact_date, week_start, check_date, memory_time, diary_time)은
 --       "한국 시간" 의미입니다. 서버가 접속할 때마다 SET timezone='Asia/Seoul' 을 겁니다(backend/app/db.py).
 --       SQL 안에서 CURRENT_DATE, now()::date 를 쓰지 않습니다(UTC 날짜가 나올 수 있음). 날짜는 서버가 넘깁니다.
 --
@@ -58,7 +61,9 @@ CREATE TABLE family_rooms (
     device_perm_camera BOOLEAN NOT NULL DEFAULT false,             -- S5 DEFAULT
     device_input_mode VARCHAR(8) NOT NULL DEFAULT 'VOICE' CHECK (device_input_mode IN ('VOICE', 'BUTTON')),
     device_connected_at TIMESTAMPTZ,
-    device_last_seen_at TIMESTAMPTZ
+    device_last_seen_at TIMESTAMPTZ,
+    -- 마음 체크 (D56): 초대에서 '가족에게 한 줄로만 알려요'를 듣고 [할게요]를 누른 첫 시각. NULL = 아직 동의 안 함
+    mood_check_consent_at TIMESTAMPTZ
 );
 
 -- 3. 가족방 구성원
@@ -144,7 +149,7 @@ CREATE TABLE sessions (
     end_reason VARCHAR(12) CHECK (end_reason IN ('COMPLETED', 'USER_STOP', 'NO_RESPONSE', 'ERROR', 'LIMIT')),
     turn_count SMALLINT NOT NULL DEFAULT 0,
     duration_sec INTEGER,
-    emotion_flag VARCHAR(6) NOT NULL DEFAULT 'NONE' CHECK (emotion_flag IN ('NONE', 'SAD')),   -- S4 DEFAULT
+    emotion_flag VARCHAR(6) NOT NULL DEFAULT 'NONE' CHECK (emotion_flag IN ('NONE', 'SAD', 'LOW', 'RISK')),   -- S4 DEFAULT. D55: LOW 기운 없는 말, RISK 위급 표현. SAD 는 11/12 전 값
     private_flag BOOLEAN NOT NULL DEFAULT false,
     turns JSONB NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(turns) = 'array'),   -- 아래 주석의 키
     CONSTRAINT ck_sessions_turn_count CHECK (turn_count BETWEEN 0 AND 8)   -- 8턴 상한 (R17)
@@ -211,8 +216,12 @@ CREATE TABLE diaries (
     status VARCHAR(8) NOT NULL DEFAULT 'POSTED' CHECK (status IN ('POSTED', 'DELETED')),   -- S4 DEFAULT
     elder_read_at TIMESTAMPTZ,                                     -- 어르신 '다 들었어요' (가족 일기). NULL = 안 들음
     family_read_by JSONB NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(family_read_by) = 'array'),  -- '다 봤어요' 누른 가족 user_id 배열
+    reactions JSONB NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(reactions) = 'array'),   -- 리액션 (D54). 키는 아래 주석
     CONSTRAINT uq_diaries_room_id_request_id UNIQUE (room_id, request_id)   -- S7 가족 일기를 가족방 여러 곳에 게시 가능 (FR-DI-008)
 );
+-- reactions 한 칸 = 한 사람의 리액션 1개. 다시 누르면 그 사람 칸을 바꿔 끼운다. 값 없는 키는 넣지 않고, 값은 서버 코드가 검사한다 (D38).
+--   by(ELDER|FAMILY), user_id(FAMILY 만), at(누른 시각, turns 의 created_at 과 같은 ISO 문자열),
+--   kind: LIKE = 어르신 [좋아요] (가족 일기에) | HEART·SMILE·CLAP = 가족 이모지 (어르신 일기에)
 CREATE INDEX ix_diaries_room_posted ON diaries(room_id, posted_at DESC);
 CREATE INDEX ix_diaries_room_author_posted ON diaries(room_id, author_type, posted_at);   -- S14
 
@@ -246,7 +255,8 @@ CREATE TABLE notifications (
     kind VARCHAR(20) NOT NULL CHECK (kind IN (
         'MEMORY_REMINDER', 'DIARY_REMINDER', 'DIARY_POSTED', 'WEEKLY_READY', 'DEVICE_CONNECTED',
         'NO_RECORD_2D', 'PERMISSION_OFF',
-        'SESSION_ERROR_3X', 'TTS_ERROR', 'PICK_SKIPPED_2X')),     -- S11 가족 알림 3종 추가
+        'SESSION_ERROR_3X', 'TTS_ERROR', 'PICK_SKIPPED_2X',       -- S11 가족 알림 3종 추가
+        'MOOD_URGENT', 'MOOD_LOW_2D')),                           -- D55 마음 알림: 위급 표현 1번 → 바로, 기운 없는 날 7일 중 2일 → 주 1건
     title VARCHAR(60) NOT NULL,
     body VARCHAR(200),
     link_screen VARCHAR(30),
@@ -254,3 +264,18 @@ CREATE TABLE notifications (
     read_at TIMESTAMPTZ
 );
 CREATE INDEX ix_notifications_target ON notifications(target_type, target_user_id, read_at);
+
+-- 13. 마음 체크 결과 (D56: PHQ-9 에서 9번을 뺀 8문항, 2주에 한 번). 어르신이 8문항을 다 답했을 때만 1줄
+CREATE TABLE mood_checks (
+    check_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
+    check_date DATE NOT NULL,                                      -- 한국 날짜 (S15)
+    -- 문항 순서대로 0~3 (없었어요·며칠·절반 넘게·거의 매일). 8칸인지는 DB 가, 0~3 은 서버 코드가 검사
+    answers JSONB NOT NULL CHECK (CASE WHEN jsonb_typeof(answers) = 'array' THEN jsonb_array_length(answers) = 8 ELSE false END),
+    total SMALLINT NOT NULL CHECK (total BETWEEN 0 AND 24),        -- answers 합. 화면에 점수를 보이지 않는다 (NFR-DE-003)
+    -- 가족 홈 문장: USUAL 평소와 비슷해요 / DOWN 조금 가라앉으신 편이에요 / HARD 많이 힘드신 것 같아요(상담 권유).
+    -- 합 구간은 config 상수(마음 체크 API 때). 단계를 저장해 기준이 바뀌어도 옛 결과의 뜻이 남는다
+    level VARCHAR(5) NOT NULL CHECK (level IN ('USUAL', 'DOWN', 'HARD')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_mood_checks_room_id_check_date UNIQUE (room_id, check_date)   -- 같은 날 두 번 보내도 1줄
+);
