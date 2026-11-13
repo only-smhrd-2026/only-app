@@ -19,6 +19,7 @@ import LOGIN_001 from './screens/family/LOGIN_001'
 import NOTI_001 from './screens/family/NOTI_001'
 import UPLOAD_001 from './screens/family/UPLOAD_001'
 import UPLOAD_002 from './screens/family/UPLOAD_002'
+import UPLOAD_003 from './screens/family/UPLOAD_003'
 
 export type ScreenDef = { id: string; path: string; title: string; Screen?: ComponentType }
 
@@ -44,7 +45,7 @@ export const SCREENS: ScreenDef[] = [
   { id: 'HOME_002', path: '/diaries/:diaryId', title: '일기 상세' },
   { id: 'UPLOAD_001', path: '/upload', title: '사진 올리기', Screen: UPLOAD_001 },
   { id: 'UPLOAD_002', path: '/upload/target', title: '올릴 가족방 고르기', Screen: UPLOAD_002 },
-  { id: 'UPLOAD_003', path: '/upload/result', title: '올린 결과' },
+  { id: 'UPLOAD_003', path: '/upload/result', title: '올린 결과', Screen: UPLOAD_003 },
   { id: 'FDIARY_001', path: '/fdiary', title: '가족 일기' },
   { id: 'FDIARY_002', path: '/fdiary/write', title: '가족 일기 쓰기' },
   { id: 'FDIARY_003', path: '/fdiary/confirm', title: '가족 일기 확인' },
