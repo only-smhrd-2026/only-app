@@ -80,7 +80,9 @@ def set_permissions(body: PermissionsIn, room: CurrentDevice, db: DB):
     for key, value in changed.items():
         setattr(room, f"device_{key}", value)  # perm_mic → device_perm_mic
     if any(v is False for v in changed.values()):
-        off = ", ".join(k.removeprefix("perm_") for k, v in changed.items() if v is False)
+        # 가족 알림 목록에 그대로 보이는 글이라 칸 이름(mic) 대신 한글로
+        names = {"perm_mic": "마이크", "perm_camera": "카메라", "perm_notification": "알림"}
+        off = ", ".join(names[k] for k, v in changed.items() if v is False)
         notify_family(db, room.room_id, "PERMISSION_OFF", f"{room.elder_name} 님 기기 권한이 꺼져 있어요", body=off)
     db.commit()
     return _out(room)
