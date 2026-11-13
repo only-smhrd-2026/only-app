@@ -3,7 +3,7 @@
 import uuid
 from datetime import date
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class PhotoOut(BaseModel):
@@ -22,3 +22,7 @@ class PhotoBatchOut(BaseModel):
 
 class PhotoListOut(BaseModel):
     photos: list[PhotoOut]
+
+
+class PhotoCorrectIn(BaseModel):
+    corrected_activity: str = Field(max_length=20)
