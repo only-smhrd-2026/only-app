@@ -15,6 +15,7 @@ import ELDER_HOME_001 from './screens/elder/ELDER_HOME_001'
 import ELDER_MEMORY_001 from './screens/elder/ELDER_MEMORY_001'
 import GROUP_001 from './screens/family/GROUP_001'
 import HOME_001 from './screens/family/HOME_001'
+import JOIN_001 from './screens/family/JOIN_001'
 import LOGIN_001 from './screens/family/LOGIN_001'
 import NOTI_001 from './screens/family/NOTI_001'
 import UPLOAD_001 from './screens/family/UPLOAD_001'
@@ -37,7 +38,7 @@ export const SCREENS: ScreenDef[] = [
   { id: 'ELDER_FAMILY_001', path: '/elder/family-news', title: '가족 소식', Screen: ELDER_FAMILY_001 },
   // ---- 가족 (15)
   { id: 'LOGIN_001', path: '/login', title: '로그인', Screen: LOGIN_001 },
-  { id: 'JOIN_001', path: '/join', title: '가족방 참여' },
+  { id: 'JOIN_001', path: '/join', title: '가족방 참여', Screen: JOIN_001 },
   { id: 'GROUP_001', path: '/groups/new', title: '가족방 만들기', Screen: GROUP_001 },
   { id: 'GROUP_002', path: '/groups/:roomId/members', title: '구성원' },
   { id: 'GROUP_003', path: '/groups/:roomId/settings', title: '가족방 설정' },
