@@ -1,0 +1,234 @@
+/*
+ * 대화 화면(말하기 부품) 새 모양 (D52, 목업 `설계자료/목업_1112` Talk()). 홍진성 담당 — elder.css 는 김승희 공통 값.
+ * 색·크기는 elder.css 변수만 쓴다. 아직 없는 변수(11/13 김승희 ① 공통 값이 합쳐지기 전)는 목업 값(색 ① 보라, 기본 24px)을 예비로.
+ * 화면·버튼은 고정, 말풍선 칸(.vs-log)만 움직인다 — 부르는 화면이 높이를 100dvh 로 맞춘다 (D51 ⑤).
+ */
+.vs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.vs-photo {
+  flex: none;
+  width: 100%;
+  height: 20dvh;
+  min-height: 110px;
+  max-height: 200px;
+  object-fit: cover;
+  border: 2px solid var(--elder-line, #cfc8e6);
+}
+
+/* 말풍선 칸: 말이 적으면 아래에 붙고, 많으면 이 칸만 위로 밀린다 */
+.vs-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 1px;
+  scrollbar-width: none;
+}
+.vs-log::-webkit-scrollbar { display: none; }
+.vs-log::before { content: ''; flex: 1 0 0; }
+
+.vs-msg {
+  flex: none;
+  margin: 0;
+  padding: 12px 16px;
+  border: var(--elder-bub-w, 2px) solid;
+  border-radius: 22px;
+  font-family: inherit;
+  font-size: var(--elder-font-size, 24px);
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+  word-break: keep-all;
+}
+/* AI 말풍선 = 누르면 다시 듣기 (D51 ⑥) */
+.vs-ai {
+  align-self: flex-start;
+  max-width: 100%;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: var(--elder-ai, #ffffff);
+  border-color: var(--elder-ai-e, #cfc8e6);
+  color: var(--elder-fg, #1f1b2e);
+  border-bottom-left-radius: 6px;
+  cursor: pointer;
+}
+.vs-ai .vs-ic { width: 24px; height: 24px; flex: none; }
+.vs-saying { box-shadow: 0 0 0 4px var(--elder-ai-e, #cfc8e6); }
+
+.vs-me-row {
+  flex: none;
+  align-self: flex-end;
+  max-width: 88%;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.vs-me-row:has(.vs-redo) { max-width: 100%; }
+.vs-me {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--elder-me, #e7defa);
+  border-color: var(--elder-me-e, #5b3fa8);
+  color: var(--elder-me-f, #1f1b2e);
+  border-bottom-right-radius: 6px;
+}
+/* [다시] 2초 동안 말풍선 아래 막대가 줄어든다 — 다 줄면 보낸다 (D52 ③) */
+.vs-me.vs-timing::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 6px;
+  background: var(--elder-me-f, #1f1b2e);
+  opacity: 0.55;
+  transform-origin: left;
+  animation: vs-shrink 2s linear forwards;
+}
+@keyframes vs-shrink {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+.vs-redo {
+  flex: none;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border: 2px solid var(--elder-fg, #1f1b2e);
+  border-radius: 999px;
+  background: var(--elder-card, #ffffff);
+  color: var(--elder-fg, #1f1b2e);
+  font-family: inherit;
+  font-size: var(--elder-font-size, 24px);
+  font-weight: 800;
+  cursor: pointer;
+}
+.vs-redo .vs-ic { width: 24px; height: 24px; }
+
+/* 생각하는 중 (점 3개) */
+.vs-dots { cursor: default; gap: 6px; align-items: center; }
+.vs-dots i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--elder-fg, #1f1b2e);
+  animation: vs-blink 1.2s infinite;
+}
+.vs-dots i:nth-child(2) { animation-delay: 0.2s; }
+.vs-dots i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes vs-blink {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+/* 안내 한 줄('조금만 기다려 주세요'·'잘 못 들었어요'·'듣고 있어요') — 말이 아니라 말풍선 테두리가 없다 */
+.vs-note {
+  flex: none;
+  margin: 0;
+  align-self: flex-start;
+  font-size: var(--elder-font-size-s, 22px);
+  font-weight: 700;
+  color: var(--elder-fg, #1f1b2e);
+}
+
+/* 추천 답변 2개 (일기 기분 날씨만 4개) */
+.vs-chips {
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.vs-chip {
+  min-height: 56px;
+  padding: 4px 10px;
+  border: max(2px, var(--elder-edge-w, 2px)) solid var(--elder-primary, #5b3fa8);
+  border-radius: 999px;
+  background: var(--elder-card, #ffffff);
+  color: var(--elder-fg, #1f1b2e);
+  font-family: inherit;
+  font-size: var(--elder-font-size-s, 22px);
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+/* 말하기 76px + 자판 단추 (D51 ⑧, D52 ⑤) */
+.vs-say,
+.vs-type {
+  flex: none;
+  display: flex;
+  gap: 10px;
+}
+.vs-talk {
+  flex: 1;
+  min-width: 0;
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 4px 8px;
+  border: var(--elder-edge-w, 2px) solid var(--elder-primary, #5b3fa8);
+  border-radius: var(--elder-radius, 20px);
+  background: var(--elder-primary, #5b3fa8);
+  color: var(--elder-primary-fg, #ffffff);
+  font-family: inherit;
+  font-size: var(--elder-btn-font, 24px);
+  font-weight: 800;
+  line-height: 1.15;
+  cursor: pointer;
+}
+.vs-talk small { font-size: 0.8em; font-weight: 700; font-variant-numeric: tabular-nums; }
+.vs-rec { background: var(--elder-danger, #a11b14); border-color: var(--elder-danger, #a11b14); }
+/* 기다리는 버튼도 대비 7:1 — 흐리게(opacity) 하지 않고 회색 바탕에 흰 글자 */
+.vs-talk:disabled {
+  background: var(--elder-off, #4a4a4a);
+  border-color: var(--elder-off, #4a4a4a);
+  color: #ffffff;
+  cursor: default;
+}
+.vs-ghost {
+  background: var(--elder-card, #ffffff);
+  color: var(--elder-fg, #1f1b2e);
+  border-color: var(--elder-fg, #1f1b2e);
+}
+.vs-key {
+  flex: none;
+  width: 76px;
+  min-height: 76px;
+  display: grid;
+  place-items: center;
+  border: max(2px, var(--elder-edge-w, 2px)) solid var(--elder-fg, #1f1b2e);
+  border-radius: var(--elder-radius, 20px);
+  background: var(--elder-card, #ffffff);
+  color: var(--elder-fg, #1f1b2e);
+  cursor: pointer;
+}
+.vs-key:disabled { color: var(--elder-off, #4a4a4a); border-color: var(--elder-off, #4a4a4a); cursor: default; }
+.vs-ic { width: 34px; height: 34px; flex: none; }
+.vs-type input {
+  flex: 1;
+  min-width: 0;
+  min-height: 76px;
+  padding: 0 14px;
+  border: max(2px, var(--elder-edge-w, 2px)) solid var(--elder-fg, #1f1b2e);
+  border-radius: var(--elder-radius, 20px);
+  background: var(--elder-card, #ffffff);
+  color: var(--elder-fg, #1f1b2e);
+  font-family: inherit;
+  font-size: var(--elder-font-size-s, 22px);
+  font-weight: 600;
+}
+.vs-type .vs-talk { flex: none; padding: 0 16px; }

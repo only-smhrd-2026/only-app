@@ -98,24 +98,24 @@ def test_quiz_text_is_bank_original(monkeypatch):
     )
     reply, signal = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)
     assert reply.text == f"딸이랑 하셨군요. {Q_OPEN.prompt_text}" and signal == "NONE"
-    assert reply.suggestions == ["많이요", "조금요", coach.SKIP_CHIP] and reply.question_type == "KNOWHOW"
+    assert reply.suggestions == ["많이요", "조금요"] and reply.question_type == "KNOWHOW"  # 넘기기 칩 없음 (D52 ⑧)
 
     reply, _ = coach.next_question(CTX, QUIZ_TURN, Q_CHOICE)  # 2지선다는 선택지가 칩
-    assert reply.suggestions == ["소금물에", "통소금으로", coach.SKIP_CHIP]
+    assert reply.suggestions == ["소금물에", "통소금으로"]
 
     monkeypatch.setattr(llm, "call_json", lambda *a: CoachTurn(text="딸이랑 하셨어요?", suggestions=[]))
     reply, _ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)  # 맞장구에 질문이 섞임 → 원문만
-    assert reply.text == Q_OPEN.prompt_text and reply.suggestions == [*coach.QUIZ_FALLBACK_CHIPS, coach.SKIP_CHIP]
+    assert reply.text == Q_OPEN.prompt_text and reply.suggestions == coach.QUIZ_FALLBACK_CHIPS
 
     two = CoachTurn(text="딸이랑 하셨군요. 정말 든든하셨겠어요.", suggestions=["네", "네", "다음에 할게요."])
     monkeypatch.setattr(llm, "call_json", lambda *a: two)
     reply, _ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)  # 맞장구는 첫 문장만, 칩은 겹침·넘기기를 거름
     assert reply.text == f"딸이랑 하셨군요. {Q_OPEN.prompt_text}"
-    assert reply.suggestions == ["네", coach.SKIP_CHIP]
+    assert reply.suggestions == ["네"]
 
     monkeypatch.setattr(llm, "call_json", lambda *a: CoachTurn(text="네.", suggestions=[coach.SKIP_CHIP]))
-    reply, _ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)  # 넘기기만 오면 기본 답 칩
-    assert reply.suggestions == [*coach.QUIZ_FALLBACK_CHIPS, coach.SKIP_CHIP]
+    reply, _ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)  # 옛 넘기기 칩만 오면 기본 답 칩
+    assert reply.suggestions == coach.QUIZ_FALLBACK_CHIPS
 
 
 def test_llm_failure_still_asks_bank_question(monkeypatch):
@@ -144,6 +144,20 @@ def test_signal_rules(monkeypatch):
     for s in ("STOP", "SAD"):
         monkeypatch.setattr(llm, "call_json", lambda *a, s=s: CoachTurn(text="오늘은 여기까지 해요.", signal=s))
         assert coach.next_question(skipped, QUIZ_TURN + 1) == (coach.FALLBACK_QUESTION, "NONE")
+
+    def quiz_answer(said):  # 넘기기 칩이 없어져 말로 넘긴다 (D52 ⑧)
+        return coach.CoachContext(
+            "순자", "할머니", None, [{"speaker": "AI", "text": "q", "quiz": True}, {"speaker": "ELDER", "text": said}]
+        )
+
+    monkeypatch.setattr(llm, "call_json", lambda *a: CoachTurn(text="오늘은 여기까지 해요.", signal="STOP"))
+    assert coach.next_question(quiz_answer("잘 모르겠어요, 넘어가요"), QUIZ_TURN + 1) == (
+        coach.FALLBACK_QUESTION,
+        "NONE",
+    )
+    assert coach.next_question(quiz_answer("이제 그만할래요"), QUIZ_TURN + 1)[1] == "STOP"  # 진짜 그만은 끝
+    monkeypatch.setattr(llm, "call_json", lambda *a: CoachTurn(text="많이 그리우시죠.", signal="SAD"))
+    assert coach.next_question(quiz_answer("그때 생각하면 눈물이 나요"), QUIZ_TURN + 1)[1] == "SAD"  # 슬픔은 그대로
 
     monkeypatch.setattr(llm, "call_json", lambda *a: CoachTurn(text="고마워요. 내일 또 할까요?"))
     assert coach.closing(CTX, MAX_TURNS)[0] == coach.FALLBACK_CLOSING  # 마무리에 질문이 섞임 → 고정 인사
@@ -188,10 +202,10 @@ def test_fourth_question_is_quiz_recorded_once(client, question_bank, monkeypatc
     q = by_code[asked[0]["question_code"]]
     assert r["turn_no"] == QUIZ_TURN and r["ai"]["question_type"] == q["qtype"] in ("THEN_NOW", "COMMON")
     assert r["ai"]["text"] == f"아, 그러셨군요. {q['prompt_text']}"  # mock 맞장구 + 원문
-    assert r["ai"]["suggestions"][-1] == coach.SKIP_CHIP
+    assert coach.SKIP_CHIP not in r["ai"]["suggestions"] and len(r["ai"]["suggestions"]) <= 2  # 답 칩만 (D52 ⑧)
     assert sent[QUIZ_TURN - 1]["quiz"]["prompt_text"] == q["prompt_text"]
 
-    r = _answer(client, sid, 1, coach.SKIP_CHIP)  # 넘기면 회상으로. 다음 턴 모델은 문제였던 턴을 안다
+    r = _answer(client, sid, 1, "다음에 할게요")  # 말로 넘기면 회상으로. 다음 턴 모델은 문제였던 턴을 안다
     assert r["ai"]["question_type"] == "RECALL"
     assert sum(t.get("quiz", False) for t in sent[-1]["turns"]) == 1
     r = _answer(client, sid, MAX_TURNS - QUIZ_TURN)

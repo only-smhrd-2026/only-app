@@ -1,4 +1,4 @@
-"""세션 API 계약 — 8턴째 ENDED, 저신뢰 확인 질문·잠금, 무응답 3단계 (초석 D 완료 기준)."""
+"""세션 API 계약 — 6턴째 ENDED(D52 ⑦), 저신뢰 확인 질문·잠금, 무응답 3단계 (초석 D 완료 기준)."""
 
 import uuid
 from datetime import timedelta
@@ -7,7 +7,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import OperationalError
 
 from app.ai import tts
-from app.config import now_kst, today_kst
+from app.config import MAX_TURNS, now_kst, today_kst
 from app.db import SessionLocal, engine
 from app.models import DailyPick, Notification, TalkSession
 from tests.conftest import setup_elder
@@ -20,7 +20,7 @@ def _create(client, ctx, kind="MEMORY"):
     return r.json()
 
 
-def test_eight_turns_then_ended(client):
+def test_max_turns_then_ended(client):
     ctx = setup_elder(client)
     s = _create(client, ctx)
     assert s["state"] == "CONTINUE" and s["turn_no"] == 1 and s["ai"]["text"]
@@ -33,7 +33,7 @@ def test_eight_turns_then_ended(client):
     )
     assert again.status_code == 201 and again.json()["turn_no"] == 1
 
-    for i in range(7):
+    for i in range(MAX_TURNS - 1):
         r = client.post(f"/api/elder/sessions/{sid}/turns", json={"text": "네, 기억나요", "input_type": "CHIP"}).json()
         assert r["state"] == "CONTINUE" and r["turn_no"] == i + 2, r
 
@@ -41,7 +41,7 @@ def test_eight_turns_then_ended(client):
         f"/api/elder/sessions/{sid}/turns", json={"text": "네", "input_type": "VOICE", "stt_confidence": 0.9}
     )
     body = last.json()
-    assert body["state"] == "ENDED" and body["end_reason"] == "COMPLETED" and body["turn_no"] == 8
+    assert body["state"] == "ENDED" and body["end_reason"] == "COMPLETED" and body["turn_no"] == MAX_TURNS == 6
     assert body["ai"]["question_type"] == "CLOSING"
 
     assert client.post(f"/api/elder/sessions/{sid}/turns", json={"text": "또", "input_type": "CHIP"}).status_code == 409
@@ -204,3 +204,81 @@ def test_reask_and_confirm_release_row_lock_before_tts(client, monkeypatch):
     assert client.post(url, json={"input_type": "BUTTON", "event": "NO_RESPONSE"}).status_code == 200
     assert client.post(url, json={"text": "웅얼웅얼", "input_type": "VOICE", "stt_confidence": 0.4}).status_code == 200
     assert locked == [False, False]
+
+
+def _elder_turns(sid: str) -> list[dict]:
+    with SessionLocal() as db:
+        return [t for t in db.get(TalkSession, uuid.UUID(sid)).turns if t["speaker"] == "ELDER"]
+
+
+def test_low_confidence_yes_saves_heard_text_not_yes(client):
+    """저신뢰 → 확인 질문 → '맞아요'(칩·말)면 '맞아요'가 아니라 들은 문장이 답으로 남는다 (D33 의 문제, D52 ③)."""
+    ctx = setup_elder(client)
+    low = {"text": "바다에 갔어요", "input_type": "VOICE", "stt_confidence": 0.5}
+    sid = _create(client, ctx)["session_id"]
+    url = f"/api/elder/sessions/{sid}/turns"
+    assert client.post(url, json=low).json()["ai"]["suggestions"] == ["맞아요", "다시 말할게요"]
+    r = client.post(url, json={"text": "맞아요", "input_type": "CHIP"}).json()
+    assert r["turn_no"] == 2 and r["ai"]["question_type"] != "NONE"  # 다음 질문으로
+    saved = _elder_turns(sid)[-1]
+    assert saved["text"] == "바다에 갔어요" and saved["input_type"] == "VOICE"
+    assert saved["retried"] is True and saved["stt_confidence"] == 0.5
+
+    # '다시 말할게요'(칩) 면 저장 없이 원래 질문을 다시
+    sid2 = _create(client, ctx, kind="ALBUM")["session_id"]
+    q2 = client.get(f"/api/elder/sessions/{sid2}").json()["last_ai"]["text"]
+    client.post(f"/api/elder/sessions/{sid2}/turns", json=low)
+    again = client.post(f"/api/elder/sessions/{sid2}/turns", json={"text": "다시 말할게요", "input_type": "CHIP"})
+    assert again.json()["ai"]["text"] == q2 and again.json()["turn_no"] == 1 and _elder_turns(sid2) == []
+
+    # 말로 '네, 맞아요.' 도 같다 (저신뢰 2번이면 잠기므로 새 대화에서)
+    sid3 = _create(client, ctx)["session_id"]
+    client.post(f"/api/elder/sessions/{sid3}/turns", json={**low, "text": "산에 갔어요"})
+    yes = {"text": "네, 맞아요.", "input_type": "VOICE", "stt_confidence": 0.95}
+    r = client.post(f"/api/elder/sessions/{sid3}/turns", json=yes).json()
+    assert r["turn_no"] == 2 and [t["text"] for t in _elder_turns(sid3)] == ["산에 갔어요"]
+
+
+def test_low_confidence_then_new_answer_and_no_response_drop_pending(client):
+    ctx = setup_elder(client)
+    sid = _create(client, ctx)["session_id"]
+    url = f"/api/elder/sessions/{sid}/turns"
+    client.post(url, json={"text": "웅얼", "input_type": "VOICE", "stt_confidence": 0.3})
+    r = client.post(url, json={"text": "가족이랑 갔어요", "input_type": "VOICE", "stt_confidence": 0.9}).json()
+    assert r["turn_no"] == 2 and [t["text"] for t in _elder_turns(sid)] == ["가족이랑 갔어요"]  # 다른 말 = 새 답
+
+    client.post(url, json={"text": "웅얼", "input_type": "VOICE", "stt_confidence": 0.3})
+    client.post(url, json={"input_type": "BUTTON", "event": "NO_RESPONSE"})  # 확인에 답 없음 → 맡긴 문장 버림
+    r = client.post(url, json={"text": "네", "input_type": "CHIP"}).json()
+    assert [t["text"] for t in _elder_turns(sid)] == ["가족이랑 갔어요", "네"]  # '네'는 보통 답
+
+
+def test_text_input_and_get_returns_past_turns(client):
+    """글로 쓰기(TEXT, D52 ⑤)는 확인 없이 저장되고, GET 은 이어서 할 때 쓸 지난 말을 준다 (D52 ⑥)."""
+    ctx = setup_elder(client)
+    sid = _create(client, ctx)["session_id"]
+    r = client.post(f"/api/elder/sessions/{sid}/turns", json={"text": "손주랑 바다에 갔어요", "input_type": "TEXT"})
+    assert r.status_code == 200 and r.json()["turn_no"] == 2
+    assert _elder_turns(sid)[-1]["input_type"] == "TEXT"
+    too_long = client.post(f"/api/elder/sessions/{sid}/turns", json={"text": "가" * 501, "input_type": "TEXT"})
+    assert too_long.status_code == 422
+
+    got = client.get(f"/api/elder/sessions/{sid}").json()
+    assert [t["speaker"] for t in got["turns"]] == ["AI", "ELDER", "AI"]
+    assert got["turns"][1]["text"] == "손주랑 바다에 갔어요" and got["turns"][-1]["text"] == got["last_ai"]["text"]
+    assert set(got["turns"][0]) == {"speaker", "text"}  # 신뢰도·시각 같은 안쪽 칸은 내보내지 않는다
+
+
+def test_limit_after_confirm_saves_heard_text(client):
+    """5분 상한에 걸린 턴에서도 확인 질문 뒤 '맞아요'면 '맞아요'가 아니라 맡긴 문장이 저장된다."""
+    ctx = setup_elder(client)
+    sid = _create(client, ctx)["session_id"]
+    url = f"/api/elder/sessions/{sid}/turns"
+    for _ in range(2):
+        client.post(url, json={"text": "네", "input_type": "CHIP"})
+    low = {"text": "강가에 갔어요", "input_type": "VOICE", "stt_confidence": 0.5}
+    client.post(url, json=low)  # 확인 질문 (턴 없음)
+    _shift(sid, [80] * 6)  # 5행 + 지금 = 간격 6개 × 80초 = 480초 > 5분
+    r = client.post(url, json={"text": "맞아요", "input_type": "CHIP"}).json()
+    assert r["state"] == "ENDED" and r["end_reason"] == "LIMIT"
+    assert [t["text"] for t in _elder_turns(sid)] == ["네", "네", "강가에 갔어요"]

@@ -18,7 +18,7 @@ TZ = ZoneInfo("Asia/Seoul")
 DEV_JWT_SECRET = "dev-only-jwt-secret-change-me-before-deploy-0000"
 
 # 상한값은 설정 테이블 대신 상수 (D8)
-MAX_TURNS = 8  # 세션당 AI 질문 수 (sessions.turn_count CHECK 0~8)
+MAX_TURNS = 6  # 회상 AI 질문 수: 회상 3 → 문제 1 → 회상 2 (D52 ⑦, 11/12 전 8). DB CHECK 0~8 은 그대로
 DIARY_TURNS = 3  # 일기 대화 질문 수: 뭐 하셨어요 → 누구랑 → 기분은 (FR-DI-003)
 DIARY_DRAFT_MIN = 30  # 일기 초안 유지 시간 (FR-DI-004)
 QUIZ_TURN = 4  # 회상 3턴(어떠세요 → 누구랑 → 그때 이야기) 뒤 4번째 AI 질문이 문제 은행 문제 (FR-AI-001·002, D42)

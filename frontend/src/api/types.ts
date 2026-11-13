@@ -76,10 +76,12 @@ export type SessionGetOut = {
   last_ai: AiOut | null
   turn_no: number
   input_locked: boolean
+  turns: TurnOut[] // 지난 말 (오래된 것 → 마지막 질문). 이어서 할 때 말풍선으로 다시 보인다 (D52 ⑥)
 }
+export type TurnOut = { speaker: 'AI' | 'ELDER'; text: string }
 export type TurnIn = {
   text?: string
-  input_type: 'VOICE' | 'CHIP' | 'BUTTON'
+  input_type: 'VOICE' | 'CHIP' | 'BUTTON' | 'TEXT' // TEXT = 글로 쓰기 (D52 ⑤)
   stt_confidence?: number
   retried?: boolean
   event?: 'NO_RESPONSE'

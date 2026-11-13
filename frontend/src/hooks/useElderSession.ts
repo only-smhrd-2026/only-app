@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
-import type { ElderHomeOut, SessionGetOut, SessionOut } from '../api/types'
+import type { ElderHomeOut, SessionGetOut, SessionOut, TurnOut } from '../api/types'
+import { clearPaused } from '../lib/pausedSession'
 
 /** 앞 화면이 navigate(…, { state }) 로 넘기는 것 */
 export type ElderNavState = { session?: SessionOut; photoUrl?: string; home?: ElderHomeOut }
@@ -24,7 +25,7 @@ export function useLive() {
 /**
  * 어르신 대화 화면(회상 ELDER_MEMORY_001 · 일기 ELDER_DIARY_002) 공통.
  * 앞 화면이 넘긴 세션·홈 정보를 쓰고, 새로고침 등으로 없으면 서버에서 다시 읽는다 (30분 안 복귀).
- * 세션을 찾을 수 없으면 홈으로 보낸다.
+ * 세션을 찾을 수 없으면 홈으로 보낸다. 서버에서 다시 읽었으면 지난 말(history)도 준다 — 뒤로 키 뒤 '이어서' (D52 ⑥).
  */
 export function useElderSession(sessionId: string) {
   const nav = useNavigate()
@@ -34,6 +35,7 @@ export function useElderSession(sessionId: string) {
   const [session, setSession] = useState<SessionOut | undefined>(state.session)
   const [home, setHome] = useState<ElderHomeOut | undefined>(state.home)
   const [photoUrl] = useState<string | undefined>(state.photoUrl)
+  const [history, setHistory] = useState<TurnOut[]>()
 
   // 넘겨받은 state 는 위 state 로 옮겼으니 주소에서 지운다 → 새로고침하면 서버에서 다시 읽는다(30분 복귀 경로)
   useEffect(() => {
@@ -52,6 +54,8 @@ export function useElderSession(sessionId: string) {
         if (!live.current) return
         if (s) {
           if (!s.last_ai) return nav('/elder', { replace: true }) // 질문이 없는 세션은 이어 갈 수 없다
+          if (s.state === 'ENDED') clearPaused(s.session_id) // 30분이 지났거나 끝난 대화는 '이어서'에서 뺀다
+          setHistory(s.turns)
           setSession({
             session_id: s.session_id,
             kind: s.kind,
@@ -68,5 +72,5 @@ export function useElderSession(sessionId: string) {
       .catch(() => live.current && nav('/elder', { replace: true }))
   }, [sessionId, session, home, nav, live])
 
-  return { session, home, photoUrl }
+  return { session, home, photoUrl, history }
 }
