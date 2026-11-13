@@ -11,6 +11,7 @@
    어르신 가족 소식 '다 들었어요'는 기기 쿠키 전용 POST /elder/diaries/{id}/read
    (안 들은 소식 목록은 GET /elder/family-news).
 6. POST /rooms/{id}/diaries — 가족 일기 올리기. 같은 가족방 + 같은 request_id 는 1개.
+7. GET /diaries/{id} — 일기 한 건(HOME_002). 구성원만, 지워진 일기는 404.
 
 담당: 일기 프롬프트·그림 화풍(image.STYLE) 다듬기 홍진성 / 사진 일기(카메라)·가족 일기·목록 세부 천주웅.
 그림 제공자는 Workers AI FLUX.2 klein 4B 로 연결됨(D37, IMAGE_PROVIDER=cloudflare).
@@ -286,6 +287,22 @@ def elder_mark_read(diary_id: int, device: CurrentDevice, db: DB):
         update(Diary).where(Diary.diary_id == diary_id, Diary.elder_read_at.is_(None)).values(elder_read_at=now_kst())
     )
     db.commit()
+
+
+@router.get("/diaries/{diary_id}", response_model=DiaryOut)
+def get_diary(diary_id: int, user: CurrentUser, db: DB):
+    """일기 한 건 (HOME_002, FR-FD-002). 목록과 같은 모양. 읽기만 하고 '봤어요'는 POST /diaries/{id}/read 가 한다."""
+    diary = db.get(Diary, diary_id)
+    member = diary is not None and db.scalar(
+        select(RoomMember.member_id).where(
+            RoomMember.room_id == diary.room_id,
+            RoomMember.user_id == user.user_id,
+            RoomMember.removed_at.is_(None),
+        )
+    )
+    if not member or diary.status != "POSTED":  # 다른 방 일기도 없는 것처럼 404 (D43)
+        raise ApiError(404, "DIARY_NOT_FOUND", "일기를 찾을 수 없어요")
+    return _rows(db, db.get(FamilyRoom, diary.room_id), Diary.diary_id == diary_id, me=user.user_id)[0]
 
 
 @router.post("/diaries/{diary_id}/read", status_code=204)
