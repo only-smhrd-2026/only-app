@@ -43,7 +43,11 @@ FALLBACK_CLOSING = CoachReply(
     choice_mode="TWO_BUTTONS",
 )
 CONFIRM_SUGGESTIONS = ["맞아요", "다시 말할게요"]
-SKIP_CHIP = "다음에 할게요"  # 문제마다 넘기기 (FR-AI-003). 고르면 그 문제만 넘기고 회상으로 돌아간다
+# 저신뢰 확인 질문에 대한 답 (D52 ③, D33 을 바꿈). 말로 해도 칩으로 눌러도 같다. 앞뒤 문장부호·띄어쓰기는 뺀 뒤 비교
+CONFIRM_YES = {"맞아요", "맞아", "맞습니다", "맞네", "맞어", "네", "예", "응", "그래요", "그래"}
+CONFIRM_YES |= {"네맞아요", "예맞아요", "응맞아"}
+CONFIRM_NO = {"다시말할게요", "아니요", "아니", "아뇨", "아니에요", "틀렸어요", "아니야"}
+SKIP_CHIP = "다음에 할게요"  # 옛 넘기기 칩 (11/12 전). 문제 칩은 답 2개만이라(D52 ⑧) 모델이 이 칩을 내도 거른다
 QUIZ_FALLBACK_CHIPS = ["잘 모르겠어요"]  # 열린 문제인데 모델이 칩을 못 만들었을 때
 WEEKDAYS = "월화수목금토일"
 
@@ -85,10 +89,9 @@ def _is_skip(text: str) -> bool:
 
 
 def _quiz_reply(quiz: Quiz, lead: str, chips: list[str]) -> CoachReply:
-    """맞장구(모델) + 문제 은행 원문(코드). 칩 = 답 2개(2지선다면 선택지) + '다음에 할게요'."""
-    # 넘기기 칩·겹친 칩을 먼저 거른 뒤에 비었으면 기본 칩 (답 칩이 0개면 버튼 모드 어르신은 넘기기만 누를 수 있다)
-    answers = list(dict.fromkeys(c for c in (quiz.choices or chips) if not _is_skip(c)))[:2] or QUIZ_FALLBACK_CHIPS
-    suggestions = [*answers, SKIP_CHIP]
+    """맞장구(모델) + 문제 은행 원문(코드). 칩 = 답 2개(2지선다면 선택지)만 — 넘기기는 말로 (D52 ⑧)."""
+    # 넘기기 칩·겹친 칩을 먼저 거른 뒤에 비었으면 기본 칩 (화면은 2개가 안 되면 기본 칩으로 채운다)
+    suggestions = list(dict.fromkeys(c for c in (quiz.choices or chips) if not _is_skip(c)))[:2] or QUIZ_FALLBACK_CHIPS
     lead = re.split(r"(?<=[.!])\s+", lead.strip())[0]  # 맞장구는 첫 문장만 (원문까지 2문장 이내, FR-AI-006)
     if lead and not question_marks(lead):  # 맞장구에 질문이 섞이면 질문이 2개가 되므로 버린다
         try:
@@ -98,9 +101,27 @@ def _quiz_reply(quiz: Quiz, lead: str, chips: list[str]) -> CoachReply:
     return CoachReply(text=quiz.prompt_text, suggestions=suggestions, question_type=quiz.qtype)
 
 
-def _skipped_quiz(ctx: CoachContext) -> bool:
-    """직전 AI 턴이 문제였고 어르신이 '다음에 할게요'로 넘겼는지."""
-    return len(ctx.turns) >= 2 and bool(ctx.turns[-2].get("quiz")) and _is_skip(ctx.turns[-1]["text"])
+def _skipped_quiz(ctx: CoachContext, signal: str) -> bool:
+    """문제에 넘기자고 답했는지 — 그 문제만 넘기고 대화는 이어 간다 (FR-AI-003, D52 ⑧).
+
+    넘기기 칩이 없어져 '다음에 할게요·모르겠어요'를 말로 한다.
+    모델이 그 말을 STOP 으로 읽어도 '그만'이 없으면 넘기기로 본다
+    (진짜 그만이면 다음 질문에서 한 번 더 말하면 끝난다). 옛 칩 글자 그대로면 SAD 도 무시한다(D42 그대로).
+    """
+    if len(ctx.turns) < 2 or not ctx.turns[-2].get("quiz"):
+        return False
+    said = ctx.turns[-1]["text"]
+    return _is_skip(said) or (signal == "STOP" and "그만" not in said)
+
+
+def confirm_answer(text: str) -> str | None:
+    """저신뢰 확인 질문('제가 ○○ 라고 들었어요…')에 대한 답이 '맞다'(YES)·'아니다'(NO)인지. 그 밖의 말은 None(새 답)."""
+    t = re.sub(r"[\s.,!?~]", "", text)
+    if t in CONFIRM_YES:
+        return "YES"
+    if t in CONFIRM_NO:
+        return "NO"
+    return None
 
 
 def next_question(
@@ -108,7 +129,7 @@ def next_question(
 ) -> tuple[CoachReply, str]:
     """turn_no 번째 AI 말과 signal(NONE|SAD|STOP). quiz 가 있으면 맞장구 + 문제 은행 원문 (FR-AI-002).
 
-    max_turns = 이 대화의 최대 질문 수 (오늘의 한 장 8, 사진첩 2 — routers/sessions.py 가 넘긴다).
+    max_turns = 이 대화의 최대 질문 수 (오늘의 한 장 6, 사진첩 2 — routers/sessions.py 가 넘긴다).
     signal 이 SAD·STOP 이면 reply 는 마무리 인사다 — 호출자가 대화를 끝낸다 (FR-AI-005).
     """
     try:
@@ -118,7 +139,7 @@ def next_question(
     if out.signal != "NONE":
         if not any(t["speaker"] == "ELDER" for t in ctx.turns):  # 아직 어르신 말이 없는데 끝내자고 함 → 무시
             return FALLBACK_QUESTION, "NONE"
-        if _skipped_quiz(ctx):  # '다음에 할게요'는 그 문제만 넘기는 칩 — 대화를 끝내지 않는다 (FR-AI-003)
+        if _skipped_quiz(ctx, out.signal):  # 문제를 넘기는 말 — 대화를 끝내지 않는다 (FR-AI-003)
             return FALLBACK_QUESTION, "NONE"
         return _closing_reply(out.text), out.signal
     if quiz:
@@ -142,10 +163,10 @@ def confirm_question(heard: str) -> CoachReply:
     """
     heard = heard[:40].replace("?", "").replace("？", "")
     try:
-        text = f"제가 '{heard}' 라고 들었어요. 맞으면 맞아요를 눌러 주세요."
+        text = f"제가 '{heard}' 라고 들었어요. 맞으면 맞아요라고 해 주세요."
         return CoachReply(text=text, suggestions=CONFIRM_SUGGESTIONS, question_type="NONE", choice_mode="TWO_BUTTONS")
     except ValidationError:
-        text = "제가 잘 들었는지 모르겠어요. 맞으면 맞아요를 눌러 주세요."
+        text = "제가 잘 들었는지 모르겠어요. 맞으면 맞아요라고 해 주세요."
         return CoachReply(text=text, suggestions=CONFIRM_SUGGESTIONS, question_type="NONE", choice_mode="TWO_BUTTONS")
 
 

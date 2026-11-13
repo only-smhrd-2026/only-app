@@ -1,12 +1,16 @@
 """회상·일기 대화 세션 — 음성 왕복 걷는 해골 (초석 원안 D). 계약은 schemas/sessions.py.
 
-턴 정의: AI 질문 1 + 어르신 답 1 = 1턴. sessions.turn_count = 지금까지 낸 AI 질문 수 (만들 때 1, 최대 MAX_TURNS=8).
-8번째 답을 받으면 AI 가 마무리 인사(CLOSING) 를 하고 state=ENDED, end_reason=COMPLETED.
+턴 정의: AI 질문 1 + 어르신 답 1 = 1턴. sessions.turn_count = 지금까지 낸 AI 질문 수
+(만들 때 1, 최대 MAX_TURNS=6, D52 ⑦).
+마지막(6번째) 답을 받으면 AI 가 마무리 인사(CLOSING) 를 하고 state=ENDED, end_reason=COMPLETED.
 kind=DIARY(일기 대화)는 질문 3개(DIARY_TURNS)로 끝난다. 초안·그림일기·게시는 routers/diaries.py (D36).
 kind=ALBUM(사진첩)은 질문 2개(ALBUM_TURNS)로 끝난다 (FR-ME-008).
 턴은 sessions.turns JSON 배열에 한 칸씩 (D38). turn_no 는 순번 (1=AI, 2=ELDER, 3=AI …).
-서버가 지키는 상한: 8턴, 5분(대화한 시간 — 보류는 빼고 잼), 무응답 3단계, 저신뢰 2회 → input_locked (D5, D8).
-마지막 턴 뒤 30분이 지나면 끝난 대화로 본다 (보류 30분 복귀).
+서버가 지키는 상한: 6턴, 5분(대화한 시간 — 보류는 빼고 잼), 무응답 3단계, 저신뢰 2회 → input_locked (D5, D8).
+마지막 턴 뒤 30분이 지나면 끝난 대화로 본다 (보류 30분 복귀 — 뒤로 키로 나갔다 '이어서', D52 ⑥).
+저신뢰 음성은 저장하지 않고 확인 질문을 하며 그 문장을 메모리에 맡겨 둔다.
+다음 답이 '맞아요'(말·칩)면 맡긴 문장을 답으로 저장하고, '다시 말할게요·아니요'면 원래 질문을 다시,
+다른 말이면 그 말이 새 답이다 ('맞아요'가 답으로 저장되던 D33 의 문제, D52 ③).
 """
 
 from __future__ import annotations
@@ -52,6 +56,7 @@ from app.schemas.sessions import (
     SessionGetOut,
     SessionOut,
     TurnIn,
+    TurnOut,
 )
 
 log = logging.getLogger("app.sessions")
@@ -66,6 +71,8 @@ _no_response: dict[uuid.UUID, int] = defaultdict(int)
 _low_conf: dict[uuid.UUID, int] = defaultdict(int)
 _last_reply: dict[uuid.UUID, CoachReply] = {}
 _tts_failed: set[uuid.UUID] = set()
+# 확인을 기다리는 저신뢰 문장 (문장, 신뢰도). 재시작으로 잃으면 그 뒤 '맞아요'는 보통 답으로 저장된다(드묾)
+_pending: dict[uuid.UUID, tuple[str, float | None]] = {}
 
 
 def load_session(db, session_id: uuid.UUID, device, lock: bool = False) -> TalkSession:
@@ -152,7 +159,7 @@ def _ask(
         reply, signal = coach.closing(ctx, turn_no, _max_turns(session))
     else:
         picked = quiz.pick(db, session) if session.kind == "MEMORY" and turn_no == QUIZ_TURN else None
-        # 최대 질문 수도 같이 넘긴다 — 사진첩은 2, 오늘의 한 장은 8 (AI 가 몇 번째 질문인지 알고 말하게)
+        # 최대 질문 수도 같이 넘긴다 — 사진첩은 2, 오늘의 한 장은 6 (AI 가 몇 번째 질문인지 알고 말하게)
         reply, signal = coach.next_question(ctx, turn_no, picked, _max_turns(session))
         code = picked.code if picked and signal == "NONE" else None
     if signal == "SAD":
@@ -247,7 +254,7 @@ def _finish(db, session: TalkSession, reason: str) -> None:
         if (errors_today or 0) >= SESSION_ERROR_ALERT and not already:
             room = db.get(FamilyRoom, session.room_id)
             notify_family(db, room.room_id, "SESSION_ERROR_3X", f"{room.elder_name} 님 대화가 오늘 3번 중단됐어요")
-    for store in (_no_response, _low_conf, _last_reply):
+    for store in (_no_response, _low_conf, _last_reply, _pending):
         store.pop(session.session_id, None)
     # _tts_failed 는 여기서 지우지 않는다: 끝인사를 읽다가 또 실패하면 가족 알림이 한 번 더 간다 (D5 는 대화에 1건)
 
@@ -356,6 +363,7 @@ def get_session(session_id: uuid.UUID, device: CurrentDevice, db: DB):
         else None,
         turn_no=session.turn_count,
         input_locked=_locked(session.session_id),
+        turns=[TurnOut(speaker=t["speaker"], text=t["text"]) for t in session.turns],  # 이어서 할 때 지난 말풍선
     )
 
 
@@ -403,6 +411,7 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
         return _out(db, session, room, reply, "ENDED", "LIMIT")
 
     if body.event == "NO_RESPONSE":  # 무응답 3단계: 재질문 → 칩만 → 종료
+        _pending.pop(session.session_id, None)  # 확인 질문에 답이 없으면 맡긴 문장은 버리고 원래 질문을 다시
         _no_response[session.session_id] += 1
         stage = _no_response[session.session_id]
         if stage >= NO_RESPONSE_END:
@@ -424,17 +433,25 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
         raise ApiError(422, "TEXT_REQUIRED", "말씀 내용이 비어 있어요")
     if body.input_type == "VOICE" and _locked(session.session_id):
         raise ApiError(409, "INPUT_LOCKED", "지금은 버튼으로만 답할 수 있어요")
-    if _unconfirmed(
-        body
-    ):  # 저신뢰: 저장하지 않고 확인 질문만 (D5). "맞아요" 면 같은 문장을 retried=true 로 다시 보낸다.
+    if _unconfirmed(body):  # 저신뢰: 저장하지 않고 문장을 맡겨 둔 채 확인 질문만 (D5, D52 ③)
         _low_conf[session.session_id] += 1
+        _pending[session.session_id] = (text, body.stt_confidence)
         db.commit()  # 위 재질문과 같은 이유 — 음성을 만들기 전에 세션 행 잠금을 푼다
         return _out(db, session, room, coach.confirm_question(text))
+    pending = _pending.pop(session.session_id, None)
+    if pending:  # 바로 앞이 확인 질문이었다
+        answer = coach.confirm_answer(text)
+        if answer == "NO":  # 잘못 들었다 → 저장 없이 원래 질문을 다시 (화면은 [다시 말할게요]를 보통 녹음으로 받는다)
+            db.commit()
+            return _out(db, session, room, _last_reply.get(session.session_id) or _fallback(session))
+        if answer == "YES":  # '맞아요'가 답으로 남지 않게 맡긴 문장을 어르신 답으로 (retried = 확인을 거친 음성)
+            text = pending[0]
+            body = body.model_copy(update={"input_type": "VOICE", "stt_confidence": pending[1], "retried": True})
 
     _no_response[session.session_id] = 0
     _save_elder(db, session, body, text)
     ctx = coach_context(db, room, session)
-    if session.turn_count >= _max_turns(session):  # 마지막 답(회상 8번째·일기 3번째) → 마무리 인사 후 종료
+    if session.turn_count >= _max_turns(session):  # 마지막 답(회상 6번째·일기 3번째) → 마무리 인사 후 종료
         reply, _ = _ask(db, session, ctx, end="COMPLETED")
         _finish(db, session, "COMPLETED")
         db.commit()

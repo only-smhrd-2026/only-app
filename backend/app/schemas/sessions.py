@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 SessionKind = Literal["MEMORY", "ALBUM", "DIARY"]
-InputType = Literal["VOICE", "CHIP", "BUTTON"]
+InputType = Literal["VOICE", "CHIP", "BUTTON", "TEXT"]  # TEXT = 대화의 '글로 쓰기' (D52 ⑤). 말과 같은 길로 저장
 ChoiceMode = Literal["CHIPS", "TWO_BUTTONS"]
 QuestionType = Literal["RECALL", "REMEMBER", "KNOWHOW", "THEN_NOW", "COMMON", "RECHECK", "CLOSING", "NONE"]
 SessionState = Literal["CONTINUE", "ENDED"]
@@ -39,6 +39,13 @@ class SessionOut(BaseModel):
     input_locked: bool = False
 
 
+class TurnOut(BaseModel):
+    """지난 말풍선 하나. 이어서 할 때 화면이 지난 말을 다시 보여 준다 (D52 ⑥). 저신뢰 확인 질문은 턴이 아니라 없다."""
+
+    speaker: Literal["AI", "ELDER"]
+    text: str
+
+
 class SessionGetOut(BaseModel):
     session_id: uuid.UUID
     kind: SessionKind
@@ -48,13 +55,14 @@ class SessionGetOut(BaseModel):
     last_ai: AiOut | None
     turn_no: int
     input_locked: bool
+    turns: list[TurnOut] = Field(default_factory=list)  # 지금까지의 말 (오래된 것 → 마지막 질문)
 
 
 class TurnIn(BaseModel):
     text: str | None = Field(default=None, max_length=500)
     input_type: InputType
     stt_confidence: float | None = Field(default=None, ge=0, le=1)
-    retried: bool = False  # 확인 질문 뒤 "맞아요" 로 같은 문장을 다시 보낼 때 true
+    retried: bool = False  # 다른 화면용: 확인 질문 뒤 같은 문장을 다시 보낼 때 true (이 앱은 "맞아요" 를 그대로 보냄)
     event: Literal["NO_RESPONSE"] | None = None
 
 
