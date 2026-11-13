@@ -12,6 +12,7 @@
    (안 들은 소식 목록은 GET /elder/family-news).
 6. POST /rooms/{id}/diaries — 가족 일기 올리기. 같은 가족방 + 같은 request_id 는 1개.
 7. GET /diaries/{id} — 일기 한 건(HOME_002). 구성원만, 지워진 일기는 404.
+8. GET /elder/diaries — 어르신 '내 일기' 목록(기기 쿠키). 어르신이 쓴 게시 일기만 최신 먼저.
 
 담당: 일기 프롬프트·그림 화풍(image.STYLE) 다듬기 홍진성 / 사진 일기(카메라)·가족 일기·목록 세부 천주웅.
 그림 제공자는 Workers AI FLUX.2 klein 4B 로 연결됨(D37, IMAGE_PROVIDER=cloudflare).
@@ -31,7 +32,7 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.ai import coach, image, tts
-from app.config import DIARY_DRAFT_MIN, now_kst
+from app.config import DIARY_DRAFT_MIN, ELDER_DIARY_LIST_LIMIT, now_kst
 from app.deps import DB, CurrentDevice, CurrentUser, require_member
 from app.errors import ApiError
 from app.models import Diary, FamilyRoom, Photo, RoomMember, User
@@ -143,8 +144,8 @@ def make_draft(session_id: uuid.UUID, device: CurrentDevice, db: DB):
         return out
 
 
-def _rows(db, room: FamilyRoom, *cond, me: int | None = None) -> list[DiaryOut]:
-    """일기 행 → DiaryOut (최근 50개). me = 보는 가족 user_id, None 이면 어르신 기기가 보는 것."""
+def _rows(db, room: FamilyRoom, *cond, me: int | None = None, limit: int = 50) -> list[DiaryOut]:
+    """일기 행 → DiaryOut (최근 limit 개, 기본 50). me = 보는 가족 user_id, None 이면 어르신 기기가 보는 것."""
     rows = db.execute(
         select(Diary, User.name, Photo.object_key, RoomMember.nickname)
         .outerjoin(User, User.user_id == Diary.author_user_id)
@@ -154,7 +155,7 @@ def _rows(db, room: FamilyRoom, *cond, me: int | None = None) -> list[DiaryOut]:
         .outerjoin(RoomMember, and_(RoomMember.room_id == Diary.room_id, RoomMember.user_id == Diary.author_user_id))
         .where(Diary.room_id == room.room_id, Diary.status == "POSTED", *cond)
         .order_by(Diary.posted_at.desc(), Diary.diary_id.desc())
-        .limit(50)
+        .limit(limit)
     ).all()
     out = []
     for d, name, photo_key, nickname in rows:
@@ -265,6 +266,13 @@ def list_diaries(room_id: int, user: CurrentUser, db: DB):
     """가족 홈 일기 목록 최소판 (FR-FD-001) — 최근 50개. 페이지·어르신 칩·가족 일기 세부는 천주웅."""
     require_member(room_id, user, db)
     return DiaryListOut(diaries=_rows(db, db.get(FamilyRoom, room_id), me=user.user_id))
+
+
+@router.get("/elder/diaries", response_model=DiaryListOut)
+def elder_my_diaries(device: CurrentDevice, db: DB):
+    """어르신 사진첩 '내 일기' (ELDER_ALBUM_001 ④, FR-DI-004). 이 가족방에서 어르신이 쓴 게시 일기만 최신 먼저."""
+    room = db.get(FamilyRoom, device.room_id)
+    return DiaryListOut(diaries=_rows(db, room, Diary.author_type == "ELDER", limit=ELDER_DIARY_LIST_LIMIT))
 
 
 @router.get("/elder/family-news", response_model=DiaryListOut)
