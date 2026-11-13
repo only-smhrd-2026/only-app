@@ -43,6 +43,8 @@ SESSION_ERROR_ALERT = 3  # 하루 ERROR 종료 3회 → 가족 알림
 PICK_SKIP_ALERT = 2  # 같은 사진 건너뛰기 2회 → 가족 알림 (FR-ME-005)
 NO_RECORD_DAYS = 2  # 이 날수만큼 어르신 기록이 없으면 가족 알림 (FR-NT-003)
 WEEKLY_HOUR = 19  # 주간 집계는 일요일 이 시각, D19 — 집계 창과 예약 시각이 같이 쓴다
+MOOD_LOW_DAYS = 2  # 기운 없는 말이 나온 날이 최근 MOOD_LOW_WINDOW_DAYS 일 중 이만큼이면 가족 알림 1건 (D55 ②)
+MOOD_LOW_WINDOW_DAYS = 7  # 위 날수를 세는 기간이자, 같은 알림을 다시 보내지 않는 기간
 STT_MAX_BYTES = 5 * 1024 * 1024
 STT_MAX_SEC = 60  # 녹음 상한 (FR-VS-001, 화면 RECORD_MS). 더 긴 소리는 변환할 때 잘라 STT 과금·메모리를 막는다
 # 전사 상한. 턴 본문 상한(schemas/sessions.py TurnIn.text)과 같게 — 넘으면 턴이 422 로 대화를 끝낸다

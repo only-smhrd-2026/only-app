@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -13,6 +14,13 @@ from pydantic import BaseModel, Field, field_validator
 from app.config import ROOT
 
 BANNED_WORDS: list[str] = json.loads((ROOT / "data" / "banned_words.json").read_text("utf-8"))["words"]
+# 위급 표현 조각 (D55 ① 안전망). 띄어쓰기를 뺀 어르신 말에 들어 있으면 AI 판단과 상관없이 위급으로 본다
+RISK_WORDS: list[str] = json.loads((ROOT / "data" / "risk_words.json").read_text("utf-8"))["words"]
+
+
+def has_risk_words(text: str) -> bool:
+    t = re.sub(r"\s+", "", text)
+    return any(w in t for w in RISK_WORDS)
 
 
 def check_banned(text: str) -> str:
@@ -79,13 +87,16 @@ class CoachReply(BaseModel):
 
 
 class CoachTurn(BaseModel):
-    """회상 대화 한 턴. text: 이번에 할 말, suggestions: 어르신이 고를 짧은 답, signal: 어르신 직전 말로 본 상태."""
+    """회상 대화 한 턴. text: 이번에 할 말, suggestions: 어르신이 고를 짧은 답, signal: 어르신 직전 말로 본 상태,
+    private: 어르신이 이 이야기를 가족에게 전하지 말라고 하셨는지."""
 
     # memory_coach 의 모델 출력. question_type·choice_mode 는 모델이 아니라 코드가 정한다(D42) — 지어낸 질문에
     # 문제 이름표(KNOWHOW 등)가 붙어 출제 기록이 섞이거나, API 계약에 없는 값으로 500 이 나지 않게.
     text: str = Field(min_length=1, max_length=MODEL_TEXT_MAX)
     suggestions: list[str] = Field(default_factory=list, max_length=3)
-    signal: Literal["NONE", "SAD", "STOP"] = "NONE"  # SAD·STOP 이면 대화를 끝낸다 (FR-AI-005)
+    # LOW 는 기록하고 이어 감, SAD·RISK·STOP 이면 대화를 끝낸다 (FR-AI-005, D55)
+    signal: Literal["NONE", "LOW", "SAD", "RISK", "STOP"] = "NONE"
+    private: bool = False  # '애들한테 말하지 마' → 그 대화는 기운 없는 날에서 뺀다. 위급만 예외 (D55 ③)
 
     @field_validator("text")
     @classmethod
