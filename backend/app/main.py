@@ -21,6 +21,7 @@ from app.routers import (
     sessions,
     stt,
     stubs,
+    weekly,
 )
 from app.services import scheduler
 
@@ -52,6 +53,7 @@ for r in (
     photos.router,
     notifications.router,
     mood.router,
+    weekly.router,
     *stubs.routers,
 ):
     api.include_router(r)

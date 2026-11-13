@@ -5,7 +5,7 @@
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter
@@ -61,23 +61,6 @@ def post_family_diary(room_id: int, body: DiaryCreateIn, user: CurrentUser):
 
 # ---------------------------------------------------------------- 주간 (천주웅 배선 / 홍진성 AI, FR-FD-005~007)
 weekly = APIRouter(prefix="/rooms/{room_id}/weekly", tags=["weekly (빈 API)"])
-
-
-class WeeklyOut(BaseModel):
-    week_start: date
-    memory_days: int
-    diary_days: int
-    qa_list: list[dict]
-    recall_check: dict
-    mood_trend: list[dict]
-    talk_volume: dict
-    diaries: list[dict]
-    notes: dict | None
-
-
-@weekly.get("", response_model=WeeklyOut)
-def get_weekly(room_id: int, user: CurrentUser, week_start: date | None = None):
-    todo("천주웅")
 
 
 # ---------------------------------------------------------------- 알림 (천주웅, FR-NT-002~004)
