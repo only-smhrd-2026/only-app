@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.config import TZ, WEEKLY_HOUR
-from app.models import Diary, FamilyRoom, TalkSession, WeeklySummary
+from app.models import ELDER_SPOKE, Diary, FamilyRoom, TalkSession, WeeklySummary
 from app.routers.devices import notify_family
 
 
@@ -29,7 +29,7 @@ def build(db: Session, room_id: int, now: datetime) -> None:
     start, end, week_start = window(now)
     sessions = db.scalars(
         select(TalkSession).where(
-            TalkSession.room_id == room_id, TalkSession.started_at >= start, TalkSession.started_at < end
+            TalkSession.room_id == room_id, TalkSession.started_at >= start, TalkSession.started_at < end, ELDER_SPOKE
         )
     ).all()
     diaries = db.scalars(
@@ -47,10 +47,12 @@ def build(db: Session, room_id: int, now: datetime) -> None:
     moods = {d.posted_at.astimezone(TZ).date(): d.mood for d in diaries}
     words = turns = 0
     for session in sessions:
+        if session.private_flag:  # '가족에게 말하지 마'라고 하신 대화는 이야기한 날로만 세고 말 수에서는 뺀다 (D55 ③)
+            continue
         for turn in session.turns:
-            if turn["speaker"] == "ELDER":
+            if turn.get("speaker") == "ELDER":  # 키가 빠진 칸 하나 때문에 그 방 집계 전체가 실패하지 않게
                 turns += 1
-                words += len(turn["text"].split())
+                words += len(turn.get("text", "").split())
     mood_trend = [
         {"date": (day := week_start + timedelta(days=offset)).isoformat(), "mood": moods.get(day)}
         for offset in range(7)

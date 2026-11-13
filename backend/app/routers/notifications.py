@@ -12,7 +12,7 @@ from app.schemas.notifications import NotificationListOut, NotificationOut
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
-def mine(user_id: int):
+def _mine(user_id: int):
     """현재 참여 중인 가족방에서 내게 온 가족용 알림만 공개한다."""
     return (
         Notification.target_type == "FAMILY",
@@ -27,12 +27,12 @@ def mine(user_id: int):
 def list_notifications(user: CurrentUser, db: DB):
     notifications = db.scalars(
         select(Notification)
-        .where(*mine(user.user_id))
+        .where(*_mine(user.user_id))
         .order_by(Notification.sent_at.desc(), Notification.notification_id.desc())
         .limit(NOTI_LIST_LIMIT)
     )
     unread = db.scalar(
-        select(func.count()).select_from(Notification).where(*mine(user.user_id), Notification.read_at.is_(None))
+        select(func.count()).select_from(Notification).where(*_mine(user.user_id), Notification.read_at.is_(None))
     )
     return NotificationListOut(
         notifications=[
@@ -55,7 +55,7 @@ def list_notifications(user: CurrentUser, db: DB):
 @router.post("/{notification_id}/read", status_code=204)
 def read_notification(notification_id: int, user: CurrentUser, db: DB):
     notification = db.scalar(
-        select(Notification).where(Notification.notification_id == notification_id, *mine(user.user_id))
+        select(Notification).where(Notification.notification_id == notification_id, *_mine(user.user_id))
     )
     if notification is None:
         raise ApiError(404, "NOTIFICATION_NOT_FOUND", "알림을 찾을 수 없어요")
