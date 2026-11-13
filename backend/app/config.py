@@ -65,6 +65,7 @@ LLM_PER_DAY = 300  # Claude call_json 1번(검증 재시도 포함 최대 2요�
 SESSION_COOKIE_DAYS = 7
 DEVICE_COOKIE_DAYS = 365
 MOOD_WEEK_DAYS = 7  # 가족 홈 마음 카드가 보여 주는 날수
+MOOD_CHECK_EVERY_DAYS = 14  # 마음 체크 초대 간격 — 마지막 마음 체크 뒤 이 날수가 지나면 다시 권함, D56
 
 
 class Settings(BaseSettings):

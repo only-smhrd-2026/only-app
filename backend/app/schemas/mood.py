@@ -25,3 +25,9 @@ class MoodWeekOut(BaseModel):
     talked_days: int
     low_days: int
     last_check: MoodCheckOut | None
+
+
+class MoodCheckDueOut(BaseModel):
+    """True면 어르신 홈에 마음 체크 초대를 띄운다. [다음에]는 기기에서만 기억."""
+
+    due: bool

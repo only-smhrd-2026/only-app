@@ -1,19 +1,23 @@
-"""가족 홈 마음 카드: 최근 한국 날짜별 활동·기분만 집계한다. 마음 체크는 마지막 결과의 날짜·단계만(점수 없음)."""
+"""가족 홈 마음 카드: 최근 한국 날짜별 활동·기분만 집계한다.
+
+마음 체크는 마지막 결과의 날짜·단계만(점수 없음). 어르신 마음 체크 초대 여부(기기 쿠키, D56).
+"""
 
 from datetime import datetime, time, timedelta
 
 from fastapi import APIRouter
-from sqlalchemy import select
+from sqlalchemy import func, select
 
-from app.config import MOOD_WEEK_DAYS, TZ, today_kst
-from app.deps import DB, CurrentUser, require_member
+from app.config import MOOD_CHECK_EVERY_DAYS, MOOD_WEEK_DAYS, TZ, today_kst
+from app.deps import DB, CurrentDevice, CurrentUser, require_member
 from app.models import Diary, MoodCheck, TalkSession
-from app.schemas.mood import MoodCheckOut, MoodDayOut, MoodWeekOut
+from app.schemas.mood import MoodCheckDueOut, MoodCheckOut, MoodDayOut, MoodWeekOut
+from app.services import picks
 
-router = APIRouter(prefix="/rooms", tags=["mood"])
+router = APIRouter(tags=["mood"])
 
 
-@router.get("/{room_id}/mood-week", response_model=MoodWeekOut)
+@router.get("/rooms/{room_id}/mood-week", response_model=MoodWeekOut)
 def mood_week(room_id: int, user: CurrentUser, db: DB):
     require_member(room_id, user, db)
     today = today_kst()
@@ -57,3 +61,13 @@ def mood_week(room_id: int, user: CurrentUser, db: DB):
         low_days=sum(day.low for day in days),
         last_check=last_check,
     )
+
+
+@router.get("/elder/mood-check", response_model=MoodCheckDueOut)
+def mood_check_due(device: CurrentDevice, db: DB):
+    today = today_kst()
+    last = db.scalar(select(func.max(MoodCheck.check_date)).where(MoodCheck.room_id == device.room_id))
+    if last and today - last < timedelta(days=MOOD_CHECK_EVERY_DAYS):
+        return MoodCheckDueOut(due=False)
+    pick = picks.today_pick(db, device.room_id, today)
+    return MoodCheckDueOut(due=pick is None or pick.status != "PENDING")
