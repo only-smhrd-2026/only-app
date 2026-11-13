@@ -1,4 +1,7 @@
-"""비밀번호 해시(bcrypt), 가족 세션 JWT, 토큰 해시, 쿠키, 로그인·음성 인식 속도 제한, 하루 상한 (D2, D20, D46)."""
+"""비밀번호 해시(bcrypt), 가족 세션 JWT, 토큰 해시, 쿠키, 속도 제한(로그인·음성 인식·가족 일기 동무), 하루 상한.
+
+D2, D20, D46, D58.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +17,7 @@ from fastapi import Response
 
 from app.config import (
     DEVICE_COOKIE_DAYS,
+    FAMILY_AI_RATE_PER_MIN,
     LOGIN_RATE_PER_MIN,
     SESSION_COOKIE_DAYS,
     STT_RATE_PER_MIN,
@@ -88,6 +92,7 @@ def clear_cookie(response: Response, name: str) -> None:
 # ponytail: 프로세스 메모리 카운터 (uvicorn --workers 1 전제, D9). 재시작하면 초기화되지만 무방 (D20).
 _login_hits: dict[str, deque[float]] = defaultdict(deque)
 _stt_hits: dict[str, deque[float]] = defaultdict(deque)
+_family_ai_hits: dict[int, deque[float]] = defaultdict(deque)
 
 
 def _allowed(hits: deque[float], per_min: int) -> bool:
@@ -107,6 +112,12 @@ def login_allowed(ip: str) -> bool:
 def stt_allowed(ip: str) -> bool:
     """음성 인식은 부를 때마다 돈이 든다(리턴제로는 연결마다 최소 10초 과금). 같은 IP 에서 분당 상한까지만 (D46)."""
     return _allowed(_stt_hits[ip], STT_RATE_PER_MIN)
+
+
+def family_ai_allowed(user_id: int) -> bool:
+    """가족 일기 동무(Claude)는 가입한 누구나 부를 수 있다. 한 사람이 서버 전체 하루 상한(D46 ⑨)을 다 써서
+    어르신 대화가 고정 문장으로 바뀌지 않게, 같은 사람은 분당 상한까지만 (D58)."""
+    return _allowed(_family_ai_hits[user_id], FAMILY_AI_RATE_PER_MIN)
 
 
 # ponytail: 서버 전체 하루 횟수도 프로세스 메모리 (워커 1개 D9). 날짜가 키라 한국 자정에 저절로 0.

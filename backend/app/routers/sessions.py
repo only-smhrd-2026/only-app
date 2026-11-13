@@ -37,6 +37,7 @@ from app.config import (
     MOOD_LOW_DAYS,
     MOOD_LOW_WINDOW_DAYS,
     NO_RESPONSE_END,
+    OLD_PHOTO_CONF_MIN,
     PAUSE_GAP_SEC,
     QUIZ_TURN,
     SESSION_ERROR_ALERT,
@@ -109,6 +110,16 @@ def coach_context(db, room: FamilyRoom, session: TalkSession) -> coach.CoachCont
             {"speaker": t["speaker"], "text": t["text"]} | ({"quiz": True} if t.get("question_code") else {})
             for t in session.turns
         ],
+        # 일기 사진이 옛 사진이면 1·2번을 그 사진 속 그때로 (FR-DI-002, D58). 분류(AI-04 #29) 전에는 늘 False.
+        # NUMERIC 칸은 Decimal — Decimal('0.80') >= 0.8 은 거짓이라 float 로 비교한다 (quiz.py 와 같이)
+        old_photo=bool(
+            session.kind == "DIARY"
+            and photo
+            and photo.analyzed_at is not None
+            and photo.is_old
+            and photo.confidence is not None
+            and float(photo.confidence) >= OLD_PHOTO_CONF_MIN
+        ),
     )
 
 

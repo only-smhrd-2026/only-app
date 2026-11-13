@@ -26,7 +26,7 @@ PROMPTS_DIR = ROOT / "backend" / "app" / "ai" / "prompts"
 
 # 시도당 시간 상한(초). 말하기 턴은 화면이 15초에 포기하므로 6초 × 최대 2번(검증 재시도) 안에 끝나야
 # 고정 문장으로라도 대화가 이어진다(D14). 일기 초안은 확인 화면이 기다리므로 15초 × 최대 2번 (D36).
-TURN_PROMPTS = {"memory_coach", "diary_buddy"}
+TURN_PROMPTS = {"memory_coach", "diary_buddy", "family_buddy"}  # 가족 일기 질문도 화면에서 바로 기다린다 (D58)
 TURN_TIMEOUT_SEC = 6.0
 OTHER_TIMEOUT_SEC = 15.0
 
@@ -84,7 +84,7 @@ _MOCK_CHIPS = [
 
 
 def _mock(prompt_name: str, data: dict[str, Any], schema: type[T]) -> T:
-    if prompt_name != "memory_coach":  # 일기(diary_buddy·diary_draft)는 coach 의 고정 문장으로 이어 간다
+    if prompt_name != "memory_coach":  # 일기(diary_*·family_*)는 coach 의 고정 문장으로 이어 간다
         raise LlmError(f"mock 은 memory_coach 만 지원합니다 (요청: {prompt_name})")
     turn_no = int(data.get("turn_no", 1))
     if data.get("closing"):

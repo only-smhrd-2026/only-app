@@ -1,5 +1,7 @@
 """회상 코치 (FR-AI-001·002·003·005·006, D42) — 회상 질문 3턴 → 문제 은행 문제 1개 → 자유 회상 → 마무리.
 일기 동무 (FR-DI-003, D36) — 질문 3개(뭐 하셨어요 → 누구랑 → 기분은) + 초안(본문·기분·그릴 사물).
+  옛 사진이면 1·2번은 그 사진 속 그때를 묻는다 (FR-DI-002, D58).
+  가족 모드 (FR-DI-006·007, D58) — 가족이 쓴 몇 마디 → 질문 1개 → 답 → 존댓말 1인칭 초안. 저장은 화면이 한다.
 
 문제는 코드가 고르고(ai/quiz.py), 모델은 앞에 붙일 맞장구 한 문장과 답 칩만 만든다 — 문제 문장은 원문 그대로.
 question_type 은 모델이 아니라 여기서 정한다: 모델 질문 RECALL, 문제 = 문제 은행 qtype, 마무리 CLOSING.
@@ -19,7 +21,16 @@ from pydantic import ValidationError
 
 from app.ai import llm
 from app.ai.quiz import Quiz
-from app.ai.schemas import BANNED_WORDS, CoachReply, CoachTurn, DiaryDraft, DiaryTurn, question_marks
+from app.ai.schemas import (
+    BANNED_WORDS,
+    CoachReply,
+    CoachTurn,
+    DiaryDraft,
+    DiaryTurn,
+    FamilyDraft,
+    FamilyQuestion,
+    question_marks,
+)
 from app.config import DIARY_TURNS, MAX_TURNS, today_kst
 
 
@@ -29,6 +40,7 @@ class CoachContext:
     elder_honorific: str
     photo: dict[str, Any] | None = None  # {caption, people_note, taken_at}
     turns: list[dict[str, str]] = field(default_factory=list)  # [{speaker: AI|ELDER, text}]
+    old_photo: bool = False  # 일기 사진이 옛 사진(분류 추정) — 일기 1·2번을 그 사진 속 그때로 (FR-DI-002, D58)
 
 
 FALLBACK_QUESTION = CoachReply(
@@ -190,6 +202,10 @@ DIARY_QUESTIONS = [  # 1·2번 질문의 고정 문장 (LLM 이 실패할 때·m
     CoachReply(text="오늘은 뭐 하셨어요?", suggestions=["집에 있었어요", "밖에 다녀왔어요"], question_type="NONE"),
     CoachReply(text="누구랑 계셨어요?", suggestions=["혼자요", "가족이랑요", "친구랑요"], question_type="NONE"),
 ]
+# 옛 사진 일기의 1번 고정 문장 (FR-DI-002, D58). 분류는 추정이라 단정하지 않는다('같네요')
+DIARY_OLD_PHOTO_QUESTION = CoachReply(
+    text="옛날 사진 같네요. 언제 찍으신 사진이에요?", suggestions=["젊을 때요", "잘 모르겠어요"], question_type="NONE"
+)
 # 3번(마지막)은 늘 기분 칩 4개 — 칩을 고르면 기분 날씨가 바로 정해진다.
 # 모델 출력용 상한(CoachReply 칩 ≤3)을 넘는 고정 문장이라 검사 없이 만든다(금지어 없음·물음표 1개).
 DIARY_MOOD_QUESTION = CoachReply.model_construct(
@@ -215,15 +231,19 @@ def diary_fallback(turn_no: int) -> CoachReply:
 
 
 def diary_question(ctx: CoachContext, turn_no: int) -> CoachReply:
-    """turn_no 번째 일기 질문 (1 뭐 하셨어요 → 2 누구랑 → 3 기분, FR-DI-003)."""
+    """turn_no 번째 일기 질문 (1 뭐 하셨어요 → 2 누구랑 → 3 기분, FR-DI-003).
+
+    옛 사진(ctx.old_photo)이면 1·2번은 오늘 일 대신 그 사진 속 그때를 묻는다 (FR-DI-002, D58). 3번 기분은 같다.
+    """
     # ponytail: 질문 수는 3개 고정. 첫 답에 함께한 사람이 이미 나오면 2번은 프롬프트가 다른 것을 묻는다
     # (diary_buddy.md 규칙 3). 질문 수 자체를 줄이려면 diary_buddy 출력에 '건너뛰기' 칸을 더한다.
     if turn_no >= DIARY_TURNS:
         return DIARY_MOOD_QUESTION
+    data = _data(ctx, turn_no, max_turns=DIARY_TURNS) | {"old_photo": ctx.old_photo}
     try:
-        return llm.call_json("diary_buddy", _data(ctx, turn_no, max_turns=DIARY_TURNS), DiaryTurn)
+        return llm.call_json("diary_buddy", data, DiaryTurn)
     except (llm.LlmError, NotImplementedError):
-        q = diary_fallback(turn_no)
+        q = DIARY_OLD_PHOTO_QUESTION if ctx.old_photo and turn_no == 1 else diary_fallback(turn_no)
         return q.model_copy(update={"text": f"{ctx.elder_honorific}, {q.text}"}) if turn_no == 1 else q
 
 
@@ -254,3 +274,38 @@ def diary_draft(ctx: CoachContext) -> DiaryDraft:
             body=said[:400] or "오늘 이야기를 나눴다.", mood=picked or "CLOUDY", draw_objects=[]
         )
     return draft.model_copy(update={"mood": picked}) if picked else draft
+
+
+# ------------------------------------------------------------ 가족 일기 동무 (FR-DI-006·007, D58)
+# 가족이 쓴 몇 마디 → 질문 1개 → 답 → 초안. 서버는 저장하지 않는다
+# (가족이 FDIARY_003 에서 고쳐 POST /rooms/{id}/diaries).
+FAMILY_QUESTION = "그때 어떠셨는지 조금 더 들려주시겠어요?"  # LLM 이 실패할 때·mock·하루 상한
+# 쓴 말·답이 모두 금지어 검사에 걸렸을 때 (어르신 초안의 '오늘 이야기를 나눴다.'와 같은 자리)
+FAMILY_DRAFT_EMPTY = "오늘 소식을 전해요."
+
+
+def family_question(text: str) -> str:
+    """가족이 쓴 말 → 질문 1개 (FR-DI-006). 가족 글도 지시가 아니라 데이터로만 넘긴다 (D14)."""
+    try:
+        return llm.call_json("family_buddy", {"text": text}, FamilyQuestion).question
+    except (llm.LlmError, NotImplementedError):
+        return FAMILY_QUESTION
+
+
+def _sentence(text: str) -> str:
+    text = " ".join(text.split())
+    return text if text.endswith((".", "!", "?", "~", "…")) else text + "."
+
+
+def family_draft(text: str, question: str, answer: str) -> str:
+    """쓴 말 + 질문 + 답 → 가족 존댓말 1인칭 초안 (FR-DI-007).
+
+    쓴 말·답에 없는 내용은 넣지 않는다 (diary_draft 와 같은 규칙).
+    """
+    try:
+        data = {"text": text, "question": question or None, "answer": answer or None}
+        return llm.call_json("family_draft", data, FamilyDraft).body
+    except (llm.LlmError, NotImplementedError):
+        # 쓴 말과 답을 그대로 잇는다(질문은 AI 의 말이라 넣지 않는다). 어르신께 읽어 드리는 글이라 금지어가 든 쪽은 뺀다
+        said = " ".join(_sentence(s) for s in (text, answer) if s.strip() and not any(w in s for w in BANNED_WORDS))
+        return said[:400] or FAMILY_DRAFT_EMPTY
