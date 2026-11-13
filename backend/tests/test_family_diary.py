@@ -156,3 +156,43 @@ def test_get_diary_does_not_mark_read(client):
     assert client.get(f"/api/diaries/{diary_id}").json()["read_by_me"] is False
     listed = client.get(f"/api/rooms/{room_id}/diaries").json()["diaries"]
     assert [d["read_by_me"] for d in listed if d["diary_id"] == diary_id] == [False]
+
+
+# -------------------------------------------------------- 어르신 '내 일기' (GET /elder/diaries, ELDER_ALBUM_001 ④)
+
+
+def _mine(client):
+    r = client.get("/api/elder/diaries")
+    assert r.status_code == 200, r.text
+    return [d["diary_id"] for d in r.json()["diaries"]]
+
+
+def test_elder_diaries_newest_first_and_only_elder(client):
+    room_id = setup_elder(client)["room_id"]
+    first, second = _diary(room_id, "ELDER"), _diary(room_id, "ELDER")
+    family = _diary(room_id)
+    _diary(room_id, "ELDER", status="DELETED")
+    assert _mine(client) == [second, first]
+    listed = [d["diary_id"] for d in client.get(f"/api/rooms/{room_id}/diaries").json()["diaries"]]
+    assert set(listed) == {first, second, family}  # 가족 목록은 전과 같이 다 보임
+
+
+def test_elder_diaries_other_room_hidden(client):
+    old_room = setup_elder(client)["room_id"]
+    _diary(old_room, "ELDER")
+    setup_elder(client)  # 기기 쿠키가 새 가족방 것으로 바뀜
+    assert _mine(client) == []
+
+
+def test_elder_diaries_need_device(client):
+    signup(client)
+    r = client.get("/api/elder/diaries")
+    assert r.status_code == 401
+    assert r.json()["code"] == "DEVICE_REQUIRED"
+
+
+def test_elder_diaries_limit(client, monkeypatch):
+    monkeypatch.setattr("app.routers.diaries.ELDER_DIARY_LIST_LIMIT", 2)
+    room_id = setup_elder(client)["room_id"]
+    ids = [_diary(room_id, "ELDER") for _ in range(3)]
+    assert _mine(client) == [ids[2], ids[1]]
