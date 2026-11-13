@@ -45,6 +45,10 @@ NO_RECORD_DAYS = 2  # 이 날수만큼 어르신 기록이 없으면 가족 알�
 WEEKLY_HOUR = 19  # 주간 집계는 일요일 이 시각, D19 — 집계 창과 예약 시각이 같이 쓴다
 MOOD_LOW_DAYS = 2  # 기운 없는 말이 나온 날이 최근 MOOD_LOW_WINDOW_DAYS 일 중 이만큼이면 가족 알림 1건 (D55 ②)
 MOOD_LOW_WINDOW_DAYS = 7  # 위 날수를 세는 기간이자, 같은 알림을 다시 보내지 않는 기간
+# 일기 사진이 옛 사진이면(분류 is_old + 신뢰도 이 이상) 일기 1·2번 질문을 그 사진 속 그때로 (FR-DI-002, D58)
+OLD_PHOTO_CONF_MIN = 0.8
+FAMILY_TEXT_MAX = 200  # 가족 일기 한마디·답 글자 수 (FR-DI-006)
+FAMILY_AI_RATE_PER_MIN = 10  # 가족 일기 동무(질문·초안) 같은 사람 분당 상한. 한 사람이 하루 상한을 다 쓰지 못하게 (D58)
 STT_MAX_BYTES = 5 * 1024 * 1024
 STT_MAX_SEC = 60  # 녹음 상한 (FR-VS-001, 화면 RECORD_MS). 더 긴 소리는 변환할 때 잘라 STT 과금·메모리를 막는다
 # 전사 상한. 턴 본문 상한(schemas/sessions.py TurnIn.text)과 같게 — 넘으면 턴이 422 로 대화를 끝낸다

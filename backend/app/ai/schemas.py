@@ -121,6 +121,33 @@ class DiaryTurn(CoachReply):
         return check_model_chips(v)
 
 
+class FamilyQuestion(BaseModel):
+    """가족 일기 동무의 말. 가족이 쓴 말을 짧게 받아 준 뒤 묻는 질문 하나(물음표 1개로 끝남)."""
+
+    # family_buddy 의 모델 출력 (FR-DI-006, D58). 가족 화면(FDIARY_002) 질문 카드에 그대로 보인다
+    question: str = Field(min_length=1, max_length=MODEL_TEXT_MAX)
+
+    @field_validator("question")
+    @classmethod
+    def _question_rules(cls, v: str) -> str:
+        v = check_text(v)
+        if question_marks(v) != 1 or not v.endswith(("?", "？")):
+            raise ValueError("질문 하나로, 물음표(?)로 끝낸다")
+        return v
+
+
+class FamilyDraft(BaseModel):
+    """가족 일기 초안. 가족이 쓴 말과 답만으로 쓴 존댓말 1인칭 본문(최대 5문장). 어르신께 소리로 읽어 드린다."""
+
+    # family_draft 의 모델 출력 (FR-DI-007, D58). 가족이 FDIARY_003 에서 고쳐 쓴 뒤 올린다
+    body: str = Field(min_length=1, max_length=400)
+
+    @field_validator("body")
+    @classmethod
+    def _body_rules(cls, v: str) -> str:
+        return check_banned(v.strip())
+
+
 class DiaryDraft(BaseModel):
     """일기 초안. 어르신이 하신 말만으로 쓴 1인칭 본문(말씀만큼, 최대 5문장), 기분, 그릴 사물(최대 3개)."""
 

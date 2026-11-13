@@ -129,3 +129,9 @@ export type DiaryOut = {
   read_by_me: boolean // false 면 가족 홈 '새 일기'
 }
 export type DiaryListOut = { diaries: DiaryOut[] }
+// ---- 가족 일기 동무 (backend/app/schemas/family_diary.py, D58) — FDIARY_002 질문 · FDIARY_003 초안. 서버는 저장하지 않는다
+// POST /api/rooms/{room_id}/family-diary/ask · /draft. 여러 가족방에 보내도 고른 방 하나로 한 번만 부른다
+export type FamilyAskIn = { text: string } // 가족이 쓴 말 1~200자
+export type FamilyAskOut = { question: string } // 질문 1개 (AI 가 실패하면 고정 질문)
+export type FamilyDraftIn = { text: string; question?: string; answer?: string } // 답은 비워도 됨 → 쓴 말만으로
+export type FamilyDraftOut = { body: string } // 존댓말 1인칭 3~5문장 → 가족이 고친 뒤 POST /rooms/{id}/diaries

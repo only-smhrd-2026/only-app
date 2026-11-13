@@ -25,7 +25,7 @@ only-app/
 │   ├── app/security.py       bcrypt, JWT, 토큰 해시, 쿠키, 로그인 속도 제한
 │   ├── app/errors.py         오류 형식 {detail, code}
 │   ├── app/schemas/          요청·응답 모델 (API 계약)
-│   ├── app/routers/          auth, rooms, invites, devices, elder, stt, sessions, diaries, media, stubs(빈 API)
+│   ├── app/routers/          auth, rooms, invites, devices, elder, stt, sessions, diaries, family_diary, media, stubs(빈 API)
 │   ├── app/services/         storage(local|r2), picks(오늘의 한 장), scheduler(예약 작업 틀)
 │   ├── app/ai/               llm·stt·tts·image 어댑터, coach(회상 코치·일기 동무), quiz(문제 은행 고르기), schemas(출력 검사), prompts/*.md
 │   ├── scripts/seed.py       DB 초기화 + 시드
@@ -79,6 +79,7 @@ signup → POST /rooms (가족방+구성원) → 사진 3장 이상 → POST /ro
 ```
 어르신 홈 [오늘 이야기하기] → ELDER_DIARY_001 [이야기할래요] → POST /elder/sessions {kind: DIARY}
 ELDER_DIARY_002: 말하기 왕복(위와 같음) 질문 3개 — 뭐 하셨어요 → 누구랑 → 기분은(칩 4개 맑음·구름·비·달)
+   사진이 옛 사진(분류 is_old + 신뢰도 0.8↑)이면 1·2번은 그 사진 속 그때를 묻는다 (D58 — 분류 AI #29 전에는 늘 평소 일기)
    3번째 답 → "일기를 써 볼게요" + ENDED(COMPLETED)   (그만할래요·무응답·오류로 끝나면 저장 안 함)
 ELDER_DIARY_003: POST /elder/sessions/{id}/draft
    서버: coach.diary_draft(LLM: 1인칭 3~5문장·기분·그릴 사물 ≤3) → 사진 없으면 image.generate(그림까지 기다림)
@@ -89,6 +90,9 @@ ELDER_DIARY_003: POST /elder/sessions/{id}/draft
 가족 홈(HOME_001): GET /rooms/{id}/diaries → read_by_me=false 가 '새 일기 N개' 한 줄 (실시간 아님, 열 때 읽음)
    [다 봤어요] ─► POST /diaries/{id}/read (가족 쿠키 전용, diaries.family_read_by). 그림은 <img src="/api/media/rooms/{room}/{session}.jpg"> (게시된 것만)
    앱으로 돌아올 때(visibilitychange)도 다시 읽는다. 어르신 가족 소식: GET /elder/family-news (안 들은 가족 일기, 쓴 사람 별명 author_nickname 포함) → '다 들었어요'는 기기 쿠키 전용 POST /elder/diaries/{id}/read (#99)
+가족 일기(FDIARY_002·003): 쓴 몇 마디 ─► POST /rooms/{id}/family-diary/ask → 질문 1개 → 답 ─► …/family-diary/draft
+   → 존댓말 1인칭 초안 (서버 저장 없음·하루 상한 같이 셈·같은 사람 분당 10번, 실패하면 고정 질문·쓴 말 그대로)
+   → 가족이 고쳐 POST /rooms/{id}/diaries (D58)
 ```
 
 ### 오늘의 한 장
