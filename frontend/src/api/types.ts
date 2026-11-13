@@ -19,6 +19,7 @@ export type RelationTag = 'CHILD' | 'GRANDCHILD' | 'OTHER'
 export type InviteKind = 'FAMILY' | 'ELDER_DEVICE'
 export type InviteCreatedOut = { kind: InviteKind; url: string; expires_at: string } // 종류마다 링크 1개 (D38)
 export type InviteStatusOut = { kind: InviteKind; elder_name: string; expires_at: string; valid: boolean }
+export type InviteOut = { kind: InviteKind; expires_at: string }
 
 export type DeviceOut = {
   room_id: number
