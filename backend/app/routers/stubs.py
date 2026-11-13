@@ -4,7 +4,6 @@
 응답 모델 필드는 테이블명세서·요구사항 기준 초안이며, 바꾸면 김승희(화면)를 리뷰어로.
 """
 
-import uuid
 from datetime import date, datetime
 from typing import Literal
 
@@ -13,7 +12,6 @@ from pydantic import BaseModel, Field
 
 from app.deps import CurrentUser
 from app.errors import ApiError
-from app.schemas.diaries import DiaryOut
 from app.schemas.photos import PhotoOut
 
 
@@ -42,21 +40,8 @@ def correct_photo(room_id: int, photo_id: int, body: PhotoCorrectIn, user: Curre
 diaries = APIRouter(tags=["diaries (빈 API)"])
 
 
-class DiaryCreateIn(BaseModel):
-    request_id: uuid.UUID  # 멱등 키 (room_id, request_id)
-    body: str = Field(max_length=2000)
-    mood: Literal["SUNNY", "CLOUDY", "RAINY", "MOON"]
-    photo_id: int | None = None
-    session_id: uuid.UUID | None = None
-    illustration_type: Literal["PHOTO", "AI_DRAWING", "NONE"] = "NONE"
-
-
-# 어르신 일기 게시·가족방 일기 목록·가족 열람 기록(POST /diaries/{id}/read)은 routers/diaries.py 에 있다 (D36)
-
-
-@diaries.post("/rooms/{room_id}/diaries", response_model=DiaryOut, status_code=201)
-def post_family_diary(room_id: int, body: DiaryCreateIn, user: CurrentUser):
-    todo("천주웅")
+# 가족 일기 올리기·어르신 일기 게시·가족방 일기 목록·가족 열람 기록(POST /diaries/{id}/read)은
+# routers/diaries.py 에 있다 (D36)
 
 
 # ---------------------------------------------------------------- 주간 (천주웅 배선 / 홍진성 AI, FR-FD-005~007)
