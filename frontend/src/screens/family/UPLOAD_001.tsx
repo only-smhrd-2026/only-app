@@ -1,6 +1,6 @@
 /**
  * UPLOAD_001 — 사진 올리기 1/2: 사진 고르기 (FR-ME-001, D17). 폰 앨범에서 여러 장 골라 [다음] → UPLOAD_002 가족방 고르기·보내기.
- * 결과 화면 UPLOAD_003 은 나중에. 모양은 11/12 목업 가족 화면 값(.fam-skin, 이 파일의 CSS).
+ * → UPLOAD_003 결과. 모양은 11/12 목업 가족 화면 값(.fam-skin, 이 파일의 CSS).
  */
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Link, Navigate, useNavigate, useNavigationType } from 'react-router-dom'
