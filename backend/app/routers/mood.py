@@ -1,17 +1,27 @@
 """가족 홈 마음 카드: 최근 한국 날짜별 활동·기분만 집계한다.
 
-마음 체크는 마지막 결과의 날짜·단계만(점수 없음). 어르신 마음 체크 초대 여부(기기 쿠키, D56).
+마음 체크는 마지막 결과의 날짜·단계만(점수 없음). 어르신 마음 체크 초대 여부·답 저장(기기 쿠키, D56).
 """
 
 from datetime import datetime, time, timedelta
 
 from fastapi import APIRouter
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.config import MOOD_CHECK_EVERY_DAYS, MOOD_WEEK_DAYS, TZ, today_kst
+from app.config import (
+    MOOD_CHECK_DOWN_MIN,
+    MOOD_CHECK_EVERY_DAYS,
+    MOOD_CHECK_HARD_MIN,
+    MOOD_WEEK_DAYS,
+    TZ,
+    now_kst,
+    today_kst,
+)
 from app.deps import DB, CurrentDevice, CurrentUser, require_member
-from app.models import Diary, MoodCheck, TalkSession
-from app.schemas.mood import MoodCheckDueOut, MoodCheckOut, MoodDayOut, MoodWeekOut
+from app.models import Diary, FamilyRoom, MoodCheck, TalkSession
+from app.schemas.common import OkOut
+from app.schemas.mood import MoodCheckDueOut, MoodCheckIn, MoodCheckOut, MoodDayOut, MoodWeekOut
 from app.services import picks
 
 router = APIRouter(tags=["mood"])
@@ -71,3 +81,34 @@ def mood_check_due(device: CurrentDevice, db: DB):
         return MoodCheckDueOut(due=False)
     pick = picks.today_pick(db, device.room_id, today)
     return MoodCheckDueOut(due=pick is None or pick.status != "PENDING")
+
+
+def check_level(total: int) -> str:
+    if total >= MOOD_CHECK_HARD_MIN:
+        return "HARD"
+    if total >= MOOD_CHECK_DOWN_MIN:
+        return "DOWN"
+    return "USUAL"
+
+
+@router.post("/elder/mood-check", response_model=OkOut)
+def save_mood_check(body: MoodCheckIn, device: CurrentDevice, db: DB):
+    total = sum(body.answers)
+    db.execute(
+        pg_insert(MoodCheck)
+        .values(
+            room_id=device.room_id,
+            check_date=today_kst(),
+            answers=body.answers,
+            total=total,
+            level=check_level(total),
+        )
+        .on_conflict_do_nothing(constraint="uq_mood_checks_room_id_check_date")
+    )
+    db.execute(
+        update(FamilyRoom)
+        .where(FamilyRoom.room_id == device.room_id, FamilyRoom.mood_check_consent_at.is_(None))
+        .values(mood_check_consent_at=now_kst())
+    )
+    db.commit()
+    return OkOut()

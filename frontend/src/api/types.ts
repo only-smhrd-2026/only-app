@@ -94,6 +94,7 @@ export type MoodDayOut = { date: string; talked: boolean; diary_mood: Mood | nul
 export type MoodCheckOut = { check_date: string; level: 'USUAL' | 'DOWN' | 'HARD' } // 마음 체크 마지막 결과. 점수는 오지 않음
 export type MoodWeekOut = { days: MoodDayOut[]; talked_days: number; low_days: number; last_check: MoodCheckOut | null } // days 는 7칸, 오래된 날 → 오늘
 export type MoodCheckDueOut = { due: boolean } // 어르신 홈 마음 체크 초대 (D56)
+export type MoodCheckIn = { answers: number[] } // 8칸, 문항 순서대로 0~3
 export type IllustrationType = 'PHOTO' | 'AI_DRAWING' | 'NONE'
 export type DraftOut = {
   session_id: string
