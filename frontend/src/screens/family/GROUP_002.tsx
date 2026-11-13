@@ -140,7 +140,13 @@ export default function GROUP_002() {
                   <div className="row">
                     <button className="btn secondary" onClick={() => copy(k, url)}>복사</button>
                     {'share' in navigator && (
-                      <button className="btn secondary" onClick={() => navigator.share({ url }).catch(() => {})}>보내기</button>
+                      <button
+                        className="btn secondary"
+                        // 기기용 링크를 가족이 열어 [시작하기]를 누르면 그 폰이 어르신 기기가 되고 원래 기기는 끊긴다
+                        onClick={() => navigator.share(k === 'ELDER_DEVICE' ? { url, text: '어르신 폰에서만 열어 주세요.' } : { url }).catch(() => {})}
+                      >
+                        보내기
+                      </button>
                     )}
                     {copyNote?.kind === k && <span className="muted">{copyNote.text}</span>}
                   </div>
