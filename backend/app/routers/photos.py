@@ -29,12 +29,13 @@ from app.config import (
     UPLOAD_MAX_NOTE_CHARS,
     UPLOAD_MAX_PIXELS,
     UPLOAD_MAX_SIDE,
+    now_kst,
     today_kst,
 )
 from app.deps import DB, CurrentUser, require_member
 from app.errors import ApiError
 from app.models import Photo
-from app.schemas.photos import PhotoBatchOut, PhotoListOut, PhotoOut
+from app.schemas.photos import PhotoBatchOut, PhotoCorrectIn, PhotoListOut, PhotoOut
 from app.services import storage
 
 log = logging.getLogger("app.photos")
@@ -287,3 +288,20 @@ def list_photos(room_id: int, user: CurrentUser, db: DB):
         .limit(PHOTO_LIST_LIMIT)  # 어르신 사진첩 album 과 같은 상수
     ).all()
     return PhotoListOut(photos=[photo_out(p) for p in photos])
+
+
+@router.patch("/{photo_id}/correction", response_model=PhotoOut)
+def correct_photo(room_id: int, photo_id: int, body: PhotoCorrectIn, user: CurrentUser, db: DB):
+    """가족이 고친 활동을 저장하며 같은 값의 재요청은 처음 정정 시각을 유지한다 (FR-ME-009)."""
+    require_member(room_id, user, db)
+    photo = db.get(Photo, photo_id)
+    if photo is None or photo.room_id != room_id or photo.status != "ACTIVE":
+        raise ApiError(404, "PHOTO_NOT_FOUND", "사진을 찾을 수 없어요")
+    value = body.corrected_activity.strip()
+    if not value:
+        raise ApiError(422, "VALIDATION", "고친 활동을 적어 주세요")
+    if photo.corrected_activity != value:
+        photo.corrected_activity = value
+        photo.corrected_at = now_kst()
+        db.commit()
+    return photo_out(photo)

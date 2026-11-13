@@ -14,7 +14,6 @@ from pydantic import BaseModel, Field
 from app.deps import CurrentUser
 from app.errors import ApiError
 from app.schemas.diaries import DiaryOut
-from app.schemas.photos import PhotoOut
 
 
 def todo(owner: str):
@@ -25,17 +24,7 @@ def todo(owner: str):
 photos = APIRouter(prefix="/rooms/{room_id}/photos", tags=["photos (빈 API)"])
 
 
-class PhotoCorrectIn(BaseModel):
-    corrected_activity: str = Field(max_length=20)
-
-
 # 사진 올리기(POST)·목록(GET)은 routers/photos.py 로 옮김 (박유승, BE-02)
-
-
-@photos.patch("/{photo_id}/correction", response_model=PhotoOut)
-def correct_photo(room_id: int, photo_id: int, body: PhotoCorrectIn, user: CurrentUser):
-    """사진 분류 정정 저장 (FR-ME-009)."""
-    todo("천주웅")
 
 
 # ---------------------------------------------------------------- 일기 (천주웅, FR-DI-008, FR-FD-002/003)
