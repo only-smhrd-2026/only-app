@@ -16,6 +16,7 @@ import ELDER_MEMORY_001 from './screens/elder/ELDER_MEMORY_001'
 import GROUP_001 from './screens/family/GROUP_001'
 import HOME_001 from './screens/family/HOME_001'
 import LOGIN_001 from './screens/family/LOGIN_001'
+import NOTI_001 from './screens/family/NOTI_001'
 import UPLOAD_001 from './screens/family/UPLOAD_001'
 import UPLOAD_002 from './screens/family/UPLOAD_002'
 
@@ -48,7 +49,7 @@ export const SCREENS: ScreenDef[] = [
   { id: 'FDIARY_002', path: '/fdiary/write', title: '가족 일기 쓰기' },
   { id: 'FDIARY_003', path: '/fdiary/confirm', title: '가족 일기 확인' },
   { id: 'WEEKLY_001', path: '/weekly/:roomId', title: '주간 이야기' },
-  { id: 'NOTI_001', path: '/notifications', title: '알림' },
+  { id: 'NOTI_001', path: '/notifications', title: '알림', Screen: NOTI_001 },
 ]
 
 export default function App() {

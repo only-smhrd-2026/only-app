@@ -41,6 +41,10 @@ export type ElderHomeOut = {
 
 export type SttOut = { transcript: string; confidence: number }
 
+// ---- 알림 (backend/app/schemas/notifications.py)
+export type NotificationOut = { notification_id: number; room_id: number; kind: string; title: string; body: string | null; link_screen: string | null; sent_at: string; read_at: string | null } // read_at이 null이면 안 읽음
+export type NotificationListOut = { notifications: NotificationOut[]; unread: number } // 최신 순 최대 50개, unread는 안 읽은 전체 수
+
 export type AiOut = {
   text: string
   audio_b64: string | null
