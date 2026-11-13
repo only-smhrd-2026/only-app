@@ -183,8 +183,12 @@ def test_scheduler_repeated_and_closed_room(client, monkeypatch):
     assert _rows(closed) == []
     with SessionLocal() as db:
         assert (
-            db.scalar(select(Notification).where(Notification.room_id == room_id, Notification.kind == "WEEKLY_READY"))
-            is None
+            len(
+                db.scalars(
+                    select(Notification).where(Notification.room_id == room_id, Notification.kind == "WEEKLY_READY")
+                ).all()
+            )
+            == 1
         )
 
 
