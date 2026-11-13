@@ -219,7 +219,8 @@ CREATE TABLE diaries (
     reactions JSONB NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(reactions) = 'array'),   -- 리액션 (D54). 키는 아래 주석
     CONSTRAINT uq_diaries_room_id_request_id UNIQUE (room_id, request_id)   -- S7 가족 일기를 가족방 여러 곳에 게시 가능 (FR-DI-008)
 );
--- reactions 한 칸 = 한 사람의 리액션 1개. 다시 누르면 그 사람 칸을 바꿔 끼운다. 값 없는 키는 넣지 않고, 값은 서버 코드가 검사한다 (D38).
+-- reactions 한 칸 = 한 사람의 리액션 1개. 다른 것을 누르면 그 사람 칸을 바꿔 끼우고, 같은 것을 다시 누르면 지운다(취소, 11/13).
+-- 값 없는 키는 넣지 않고, 값은 서버 코드가 검사한다 (D38).
 --   by(ELDER|FAMILY), user_id(FAMILY 만), at(누른 시각, turns 의 created_at 과 같은 ISO 문자열),
 --   kind: LIKE = 어르신 [좋아요] (가족 일기에) | HEART·SMILE·CLAP = 가족 이모지 (어르신 일기에)
 CREATE INDEX ix_diaries_room_posted ON diaries(room_id, posted_at DESC);
