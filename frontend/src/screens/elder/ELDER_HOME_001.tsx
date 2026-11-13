@@ -1,13 +1,13 @@
 /**
- * ELDER_HOME_001 — 어르신 홈. 오늘의 한 장이 있으면 홈 위에 시트를 띄운다.
+ * ELDER_HOME_001 — 앱 이름과 큰 상자 4개 홈 (D51, 11/12 멘토링 반영).
+ * 오늘의 한 장 팝업과 다시 읽기는 유지하고, 회상 상태는 누를 때 글과 소리로 알린다.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { ElderHomeOut, SessionOut } from '../../api/types'
 import todayPreview from '../../assets/today-preview.svg?inline' // 미리보기 전용 — 배포 빌드에 파일이 따로 남지 않게
-import cameraIcon from '../../assets/elder-home-camera.svg'
-import speechIcon from '../../assets/elder-home-speech.svg'
 import { useLive } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
 import { speak, stopSpeaking } from '../../lib/audio'
@@ -17,6 +17,15 @@ import './ELDER_HOME_001.css'
 let closedPickId: number | null = null
 const STALE_MS = 30 * 60 * 1000 // 이만큼 넘게 숨어 있다 돌아오면 홈을 다시 읽는다 (FR-ME-006, D45 ④)
 const RETRY_MS = 5_000 // 홈 읽기가 실패하면 이만큼 뒤에 다시 — 성공할 때까지
+const NOTICE_MS = 4_000
+
+function HomeIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg className="elder-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {children}
+    </svg>
+  )
+}
 
 /** 오늘 날짜(한국 시간) 글자. 날이 바뀌었는지 볼 때만 쓴다 */
 const kstDate = () => new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })
@@ -46,11 +55,11 @@ export default function ELDER_HOME_001() {
   const [dismissedPickId, setDismissedPickId] = useState<number | null>(null)
   const [skipping, setSkipping] = useState(false)
   const [skippedPickId, setSkippedPickId] = useState<number | null>(null) // 건너뛰기가 저장된 pick → SKIPPED 로 보인다
-  const [today, setToday] = useState(() => new Date())
-  const todayLabel = new Intl.DateTimeFormat('ko-KR', {
-    timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'long',
-  }).format(today)
+  const [notice, setNotice] = useState('')
+  const noticeTimer = useRef<number | undefined>(undefined)
   const live = useLive()
+
+  useEffect(() => () => window.clearTimeout(noticeTimer.current), [])
 
   useEffect(() => {
     if (home) document.documentElement.dataset.font = home.settings.font_size
@@ -60,12 +69,11 @@ export default function ELDER_HOME_001() {
     if (serverHome) loadedDate.current = kstDate()
   }, [serverHome])
 
-  // 홈을 다시 읽는다. 날짜 글자도 같이 바꾸고, 앞서 뜬 오류 문장과 대화 번호는 비운다
+  // 홈을 다시 읽고, 앞서 뜬 오류 문장과 대화 번호는 비운다
   // (서버는 30분 지난 대화를 끝난 것으로 봐서, 오래된 번호를 다시 쓰면 들어가자마자 끝난다)
   const refresh = useCallback(() => {
     sessionIds.current.clear()
     setStartError(undefined)
-    setToday(new Date())
     reload()
   }, [reload])
 
@@ -191,33 +199,73 @@ export default function ELDER_HOME_001() {
   const pick = home.today_pick
   const status = pick && pick.pick_id === skippedPickId ? 'SKIPPED' : pick?.status
   const showToday = pick?.status === 'PENDING' && pick.pick_id !== closedPickId && pick.pick_id !== dismissedPickId
-  const date = preview ? '11월 4일 (수) 아침' : todayLabel
+  function onMemory() {
+    if (!home) return
+    if (status === 'PENDING') {
+      void startMemory()
+      return
+    }
+    const message = !pick ? '오늘은 아직 사진이 없어요.'
+      : status === 'COMPLETED' ? '오늘 이야기는 다 나눴어요.'
+      : status === 'SKIPPED' ? '오늘 사진은 건너뛰었어요.' : ''
+    if (!message) return
+    window.clearTimeout(noticeTimer.current)
+    setNotice(message)
+    noticeTimer.current = window.setTimeout(() => setNotice(''), NOTICE_MS)
+    void speak(message, Number(home.settings.tts_speed) || 0.85)
+  }
+
   return (
-    <main className={`elder elder-home${preview ? ' elder-home--preview' : ''}`}>
-      <div className="elder-home-content" inert={showToday} aria-hidden={showToday}>
-        <p className="elder-home-date">{date}</p>
-        <h1 className="elder-home-greeting">{home.greeting}</h1>
-        <div className="elder-home-guide">
-          <span className="elder-home-avatar" aria-hidden="true">심심이</span>
-          <p className="elder-text elder-home-bubble">사진첩이나 오늘 이야기를 골라 주세요.</p>
-        </div>
-        <div className="elder-home-tiles">
-          <button className="elder-btn elder-home-tile elder-home-tile--secondary" onClick={() => nav('/elder/album', { state: { home } })}><img src={cameraIcon} alt="" /><span>사진첩</span></button>
-          <button className="elder-btn elder-home-tile" onClick={() => nav('/elder/diary', { state: { home } })}><img src={speechIcon} alt="" /><span>오늘<br />이야기<wbr />하기</span></button>
-        </div>
-        <p className={`elder-text elder-home-news elder-home-news--card${home.unread_family_news > 0 ? ' elder-home-news--new' : ''}`}>
-          {home.unread_family_news > 0 ? `새로운 가족 소식이 ${home.unread_family_news}개 있어요.` : '오늘은 새 소식이 없어요.'}
-        </p>
-        {status === 'PENDING' && !showToday && (
-          <button className="elder-btn elder-home-pick" onClick={preview ? () => { setStartError(undefined); setDismissedPickId(null) } : startMemory} disabled={busy}>
-            {busy ? '잠시만요' : preview ? '팝업 다시 보기' : '오늘 사진 보기'}
-          </button>
-        )}
-        {!pick && <p className="elder-home-news">오늘은 아직 사진이 없어요.</p>}
-        {status === 'COMPLETED' && <p className="elder-home-news">오늘 이야기는 다 나눴어요.</p>}
-        {status === 'SKIPPED' && <p className="elder-home-news">오늘 사진은 건너뛰었어요.</p>}
-        {!showToday && startError && <p className="elder-home-news" role="alert">{startError}</p>}
+    <main className="elder elder--fit elder-home">
+      <header className="elder-head">
+        <svg viewBox="0 0 40 40" aria-hidden="true">
+          <g transform="rotate(-8 20 20)">
+            <rect x="6" y="9" width="28" height="22" rx="5" fill="currentColor" />
+            <circle cx="14.5" cy="16.5" r="3" fill="var(--elder-primary-fg)" />
+            <path d="M9 27l8-7 5 4.5 4-3 5 5.5z" fill="var(--elder-primary-fg)" />
+          </g>
+        </svg>
+        <span>하루한장</span>
+      </header>
+      <div className="elder-tiles" inert={showToday} aria-hidden={showToday}>
+        <button type="button" className={`elder-tile elder-tile--1${status === 'PENDING' ? ' elder-tile--new' : ''}`} onClick={onMemory} disabled={busy}>
+          <HomeIcon>
+            <rect x="3" y="5" width="18" height="14" rx="2.5" />
+            <circle cx="8.5" cy="10" r="1.6" />
+            <path d="M21 16l-5-5-7.5 8" />
+          </HomeIcon>
+          <span>{busy ? '잠시만요' : '회상'}</span>
+          {status === 'PENDING' && <span className="elder-badge">새 사진</span>}
+        </button>
+        <button type="button" className="elder-tile elder-tile--2" onClick={() => nav('/elder/diary', { state: { home } })}>
+          <HomeIcon>
+            <path d="M6 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+            <path d="M8.5 8h6M8.5 12h6M8.5 16h3.5" />
+          </HomeIcon>
+          <span>일기 쓰기</span>
+        </button>
+        <button type="button" className="elder-tile elder-tile--3" onClick={() => nav('/elder/family-news', { state: { home } })}>
+          <HomeIcon>
+            <circle cx="8.5" cy="8" r="3" />
+            <path d="M2.5 20a6 6 0 0 1 12 0" />
+            <circle cx="17" cy="9.5" r="2.4" />
+            <path d="M16 14.3a5 5 0 0 1 5.5 5.2" />
+          </HomeIcon>
+          <span>가족 소식</span>
+          {home.unread_family_news > 0 && <span className="elder-badge">{home.unread_family_news}</span>}
+        </button>
+        <button type="button" className="elder-tile elder-tile--4" onClick={() => nav('/elder/album', { state: { home } })}>
+          <HomeIcon>
+            <rect x="7" y="7" width="14" height="14" rx="2.5" />
+            <path d="M3 16V5.5A2.5 2.5 0 0 1 5.5 3H16" />
+            <path d="M21 17l-3.5-3.5L12 19" />
+          </HomeIcon>
+          <span>사진첩</span>
+        </button>
       </div>
+      {!showToday && startError
+        ? <p className="elder-text elder-home-note" role="alert">{startError}</p>
+        : notice && <p className="elder-text elder-home-note" role="status">{notice}</p>}
       {showToday && <ELDER_TODAY_001 home={home} busy={busy || skipping} error={startError} onTalk={talkFromToday} onSkip={() => void skipToday()} />}
     </main>
   )
