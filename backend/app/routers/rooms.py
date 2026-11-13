@@ -1,4 +1,4 @@
-"""가족방 생성·목록, 초대 링크 발급·조회·폐기 (방장만)."""
+"""가족방 생성·목록, 초대 링크 발급·조회·폐기 (방장만). 어르신 기기 연결 해제."""
 
 from datetime import timedelta
 
@@ -106,5 +106,18 @@ def revoke_invite(room_id: int, kind: InviteKind, user: CurrentUser, db: DB):
     expires_at = getattr(room, exp_col)
     if expires_at and expires_at > now:
         setattr(room, exp_col, now)
+        db.commit()
+    return OkOut()
+
+
+@router.delete("/{room_id}/device", response_model=OkOut)
+def revoke_device(room_id: int, user: CurrentUser, db: DB):
+    """해제 = 기기 해시를 비움, 다시 쓰려면 새 어르신 기기용 링크(FR-AD-008)."""
+    room = require_owner(room_id, user, db)
+    if room.device_token_hash is not None:
+        room.device_token_hash = None
+        room.device_push_token = None
+        room.device_connected_at = None
+        room.device_last_seen_at = None
         db.commit()
     return OkOut()
