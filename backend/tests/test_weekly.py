@@ -19,7 +19,7 @@ def _at(day, hour=10, minute=0):
     return datetime(2026, 11, day, hour, minute, tzinfo=TZ)
 
 
-def _talk(db, room_id, at, kind="MEMORY", texts=()):
+def _talk(db, room_id, at, kind="MEMORY", texts=(), private=False):
     db.add(
         TalkSession(
             session_id=uuid.uuid4(),
@@ -27,6 +27,7 @@ def _talk(db, room_id, at, kind="MEMORY", texts=()):
             kind=kind,
             input_mode="VOICE",
             started_at=at,
+            private_flag=private,
             turns=[{"turn_no": i, "speaker": "ELDER", "text": text} for i, text in enumerate(texts, 1)]
             + [{"speaker": "AI", "text": "이 말은 세지 않아요"}],
         )
@@ -119,7 +120,7 @@ def test_eight_dates_latest_mood_and_empty_week(client):
             at = _at(8, 19) + timedelta(days=offset)
             if offset == 7:
                 at -= timedelta(hours=1)
-            _talk(db, room_id, at)
+            _talk(db, room_id, at, texts=("네",))
             _diary(db, room_id, at, "RAINY")
         _diary(db, room_id, _at(11, 22), "SUNNY")
         db.commit()
@@ -131,6 +132,30 @@ def test_eight_dates_latest_mood_and_empty_week(client):
     assert len(full.diaries) == 9
     assert empty.talk_volume == {"words": 0, "turns": 0, "avg_words": 0}
     assert (empty.memory_days, empty.diary_days) == (0, 0)
+
+
+def test_only_elder_words_count_and_private_talk_is_left_out(client):
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    with SessionLocal() as db:
+        _talk(db, room_id, _at(10))  # 열기만 한 대화 — 이야기한 날이 아니다
+        _talk(db, room_id, _at(11), texts=("애들한테는 말하지 마",), private=True)  # 이야기한 날로만, 말 수에서는 뺀다
+        _talk(db, room_id, _at(12), texts=("네",))
+        db.add(  # 키가 빠진 칸이 있어도 그 방 집계가 실패하지 않는다
+            TalkSession(
+                session_id=uuid.uuid4(),
+                room_id=room_id,
+                kind="MEMORY",
+                input_mode="VOICE",
+                started_at=_at(12, 11),
+                turns=[{"speaker": "ELDER", "text": "그럼요 좋지요"}, {"text": "키가 빠진 칸"}, {"speaker": "ELDER"}],
+            )
+        )
+        db.commit()
+        weekly.build(db, room_id, NOW)
+    row = _rows(room_id)[0]
+    assert row.memory_days == 2
+    assert row.talk_volume == {"words": 3, "turns": 3, "avg_words": 1.0}
 
 
 def test_get_latest_specific_and_permissions(client):

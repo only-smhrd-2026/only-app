@@ -34,6 +34,9 @@ def test_family_to_elder_flow(client):
 
     perm = client.patch("/api/devices/me/permissions", json={"perm_mic": True, "perm_camera": False})
     assert perm.json()["perm_mic"] is True and perm.json()["perm_camera"] is False
+    # 가족 알림 목록에 그대로 보이는 글 — 칸 이름(camera)이 아니라 한글로
+    off = [n for n in client.get("/api/notifications").json()["notifications"] if n["kind"] == "PERMISSION_OFF"]
+    assert [n["body"] for n in off] == ["카메라"]
 
     client.post("/api/auth/logout")
     assert client.get("/api/auth/me").status_code == 401

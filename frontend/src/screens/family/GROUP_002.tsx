@@ -16,9 +16,10 @@ const KINDS: { kind: InviteKind; label: string; hint: string }[] = [
 ]
 const labelOf = (kind: InviteKind) => KINDS.find((k) => k.kind === kind)?.label
 
-/** 남은 시간 — 24시간 이하면 'N시간 남음', 넘으면 'N일 남음' (올림: 방금 만든 가족용 7일, 기기용 24시간) */
+/** 남은 시간 — 24시간 이하면 'N시간 남음', 넘으면 'N일 남음' (올림: 방금 만든 가족용 7일, 기기용 24시간).
+ * 1분을 빼고 올린다 — 폰 시계가 서버보다 몇 초 늦으면 방금 만든 링크가 '8일'·'2일'로 보인다 */
 function timeLeft(expiresAt: string) {
-  const ms = new Date(expiresAt).getTime() - Date.now()
+  const ms = new Date(expiresAt).getTime() - Date.now() - 60_000
   return ms <= 86_400_000 ? `${Math.ceil(ms / 3_600_000)}시간 남음` : `${Math.ceil(ms / 86_400_000)}일 남음`
 }
 
@@ -139,7 +140,13 @@ export default function GROUP_002() {
                   <div className="row">
                     <button className="btn secondary" onClick={() => copy(k, url)}>복사</button>
                     {'share' in navigator && (
-                      <button className="btn secondary" onClick={() => navigator.share({ url }).catch(() => {})}>보내기</button>
+                      <button
+                        className="btn secondary"
+                        // 기기용 링크를 가족이 열어 [시작하기]를 누르면 그 폰이 어르신 기기가 되고 원래 기기는 끊긴다
+                        onClick={() => navigator.share(k === 'ELDER_DEVICE' ? { url, text: '어르신 폰에서만 열어 주세요.' } : { url }).catch(() => {})}
+                      >
+                        보내기
+                      </button>
                     )}
                     {copyNote?.kind === k && <span className="muted">{copyNote.text}</span>}
                   </div>

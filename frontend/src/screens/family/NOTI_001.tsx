@@ -5,7 +5,6 @@ import { api } from '../../api/client'
 import type { NotificationListOut, NotificationOut } from '../../api/types'
 import { useFetch } from '../../hooks/useFetch'
 
-const TITLE_ONLY = ['MOOD_URGENT', 'MOOD_LOW_2D']
 const LINKS: Record<string, (roomId: number) => string> = {
   HOME_001: () => '/',
   GROUP_002: (roomId) => '/groups/' + roomId + '/members',
@@ -62,7 +61,7 @@ export default function NOTI_001() {
           style={{ display: 'block', width: '100%', textAlign: 'left', border: 0, font: 'inherit', cursor: 'pointer', overflowWrap: 'anywhere' }}
         >
           <span style={{ display: 'block' }}>{n.read_at === null && <strong>새 · </strong>}{n.title}</span>
-          {n.body && !TITLE_ONLY.includes(n.kind) && <span className="muted" style={{ display: 'block' }}>{n.body}</span>}
+          {n.body && <span className="muted" style={{ display: 'block' }}>{n.body}</span>}
           <span className="muted" style={{ display: 'block' }}>{new Date(n.sent_at).toLocaleString('ko-KR')}</span>
         </button>
       ))}

@@ -19,7 +19,7 @@ from app.config import (
     today_kst,
 )
 from app.deps import DB, CurrentDevice, CurrentUser, require_member
-from app.models import Diary, FamilyRoom, MoodCheck, TalkSession
+from app.models import ELDER_SPOKE, Diary, FamilyRoom, MoodCheck, TalkSession
 from app.schemas.common import OkOut
 from app.schemas.mood import MoodCheckDueOut, MoodCheckIn, MoodCheckOut, MoodDayOut, MoodWeekOut
 from app.services import picks
@@ -35,15 +35,15 @@ def mood_week(room_id: int, user: CurrentUser, db: DB):
     since = datetime.combine(first, time.min, tzinfo=TZ)
     talked_dates = set()
     low_dates = set()
-    for started_at, emotion_flag in db.execute(
-        select(TalkSession.started_at, TalkSession.emotion_flag).where(
-            TalkSession.room_id == room_id, TalkSession.started_at >= since
+    for started_at, emotion_flag, private_flag in db.execute(
+        select(TalkSession.started_at, TalkSession.emotion_flag, TalkSession.private_flag).where(
+            TalkSession.room_id == room_id, TalkSession.started_at >= since, ELDER_SPOKE
         )
     ):
         day = started_at.astimezone(TZ).date()
         talked_dates.add(day)
-        # SAD(11/12 전 값)·LOW·RISK 모두 기운 없는 날, D55.
-        if emotion_flag != "NONE":
+        # SAD(11/12 전 값)·LOW·RISK 모두 기운 없는 날. '가족에게 말하지 마'라고 하신 대화는 빼되 위급은 그대로 (D55 ③)
+        if emotion_flag != "NONE" and (emotion_flag == "RISK" or not private_flag):
             low_dates.add(day)
     moods = {}
     for posted_at, mood in db.execute(

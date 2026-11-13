@@ -25,8 +25,8 @@ only-app/
 │   ├── app/security.py       bcrypt, JWT, 토큰 해시, 쿠키, 로그인 속도 제한
 │   ├── app/errors.py         오류 형식 {detail, code}
 │   ├── app/schemas/          요청·응답 모델 (API 계약)
-│   ├── app/routers/          auth, rooms, invites, devices, elder, stt, sessions, diaries, family_diary, media, stubs(빈 API)
-│   ├── app/services/         storage(local|r2), picks(오늘의 한 장), scheduler(예약 작업 틀)
+│   ├── app/routers/          auth, rooms, invites, devices, elder, stt, sessions, diaries, family_diary, media, photos, notifications, mood, weekly, stubs(빈 API)
+│   ├── app/services/         storage(local|r2), picks(오늘의 한 장), weekly(주간 집계), scheduler(예약 작업)
 │   ├── app/ai/               llm·stt·tts·image 어댑터, coach(회상 코치·일기 동무), quiz(문제 은행 고르기), schemas(출력 검사), prompts/*.md
 │   ├── scripts/seed.py       DB 초기화 + 시드
 │   └── tests/                test_auth, test_session_stub, test_diary, test_tz (docker Postgres 사용)
@@ -95,6 +95,21 @@ ELDER_DIARY_003: POST /elder/sessions/{id}/draft
    → 가족이 고쳐 POST /rooms/{id}/diaries (D58)
 ```
 
+### 가족 알림·마음 카드·주간 이야기·가족방 관리 (11/13)
+
+```
+가족 알림:   GET /notifications (최신 50개 + 안 읽은 수) · POST /notifications/{id}/read — 내가 구성원인 방의 내 알림만
+마음 카드:   GET /rooms/{id}/mood-week → 최근 7일 {date, talked, diary_mood, low} + talked_days·low_days·last_check{check_date, level}
+             low = emotion_flag 가 NONE 이 아닌 대화가 있는 날. 비밀 부탁 대화(private_flag)는 빼되 위급(RISK)은 보인다 (D55 ③, D59 ②)
+마음 체크:   GET /elder/mood-check → {due} (마지막 체크 뒤 14일 + 오늘의 한 장이 PENDING 이 아닐 때) · POST /elder/mood-check {answers: 0~3 여덟 칸}
+             → 합 0~4 USUAL / 5~9 DOWN / 10~ HARD, 가족방·날짜당 1줄. 어르신 응답에는 점수·단계가 없다 (D56)
+주간 이야기: GET /rooms/{id}/weekly[?week_start=] → 집계 줄(이야기한 날·일기 쓴 날·기분·말 수). 없으면 404 WEEKLY_NOT_FOUND
+일기:        GET /diaries/{id} (가족, 상세) · GET /elder/diaries (기기, 내 일기 목록) · POST /rooms/{id}/diaries (가족 일기, 같은 방 + 같은 request_id 는 1개)
+가족방:      PATCH /rooms/{id}/settings (방장만 — 추억 시간은 정각, 글자 L·XL·XXL, 말 속도 "0.70"·"0.85"·"1.00", 입력 방식)
+             DELETE /rooms/{id}/members/{user_id} (방장만, 방장 자신은 400) · DELETE /rooms/{id}/device (기기만 끊는다)
+사진:        POST /rooms/{id}/photos 에 caption·people_note(묶음에 한 번, 100자) · PATCH /rooms/{id}/photos/{photo_id}/correction (분류 정정)
+```
+
 ### 오늘의 한 장
 
 ```
@@ -127,7 +142,7 @@ STORAGE=local: uploads/ 폴더 (git 제외) / STORAGE=r2: Cloudflare R2 (boto3, 
 
 ## 4. 예약 작업·시간대
 
-`services/scheduler.py` — APScheduler(BackgroundScheduler, timezone=Asia/Seoul), 잡 3개: 오늘의 한 장(매시 정각, 방 하나가 실패해도 나머지 방은 계속) / 일기 알림 19:00·주간 요약 일 19:00(빈 함수). 서버·DB 세션·컨테이너 전부 Asia/Seoul(`config.TZ`, `now_kst()`, `today_kst()`; SQL 에서 `CURRENT_DATE` 금지). 잡이 아직 안 돈 방은 홈 조회가 보정한다.
+`services/scheduler.py` — APScheduler(BackgroundScheduler, timezone=Asia/Seoul), 잡 4개: 오늘의 한 장(매시 정각, 방 하나가 실패해도 나머지 방은 계속) / 일기 알림 19:00(어르신, 기기 연결된 방만) / 이틀째 기록 없음 가족 알림 19:00 / 주간 집계 일 19:00(`services/weekly.py`, 새 주 줄을 만들 때 가족에게 WEEKLY_READY — AI 요약은 아직). '기록' = 어르신이 한 번이라도 말한 대화(`models.ELDER_SPOKE`) 또는 올린 어르신 일기(D59 ①). 서버·DB 세션·컨테이너 전부 Asia/Seoul(`config.TZ`, `now_kst()`, `today_kst()`; SQL 에서 `CURRENT_DATE` 금지). 잡이 아직 안 돈 방은 홈 조회가 보정한다.
 
 ## 5. 배포
 

@@ -1,9 +1,4 @@
-/* 가족 화면 모양 — 11/12 목업 가족 홈 값. 색은 정해지면 첫 줄만 바뀐다. JOIN_001 도 같이 쓴다 */
-.fam-skin { --bg:#ffffff; --fg:#1f1b2e; --line:#cfc8e6; --card:#ffffff; --primary:#5b3fa8; --on-primary:#ffffff; --soft:#f4f1fb; --me:#e7defa; --me-e:#5b3fa8; min-height:100dvh; background:var(--bg); color:var(--fg); font-size:15px; line-height:1.5; }
-.fam-skin h1 { font-size:20px; font-weight:800; }
-.fam-skin .card { border:1.5px solid var(--line); border-radius:18px; padding:14px; background:var(--card); box-shadow:none; }
-.fam-skin .btn { display:inline-flex; align-items:center; justify-content:center; min-height:46px; border-radius:14px; font-weight:800; }
-.fam-skin .btn:not(.secondary) { background:var(--primary); color:var(--on-primary); }
+/* 가족 화면 공통 모양(.fam-skin)은 index.css 에 있다. JOIN_001·GROUP_002 도 이 파일을 같이 쓴다 */
 
 /* 관계 칩 (RelationChips). 라디오 동그라미는 눈에만 숨기고 키보드(Tab·화살표)로는 고를 수 있게 둔다 */
 .chips { border: 0; padding: 0; margin: 0; min-width: 0; }

@@ -11,8 +11,17 @@ export type RoomOut = {
   diary_time: string
   font_size: 'L' | 'XL' | 'XXL'
   tts_speed: string | number
+  device_input_mode: 'VOICE' | 'BUTTON'
   status: string
   is_owner: boolean
+}
+/** PATCH /api/rooms/{room_id}/settings (방장만). 보낸 칸만 바뀐다. 추억 시간은 정각만, 말 속도는 글자로 */
+export type RoomSettingsIn = {
+  memory_time?: string
+  diary_time?: string
+  font_size?: 'L' | 'XL' | 'XXL'
+  tts_speed?: '0.70' | '0.85' | '1.00'
+  device_input_mode?: 'VOICE' | 'BUTTON'
 }
 
 export type RelationTag = 'CHILD' | 'GRANDCHILD' | 'OTHER'

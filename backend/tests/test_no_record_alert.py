@@ -65,14 +65,16 @@ def test_ineligible_room(old_room, condition):
     assert _alerts(room_id) == []
 
 
-@pytest.mark.parametrize("when,expected", [("yesterday", 0), ("older", 1), ("unfinished", 1), ("boundary", 0)])
-def test_finished_talk_window(old_room, when, expected):
+@pytest.mark.parametrize(
+    "when,spoke,expected", [("yesterday", True, 0), ("older", True, 1), ("boundary", True, 0), ("yesterday", False, 1)]
+)
+def test_talk_counts_when_elder_spoke(old_room, when, spoke, expected):
+    """기록 = 어르신이 한 번이라도 말한 대화. 앱을 닫아 안 끝난 대화도 세고, 말 없이 끝난 대화는 세지 않는다."""
     room_id, now = old_room
     since = now.replace(hour=0) - timedelta(days=1)
-    ended_at = {
+    started_at = {
         "yesterday": now - timedelta(days=1),
         "older": since - timedelta(microseconds=1),
-        "unfinished": None,
         "boundary": since,
     }[when]
     with SessionLocal() as db:
@@ -82,9 +84,11 @@ def test_finished_talk_window(old_room, when, expected):
                 room_id=room_id,
                 kind="MEMORY",
                 input_mode="VOICE",
-                started_at=(ended_at or now) - timedelta(minutes=5),
-                ended_at=ended_at,
-                end_reason="COMPLETED" if ended_at else None,
+                started_at=started_at,
+                # 말한 대화는 끝나지 않은 채로(앱을 닫음), 말 없는 대화는 무응답으로 끝난 것으로 둔다
+                ended_at=None if spoke else started_at + timedelta(minutes=5),
+                end_reason=None if spoke else "NO_RESPONSE",
+                turns=[{"speaker": "AI", "text": "질문"}] + ([{"speaker": "ELDER", "text": "네"}] if spoke else []),
             )
         )
         db.commit()

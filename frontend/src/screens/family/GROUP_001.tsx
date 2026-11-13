@@ -60,6 +60,7 @@ export default function GROUP_001() {
     } catch (err) {
       setError((err as ApiError).message)
       setBusy(false)
+      rooms.reload() // 응답만 끊겼으면 서버에는 만들어졌다 — 목록에 보여 다시 만들지 않게
     }
   }
 

@@ -22,7 +22,7 @@ def context(client, monkeypatch):
     return room_id, datetime.combine(today, time.min, tzinfo=TZ), user["user_id"]
 
 
-def _talk(room_id, at, emotion="NONE", kind="MEMORY"):
+def _talk(room_id, at, emotion="NONE", kind="MEMORY", private=False, speaker="ELDER"):
     with SessionLocal() as db:
         db.add(
             TalkSession(
@@ -32,7 +32,8 @@ def _talk(room_id, at, emotion="NONE", kind="MEMORY"):
                 input_mode="VOICE",
                 started_at=at,
                 emotion_flag=emotion,
-                turns=[{"text": "비공개 테스트 대화"}],
+                private_flag=private,
+                turns=[{"speaker": speaker, "text": "비공개 테스트 대화"}],
             )
         )
         db.commit()
@@ -175,6 +176,16 @@ def test_low_and_risk_count(client, context):
     assert result["days"][-2]["low"] is True
     assert result["days"][-3]["low"] is False
     assert result["low_days"] == 2
+
+
+def test_talked_needs_elder_words_and_private_low_is_left_out(client, context):
+    room_id, midnight, _ = context
+    _talk(room_id, midnight, speaker="AI")  # 열기만 한 대화 — 이야기한 날이 아니다
+    _talk(room_id, midnight - timedelta(days=1), "LOW", private=True)  # 비밀 부탁 — 이야기한 날로만 센다
+    _talk(room_id, midnight - timedelta(days=2), "RISK", private=True)  # 위급은 비밀 부탁이어도 보인다 (D55 ③)
+    result = _get(client, room_id)
+    assert [(day["talked"], day["low"]) for day in result["days"][-3:]] == [(True, True), (True, False), (False, False)]
+    assert (result["talked_days"], result["low_days"]) == (2, 1)
 
 
 def test_last_check_latest_date_and_level_only(client, context):

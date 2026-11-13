@@ -1,7 +1,7 @@
 /** LOGIN_001 — 가족 시작 화면과 이메일 로그인/가입. */
 import './LOGIN_001.css'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { UserOut } from '../../api/types'
 import loginPreview from '../../assets/login-preview.svg'
@@ -12,6 +12,13 @@ type LoginScreen = 'start' | 'login' | 'signup'
 
 export default function LOGIN_001() {
   const nav = useNavigate()
+  const loc = useLocation()
+  // 초대 링크(JOIN_001)에서 왔으면 로그인·가입 뒤 그 링크로 돌아간다. '/join#' 로 시작할 때만 — 다른 주소로는 안 보낸다.
+  // 처음 한 번만 읽는다 (단계를 바꾸면 주소가 바뀌며 state 가 비워진다)
+  const [after] = useState(() => {
+    const next = (loc.state as { next?: unknown } | null)?.next
+    return typeof next === 'string' && next.startsWith('/join#') ? next : '/'
+  })
   // 단계는 주소에 둔다(?mode=login|signup). 폰 뒤로 가기가 앱을 닫지 않고 시작 화면으로 돌아온다.
   const [params, setParams] = useSearchParams()
   const mode = params.get('mode')
@@ -48,7 +55,7 @@ export default function LOGIN_001() {
     try {
       await api(signup ? '/api/auth/signup' : '/api/auth/login', { body })
       clearUploadDraft() // 같은 창에서 앞 계정이 고르다 만 사진을 지운다 (뒤로 가기로 거슬러 가면 보이고 보낼 수 있었다)
-      nav('/', { replace: true })
+      nav(after, { replace: true })
     } catch (err) {
       setError({ screen, text: (err as ApiError).message })
       setBusy(false)
@@ -56,7 +63,7 @@ export default function LOGIN_001() {
   }
 
   if (me.loading) return null
-  if (me.data) return <Navigate to="/" replace />
+  if (me.data) return <Navigate to={after} replace />
   return (
     <main className="login-screen">
       <div className={`login-shell${emailOpen ? ' login-shell--email' : ''}`}>

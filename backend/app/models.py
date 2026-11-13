@@ -179,6 +179,11 @@ class TalkSession(Base):
     turns: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, server_default=text("'[]'"))
 
 
+# '기록'의 기준 = 어르신이 한 번이라도 말한 대화. 열기만 했거나 말 없이 끝난 대화는 빼고, 앱을 닫아 끝나지 않은
+# 대화는 넣는다. 기록 없음 알림·마음 카드·주간 이야기가 같이 쓴다 (11/13 결정)
+ELDER_SPOKE = TalkSession.turns.contains([{"speaker": "ELDER"}])
+
+
 class QuestionBank(Base):
     __tablename__ = "question_bank"
     question_id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)

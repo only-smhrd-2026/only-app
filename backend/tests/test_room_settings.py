@@ -27,6 +27,7 @@ def test_elder_home_reflects_settings(client):
         json={"font_size": "L", "tts_speed": "1.00", "device_input_mode": "BUTTON"},
     )
     assert response.status_code == 200
+    assert response.json()["device_input_mode"] == "BUTTON"  # 설정 화면이 지금 값을 읽는 칸
     assert client.get("/api/elder/home").json()["settings"] == {
         "font_size": "L",
         "tts_speed": "1.00",

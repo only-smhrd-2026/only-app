@@ -1,7 +1,8 @@
 /**
  * JOIN_001 — 가족방 참여 (FR-AD-005, 이슈 #24). 방장이 보낸 /join#<토큰> 으로 들어온다.
  * 토큰은 # 뒤에서 읽어 요청 본문으로만 보낸다 (D16 — 주소 ? 뒤·console·localStorage 에 남기지 않는다).
- * 로그인 안 했으면 로그인 뒤 링크를 다시 누르게 안내한다 (자동으로 돌아오기는 LOGIN_001 을 고쳐야 해서 아직 안 함).
+ * 로그인 안 했으면 로그인 화면으로 보내고, 로그인·가입이 끝나면 LOGIN_001 이 이 링크로 다시 데려온다
+ * (주소는 화면 이동 state 로만 넘긴다 — ? 뒤에 토큰을 두지 않는다).
  * 대표 사진·초대한 사람·구성원 수는 서버(InviteStatusOut)가 주지 않아 넣지 않는다.
  */
 import { useEffect, useState, type FormEvent } from 'react'
@@ -17,6 +18,8 @@ export default function JOIN_001() {
   const token = window.location.hash.slice(1)
   const [status, setStatus] = useState<InviteStatusOut>()
   const [statusError, setStatusError] = useState(token ? '' : '링크가 올바르지 않아요. 방장에게 다시 받아 주세요.')
+  const [tries, setTries] = useState(0)
+  const [canRetry, setCanRetry] = useState(false) // 연결이 끊겼을 때만 — 없는·끝난 링크(4xx)는 다시 해도 같다
   const me = useFetch<UserOut>('/api/auth/me')
   const [name, setName] = useState<string>() // 손대기 전에는 /api/auth/me 의 이름
   const [relation, setRelation] = useState<RelationTag>()
@@ -29,8 +32,11 @@ export default function JOIN_001() {
     if (!token) return
     api<InviteStatusOut>('/api/invites/status', { body: { token } })
       .then(setStatus)
-      .catch((e: ApiError) => setStatusError(e.message))
-  }, [token])
+      .catch((e: ApiError) => {
+        setStatusError(e.message)
+        setCanRetry(e.status === 0 || e.status >= 500)
+      })
+  }, [token, tries])
 
   const myName = (name ?? me.data?.name ?? '').trim()
   const nick = nickname.trim()
@@ -59,6 +65,14 @@ export default function JOIN_001() {
     <main className="page fam-skin">
       <h1>가족방 참여</h1>
       {statusError && <p className="error" role="alert">{statusError}</p>}
+      {canRetry && (
+        <button
+          className="btn secondary"
+          onClick={() => { setStatusError(''); setCanRetry(false); setTries((n) => n + 1) }}
+        >
+          다시 시도
+        </button>
+      )}
       {!status && !statusError && <p className="muted">불러오는 중…</p>}
       {status && !invite && <p>이 링크는 더 쓸 수 없어요. 방장에게 새 링크를 받아 주세요.</p>}
       {invite && (
@@ -68,8 +82,8 @@ export default function JOIN_001() {
           </section>
           {loggedOut || me.error?.status === 401 ? (
             <section className="card">
-              <p>먼저 로그인(처음이면 가입)한 뒤, 받은 초대 링크를 다시 눌러 주세요.</p>
-              <Link className="btn" to="/login">로그인하러 가기</Link>
+              <p>먼저 로그인(처음이면 가입)해 주세요. 끝나면 이 화면으로 돌아와요.</p>
+              <Link className="btn" to="/login" state={{ next: `/join#${token}` }}>로그인하러 가기</Link>
             </section>
           ) : me.error ? (
             <section className="card">

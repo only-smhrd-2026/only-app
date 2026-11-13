@@ -2,7 +2,7 @@
 
 - 매시 정각 가족방별 memory_time 기준 오늘의 한 장 선정 — 홈에서도 보정한다 (D9).
 - 19:00 일기 알림 (천주웅)
-- 19:00 이틀째 기록 없음 가족 알림 (천주웅)
+- 19:00 이틀째 기록 없음 가족 알림 (천주웅) — 기록 = 어르신이 말한 대화(models.ELDER_SPOKE)·어르신 일기
 - 일요일 19:00 주간 요약 (배선 천주웅, 요약 AI 홍진성)
 compose 는 restart: unless-stopped, uvicorn --workers 1 전제 (잡이 두 번 돌지 않게).
 """
@@ -18,7 +18,7 @@ from sqlalchemy import select
 
 from app.config import NO_RECORD_DAYS, TZ, WEEKLY_HOUR, now_kst, today_kst
 from app.db import SessionLocal
-from app.models import DailyPick, Diary, FamilyRoom, Notification, TalkSession
+from app.models import ELDER_SPOKE, DailyPick, Diary, FamilyRoom, Notification, TalkSession
 from app.routers.devices import notify_family
 from app.services import picks, weekly
 
@@ -90,12 +90,12 @@ def diary_reminders() -> None:
 
 
 def no_record_alerts() -> None:
-    """연결 후 이틀째 끝난 대화·어르신 일기가 없는 방의 가족에게 하루 한 번 알린다."""
+    """연결 후 이틀째 어르신이 말한 대화·어르신 일기가 없는 방의 가족에게 하루 한 번 알린다."""
     now = now_kst()
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     since = day_start - timedelta(days=NO_RECORD_DAYS - 1)
     with SessionLocal() as db:
-        talked = select(TalkSession.room_id).where(TalkSession.ended_at >= since)
+        talked = select(TalkSession.room_id).where(TalkSession.started_at >= since, ELDER_SPOKE)
         wrote = select(Diary.room_id).where(
             Diary.author_type == "ELDER", Diary.status == "POSTED", Diary.posted_at >= since
         )
