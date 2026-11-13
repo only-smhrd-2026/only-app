@@ -25,6 +25,7 @@ class RoomOut(BaseModel):
     diary_time: time
     font_size: str
     tts_speed: Decimal
+    device_input_mode: str  # VOICE | BUTTON — 가족방 설정 화면(GROUP_003)이 지금 값을 보여 준다
     status: str
     is_owner: bool = False
 
