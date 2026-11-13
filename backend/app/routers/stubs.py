@@ -4,7 +4,7 @@
 응답 모델 필드는 테이블명세서·요구사항 기준 초안이며, 바꾸면 김승희(화면)를 리뷰어로.
 """
 
-from datetime import date, datetime
+from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter
@@ -48,51 +48,8 @@ diaries = APIRouter(tags=["diaries (빈 API)"])
 weekly = APIRouter(prefix="/rooms/{room_id}/weekly", tags=["weekly (빈 API)"])
 
 
-class WeeklyOut(BaseModel):
-    week_start: date
-    memory_days: int
-    diary_days: int
-    qa_list: list[dict]
-    recall_check: dict
-    mood_trend: list[dict]
-    talk_volume: dict
-    diaries: list[dict]
-    notes: dict | None
-
-
-@weekly.get("", response_model=WeeklyOut)
-def get_weekly(room_id: int, user: CurrentUser, week_start: date | None = None):
-    todo("천주웅")
-
-
 # ---------------------------------------------------------------- 알림 (천주웅, FR-NT-002~004)
 notifications = APIRouter(prefix="/notifications", tags=["notifications (빈 API)"])
-
-
-class NotificationOut(BaseModel):
-    notification_id: int
-    room_id: int
-    kind: str
-    title: str
-    body: str | None
-    link_screen: str | None
-    sent_at: datetime
-    read_at: datetime | None
-
-
-class NotificationListOut(BaseModel):
-    notifications: list[NotificationOut]
-    unread: int
-
-
-@notifications.get("", response_model=NotificationListOut)
-def list_notifications(user: CurrentUser):
-    todo("천주웅")
-
-
-@notifications.post("/{notification_id}/read", status_code=204)
-def read_notification(notification_id: int, user: CurrentUser):
-    todo("천주웅")
 
 
 # ---------------------------------------------------------------- 꼬마심심이 연동 (2순위, FR-API-001)
