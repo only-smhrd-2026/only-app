@@ -43,6 +43,18 @@ def check_chips(v: list[str]) -> list[str]:
     return out
 
 
+# 모델이 만드는 말의 상한 (D52 ④·⑨, 11/13 사용자). 코드가 정한 고정 문장·고정 답('잘 모르겠어요' 등)에는 걸지 않는다
+MODEL_TEXT_MAX = 60  # 한 번에 60자까지. 프롬프트는 50자 안팎을 달라고 해서 넘어 다시 부르는 일이 적게
+MODEL_CHIP_MAX = 6  # 추천 답변은 빈칸을 빼고 6자 이내 (384px 화면에 두 개가 한 줄)
+
+
+def check_model_chips(v: list[str]) -> list[str]:
+    out = check_chips(v)
+    if any(len(s.replace(" ", "")) > MODEL_CHIP_MAX for s in out):
+        raise ValueError(f"추천 답변은 빈칸을 빼고 {MODEL_CHIP_MAX}자 이내")
+    return out
+
+
 class CoachReply(BaseModel):
     """회상·일기 코치 한 턴 응답. 한 문장 질문 + 추천 답변 2~3개."""
 
@@ -71,7 +83,7 @@ class CoachTurn(BaseModel):
 
     # memory_coach 의 모델 출력. question_type·choice_mode 는 모델이 아니라 코드가 정한다(D42) — 지어낸 질문에
     # 문제 이름표(KNOWHOW 등)가 붙어 출제 기록이 섞이거나, API 계약에 없는 값으로 500 이 나지 않게.
-    text: str = Field(min_length=1, max_length=120)
+    text: str = Field(min_length=1, max_length=MODEL_TEXT_MAX)
     suggestions: list[str] = Field(default_factory=list, max_length=3)
     signal: Literal["NONE", "SAD", "STOP"] = "NONE"  # SAD·STOP 이면 대화를 끝낸다 (FR-AI-005)
 
@@ -83,7 +95,19 @@ class CoachTurn(BaseModel):
     @field_validator("suggestions")
     @classmethod
     def _chip_rules(cls, v: list[str]) -> list[str]:
-        return check_chips(v)
+        return check_model_chips(v)
+
+
+class DiaryTurn(CoachReply):
+    """일기 대화 한 턴. 한 문장 질문 + 어르신이 버튼으로 고를 짧은 답 2개(빈칸을 빼고 6자 이내)."""
+
+    # diary_buddy 의 모델 출력 (docstring 이 스키마 description 으로 모델에게 간다).
+    # 화면에 보이는 답은 회상과 같은 상한 (D52 ④)
+
+    @field_validator("suggestions")
+    @classmethod
+    def _model_chip_rules(cls, v: list[str]) -> list[str]:
+        return check_model_chips(v)
 
 
 class DiaryDraft(BaseModel):

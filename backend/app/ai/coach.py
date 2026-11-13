@@ -18,7 +18,7 @@ from pydantic import ValidationError
 
 from app.ai import llm
 from app.ai.quiz import Quiz
-from app.ai.schemas import BANNED_WORDS, CoachReply, CoachTurn, DiaryDraft, question_marks
+from app.ai.schemas import BANNED_WORDS, CoachReply, CoachTurn, DiaryDraft, DiaryTurn, question_marks
 from app.config import DIARY_TURNS, MAX_TURNS, today_kst
 
 
@@ -144,7 +144,7 @@ def next_question(
         return _closing_reply(out.text), out.signal
     if quiz:
         return _quiz_reply(quiz, out.text, out.suggestions), "NONE"
-    return CoachReply(text=out.text, suggestions=out.suggestions, question_type="RECALL"), "NONE"
+    return CoachReply(text=out.text, suggestions=out.suggestions[:2], question_type="RECALL"), "NONE"  # 늘 2개 (D52 ④)
 
 
 def closing(ctx: CoachContext, turn_no: int, max_turns: int = MAX_TURNS) -> tuple[CoachReply, str]:
@@ -207,7 +207,7 @@ def diary_question(ctx: CoachContext, turn_no: int) -> CoachReply:
     if turn_no >= DIARY_TURNS:
         return DIARY_MOOD_QUESTION
     try:
-        return llm.call_json("diary_buddy", _data(ctx, turn_no, max_turns=DIARY_TURNS), CoachReply)
+        return llm.call_json("diary_buddy", _data(ctx, turn_no, max_turns=DIARY_TURNS), DiaryTurn)
     except (llm.LlmError, NotImplementedError):
         q = diary_fallback(turn_no)
         return q.model_copy(update={"text": f"{ctx.elder_honorific}, {q.text}"}) if turn_no == 1 else q
