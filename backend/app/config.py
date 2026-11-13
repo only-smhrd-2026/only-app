@@ -63,6 +63,7 @@ TTS_PER_DAY = 300  # Google. 넘으면 브라우저 목소리 (D5, 가족 알림
 LLM_PER_DAY = 300  # Claude call_json 1번(검증 재시도 포함 최대 2요청). 넘으면 고정 문장 (D14)
 SESSION_COOKIE_DAYS = 7
 DEVICE_COOKIE_DAYS = 365
+MOOD_WEEK_DAYS = 7  # 가족 홈 마음 카드가 보여 주는 날수
 
 
 class Settings(BaseSettings):
