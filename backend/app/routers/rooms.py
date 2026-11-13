@@ -1,6 +1,7 @@
 """가족방 생성·목록, 초대 링크 발급·조회·폐기 (방장만). 어르신 기기 연결 해제."""
 
 from datetime import timedelta
+from decimal import Decimal
 
 from fastapi import APIRouter, Request
 from sqlalchemy import distinct, func, select
@@ -10,7 +11,15 @@ from app.deps import DB, CurrentUser, require_owner
 from app.errors import ApiError
 from app.models import FamilyRoom, Photo, RoomMember
 from app.schemas.common import OkOut
-from app.schemas.rooms import InviteCreatedOut, InviteCreateIn, InviteKind, InviteOut, RoomCreateIn, RoomOut
+from app.schemas.rooms import (
+    InviteCreatedOut,
+    InviteCreateIn,
+    InviteKind,
+    InviteOut,
+    RoomCreateIn,
+    RoomOut,
+    RoomSettingsIn,
+)
 from app.security import new_token, sha256_hex
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
@@ -119,5 +128,36 @@ def revoke_device(room_id: int, user: CurrentUser, db: DB):
         room.device_push_token = None
         room.device_connected_at = None
         room.device_last_seen_at = None
+        db.commit()
+    return OkOut()
+
+
+@router.patch("/{room_id}/settings", response_model=RoomOut)
+def update_settings(room_id: int, body: RoomSettingsIn, user: CurrentUser, db: DB):
+    room = require_owner(room_id, user, db)
+    changed = body.model_dump(exclude_none=True)
+    memory_time = changed.get("memory_time")
+    if memory_time and (memory_time.minute or memory_time.second or memory_time.microsecond):
+        raise ApiError(422, "VALIDATION", "추억 시간은 정각으로 골라 주세요")
+    if "tts_speed" in changed:
+        changed["tts_speed"] = Decimal(changed["tts_speed"])
+    for key, value in changed.items():
+        setattr(room, key, value)
+    db.commit()
+    return room_out(room, user.user_id)
+
+
+@router.delete("/{room_id}/members/{user_id}", response_model=OkOut)
+def remove_member(room_id: int, user_id: int, user: CurrentUser, db: DB):
+    room = require_owner(room_id, user, db)
+    if user_id == room.owner_user_id:
+        raise ApiError(400, "CANNOT_REMOVE_OWNER", "방장은 내보낼 수 없어요")
+    member = db.scalar(
+        select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == user_id).with_for_update()
+    )
+    if member is None:
+        raise ApiError(404, "MEMBER_NOT_FOUND", "구성원을 찾을 수 없어요")
+    if member.removed_at is None:
+        member.removed_at = now_kst()
         db.commit()
     return OkOut()
