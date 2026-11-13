@@ -84,32 +84,6 @@ def get_weekly(room_id: int, user: CurrentUser, week_start: date | None = None):
 notifications = APIRouter(prefix="/notifications", tags=["notifications (빈 API)"])
 
 
-class NotificationOut(BaseModel):
-    notification_id: int
-    room_id: int
-    kind: str
-    title: str
-    body: str | None
-    link_screen: str | None
-    sent_at: datetime
-    read_at: datetime | None
-
-
-class NotificationListOut(BaseModel):
-    notifications: list[NotificationOut]
-    unread: int
-
-
-@notifications.get("", response_model=NotificationListOut)
-def list_notifications(user: CurrentUser):
-    todo("천주웅")
-
-
-@notifications.post("/{notification_id}/read", status_code=204)
-def read_notification(notification_id: int, user: CurrentUser):
-    todo("천주웅")
-
-
 # ---------------------------------------------------------------- 꼬마심심이 연동 (2순위, FR-API-001)
 integration = APIRouter(prefix="/rooms/{room_id}/integration", tags=["integration (빈 API)"])
 
