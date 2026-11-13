@@ -1,5 +1,6 @@
 /**
  * ELDER_DIARY_001 — 일기 시작. 사진을 찍거나 그냥 이야기로 대화를 연다 (D51·D53, FR-DI-001).
+ * 아래 [지난 일기]는 내가 올린 일기 목록(ELDER_DIARY_004)으로 간다 (D60).
  * 업로드 응답이 끊겨도 같은 사진·요청 번호로 재시도해 사진이 중복 저장되지 않게 한다.
  */
 import { useEffect, useRef, useState } from 'react'
@@ -112,8 +113,8 @@ export default function ELDER_DIARY_001() {
           void start(true)
         }}
       />
-      <div className="elder-tiles elder-tiles--one">
-        <button type="button" className="elder-tile elder-tile--2" onClick={takePhoto} disabled={busy}>
+      <div className="elder-tiles elder-tiles--rows">
+        <button type="button" className="elder-tile elder-tile--2 elder-tile--wide" onClick={takePhoto} disabled={busy}>
           <svg
             className="elder-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
@@ -123,7 +124,7 @@ export default function ELDER_DIARY_001() {
           </svg>
           <span>{busy && starting === 'photo' ? '잠시만요…' : '사진 찍기'}</span>
         </button>
-        <button type="button" className="elder-tile elder-tile--4" onClick={() => void start()} disabled={busy}>
+        <button type="button" className="elder-tile elder-tile--4 elder-tile--wide" onClick={() => void start()} disabled={busy}>
           <svg
             className="elder-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
@@ -131,6 +132,19 @@ export default function ELDER_DIARY_001() {
             <path d="M5 5h14v10h-9l-4 4v-4H5z" />
           </svg>
           <span>{busy && starting === 'talk' ? '잠시만요…' : '그냥 이야기'}</span>
+        </button>
+        <button
+          type="button" className="elder-tile elder-tile--3 elder-tile--wide"
+          onClick={() => nav('/elder/diaries', { state: { home } })} disabled={busy}
+        >
+          <svg
+            className="elder-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+          >
+            <path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" />
+            <path d="M5 17a3 3 0 0 1 3-3h11M9 8h6" />
+          </svg>
+          <span>지난 일기</span>
         </button>
       </div>
       {error && <p className="elder-text" role="alert">{error}</p>}

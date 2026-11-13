@@ -116,6 +116,8 @@ html[data-font='XXL'] { --elder-font-size: 28px; --elder-font-size-s: 26px; --el
   gap: 12px;
 }
 .elder-tiles--one { grid-template-rows: 1fr; }
+/* 가로로 긴 상자를 세로로 쌓기 (일기 쓰기 화면: 사진 찍기·그냥 이야기·지난 일기, D60) */
+.elder-tiles--rows { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-rows: 1fr; }
 .elder-tile {
   position: relative;
   display: flex;
@@ -138,9 +140,11 @@ html[data-font='XXL'] { --elder-font-size: 28px; --elder-font-size-s: 26px; --el
 .elder-tile--2 { --elder-tile-fill: var(--elder-t2); --elder-tile-edge: var(--elder-t2e); }
 .elder-tile--3 { --elder-tile-fill: var(--elder-t3); --elder-tile-edge: var(--elder-t3e); }
 .elder-tile--4 { --elder-tile-fill: var(--elder-t4); --elder-tile-edge: var(--elder-t4e); }
+.elder-tile--wide { flex-direction: row; gap: 16px; min-height: 88px; }
 .elder-tile--new { border-width: calc(var(--elder-edge-w) + 3px); border-color: var(--elder-new, var(--elder-tile-edge)); }
 .elder-ic { flex: none; width: 1.15em; height: 1.15em; }
 .elder-tile .elder-ic { width: 88px; height: 88px; color: var(--elder-ticon, var(--elder-tile-edge)); stroke-width: 1.6; }
+.elder-tile--wide .elder-ic { width: 56px; height: 56px; }
 .elder-badge {
   position: absolute;
   top: 10px;
@@ -205,6 +209,28 @@ html[data-font='XXL'] { --elder-font-size: 28px; --elder-font-size-s: 26px; --el
   background: #dfe9f0;
 }
 .elder-photo-box--grow { flex: 1 1000 150px; min-height: 110px; height: auto; }
+/* 사진 전체 보기 (D60, components/ElderPhoto): 자르지 않고 찍은 모양 그대로. 칸은 남는 자리를 차지하고, 사진은 그 안에서
+   가장 크게 가운데에 놓인다 — 테두리·둥근 모서리는 칸이 아니라 사진에 붙는다(가로 사진 위아래에 빈 띠가 안 보이게) */
+.elder-photo-box--whole { display: block; width: 100%; padding: 0; font: inherit; border: 0; border-radius: 0; background: none; overflow: visible; cursor: pointer; }
+.elder-photo-box.elder-photo-box--whole > img {
+  margin: auto;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  border: 2px solid var(--elder-ai-e); /* 누를 수 있어 테두리를 진하게 */
+  border-radius: var(--elder-radius);
+}
+/* 대화 화면: 남는 자리를 사진이 다 쓰고, 말풍선이 쌓이면 화면 높이의 36% 까지 줄어든다.
+   36% = 가로 사진(4:3)이 화면 너비를 다 쓰는 높이라, 가로 사진은 대화 내내 같은 크기다 */
+.elder-photo-box--talk { flex: 1 1 0; min-height: 36dvh; }
+.elder-photo-box--whole:focus-visible { outline: 4px solid var(--elder-fg); outline-offset: 4px; }
+/* 크게 보기: 화면 가득, 어두운 바탕. 아무 데나 누르면 닫힌다 */
+.elder-zoom { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 12px; border: 0; outline: 0; background: #14141a; color: #ffffff; }
+.elder-zoom[open] { display: flex; flex-direction: column; gap: 8px; }
+.elder-zoom::backdrop { background: #14141a; }
+.elder-zoom > img { flex: 1; min-height: 0; width: 100%; object-fit: contain; }
+.elder-zoom > p { flex: none; margin: 0; text-align: center; font-size: var(--elder-font-size-s); font-weight: 700; }
 .elder-cap {
   position: absolute;
   left: 10px;

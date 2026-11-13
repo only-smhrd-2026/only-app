@@ -1,7 +1,7 @@
 /*
  * 대화 화면(말하기 부품) 새 모양 (D52, 목업 `설계자료/목업_1112` Talk()). 홍진성 담당 — elder.css 는 김승희 공통 값.
  * 색·크기는 elder.css 변수만 쓴다. 아직 없는 변수(11/13 김승희 ① 공통 값이 합쳐지기 전)는 목업 값(색 ① 보라, 기본 24px)을 예비로.
- * 화면·버튼은 고정, 말풍선 칸(.vs-log)만 움직인다 — 부르는 화면이 높이를 100dvh 로 맞춘다 (D51 ⑤).
+ * 버튼은 고정, 사진과 말풍선 칸(.vs-log)이 자리를 나눈다 — 부르는 화면이 높이를 100dvh 로 맞춘다 (D51 ⑤, D60).
  */
 .vs {
   flex: 1;
@@ -10,15 +10,9 @@
   flex-direction: column;
   gap: 12px;
 }
-.vs-photo {
-  flex: none;
-  width: 100%;
-  height: 20dvh;
-  min-height: 110px;
-  max-height: 200px;
-  object-fit: cover;
-  border: 2px solid var(--elder-line, #cfc8e6);
-}
+/* 사진(components/ElderPhoto, elder-photo-box--talk)이 위에 있으면 남는 자리는 사진 몫 — 이 묶음은 내용만큼만 (D60).
+   말이 쌓이면 사진이 화면 높이의 36% 까지 줄고, 그다음부터 말풍선 칸이 위로 밀린다. 사진이 없으면 위 규칙대로 화면을 채운다 */
+.elder-photo-box--talk ~ .vs { flex: 0 1 auto; }
 
 /* 말풍선 칸: 말이 적으면 아래에 붙고, 많으면 이 칸만 위로 밀린다 */
 .vs-log {

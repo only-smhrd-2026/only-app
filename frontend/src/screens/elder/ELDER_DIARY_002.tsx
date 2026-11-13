@@ -5,6 +5,7 @@
 import { useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import type { EndReason, SessionOut } from '../../api/types'
+import ElderPhoto from '../../components/ElderPhoto'
 import VoiceSession from '../../components/VoiceSession/VoiceSession'
 import { useElderSession } from '../../hooks/useElderSession'
 
@@ -31,7 +32,7 @@ export default function ELDER_DIARY_002() {
   // 회상 대화와 같은 모양(D53 ①): 보이는 화면 높이에 맞추고 말풍선 칸만 움직인다 (스크롤 없음, D51 ⑤)
   return (
     <main className="elder" style={{ height: '100dvh', minHeight: 0, overflow: 'hidden', gap: 12 }}>
-      {shownPhoto && <img className="elder-photo vs-photo" src={shownPhoto} alt="오늘 찍은 사진" />}
+      {shownPhoto && <ElderPhoto className="elder-photo-box--talk" src={shownPhoto} alt="오늘 찍은 사진" />}
       <VoiceSession
         sessionId={sessionId}
         initial={session}

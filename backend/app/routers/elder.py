@@ -185,16 +185,13 @@ def skip(device: CurrentDevice, db: DB):
 
 @router.get("/album", response_model=AlbumOut)
 def album(device: CurrentDevice, db: DB):
-    """어르신 사진첩 목록 — 초석에서는 시드 사진이 그대로 나온다. 세부(2열 격자·일기 섞기)는 천주웅."""
+    """어르신 사진첩 목록 — 가족이 올린 사진만. 어르신이 일기에 찍은 사진(ELDER_CAMERA)은 넣지 않는다:
+    일기 사진은 일기 쓰기 화면의 [지난 일기](GET /elder/diaries)에서 일기와 함께 본다 (D60)."""
     photos = db.scalars(
         select(Photo)
-        .where(
-            Photo.room_id == device.room_id,
-            Photo.status == "ACTIVE",
-            Photo.source.in_(["FAMILY", "ELDER_CAMERA"]),
-        )
+        .where(Photo.room_id == device.room_id, Photo.status == "ACTIVE", Photo.source == "FAMILY")
         .order_by(Photo.uploaded_at.desc(), Photo.photo_id.desc())
-        .limit(PHOTO_LIST_LIMIT)  # 가족 사진 목록(routers/photos.py list_photos)과 같은 조건·순서·상한
+        .limit(PHOTO_LIST_LIMIT)  # 순서·상한은 가족 사진 목록(routers/photos.py list_photos)과 같다
     ).all()
     return AlbumOut(
         photos=[

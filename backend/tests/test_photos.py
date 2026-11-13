@@ -604,7 +604,8 @@ def test_list_needs_login_and_membership(client):
 
 
 def test_list_shows_elder_camera_but_not_diary_photo(client):
-    """어르신 사진첩(album)과 같은 사진만 — 어르신 카메라(ELDER_CAMERA)는 보이고 그림일기(FAMILY_DIARY)는 빠짐."""
+    """가족 사진 목록에는 어르신 카메라(ELDER_CAMERA)도 보이고 그림일기(FAMILY_DIARY)는 빠짐.
+    어르신 사진첩(album)은 11/13 부터 가족이 올린 사진만이다 (D60)."""
     signup(client)
     room_id = make_room(client)["room_id"]
     files = [("files", (f"{i}.jpg", _jpeg(), "image/jpeg")) for i in range(2)]
@@ -634,7 +635,7 @@ def test_list_same_batch_twice_is_3(client):
 
 
 def test_list_same_as_elder_album(client):
-    """가족 사진 목록과 어르신 사진첩은 같은 사진·순서·상한(PHOTO_LIST_LIMIT) — 한쪽만 바꾸면 여기서 걸린다."""
+    """가족이 올린 사진은 가족 사진 목록과 어르신 사진첩에서 같은 순서·상한(PHOTO_LIST_LIMIT) — 한쪽만 바꾸면 걸린다."""
     signup(client)
     room_id = make_room(client)["room_id"]
     client.post(f"/api/rooms/{room_id}/photos", files=[("files", ("a.jpg", _jpeg(), "image/jpeg"))])
