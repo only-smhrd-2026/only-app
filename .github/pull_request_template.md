@@ -15,7 +15,7 @@
 - [ ] 내 컴퓨터에서 실행해서 동작을 확인했어요 (서버는 `uv run pytest`, 화면은 `npm run build` 가 통과해요)
 - [ ] `.env`, API 키, 비밀번호, 실제 사용자 사진·음성·개인정보가 없어요
 - [ ] API 응답 형식이나 DB 테이블을 바꿨다면 관련 담당자를 리뷰어로 지정했어요 (화면 → 김승희, 테이블 → 천주웅)
-- [ ] `db/schema.sql` 을 바꿨으면 `backend/app/models.py` 도 같이 바꿨어요 (그리고 테이블명세서 문서도)
+- [ ] `db/schema.sql` 을 바꿨으면 `backend/app/models.py` 와 배포 서버용 `db/migrations/*.sql` 도 같이 만들었어요 (그리고 테이블명세서 문서도)
 - [ ] 기술 결정을 바꿨으면 `docs/DECISIONS.md` 에 적었어요
 
 ## 화면 캡처 (화면 작업이면)

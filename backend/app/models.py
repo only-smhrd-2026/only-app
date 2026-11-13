@@ -1,4 +1,4 @@
-"""db/schema.sql 의 거울 (D1). 테이블 12개. schema.sql 을 바꾸면 여기도 같이 바꾼다.
+"""db/schema.sql 의 거울 (D1). 테이블 13개. schema.sql 을 바꾸면 여기도 같이 바꾼다.
 
 CHECK 제약·인덱스는 DB(schema.sql)가 원천이라 여기서는 반복하지 않는다. 컬럼·NULL·UNIQUE·FK·기본값만 맞춘다.
 """
@@ -87,6 +87,7 @@ class FamilyRoom(Base):
     device_input_mode: Mapped[str] = mapped_column(String(8), server_default="VOICE")  # VOICE | BUTTON
     device_connected_at: Mapped[datetime | None] = mapped_column(TS)
     device_last_seen_at: Mapped[datetime | None] = mapped_column(TS)
+    mood_check_consent_at: Mapped[datetime | None] = mapped_column(TS)  # 마음 체크 동의 (D56). None = 아직
 
 
 class RoomMember(Base):
@@ -171,7 +172,7 @@ class TalkSession(Base):
     end_reason: Mapped[str | None] = mapped_column(String(12))  # COMPLETED|USER_STOP|NO_RESPONSE|ERROR|LIMIT
     turn_count: Mapped[int] = mapped_column(SmallInteger, server_default="0")
     duration_sec: Mapped[int | None] = mapped_column(Integer)
-    emotion_flag: Mapped[str] = mapped_column(String(6), server_default="NONE")  # NONE | SAD
+    emotion_flag: Mapped[str] = mapped_column(String(6), server_default="NONE")  # NONE | SAD(옛 값) | LOW | RISK (D55)
     private_flag: Mapped[bool] = mapped_column(Boolean, server_default=FALSE)
     # 턴 배열 (D38). 키는 schema.sql sessions 아래 주석.
     # 고칠 때는 새 리스트를 넣어야 저장된다 (제자리 append 는 감지 안 됨)
@@ -227,6 +228,8 @@ class Diary(Base):
     status: Mapped[str] = mapped_column(String(8), server_default="POSTED")  # POSTED | DELETED
     elder_read_at: Mapped[datetime | None] = mapped_column(TS)  # 어르신 '다 들었어요' (D38)
     family_read_by: Mapped[list[int]] = mapped_column(JSONB, server_default=text("'[]'"))  # '다 봤어요' 가족 id
+    # 리액션 (D54). 키는 schema.sql diaries 아래 주석. 고칠 때는 새 리스트를 넣어야 저장된다
+    reactions: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, server_default=text("'[]'"))
 
 
 class WeeklySummary(Base):
@@ -262,3 +265,17 @@ class Notification(Base):
     link_screen: Mapped[str | None] = mapped_column(String(30))
     sent_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
     read_at: Mapped[datetime | None] = mapped_column(TS)
+
+
+class MoodCheck(Base):
+    """마음 체크 결과 (D56). 어르신이 8문항을 다 답했을 때만 1줄, 가족방·날짜당 1줄."""
+
+    __tablename__ = "mood_checks"
+    __table_args__ = (UniqueConstraint("room_id", "check_date", name="uq_mood_checks_room_id_check_date"),)
+    check_id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    room_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("family_rooms.room_id"))
+    check_date: Mapped[date] = mapped_column(Date)
+    answers: Mapped[list[int]] = mapped_column(JSONB)  # 문항 순서대로 0~3, 8칸 (0~3 은 코드가 검사)
+    total: Mapped[int] = mapped_column(SmallInteger)  # 0~24. 화면에 점수를 보이지 않는다 (NFR-DE-003)
+    level: Mapped[str] = mapped_column(String(5))  # USUAL | DOWN | HARD
+    created_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
