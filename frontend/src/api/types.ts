@@ -91,7 +91,8 @@ export const MOOD_LABEL: Record<Mood, string> = { SUNNY: '맑음', CLOUDY: '구�
 
 // ---- 가족 홈 마음 카드 (backend/app/schemas/mood.py)
 export type MoodDayOut = { date: string; talked: boolean; diary_mood: Mood | null; low: boolean }
-export type MoodWeekOut = { days: MoodDayOut[]; talked_days: number; low_days: number; last_check: Record<string, unknown> | null } // days 는 7칸, 오래된 날 → 오늘
+export type MoodCheckOut = { check_date: string; level: 'USUAL' | 'DOWN' | 'HARD' } // 마음 체크 마지막 결과. 점수는 오지 않음
+export type MoodWeekOut = { days: MoodDayOut[]; talked_days: number; low_days: number; last_check: MoodCheckOut | null } // days 는 7칸, 오래된 날 → 오늘
 export type IllustrationType = 'PHOTO' | 'AI_DRAWING' | 'NONE'
 export type DraftOut = {
   session_id: string
