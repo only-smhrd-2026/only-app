@@ -1,5 +1,6 @@
 """사진 올리기 (BE-02, FR-ME-001/002/004, D17). 정정은 아직 stubs.py 에 있다."""
 
+import copy
 import io
 import logging
 import threading
@@ -25,6 +26,7 @@ from app.config import (
     UPLOAD_MAX_EXIF_SEGMENTS,
     UPLOAD_MAX_FILES,
     UPLOAD_MAX_ICC_BYTES,
+    UPLOAD_MAX_NOTE_CHARS,
     UPLOAD_MAX_PIXELS,
     UPLOAD_MAX_SIDE,
     now_kst,
@@ -152,6 +154,18 @@ _UPLOAD_BODY = {
         },
     }
 }
+# 가족 사진 올리기만 글 칸 2개를 더 받는다. _UPLOAD_BODY 는 어르신 카메라(elder.py)도 쓰므로 그대로 두고 복사해서 더한다
+_FAMILY_UPLOAD_BODY = copy.deepcopy(_UPLOAD_BODY)
+_FAMILY_UPLOAD_BODY["requestBody"]["content"]["multipart/form-data"]["schema"]["properties"].update(
+    {
+        "caption": {
+            "type": "string",
+            "maxLength": UPLOAD_MAX_NOTE_CHARS,
+            "description": "한마디 (선택) — 이 묶음의 모든 사진에 같은 값",
+        },
+        "people_note": {"type": "string", "maxLength": UPLOAD_MAX_NOTE_CHARS, "description": "사진 속 사람 (선택)"},
+    }
+)
 
 
 def _member_first(room_id: int, user: CurrentUser, db: DB) -> None:
@@ -165,7 +179,8 @@ def _member_first(room_id: int, user: CurrentUser, db: DB) -> None:
 async def _upload_form(request: Request, _: Annotated[None, Depends(_member_first)]) -> AsyncIterator[FormData]:
     """구성원 확인 뒤에야 본문을 읽는다. 21번째 사진을 만나면 그 자리에서 멈춘다 (D17)."""
     try:
-        form = await request.form(max_files=UPLOAD_MAX_FILES, max_fields=1)  # 글 칸은 upload_batch_id 하나
+        # 글 칸은 upload_batch_id·caption·people_note 셋
+        form = await request.form(max_files=UPLOAD_MAX_FILES, max_fields=3)
     except HTTPException as e:  # Starlette 가 400 으로 멈춤. 장수 초과만 우리 코드로, 깨진 본문은 그대로
         if str(e.detail).startswith("Too many files"):
             raise ApiError(400, "TOO_MANY_PHOTOS", f"사진은 한 번에 {UPLOAD_MAX_FILES}장까지 올릴 수 있어요") from None
@@ -178,11 +193,27 @@ async def _upload_form(request: Request, _: Annotated[None, Depends(_member_firs
         await form.close()  # 1MB 넘는 사진은 임시 파일(디스크)에 있다
 
 
-@router.post("", response_model=PhotoBatchOut, status_code=201, openapi_extra=_UPLOAD_BODY)
+def _note(form: FormData, name: str, label: str) -> str | None:
+    """글 칸 하나(caption·people_note)를 읽는다. 앞뒤 공백을 지우고, 빈 칸이면 None.
+    글 내용은 로그에 남기지 않는다 (D15)."""
+    raw = form.get(name)
+    if raw is None:
+        return None
+    # 글 칸 이름으로 파일이 옴, 또는 NUL(\x00) — DB 가 거부해 500 이 나고 사진 파일만 남는다 (사진 저장 전에 막음)
+    if not isinstance(raw, str) or "\x00" in raw:
+        raise ApiError(422, "VALIDATION", "입력값이 올바르지 않습니다")
+    text = raw.strip()
+    if len(text) > UPLOAD_MAX_NOTE_CHARS:
+        raise ApiError(422, "VALIDATION", f"{label} {UPLOAD_MAX_NOTE_CHARS}자까지 적을 수 있어요")
+    return text or None
+
+
+@router.post("", response_model=PhotoBatchOut, status_code=201, openapi_extra=_FAMILY_UPLOAD_BODY)
 def upload_photos(room_id: int, user: CurrentUser, db: DB, form: Annotated[FormData, Depends(_upload_form)]):
     """받은 사진을 JPEG 로 다시 만들어 저장. 20장·10MB·30M 픽셀 제한, JPEG/PNG 만(HEIC 는 위 ALLOWED_FORMATS).
     upload_batch_id: 화면이 사진을 고를 때마다 새 번호를 만들고, 같은 요청을 다시 보낼 때([올리기] 두 번·재전송)만
-    같은 번호를 쓴다. 같은 번호의 두 번째 요청은 사진을 보지 않고 처음 저장본을 돌려준다 — 사진이 달라도 (D17)."""
+    같은 번호를 쓴다. 같은 번호의 두 번째 요청은 사진을 보지 않고 처음 저장본을 돌려준다 — 사진이 달라도 (D17).
+    caption·people_note: 선택, 100자, 묶음의 모든 사진에 같은 값. 같은 번호로 다시 보내면 처음 글 그대로."""
     files = [f for f in form.getlist("files") if isinstance(f, UploadFile)]
     if not files:
         raise ApiError(422, "VALIDATION", "사진을 골라 주세요")
@@ -191,6 +222,8 @@ def upload_photos(room_id: int, user: CurrentUser, db: DB, form: Annotated[FormD
         upload_batch_id = uuid.UUID(str(raw)) if raw else None  # 빈 칸("")은 번호 없음
     except ValueError:
         raise ApiError(422, "VALIDATION", "입력값이 올바르지 않습니다") from None
+    caption = _note(form, "caption", "한마디는")
+    people_note = _note(form, "people_note", "사진 속 사람은")
     # 그림을 풀기 전에 장당 크기부터.
     # ponytail: 10MB 는 본문을 다 받은 뒤에 본다(구성원만, 합계는 배포 Caddy 220MB). 받는 도중 끊으려면 스트림 감싸기
     for n, f in enumerate(files, 1):
@@ -227,6 +260,8 @@ def upload_photos(room_id: int, user: CurrentUser, db: DB, form: Annotated[FormD
                 upload_batch_id=batch_id,
                 object_key=key,
                 taken_at=taken_at,
+                caption=caption,  # 묶음의 모든 사진에 같은 글
+                people_note=people_note,
                 source="FAMILY",
             )
             db.add(photo)

@@ -483,6 +483,83 @@ def test_blank_batch_id_is_none_and_bad_one_is_422(client):
     assert r.status_code == 422 and r.json()["code"] == "VALIDATION"
 
 
+# ---------------------------------------------------------------- 한마디·사진 속 사람 (FR-ME-002, D17)
+def test_caption_and_people_note_saved_on_every_photo(client):
+    """JPEG 2장 + 한마디 + 사진 속 사람 → 두 사진 모두 같은 글. 사진 목록(GET)에도 같은 글."""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    files = [("files", (f"{i}.jpg", _jpeg(), "image/jpeg")) for i in range(2)]
+    data = {"upload_batch_id": str(uuid.uuid4()), "caption": "설날 온 가족이 모인 날", "people_note": "할머니, 큰딸"}
+    r = client.post(f"/api/rooms/{room_id}/photos", files=files, data=data)
+    assert r.status_code == 201, r.text
+    for photos in (r.json()["photos"], _list(client, room_id)):
+        assert len(photos) == 2
+        assert all(p["caption"] == "설날 온 가족이 모인 날" and p["people_note"] == "할머니, 큰딸" for p in photos)
+
+
+@pytest.mark.parametrize("extra", [{}, {"caption": "", "people_note": ""}, {"caption": "   ", "people_note": "   "}])
+def test_missing_or_blank_note_is_none(client, extra):
+    """두 칸이 없거나, 빈 칸이거나, 공백만이면 None."""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    files = [("files", ("a.jpg", _jpeg(), "image/jpeg"))]
+    r = client.post(f"/api/rooms/{room_id}/photos", files=files, data={"upload_batch_id": str(uuid.uuid4()), **extra})
+    assert r.status_code == 201, r.text
+    assert r.json()["photos"][0]["caption"] is None and r.json()["photos"][0]["people_note"] is None
+
+
+def test_note_over_100_chars_is_422_and_saves_nothing(client):
+    """100자는 201, 101자는 422 VALIDATION 이고 그 번호로 저장된 사진은 0장. 글 칸에 파일이 와도 422."""
+    signup(client)
+    url = f"/api/rooms/{make_room(client)['room_id']}/photos"
+    files = [("files", ("a.jpg", _jpeg(), "image/jpeg"))]
+    ok = client.post(url, files=files, data={"upload_batch_id": str(uuid.uuid4()), "caption": "가" * 100})
+    assert ok.status_code == 201 and ok.json()["photos"][0]["caption"] == "가" * 100
+    for name, msg in (("caption", "한마디는 100자까지"), ("people_note", "사진 속 사람은 100자까지")):
+        batch = str(uuid.uuid4())
+        r = client.post(url, files=files, data={"upload_batch_id": batch, name: "가" * 101})
+        assert r.status_code == 422 and r.json()["code"] == "VALIDATION" and msg in r.json()["detail"]
+        assert _batch_count(batch) == 0
+    batch = str(uuid.uuid4())
+    as_file = files + [("caption", ("c.txt", b"hello", "text/plain"))]
+    r = client.post(url, files=as_file, data={"upload_batch_id": batch})
+    assert r.status_code == 422 and r.json()["code"] == "VALIDATION" and _batch_count(batch) == 0
+
+
+@pytest.mark.parametrize("name", ["caption", "people_note"])
+def test_nul_in_note_is_422_and_leaves_no_file(client, name):
+    """글에 NUL(\\x00)이 있으면 422 — DB(PostgreSQL)가 저장을 거부해 500 이 나고 사진 파일만 남던 것 (11/13 리뷰)."""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    batch = str(uuid.uuid4())
+    files = [("files", (f"{i}.jpg", _jpeg(), "image/jpeg")) for i in range(2)]
+    r = client.post(f"/api/rooms/{room_id}/photos", files=files, data={"upload_batch_id": batch, name: "a\x00b"})
+    assert r.status_code == 422 and r.json()["code"] == "VALIDATION"
+    assert _batch_count(batch) == 0
+    assert not (Path(settings.UPLOAD_DIR) / "rooms" / str(room_id) / batch).exists()
+
+
+def test_same_batch_id_keeps_first_caption(client):
+    """같은 upload_batch_id 로 한마디만 바꿔 다시 보내면 201 이고 처음 한마디 그대로, 사진 수도 그대로 (D17)."""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    files = [("files", (f"{i}.jpg", _jpeg(), "image/jpeg")) for i in range(2)]
+    batch = str(uuid.uuid4())
+    r1 = client.post(f"/api/rooms/{room_id}/photos", files=files, data={"upload_batch_id": batch, "caption": "처음 글"})
+    r2 = client.post(f"/api/rooms/{room_id}/photos", files=files, data={"upload_batch_id": batch, "caption": "다른 글"})
+    assert r1.status_code == 201 and r2.status_code == 201
+    assert [p["caption"] for p in r2.json()["photos"]] == ["처음 글", "처음 글"]
+    assert _batch_count(batch) == 2
+
+
+def test_four_text_fields_is_400(client):
+    """글 칸은 upload_batch_id·caption·people_note 셋까지. 모르는 칸 하나를 더 보내면 400."""
+    signup(client)
+    url = f"/api/rooms/{make_room(client)['room_id']}/photos"
+    data = {"upload_batch_id": str(uuid.uuid4()), "caption": "a", "people_note": "b", "unknown": "c"}
+    assert client.post(url, files=[("files", ("a.jpg", _jpeg(), "image/jpeg"))], data=data).status_code == 400
+
+
 # ---------------------------------------------------------------- 사진 목록 (GET, FR-ME-004)
 def _list(client, room_id: int) -> list[dict]:
     r = client.get(f"/api/rooms/{room_id}/photos")

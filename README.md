@@ -187,7 +187,7 @@ gitGraph
 | `frontend/` | 화면 전부. `src/screens/elder/` 어르신 화면 10개, `src/screens/family/` 가족 화면 15개. **파일 이름 = 화면설계서 화면 ID** (예: `ELDER_HOME_001.tsx`). 경로 표는 `src/App.tsx` | 김승희 18개 (박유승: 사진 올리기 `UPLOAD_001~003`·가족방 `GROUP_001~003`·`JOIN_001` 7개, 홍진성: `src/components/VoiceSession/`) | `feature/fe-elder-today` |
 | `backend/app/routers/`, `backend/app/schemas/` | API 주소별 서버 코드 (로그인·가족방·사진·세션·일기·주간·알림)와 요청·응답 모양. 빈 API 는 `stubs.py` | **각자 자기 API**: 박유승(사진 올리기·가족방·일기), 천주웅(사진첩 제한·가족 소식·알림·주간·기기 해제), 홍진성(세션 `sessions.py`) | `feature/be-photo-upload` |
 | `backend/app/ai/` | AI 부품: `llm.py`(Claude) `stt.py` `tts.py` `image.py` `coach.py` `prompts/`(지시문 5종) | 홍진성 | `feature/ai-memory-coach` |
-| `backend/app/models.py`, `backend/app/services/` | 테이블 12개의 모양을 서버 코드로 적은 파일 (`db/schema.sql` 과 짝) / 예약 작업 `scheduler.py`, 오늘의 한 장 고르기 `picks.py`, 사진 저장 `storage.py` | 천주웅 (`storage.py` 는 박유승). 내 API 안에서 데이터를 읽고 저장하는 코드는 각자 써요 | `feature/be-daily-pick-job` |
+| `backend/app/models.py`, `backend/app/services/` | 테이블 13개의 모양을 서버 코드로 적은 파일 (`db/schema.sql` 과 짝) / 예약 작업 `scheduler.py`, 오늘의 한 장 고르기 `picks.py`, 사진 저장 `storage.py` | 천주웅 (`storage.py` 는 박유승). 내 API 안에서 데이터를 읽고 저장하는 코드는 각자 써요 | `feature/be-daily-pick-job` |
 | `db/schema.sql`, `db/seed/` | 테이블 생성 SQL(기준 문서) / 시드·더미 데이터 | **천주웅·홍진성만 수정** | `feature/db-diary-table` |
 | `data/` | 문제 은행 `question_bank.json`, 사진 분류 목록 `taxonomy.json`, 금지어 `banned_words.json`, 평가용 가짜 데이터 | 홍진성 | `feature/data-question-bank` |
 | `docs/` | `DECISIONS.md`(기술 결정 기록), `ARCHITECTURE.md`(구조 설명) | 홍진성 | `docs/decisions-stt` |
@@ -454,6 +454,7 @@ git push
 
 - 테이블 구조 변경은 **DB 담당(천주웅)이 `db/schema.sql`을 고치는 PR로만** 해요. 다른 사람은 DB를 직접 바꾸지 말고 이슈나 단톡방으로 요청해요.
 - `schema.sql` 을 바꾸면 **`backend/app/models.py` 와 테이블명세서(산출물)도 같이** 고쳐요(PR 템플릿 체크 항목). 문서와 코드가 다르면 발표 때 바로 질문받아요.
+- 배포 서버 DB 에는 가입·사진이 쌓여 있어 seed 로 다시 만들지 않아요. 그래서 `schema.sql` 을 바꾼 PR 에는 **서버용 ALTER 파일 `db/migrations/날짜_내용.sql`** 을 같이 넣고(예 `20261113_mentoring.sql`), 다시 배포하기 전에 서버에서 한 번 돌려요(D57).
 - 개발할 때는 각자 **내 컴퓨터의 Docker PostgreSQL**(`docker compose up -d db`)에 `uv run python -m scripts.seed` 로 테이블과 시드를 넣어서, 모두 같은 DB 상태로 맞춰요. 테이블을 바꾼 뒤에도 같은 명령으로 초기화해요(데이터가 지워져요).
 - 공용 DB 서버(EC2)는 통합 테스트와 시연용으로만 써요. 개발까지 같이 쓰면 누가 테스트하다 데이터를 지울 때 다 같이 멈춰요.
 - 더미 데이터에는 실제 사람 이름, 전화번호, 사진을 쓰지 않아요.
