@@ -1,4 +1,4 @@
-"""가족 홈 마음 카드: 최근 한국 날짜별 활동·기분만 집계하며 대화·일기 본문은 읽지 않는다."""
+"""가족 홈 마음 카드: 최근 한국 날짜별 활동·기분만 집계한다. 마음 체크는 마지막 결과의 날짜·단계만(점수 없음)."""
 
 from datetime import datetime, time, timedelta
 
@@ -7,8 +7,8 @@ from sqlalchemy import select
 
 from app.config import MOOD_WEEK_DAYS, TZ, today_kst
 from app.deps import DB, CurrentUser, require_member
-from app.models import Diary, TalkSession
-from app.schemas.mood import MoodDayOut, MoodWeekOut
+from app.models import Diary, MoodCheck, TalkSession
+from app.schemas.mood import MoodCheckOut, MoodDayOut, MoodWeekOut
 
 router = APIRouter(prefix="/rooms", tags=["mood"])
 
@@ -28,6 +28,7 @@ def mood_week(room_id: int, user: CurrentUser, db: DB):
     ):
         day = started_at.astimezone(TZ).date()
         talked_dates.add(day)
+        # SAD(11/12 전 값)·LOW·RISK 모두 기운 없는 날, D55.
         if emotion_flag != "NONE":
             low_dates.add(day)
     moods = {}
@@ -43,6 +44,16 @@ def mood_week(room_id: int, user: CurrentUser, db: DB):
     for offset in range(MOOD_WEEK_DAYS):
         day = first + timedelta(days=offset)
         days.append(MoodDayOut(date=day, talked=day in talked_dates, diary_mood=moods.get(day), low=day in low_dates))
+    check = db.execute(
+        select(MoodCheck.check_date, MoodCheck.level)
+        .where(MoodCheck.room_id == room_id)
+        .order_by(MoodCheck.check_date.desc())
+        .limit(1)
+    ).first()
+    last_check = MoodCheckOut(check_date=check.check_date, level=check.level) if check else None
     return MoodWeekOut(
-        days=days, talked_days=sum(day.talked for day in days), low_days=sum(day.low for day in days), last_check=None
+        days=days,
+        talked_days=sum(day.talked for day in days),
+        low_days=sum(day.low for day in days),
+        last_check=last_check,
     )
