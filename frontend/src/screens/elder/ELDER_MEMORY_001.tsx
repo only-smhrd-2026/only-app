@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../../api/client'
 import type { SessionOut } from '../../api/types'
+import ElderPhoto from '../../components/ElderPhoto'
 import VoiceSession from '../../components/VoiceSession/VoiceSession'
 import { useElderSession } from '../../hooks/useElderSession'
 
@@ -32,8 +33,8 @@ export default function ELDER_MEMORY_001() {
   return (
     <main className="elder" style={{ height: '100dvh', minHeight: 0, overflow: 'hidden', gap: 12 }}>
       {shownPhoto && (
-        <img
-          className="elder-photo vs-photo"
+        <ElderPhoto
+          className="elder-photo-box--talk"
           src={shownPhoto}
           alt={session.kind === 'ALBUM' ? '사진첩 사진' : '오늘의 사진'}
         />
