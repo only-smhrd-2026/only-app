@@ -1,61 +1,240 @@
 /*
- * 어르신 화면 규격 (NFR-DE-001/002, D10): 글자 32px 이상, 버튼 높이 88px, 대비 7:1.
- * 변수 10개 + 클래스 6개만 쓴다. 글자 크기는 <html data-font="L|XL|XXL"> 로 바꾼다 (ELDER_HOME_001 이 서버 설정으로 지정).
+ * 어르신 화면 규격 (D51, 11/12 멘토링 반영): 기본 글자 24px(L=22·XL=24·XXL=28), 긴 글 22px.
+ * 결정 버튼 높이 88px, 대비 7:1. 색·크기는 이 파일의 변수와 공통 클래스로만 쓴다.
+ * 글자 크기는 <html data-font="L|XL|XXL"> 로 바꾼다 (ELDER_HOME_001 이 서버 설정으로 지정).
  */
 :root {
-  --elder-font-size: 32px;
-  --elder-font-size-lg: 40px;
+  --elder-font-size: 24px;
+  --elder-font-size-lg: 30px;
   --elder-btn-height: 88px;
-  --elder-btn-font: 32px;
-  --elder-gap: 16px;
-  --elder-bg: #fffdf7;
-  --elder-fg: #1a1a1a;          /* 배경 대비 16:1 */
-  --elder-primary: #145a32;     /* 흰 글자 대비 8.6:1 */
+  --elder-btn-font: 24px;
+  --elder-gap: 12px;
+  --elder-bg: #ffffff;
+  --elder-fg: #1f1b2e;
+  --elder-primary: #5b3fa8;     /* 흰 글자 대비 7.7:1 */
   --elder-primary-fg: #ffffff;
   --elder-radius: 20px;
+  --elder-font-size-s: 22px;
+  --elder-font-size-long: 22px;
+  --elder-pad: 16px;
+  --elder-edge-w: 2px;
+  --elder-bub-w: 2px;
+  --elder-line: #cfc8e6;
+  --elder-card: #ffffff;
+  --elder-danger: #a11b14;
+  --elder-off: #4a4a4a;
+  --elder-soft: #f4f1fb;
+  --elder-t1: #ece6fb;
+  --elder-t1e: #5b3fa8;
+  --elder-t2: #fde7ef;
+  --elder-t2e: #a8275f;
+  --elder-t3: #fff1cf;
+  --elder-t3e: #8a5a00;
+  --elder-t4: #e2f4e5;
+  --elder-t4e: #1f6b3a;
+  --elder-ai: #ffffff;
+  --elder-ai-e: #cfc8e6;
+  --elder-me: #e7defa;
+  --elder-me-e: #5b3fa8;
+  --elder-me-f: #1f1b2e;
+  --elder-badge: #5b3fa8;
+  --elder-badge-f: #ffffff;
+  --elder-badge-e: #5b3fa8;
 }
-html[data-font='L'] { --elder-font-size: 28px; --elder-font-size-lg: 34px; --elder-btn-font: 28px; }
-html[data-font='XXL'] { --elder-font-size: 38px; --elder-font-size-lg: 48px; --elder-btn-font: 36px; }
+html[data-font='L'] { --elder-font-size: 22px; --elder-font-size-s: 20px; --elder-btn-font: 22px; --elder-font-size-long: 20px; --elder-font-size-lg: 28px; }
+html[data-font='XXL'] { --elder-font-size: 28px; --elder-font-size-s: 26px; --elder-btn-font: 28px; --elder-font-size-long: 24px; --elder-font-size-lg: 34px; }
 
 .elder {
+  position: relative;
   min-height: 100vh;
-  padding: var(--elder-gap);
+  padding: var(--elder-pad);
   background: var(--elder-bg);
   color: var(--elder-fg);
   font-size: var(--elder-font-size);
-  line-height: 1.4;
+  line-height: 1.35;
+  word-break: keep-all;
   display: flex;
   flex-direction: column;
   gap: var(--elder-gap);
   max-width: 560px;
   margin: 0 auto;
 }
+.elder--fit { height: 100dvh; min-height: 0; overflow: hidden; }
+.elder button { font-family: inherit; }
 .elder-text { font-size: var(--elder-font-size); margin: 0; word-break: keep-all; }
 .elder-text--lg { font-size: var(--elder-font-size-lg); font-weight: 700; }
 .elder-btn {
   min-height: var(--elder-btn-height);
   width: 100%;
   font-size: var(--elder-btn-font);
-  font-weight: 700;
-  border: 0;
+  font-weight: 800;
+  padding: 4px;
+  line-height: 1.15;
+  text-align: center;
+  border: var(--elder-edge-w) solid var(--elder-primary);
   border-radius: var(--elder-radius);
   background: var(--elder-primary);
   color: var(--elder-primary-fg);
   cursor: pointer;
 }
 /* 누른 뒤 기다리는 버튼도 대비 7:1 이상 — 흐리게(opacity) 하면 2:1 대로 떨어진다. 회색 #4a4a4a ↔ 흰색 8.9:1 */
-.elder-btn:disabled { background: #4a4a4a; color: #ffffff; cursor: default; }
-.elder-btn--secondary { background: #ffffff; color: var(--elder-fg); border: 4px solid var(--elder-fg); }
-.elder-btn--secondary:disabled { background: #ffffff; color: #4a4a4a; border-color: #4a4a4a; }
+.elder-btn:disabled { background: var(--elder-off); color: var(--elder-primary-fg); border-color: var(--elder-off); cursor: default; }
+.elder-btn--secondary { background: var(--elder-card); color: var(--elder-fg); border-color: var(--elder-fg); border-width: max(3px, var(--elder-edge-w)); }
+.elder-btn--secondary:disabled { background: var(--elder-card); color: var(--elder-off); border-color: var(--elder-off); }
 .elder-chip {
-  min-height: 72px;
-  font-size: var(--elder-font-size);
-  padding: 8px 20px;
+  min-height: 56px;
+  font-size: var(--elder-font-size-s);
+  font-weight: 700;
+  line-height: 1.15;
+  padding: 4px 10px;
   border-radius: 999px;
-  border: 3px solid var(--elder-primary);
-  background: #ffffff;
+  border: max(2px, var(--elder-edge-w)) solid var(--elder-primary);
+  background: var(--elder-card);
   color: var(--elder-fg);
   cursor: pointer;
 }
 .elder-stack { display: flex; flex-direction: column; gap: var(--elder-gap); }
-.elder-photo { width: 100%; max-height: 40vh; object-fit: cover; border-radius: var(--elder-radius); }
+.elder-photo { width: 100%; max-height: 40vh; object-fit: cover; border-radius: var(--elder-radius); border: 2px solid var(--elder-line); }
+
+.elder-head {
+  flex: none;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -.01em;
+}
+.elder-head svg { width: 40px; height: 40px; color: var(--elder-primary); }
+.elder-tiles {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 12px;
+}
+.elder-tiles--one { grid-template-rows: 1fr; }
+.elder-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px;
+  border: var(--elder-edge-w) solid var(--elder-tile-edge);
+  border-radius: var(--elder-radius);
+  background: var(--elder-tile-fill);
+  color: var(--elder-fg);
+  font-size: var(--elder-font-size);
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+}
+.elder-tile--1 { --elder-tile-fill: var(--elder-t1); --elder-tile-edge: var(--elder-t1e); }
+.elder-tile--2 { --elder-tile-fill: var(--elder-t2); --elder-tile-edge: var(--elder-t2e); }
+.elder-tile--3 { --elder-tile-fill: var(--elder-t3); --elder-tile-edge: var(--elder-t3e); }
+.elder-tile--4 { --elder-tile-fill: var(--elder-t4); --elder-tile-edge: var(--elder-t4e); }
+.elder-tile--new { border-width: calc(var(--elder-edge-w) + 3px); border-color: var(--elder-new, var(--elder-tile-edge)); }
+.elder-ic { flex: none; width: 1.15em; height: 1.15em; }
+.elder-tile .elder-ic { width: 88px; height: 88px; color: var(--elder-ticon, var(--elder-tile-edge)); stroke-width: 1.6; }
+.elder-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-style: normal;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  min-width: 38px;
+  padding: 8px 11px;
+  border-radius: 999px;
+  background: var(--elder-badge);
+  color: var(--elder-badge-f);
+  border: 2px solid var(--elder-badge-e);
+}
+.elder-two { flex: none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.elder-ask {
+  flex: none;
+  align-self: stretch;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px;
+  border: var(--elder-bub-w) solid var(--elder-ai-e);
+  border-radius: 22px;
+  border-bottom-left-radius: 6px;
+  background: var(--elder-ai);
+  color: var(--elder-fg);
+  font-size: var(--elder-font-size);
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+.elder-paper {
+  flex: 0 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px 14px;
+  border: var(--elder-bub-w) solid var(--elder-ai-e);
+  border-radius: var(--elder-radius);
+  background: var(--elder-ai);
+  color: var(--elder-fg);
+  font-size: var(--elder-font-size-long);
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+}
+.elder-spk { flex: none; width: 30px; height: 30px; margin-bottom: 4px; color: var(--elder-ticon, var(--elder-primary)); }
+.elder-saying { box-shadow: 0 0 0 4px var(--elder-ai-e); }
+.elder-photo-box {
+  position: relative;
+  flex: none;
+  height: 140px;
+  border: 2px solid var(--elder-line);
+  border-radius: var(--elder-radius);
+  overflow: hidden;
+  background: #dfe9f0;
+}
+.elder-photo-box--grow { flex: 1 1000 150px; min-height: 110px; height: auto; }
+.elder-cap {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  padding: 4px 12px;
+  border-radius: 10px;
+  background: rgba(20, 20, 26, .9);
+  color: #fff;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.elder-tag {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--elder-card);
+  border: 2px solid var(--elder-line);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.elder-who { flex: none; display: flex; align-items: baseline; justify-content: space-between; font-weight: 800; }
+.elder-who small { font-size: 22px; font-weight: 700; opacity: .8; }
+.elder-mood { flex: none; display: flex; align-items: center; gap: 8px; font-size: var(--elder-font-size-long); font-weight: 700; }
+
+.elder-photo-box > img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; }
+.elder-paper > span { flex: 1; min-width: 0; align-self: stretch; overflow: hidden; overflow-wrap: anywhere; }
+.elder-tiles > :only-child { grid-column: 1 / -1; }
+.elder-bottom { margin-top: auto; }
+.elder-tile:focus-visible, .elder-ask:focus-visible, .elder-paper:focus-visible { outline: 4px solid var(--elder-fg); outline-offset: 4px; }
