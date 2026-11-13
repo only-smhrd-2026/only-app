@@ -97,6 +97,8 @@ def test_family_fallback_draft_drops_banned_words():
     """어르신께 읽어 드리는 글이라 금지어가 든 쪽은 뺀다 (어르신 초안 diary_draft 와 같은 규칙)."""
     assert coach.family_draft("시험 점수가 잘 나왔어요", "", "기뻤어요") == "기뻤어요."
     assert coach.family_draft("치매 예방 교실에 갔어요", "", "") == coach.FAMILY_DRAFT_EMPTY
+    # 문장 단위로 뺀다 — 인젝션 문장 하나 때문에 쓴 말이 다 사라지지 않게 (11/13 실제 평가)
+    assert coach.family_draft(INJECTION, "", "배추를 절였어요") == "공원에 갔어요. 배추를 절였어요."
 
 
 def test_family_output_rules():

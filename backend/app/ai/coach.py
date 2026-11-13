@@ -306,6 +306,8 @@ def family_draft(text: str, question: str, answer: str) -> str:
         data = {"text": text, "question": question or None, "answer": answer or None}
         return llm.call_json("family_draft", data, FamilyDraft).body
     except (llm.LlmError, NotImplementedError):
-        # 쓴 말과 답을 그대로 잇는다(질문은 AI 의 말이라 넣지 않는다). 어르신께 읽어 드리는 글이라 금지어가 든 쪽은 뺀다
-        said = " ".join(_sentence(s) for s in (text, answer) if s.strip() and not any(w in s for w in BANNED_WORDS))
+        # 쓴 말과 답을 그대로 잇는다(질문은 AI 의 말이라 넣지 않는다). 어르신께 읽어 드리는 글이라
+        # 금지어가 든 문장은 뺀다 — 덩어리째 빼면 한 문장 때문에 쓴 말이 다 사라진다 (11/13 실제 평가)
+        sentences = [p for s in (text, answer) for p in re.split(r"(?<=[.!?~…])\s+", " ".join(s.split())) if p]
+        said = " ".join(_sentence(p) for p in sentences if not any(w in p for w in BANNED_WORDS))
         return said[:400] or FAMILY_DRAFT_EMPTY
