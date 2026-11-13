@@ -57,7 +57,14 @@ def _notes(room_id, kind):
 
 
 def test_risk_words():
-    for said in ("요즘은 정말 죽고 싶어요", "살기 싫어", "죽고 싶 어", "이제 그만 살고 싶어", "자살"):
+    for said in (
+        "요즘은 정말 죽고 싶어요",
+        "살기 싫어",
+        "죽고 싶 어",
+        "이제 그만 살고 싶어",
+        "자살",
+        "그냥 눈 감고 안 일어났으면 좋겠어",
+    ):
         assert has_risk_words(said), said
     for said in ("좋아 죽겠어요", "배고파 죽겠네", "웃겨 죽는 줄 알았어", "살 빼고 싶어", "그때는 참 살기 좋았지"):
         assert not has_risk_words(said), said
