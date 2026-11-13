@@ -2,6 +2,7 @@
 
 - 매시 정각 가족방별 memory_time 기준 오늘의 한 장 선정 — 홈에서도 보정한다 (D9).
 - 19:00 일기 알림 (천주웅)
+- 19:00 이틀째 기록 없음 가족 알림 (천주웅)
 - 일요일 19:00 주간 요약 (배선 천주웅, 요약 AI 홍진성)
 compose 는 restart: unless-stopped, uvicorn --workers 1 전제 (잡이 두 번 돌지 않게).
 """
@@ -9,14 +10,16 @@ compose 는 restart: unless-stopped, uvicorn --workers 1 전제 (잡이 두 번 
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select
 
-from app.config import TZ, now_kst, today_kst
+from app.config import NO_RECORD_DAYS, TZ, now_kst, today_kst
 from app.db import SessionLocal
-from app.models import DailyPick, Diary, FamilyRoom, Notification
+from app.models import DailyPick, Diary, FamilyRoom, Notification, TalkSession
+from app.routers.devices import notify_family
 from app.services import picks
 
 log = logging.getLogger("app.jobs")
@@ -86,6 +89,44 @@ def diary_reminders() -> None:
     log.info("job diary_reminders rooms=%d", len(rooms))
 
 
+def no_record_alerts() -> None:
+    """연결 후 이틀째 끝난 대화·어르신 일기가 없는 방의 가족에게 하루 한 번 알린다."""
+    now = now_kst()
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    since = day_start - timedelta(days=NO_RECORD_DAYS - 1)
+    with SessionLocal() as db:
+        talked = select(TalkSession.room_id).where(TalkSession.ended_at >= since)
+        wrote = select(Diary.room_id).where(
+            Diary.author_type == "ELDER", Diary.status == "POSTED", Diary.posted_at >= since
+        )
+        alerted_today = select(Notification.room_id).where(
+            Notification.kind == "NO_RECORD_2D", Notification.sent_at >= day_start
+        )
+        rooms = db.scalars(
+            select(FamilyRoom)
+            .where(
+                FamilyRoom.status == "ACTIVE",
+                FamilyRoom.device_token_hash.is_not(None),
+                FamilyRoom.device_connected_at < since,
+                FamilyRoom.room_id.not_in(talked),
+                FamilyRoom.room_id.not_in(wrote),
+                FamilyRoom.room_id.not_in(alerted_today),
+            )
+            .order_by(FamilyRoom.room_id)
+        ).all()
+        for room in rooms:
+            notify_family(
+                db,
+                room.room_id,
+                "NO_RECORD_2D",
+                f"{room.elder_name} 님이 이틀째 기록이 없어요",
+                body="전화 한 통 드려 보세요",
+                link="HOME_001",
+            )
+        db.commit()
+    log.info("job no_record_alerts rooms=%d", len(rooms))
+
+
 def weekly_summaries() -> None:
     """일요일 19:00 — 집계 창 [지난 일요일 19:00, 이번 일요일 19:00) 로 주간 요약 생성 + WEEKLY_READY 알림 (D19).
 
@@ -105,6 +146,9 @@ def start() -> None:
     )
     scheduler.add_job(
         diary_reminders, CronTrigger(hour=19, minute=0, timezone=TZ), id="diary_reminders", replace_existing=True
+    )
+    scheduler.add_job(
+        no_record_alerts, CronTrigger(hour=19, minute=0, timezone=TZ), id="no_record_alerts", replace_existing=True
     )
     scheduler.add_job(
         weekly_summaries,
