@@ -16,7 +16,7 @@ from sqlalchemy import select
 
 from app.config import TZ, now_kst, today_kst
 from app.db import SessionLocal
-from app.models import DailyPick, FamilyRoom
+from app.models import DailyPick, Diary, FamilyRoom, Notification
 from app.services import picks
 
 log = logging.getLogger("app.jobs")
@@ -50,8 +50,40 @@ def select_daily_picks() -> None:
 
 
 def diary_reminders() -> None:
-    """19:00 — 오늘 일기가 없는 어르신에게 DIARY_REMINDER 알림 1회. TODO(천주웅)."""
-    log.info("job diary_reminders: 아직 비어 있음")
+    """일기 시간이 지난 연결된 가족방에 오늘 어르신 일기가 없으면 알림을 하루 한 번 만든다."""
+    now = now_kst()
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    with SessionLocal() as db:
+        wrote_today = select(Diary.room_id).where(
+            Diary.author_type == "ELDER", Diary.status == "POSTED", Diary.posted_at >= day_start
+        )
+        reminded_today = select(Notification.room_id).where(
+            Notification.kind == "DIARY_REMINDER", Notification.sent_at >= day_start
+        )
+        rooms = db.scalars(
+            select(FamilyRoom)
+            .where(
+                FamilyRoom.status == "ACTIVE",
+                FamilyRoom.device_token_hash.is_not(None),
+                FamilyRoom.diary_time <= now.time(),
+                FamilyRoom.room_id.not_in(wrote_today),
+                FamilyRoom.room_id.not_in(reminded_today),
+            )
+            .order_by(FamilyRoom.room_id)
+        ).all()
+        for room in rooms:
+            db.add(
+                Notification(
+                    room_id=room.room_id,
+                    target_type="ELDER",
+                    kind="DIARY_REMINDER",
+                    title=f"{room.elder_name} {room.elder_honorific}, 오늘 일기를 써 볼까요?",
+                    link_screen="ELDER_DIARY_001",
+                    sent_at=now,
+                )
+            )
+        db.commit()
+    log.info("job diary_reminders rooms=%d", len(rooms))
 
 
 def weekly_summaries() -> None:
