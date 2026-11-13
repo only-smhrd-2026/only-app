@@ -88,6 +88,10 @@ export type PhotoBatchOut = { upload_batch_id: string; photos: PhotoOut[] }
 export type Mood = 'SUNNY' | 'CLOUDY' | 'RAINY' | 'MOON'
 /** 기분 날씨 표시 이름 (일기 대화 마지막 칩과 같은 글자) */
 export const MOOD_LABEL: Record<Mood, string> = { SUNNY: '맑음', CLOUDY: '구름', RAINY: '비', MOON: '달' }
+
+// ---- 가족 홈 마음 카드 (backend/app/schemas/mood.py)
+export type MoodDayOut = { date: string; talked: boolean; diary_mood: Mood | null; low: boolean }
+export type MoodWeekOut = { days: MoodDayOut[]; talked_days: number; low_days: number; last_check: Record<string, unknown> | null } // days 는 7칸, 오래된 날 → 오늘
 export type IllustrationType = 'PHOTO' | 'AI_DRAWING' | 'NONE'
 export type DraftOut = {
   session_id: string

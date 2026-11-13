@@ -14,6 +14,7 @@ from app.routers import (
     elder,
     invites,
     media,
+    mood,
     notifications,
     photos,
     rooms,
@@ -50,6 +51,7 @@ for r in (
     media.router,
     photos.router,
     notifications.router,
+    mood.router,
     *stubs.routers,
 ):
     api.include_router(r)
