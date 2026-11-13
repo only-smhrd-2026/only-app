@@ -1,15 +1,15 @@
 /**
- * ELDER_DIARY_003 — 일기 확인 (FR-DI-004/005, D36). 초안을 보여 주고 읽어 준 뒤 [네, 올려요]를 눌러야만 게시.
+ * ELDER_DIARY_003 — 일기 확인·그림일기 (FR-DI-004/005, D36·D51·D53). [네, 올려요]를 눌러야만 게시.
  * 사진 없는 일기는 서버가 그림까지 그린 뒤 초안을 주므로 여기서 그림을 보고 올린다. 그림이 실패하면 글만.
  * 같은 화면에서는 같은 request_id → 응답을 못 받아 다시 눌러도 한 번만 올라간다. [다시 말할래요]는 새 대화(사진 유지).
- * 말로 하는 "네"는 받지 않는다(마이크 없음). 기다림·실패 안내도 소리로 읽는다. 디자인 없음 (김승희 교체).
+ * 그림·누르면 다시 읽는 글 상자·기분·하단 버튼을 공통 클래스로 한 화면에 배치한다. 기다림·실패 안내도 읽는다.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import { MOOD_LABEL, type DiaryOut, type DraftOut, type SessionOut } from '../../api/types'
 import { useLive, type ElderNavState } from '../../hooks/useElderSession'
-import { playBase64, speak, stopSpeaking } from '../../lib/audio'
+import { playBase64, say, speak, stopSpeaking } from '../../lib/audio'
 
 // 초안 = LLM(시도당 15초 × 최대 2번) + 그림(제공자 상한 20초) + TTS. 넘으면 [다시 해 보기] (서버는 같은 초안을 준다)
 const DRAFT_MS = 60_000
@@ -33,9 +33,21 @@ export default function ELDER_DIARY_003() {
   const [phase, setPhase] = useState<Phase>('WRITING')
   const [note, setNote] = useState<string>()
   const [retryable, setRetryable] = useState(false)
-  const [posted, setPosted] = useState(false) // 이미 올린 대화 (새로고침 등) → [처음으로]만
+  const [posted, setPosted] = useState(false) // 이미 올린 대화 (새로고침 등) → [홈으로]만
   const [leaving, setLeaving] = useState(false) // [다시 말할래요] 처리 중 → 다른 버튼 막기
   const [attempt, setAttempt] = useState(0)
+  const [saying, setSaying] = useState(false)
+  const sayingTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  useEffect(() => () => clearTimeout(sayingTimer.current), [])
+
+  function readDraft() {
+    if (!draft) return
+    void say(readAloud(draft), speed, draft.audio_b64)
+    setSaying(true)
+    clearTimeout(sayingTimer.current)
+    sayingTimer.current = setTimeout(() => setSaying(false), 1400)
+  }
 
   // 초안 받기. 새로고침·[다시 해 보기]에도 서버가 30분 동안 같은 초안을 준다 (그림을 두 번 그리지 않음)
   useEffect(() => {
@@ -127,7 +139,7 @@ export default function ELDER_DIARY_003() {
       const s = await api<SessionOut>('/api/elder/sessions', {
         body: { session_id: againId, kind: 'DIARY', photo_id: draft?.photo_id ?? undefined },
       })
-      if (!live.current) return // 기다리다 [처음으로]·뒤로 가기로 떠났으면 끌고 가지 않는다
+      if (!live.current) return // 기다리다 [홈으로]·뒤로 가기로 떠났으면 끌고 가지 않는다
       nav(`/elder/diary/${againId}`, { replace: true, state: { session: s, home, photoUrl } })
     } catch (e) {
       setNote((e as Error).message)
@@ -139,7 +151,7 @@ export default function ELDER_DIARY_003() {
 
   if (phase === 'WRITING')
     return (
-      <main className="elder">
+      <main className="elder elder--fit">
         <p className="elder-text elder-text--lg">일기를 쓰고 있어요.</p>
         <p className="elder-text">조금만 기다려 주세요.</p>
       </main>
@@ -147,15 +159,15 @@ export default function ELDER_DIARY_003() {
 
   if (phase === 'POSTED')
     return (
-      <main className="elder">
+      <main className="elder elder--fit">
         <p className="elder-text elder-text--lg">가족들한테 보냈어요.</p>
-        <button className="elder-btn" onClick={goHome}>처음으로</button>
+        <button className="elder-btn" onClick={goHome}>홈으로</button>
       </main>
     )
 
   if (phase === 'FAILED' || !draft)
     return (
-      <main className="elder">
+      <main className="elder elder--fit">
         <p className="elder-text">{note}</p>
         {retryable && <button className="elder-btn" onClick={retry} disabled={leaving}>다시 해 보기</button>}
         {!posted && (
@@ -163,36 +175,58 @@ export default function ELDER_DIARY_003() {
             {leaving ? '잠시만요…' : '다시 말할래요'}
           </button>
         )}
-        <button className="elder-btn elder-btn--secondary" onClick={goHome}>처음으로</button>
+        <button className="elder-btn elder-btn--secondary" onClick={goHome}>홈으로</button>
       </main>
     )
 
   return (
-    <main className="elder">
+    <main className="elder elder--fit">
       {draft.illustration_type === 'PHOTO' && draft.illustration_url && (
-        <img className="elder-photo" src={draft.illustration_url} alt="오늘 찍은 사진" />
+        <div className="elder-photo-box elder-photo-box--grow">
+          <img src={draft.illustration_url} alt="오늘 찍은 사진" />
+        </div>
       )}
       {draft.illustration_type === 'AI_DRAWING' && draft.illustration_b64 && (
-        <figure style={{ margin: 0 }}>
+        <div className="elder-photo-box elder-photo-box--grow">
           <img
-            className="elder-photo"
             style={{ objectFit: 'contain' }}
             src={`data:image/jpeg;base64,${draft.illustration_b64}`}
             alt="그림일기 그림"
           />
-          <figcaption className="elder-text">그림일기 · AI 그림</figcaption>
-        </figure>
+          <span className="elder-tag">그림일기 · AI 그림</span>
+        </div>
       )}
-      <p className="elder-text">{draft.body}</p>
-      <p className="elder-text">오늘 기분: {MOOD_LABEL[draft.mood]}</p>
-      <p className="elder-text elder-text--lg">이대로 올릴까요?</p>
-      {note && <p className="elder-text">{note}</p>}
-      <button className="elder-btn" onClick={post} disabled={phase === 'POSTING' || leaving}>
-        {phase === 'POSTING' ? '보내는 중…' : '네, 올려요'}
+      <button type="button" className={`elder-paper${saying ? ' elder-saying' : ''}`} onClick={readDraft}>
+        <span>{draft.body}</span>
+        <svg className="elder-spk" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M4 9.5v5h3.2L12 18.5v-13L7.2 9.5z" />
+          <path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.3 6.3a8 8 0 0 1 0 11.4" />
+        </svg>
       </button>
-      <button className="elder-btn elder-btn--secondary" onClick={again} disabled={phase === 'POSTING' || leaving}>
-        {leaving ? '잠시만요…' : '다시 말할래요'}
-      </button>
+      <div className="elder-mood">
+        <svg className="elder-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          {draft.mood === 'SUNNY' && <>
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6L7 7M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4" />
+          </>}
+          {draft.mood === 'CLOUDY' && <path d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6 1.5A3.3 3.3 0 0 1 17 18z" />}
+          {draft.mood === 'RAINY' && <>
+            <path d="M7 14a4 4 0 0 1 0-8 5 5 0 0 1 9.6 1.5A3.3 3.3 0 0 1 17 14z" />
+            <path d="M9 17l-1 3M13 17l-1 3M17 17l-1 3" />
+          </>}
+          {draft.mood === 'MOON' && <path d="M19 14.5A7.5 7.5 0 0 1 9.5 5 7.5 7.5 0 1 0 19 14.5z" />}
+        </svg>
+        오늘 기분 · {MOOD_LABEL[draft.mood]}
+      </div>
+      {note && <p className="elder-text" role="alert">{note}</p>}
+      <div className="elder-two elder-bottom">
+        <button className="elder-btn" onClick={post} disabled={phase === 'POSTING' || leaving}>
+          {phase === 'POSTING' ? '보내는 중…' : '네, 올려요'}
+        </button>
+        <button className="elder-btn elder-btn--secondary" onClick={again} disabled={phase === 'POSTING' || leaving}>
+          {leaving ? '잠시만요…' : '다시 말할래요'}
+        </button>
+      </div>
     </main>
   )
 }
