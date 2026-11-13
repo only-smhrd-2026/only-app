@@ -31,6 +31,7 @@ ALBUM_PER_DAY = 3
 ALBUM_TURNS = 2  # 사진첩 대화 장당 AI 질문 수 (FR-ME-008)
 # 가족 사진 목록·어르신 사진첩이 한 번에 돌려주는 장수(최신 순) — 두 화면이 같은 사진을 보이게 한 값으로 (D8)
 PHOTO_LIST_LIMIT = 100
+NOTI_LIST_LIMIT = 50  # 가족 알림 목록이 한 번에 돌려주는 개수, 최신 순
 ELDER_PUSH_PER_DAY = 2
 SESSION_RESUME_MIN = 30  # 마지막 턴 후 30분 지나면 ENDED 취급
 STT_CONF_MIN = 0.7  # 이 미만이면 확인 질문
@@ -38,6 +39,8 @@ STT_FAIL_LOCK = 2  # 세션 안 저신뢰 2회 → input_locked
 NO_RESPONSE_END = 3  # 무응답 3단계째 종료
 SESSION_ERROR_ALERT = 3  # 하루 ERROR 종료 3회 → 가족 알림
 PICK_SKIP_ALERT = 2  # 같은 사진 건너뛰기 2회 → 가족 알림 (FR-ME-005)
+NO_RECORD_DAYS = 2  # 이 날수만큼 어르신 기록이 없으면 가족 알림 (FR-NT-003)
+WEEKLY_HOUR = 19  # 주간 집계는 일요일 이 시각, D19 — 집계 창과 예약 시각이 같이 쓴다
 MOOD_LOW_DAYS = 2  # 기운 없는 말이 나온 날이 최근 MOOD_LOW_WINDOW_DAYS 일 중 이만큼이면 가족 알림 1건 (D55 ②)
 MOOD_LOW_WINDOW_DAYS = 7  # 위 날수를 세는 기간이자, 같은 알림을 다시 보내지 않는 기간
 STT_MAX_BYTES = 5 * 1024 * 1024
@@ -63,6 +66,7 @@ TTS_PER_DAY = 300  # Google. 넘으면 브라우저 목소리 (D5, 가족 알림
 LLM_PER_DAY = 300  # Claude call_json 1번(검증 재시도 포함 최대 2요청). 넘으면 고정 문장 (D14)
 SESSION_COOKIE_DAYS = 7
 DEVICE_COOKIE_DAYS = 365
+MOOD_WEEK_DAYS = 7  # 가족 홈 마음 카드가 보여 주는 날수
 
 
 class Settings(BaseSettings):
