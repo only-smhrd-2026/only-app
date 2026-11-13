@@ -65,10 +65,10 @@ export default function ELDER_CONNECT_001() {
   }
 
   return (
-    <main className="elder elder-connect">
+    <main className="elder elder--fit elder-connect">
       <header className="elder-connect-header">
         <h1 className="elder-text elder-text--lg">{step === 'invite' ? '하루한장' : '처음 연결'}</h1>
-        {step === 'invite' && <p className="elder-text">가족 사진으로 매일 이야기 나눠요</p>}
+        {step === 'invite' && <p className="elder-text">가족 사진을 보며 이야기하고, 그림일기를 써서 가족과 나누는 앱이에요.</p>}
       </header>
       {step === 'invite' && <img className="elder-connect-photo" src={connectPreview} alt="" />}
       {error && <p className="elder-text elder-connect-message" role="alert">{error}</p>}
@@ -83,7 +83,7 @@ export default function ELDER_CONNECT_001() {
         <div className="elder-connect-permissions" aria-live="polite">
           <p className="elder-text elder-connect-bubble">안녕하세요,<br />저는 꼬마심심이예요.<br />마이크를 허락해 주세요.</p>
           <p className="elder-text elder-connect-mic">마이크로 말씀을 들어요.</p>
-          <p className="elder-text">휴대폰에서 마이크 권한을 물으면 ‘허용’을 눌러 주세요. 허용하지 않아도 시작할 수 있어요.</p>
+          <p className="elder-text elder-connect-guide">휴대폰에서 마이크 권한을 물으면 ‘허용’을 눌러 주세요. 허용하지 않아도 시작할 수 있어요.</p>
           {busy && <p className="elder-text" role="status">연결 중…</p>}
         </div>
       )}
@@ -93,8 +93,7 @@ export default function ELDER_CONNECT_001() {
             {busy ? '연결 중…' : '시작하기'}
           </button>
           {step === 'invite' && <aside className="elder-connect-install" aria-label="홈 화면에 추가 안내">
-            <p className="elder-text">휴대폰 홈 화면에 하루한장을 놓아 두면 다음부터 바로 열 수 있어요.</p>
-            <p className="elder-text">연결한 뒤 크롬 오른쪽 위 ⋮ 를 누르고 ‘홈 화면에 추가’를 눌러 주세요.</p>
+            <p className="elder-text elder-connect-guide">연결한 뒤 크롬 ⋮ 에서 ‘홈 화면에 추가’를 누르면 다음부터 바로 열려요.</p>
           </aside>}
         </>
       )}
