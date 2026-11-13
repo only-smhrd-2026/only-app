@@ -78,3 +78,13 @@ class PermissionsIn(BaseModel):
     perm_mic: bool | None = None
     perm_camera: bool | None = None
     perm_notification: bool | None = None
+
+
+class RoomSettingsIn(BaseModel):
+    """원격 설정 FR-AD-003. 보낸 칸만 바꾼다."""
+
+    memory_time: time | None = None  # 정각만 — rooms.py가 검사, D44
+    diary_time: time | None = None
+    font_size: Literal["L", "XL", "XXL"] | None = None
+    tts_speed: Literal["0.70", "0.85", "1.00"] | None = None  # RoomOut과 같이 글자로 받는다
+    device_input_mode: Literal["VOICE", "BUTTON"] | None = None

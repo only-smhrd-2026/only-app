@@ -10,6 +10,9 @@
 5. POST /diaries/{id}/read — 가족 '다 봤어요' 열람 기록(diaries.family_read_by). 여러 번 불러도 1번.
    어르신 가족 소식 '다 들었어요'는 기기 쿠키 전용 POST /elder/diaries/{id}/read
    (안 들은 소식 목록은 GET /elder/family-news).
+6. POST /rooms/{id}/diaries — 가족 일기 올리기. 같은 가족방 + 같은 request_id 는 1개.
+7. GET /diaries/{id} — 일기 한 건(HOME_002). 구성원만, 지워진 일기는 404.
+8. GET /elder/diaries — 어르신 '내 일기' 목록(기기 쿠키). 어르신이 쓴 게시 일기만 최신 먼저.
 
 담당: 일기 프롬프트·그림 화풍(image.STYLE) 다듬기 홍진성 / 사진 일기(카메라)·가족 일기·목록 세부 천주웅.
 그림 제공자는 Workers AI FLUX.2 klein 4B 로 연결됨(D37, IMAGE_PROVIDER=cloudflare).
@@ -26,15 +29,16 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter
 from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.ai import coach, image, tts
-from app.config import DIARY_DRAFT_MIN, now_kst
+from app.config import DIARY_DRAFT_MIN, ELDER_DIARY_LIST_LIMIT, now_kst
 from app.deps import DB, CurrentDevice, CurrentUser, require_member
 from app.errors import ApiError
 from app.models import Diary, FamilyRoom, Photo, RoomMember, User
 from app.routers.devices import notify_family
 from app.routers.sessions import DIARY_SAVED, _tts_failed, coach_context, load_session
-from app.schemas.diaries import DiaryListOut, DiaryOut, DraftOut, ElderDiaryIn
+from app.schemas.diaries import DiaryCreateIn, DiaryListOut, DiaryOut, DraftOut, ElderDiaryIn
 from app.services import storage
 
 log = logging.getLogger("app.diaries")
@@ -140,8 +144,8 @@ def make_draft(session_id: uuid.UUID, device: CurrentDevice, db: DB):
         return out
 
 
-def _rows(db, room: FamilyRoom, *cond, me: int | None = None) -> list[DiaryOut]:
-    """일기 행 → DiaryOut (최근 50개). me = 보는 가족 user_id, None 이면 어르신 기기가 보는 것."""
+def _rows(db, room: FamilyRoom, *cond, me: int | None = None, limit: int = 50) -> list[DiaryOut]:
+    """일기 행 → DiaryOut (최근 limit 개, 기본 50). me = 보는 가족 user_id, None 이면 어르신 기기가 보는 것."""
     rows = db.execute(
         select(Diary, User.name, Photo.object_key, RoomMember.nickname)
         .outerjoin(User, User.user_id == Diary.author_user_id)
@@ -151,7 +155,7 @@ def _rows(db, room: FamilyRoom, *cond, me: int | None = None) -> list[DiaryOut]:
         .outerjoin(RoomMember, and_(RoomMember.room_id == Diary.room_id, RoomMember.user_id == Diary.author_user_id))
         .where(Diary.room_id == room.room_id, Diary.status == "POSTED", *cond)
         .order_by(Diary.posted_at.desc(), Diary.diary_id.desc())
-        .limit(50)
+        .limit(limit)
     ).all()
     out = []
     for d, name, photo_key, nickname in rows:
@@ -218,11 +222,57 @@ def post_elder_diary(body: ElderDiaryIn, device: CurrentDevice, db: DB):
     return _rows(db, room, Diary.diary_id == diary.diary_id)[0]
 
 
+@router.post("/rooms/{room_id}/diaries", response_model=DiaryOut, status_code=201)
+def post_family_diary(room_id: int, body: DiaryCreateIn, user: CurrentUser, db: DB):
+    """가족 일기 올리기 (FR-DI-008). 여러 가족방은 화면이 방마다 같은 request_id 로 한 번씩 부른다.
+
+    같은 가족방 + 같은 request_id 는 일기 1개(uq_diaries_room_id_request_id). 두 번 와도 같은 일기를 돌려준다.
+    일기 동무(AI 다듬기)는 아직 없어 받은 글 그대로 저장한다. 알림은 없다(요구사항 '푸시 없음').
+    """
+    require_member(room_id, user, db)
+    text = body.body.strip()
+    if not text:
+        raise ApiError(422, "VALIDATION", "일기 내용을 적어 주세요")
+    if body.photo_id is not None:
+        photo = db.get(Photo, body.photo_id)
+        if photo is None or photo.room_id != room_id or photo.status != "ACTIVE":  # 남의 가족방 사진은 못 붙인다
+            raise ApiError(404, "PHOTO_NOT_FOUND", "사진을 찾을 수 없어요")
+    # session_id 는 저장하지 않는다(어르신 대화용 칸). illustration_type 은 요청 값을 믿지 않고 서버가 정한다
+    db.execute(
+        pg_insert(Diary)
+        .values(
+            room_id=room_id,
+            author_type="FAMILY",
+            author_user_id=user.user_id,
+            photo_id=body.photo_id,
+            body=text,
+            mood=body.mood,
+            illustration_type="PHOTO" if body.photo_id is not None else "NONE",
+            request_id=body.request_id,
+        )
+        .on_conflict_do_nothing(constraint="uq_diaries_room_id_request_id")
+    )
+    db.commit()
+    diary_id = db.scalar(select(Diary.diary_id).where(Diary.room_id == room_id, Diary.request_id == body.request_id))
+    rows = _rows(db, db.get(FamilyRoom, room_id), Diary.diary_id == diary_id, me=user.user_id)
+    if not rows:  # 지워진 일기의 request_id 로 다시 온 경우
+        raise ApiError(404, "DIARY_NOT_FOUND", "일기를 찾을 수 없어요")
+    log.info("family diary room=%s diary=%s", room_id, diary_id)
+    return rows[0]
+
+
 @router.get("/rooms/{room_id}/diaries", response_model=DiaryListOut)
 def list_diaries(room_id: int, user: CurrentUser, db: DB):
     """가족 홈 일기 목록 최소판 (FR-FD-001) — 최근 50개. 페이지·어르신 칩·가족 일기 세부는 천주웅."""
     require_member(room_id, user, db)
     return DiaryListOut(diaries=_rows(db, db.get(FamilyRoom, room_id), me=user.user_id))
+
+
+@router.get("/elder/diaries", response_model=DiaryListOut)
+def elder_my_diaries(device: CurrentDevice, db: DB):
+    """어르신 사진첩 '내 일기' (ELDER_ALBUM_001 ④, FR-DI-004). 이 가족방에서 어르신이 쓴 게시 일기만 최신 먼저."""
+    room = db.get(FamilyRoom, device.room_id)
+    return DiaryListOut(diaries=_rows(db, room, Diary.author_type == "ELDER", limit=ELDER_DIARY_LIST_LIMIT))
 
 
 @router.get("/elder/family-news", response_model=DiaryListOut)
@@ -245,6 +295,22 @@ def elder_mark_read(diary_id: int, device: CurrentDevice, db: DB):
         update(Diary).where(Diary.diary_id == diary_id, Diary.elder_read_at.is_(None)).values(elder_read_at=now_kst())
     )
     db.commit()
+
+
+@router.get("/diaries/{diary_id}", response_model=DiaryOut)
+def get_diary(diary_id: int, user: CurrentUser, db: DB):
+    """일기 한 건 (HOME_002, FR-FD-002). 목록과 같은 모양. 읽기만 하고 '봤어요'는 POST /diaries/{id}/read 가 한다."""
+    diary = db.get(Diary, diary_id)
+    member = diary is not None and db.scalar(
+        select(RoomMember.member_id).where(
+            RoomMember.room_id == diary.room_id,
+            RoomMember.user_id == user.user_id,
+            RoomMember.removed_at.is_(None),
+        )
+    )
+    if not member or diary.status != "POSTED":  # 다른 방 일기도 없는 것처럼 404 (D43)
+        raise ApiError(404, "DIARY_NOT_FOUND", "일기를 찾을 수 없어요")
+    return _rows(db, db.get(FamilyRoom, diary.room_id), Diary.diary_id == diary_id, me=user.user_id)[0]
 
 
 @router.post("/diaries/{diary_id}/read", status_code=204)

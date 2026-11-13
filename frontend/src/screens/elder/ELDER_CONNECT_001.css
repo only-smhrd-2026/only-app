@@ -1,42 +1,44 @@
 .elder-connect {
-  gap: 24px;
-  padding: 32px 24px;
-  background: #fffbf4;
-  color: #292e2e;
   text-align: center;
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
 
-.elder-connect .elder-text { font-size: max(32px, var(--elder-font-size)); }
-.elder-connect .elder-text--lg { font-size: max(40px, var(--elder-font-size-lg)); }
-.elder-connect-header { display: grid; gap: 8px; }
-.elder-connect-photo { display: block; align-self: center; max-width: 100%; height: auto; }
+.elder-connect-header { display: grid; gap: var(--elder-gap); }
+.elder-connect-photo {
+  display: block;
+  align-self: center;
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  object-fit: contain;
+}
 .elder-connect-invitation { font-weight: 700; }
 .elder-connect-start {
   flex-shrink: 0;
-  margin-top: 24px;
-  border-radius: 10px;
-  font-size: max(32px, var(--elder-btn-font));
 }
 .elder-connect-install {
   display: grid;
-  gap: 16px;
-  padding: 16px;
-  border: 1px solid #bfbdb2;
-  border-radius: 10px;
-  background: #fff;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--elder-gap);
+  border-radius: var(--elder-radius);
+  background: var(--elder-soft);
   text-align: left;
 }
-.elder-connect-permissions { display: grid; gap: 24px; text-align: left; }
+.elder-connect-guide { font-size: var(--elder-font-size-long); }
+.elder-connect-permissions { display: grid; gap: var(--elder-gap); text-align: left; }
 .elder-connect-bubble {
-  padding: 16px;
-  border: 1px solid #ff7a14;
-  border-radius: 14px;
-  background: #fff;
+  padding: var(--elder-gap);
+  border-radius: var(--elder-radius);
+  background: var(--elder-soft);
   font-weight: 700;
   text-align: center;
 }
-.elder-connect-mic { padding: 16px; border: 1px solid #ff7a14; border-radius: 10px; background: #fff7c7; }
+.elder-connect-mic { padding: var(--elder-gap); border-radius: var(--elder-radius); background: var(--elder-soft); }
 .elder-connect-message { text-align: left; }
-.elder-connect-start:focus-visible { outline: 4px solid #292e2e; outline-offset: 4px; }
+.elder-connect-start:focus-visible {
+  outline: calc(var(--elder-edge-w) * 2) solid var(--elder-fg);
+  outline-offset: calc(var(--elder-edge-w) * 2);
+}

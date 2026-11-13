@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 Mood = Literal["SUNNY", "CLOUDY", "RAINY", "MOON"]
 IllustrationType = Literal["PHOTO", "AI_DRAWING", "NONE"]
@@ -28,6 +28,15 @@ class ElderDiaryIn(BaseModel):
 
     request_id: uuid.UUID  # 멱등 키 (room_id, request_id)
     session_id: uuid.UUID
+
+
+class DiaryCreateIn(BaseModel):
+    request_id: uuid.UUID  # 멱등 키 (room_id, request_id)
+    body: str = Field(max_length=2000)
+    mood: Mood
+    photo_id: int | None = None
+    session_id: uuid.UUID | None = None
+    illustration_type: IllustrationType = "NONE"
 
 
 class DiaryOut(BaseModel):

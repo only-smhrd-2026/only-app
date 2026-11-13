@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.config import TZ
 from app.db import SessionLocal
-from app.models import Diary, FamilyRoom, RoomMember, TalkSession
+from app.models import Diary, FamilyRoom, MoodCheck, RoomMember, TalkSession
 from app.routers import mood
 from tests.conftest import make_room, signup
 
@@ -163,3 +163,34 @@ def test_removed_member(client, context):
     response = client.get(f"/api/rooms/{room_id}/mood-week")
     assert response.status_code == 404
     assert response.json()["code"] == "ROOM_NOT_FOUND"
+
+
+def test_low_and_risk_count(client, context):
+    room_id, midnight, _ = context
+    _talk(room_id, midnight, "LOW")
+    _talk(room_id, midnight - timedelta(days=1), "RISK")
+    _talk(room_id, midnight - timedelta(days=2), "NONE")
+    result = _get(client, room_id)
+    assert result["days"][-1]["low"] is True
+    assert result["days"][-2]["low"] is True
+    assert result["days"][-3]["low"] is False
+    assert result["low_days"] == 2
+
+
+def test_last_check_latest_date_and_level_only(client, context):
+    room_id, _, _ = context
+    other_room = make_room(client)["room_id"]
+    with SessionLocal() as db:
+        db.add_all(
+            [
+                MoodCheck(room_id=room_id, check_date=date(2026, 10, 20), answers=[0] * 8, total=0, level="USUAL"),
+                MoodCheck(room_id=room_id, check_date=date(2026, 11, 3), answers=[1] * 8, total=8, level="DOWN"),
+                MoodCheck(room_id=other_room, check_date=date(2026, 11, 12), answers=[2] * 8, total=16, level="HARD"),
+            ]
+        )
+        db.commit()
+    response = client.get(f"/api/rooms/{room_id}/mood-week")
+    assert response.status_code == 200
+    assert response.json()["last_check"] == {"check_date": "2026-11-03", "level": "DOWN"}
+    assert "total" not in response.text
+    assert "answers" not in response.text
