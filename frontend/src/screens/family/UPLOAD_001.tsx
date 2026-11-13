@@ -1,6 +1,6 @@
 /**
  * UPLOAD_001 — 사진 올리기 1/2: 사진 고르기 (FR-ME-001, D17). 폰 앨범에서 여러 장 골라 [다음] → UPLOAD_002 가족방 고르기·보내기.
- * 결과 화면 UPLOAD_003 은 나중에. 디자인 없음 (김승희 교체).
+ * 결과 화면 UPLOAD_003 은 나중에. 모양은 11/12 목업 가족 화면 값(.fam-skin, 이 파일의 CSS).
  */
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Link, Navigate, useNavigate, useNavigationType } from 'react-router-dom'
@@ -66,6 +66,11 @@ export default function UPLOAD_001() {
   }
 
   function next() {
+    // 사진을 새로 골랐으면(번호가 다름) 앞 사진에 적은 한마디·사진 속 사람을 비운다 — 새 사진에 붙지 않게
+    if (uploadDraft.batchId !== batchId) {
+      uploadDraft.caption = ''
+      uploadDraft.peopleNote = ''
+    }
     uploadDraft.files = files
     uploadDraft.batchId = batchId
     nav('/upload/target')
@@ -74,17 +79,17 @@ export default function UPLOAD_001() {
   if (rooms.error?.status === 401) return <Navigate to="/login" replace />
   if (rooms.error) {
     return (
-      <main className="page">
+      <main className="page fam-skin">
         <p className="error">{rooms.error.message}</p>
         <button className="btn" onClick={rooms.reload}>다시 시도</button>
       </main>
     )
   }
-  if (!rooms.data) return <main className="page"><p className="muted">불러오는 중…</p></main>
+  if (!rooms.data) return <main className="page fam-skin"><p className="muted">불러오는 중…</p></main>
 
   if (rooms.data.length === 0) {
     return (
-      <main className="page">
+      <main className="page fam-skin">
         <h1>사진 올리기</h1>
         <p>먼저 가족방을 만들어 주세요</p>
         <Link className="btn" to="/groups/new">가족방 만들기</Link>
@@ -93,7 +98,7 @@ export default function UPLOAD_001() {
   }
 
   return (
-    <main className="page">
+    <main className="page fam-skin">
       <h1>사진 올리기</h1>
       <section className="card">
         {/* HEIC 는 서버가 받지 않는다(D17). 아이폰 Safari 는 이 accept 면 JPEG 로 바꿔 보낸다 */}
