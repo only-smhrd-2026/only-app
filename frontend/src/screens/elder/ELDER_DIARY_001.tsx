@@ -21,7 +21,9 @@ export default function ELDER_DIARY_001() {
   const [busy, setBusy] = useState(false)
   const [starting, setStarting] = useState<'photo' | 'talk'>()
   const photoInput = useRef<HTMLInputElement>(null)
-  const pendingPhoto = useRef<{ file: File; batchId: string } | undefined>(undefined)
+  // 사진 찍기는 대화 번호를 따로 쓴다 — [그냥 이야기]의 응답만 끊겨 서버에 사진 없는 대화가 이미 있으면,
+  // 같은 번호로는 서버가 그 대화를 돌려줘 사진이 일기에 안 붙는다
+  const pendingPhoto = useRef<{ file: File; batchId: string; sessionId: string } | undefined>(undefined)
   const [error, setError] = useState<string>()
   const speed = Number(home?.settings.tts_speed) || 0.85
   const [saying, setSaying] = useState(false)
@@ -49,6 +51,7 @@ export default function ELDER_DIARY_001() {
     setBusy(true)
     setStarting(withPhoto ? 'photo' : 'talk')
     setError(undefined)
+    const id = pending?.sessionId ?? sessionId
     try {
       let photo: PhotoOut | undefined
       if (pending) {
@@ -59,10 +62,11 @@ export default function ELDER_DIARY_001() {
         if (!live.current) return // 사진을 올리는 중 떠났으면 대화를 열지 않는다
       }
       const s = await api<SessionOut>('/api/elder/sessions', {
-        body: { session_id: sessionId, kind: 'DIARY', photo_id: photo?.photo_id },
+        body: { session_id: id, kind: 'DIARY', photo_id: photo?.photo_id },
       })
       if (!live.current) return // 기다리다 뒤로 가기로 떠났으면 끌고 가지 않는다
-      nav(`/elder/diary/${sessionId}`, { state: { session: s, home, photoUrl: s.photo_url ?? undefined } })
+      // replace — 대화 중 뒤로 키는 홈으로 (D52 ⑥). 이 화면으로 돌아오면 질문을 다시 읽고 새 대화가 열린다
+      nav(`/elder/diary/${id}`, { replace: true, state: { session: s, home, photoUrl: s.photo_url ?? undefined } })
     } catch (e) {
       if (!live.current) return
       // 거절된 사진은 다시 고르고, 연결·서버 오류는 같은 사진과 번호를 남겨 재시도한다.
@@ -104,7 +108,7 @@ export default function ELDER_DIARY_001() {
           const file = e.target.files?.[0]
           e.target.value = ''
           if (!file || busy || !live.current) return
-          pendingPhoto.current = { file, batchId: crypto.randomUUID() }
+          pendingPhoto.current = { file, batchId: crypto.randomUUID(), sessionId: crypto.randomUUID() }
           void start(true)
         }}
       />
