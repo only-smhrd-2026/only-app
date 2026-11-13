@@ -7,7 +7,23 @@ from fastapi import APIRouter, FastAPI
 
 from app.config import now_kst, settings
 from app.errors import install_handlers
-from app.routers import auth, devices, diaries, elder, family_diary, invites, media, photos, rooms, sessions, stt, stubs
+from app.routers import (
+    auth,
+    devices,
+    diaries,
+    elder,
+    family_diary,
+    invites,
+    media,
+    mood,
+    notifications,
+    photos,
+    rooms,
+    sessions,
+    stt,
+    stubs,
+    weekly,
+)
 from app.services import scheduler
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -37,6 +53,9 @@ for r in (
     family_diary.router,
     media.router,
     photos.router,
+    notifications.router,
+    mood.router,
+    weekly.router,
     *stubs.routers,
 ):
     api.include_router(r)
