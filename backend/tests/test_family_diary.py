@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import func, select
 
 from app.db import SessionLocal
-from app.models import Diary
+from app.models import Diary, FamilyRoom
 from tests.conftest import add_photos, make_room, setup_elder, signup
 
 
@@ -100,3 +100,59 @@ def test_unknown_session_id_is_ignored(client):
     room_id = make_room(client)["room_id"]
     r = _post(client, room_id, session_id=str(uuid.uuid4()))
     assert r.status_code == 201, r.text
+
+
+# ---------------------------------------------------------------- 일기 한 건 (GET /diaries/{id}, HOME_002)
+
+
+def _diary(room_id, author_type="FAMILY", status="POSTED"):
+    """일기를 DB 에 직접 넣는다 (test_family_news.py 의 _diary 와 같은 방법)."""
+    with SessionLocal() as db:
+        diary = Diary(
+            room_id=room_id,
+            author_type=author_type,
+            author_user_id=db.get(FamilyRoom, room_id).owner_user_id if author_type == "FAMILY" else None,
+            body="오늘 공원을 걸었어요.",
+            mood="SUNNY",
+            illustration_type="NONE",
+            request_id=uuid.uuid4(),
+            status=status,
+        )
+        db.add(diary)
+        db.commit()
+        return diary.diary_id
+
+
+def test_get_diary_same_as_list(client):
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    ids = [_diary(room_id), _diary(room_id, "ELDER")]
+    listed = {d["diary_id"]: d for d in client.get(f"/api/rooms/{room_id}/diaries").json()["diaries"]}
+    for diary_id in ids:
+        r = client.get(f"/api/diaries/{diary_id}")
+        assert r.status_code == 200, r.text
+        assert r.json() == listed[diary_id]
+
+
+def test_get_diary_hidden(client):
+    assert client.get("/api/diaries/1").status_code == 401  # 로그인 전
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    diary_id, deleted = _diary(room_id), _diary(room_id, status="DELETED")
+    for hidden in (999999, deleted):
+        r = client.get(f"/api/diaries/{hidden}")
+        assert r.status_code == 404
+        assert r.json()["code"] == "DIARY_NOT_FOUND"
+    signup(client)  # 다른 계정으로 로그인
+    r = client.get(f"/api/diaries/{diary_id}")
+    assert r.status_code == 404
+    assert r.json()["code"] == "DIARY_NOT_FOUND"
+
+
+def test_get_diary_does_not_mark_read(client):
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    diary_id = _diary(room_id, "ELDER")
+    assert client.get(f"/api/diaries/{diary_id}").json()["read_by_me"] is False
+    listed = client.get(f"/api/rooms/{room_id}/diaries").json()["diaries"]
+    assert [d["read_by_me"] for d in listed if d["diary_id"] == diary_id] == [False]
