@@ -116,6 +116,8 @@ html[data-font='XXL'] { --elder-font-size: 28px; --elder-font-size-s: 26px; --el
   gap: 12px;
 }
 .elder-tiles--one { grid-template-rows: 1fr; }
+/* 가로로 긴 상자를 세로로 쌓기 (일기 쓰기 화면: 사진 찍기·그냥 이야기·지난 일기, D60) */
+.elder-tiles--rows { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-rows: 1fr; }
 .elder-tile {
   position: relative;
   display: flex;
@@ -138,11 +140,11 @@ html[data-font='XXL'] { --elder-font-size: 28px; --elder-font-size-s: 26px; --el
 .elder-tile--2 { --elder-tile-fill: var(--elder-t2); --elder-tile-edge: var(--elder-t2e); }
 .elder-tile--3 { --elder-tile-fill: var(--elder-t3); --elder-tile-edge: var(--elder-t3e); }
 .elder-tile--4 { --elder-tile-fill: var(--elder-t4); --elder-tile-edge: var(--elder-t4e); }
-.elder-tile--wide { flex: none; flex-direction: row; min-height: 88px; }
+.elder-tile--wide { flex-direction: row; gap: 16px; min-height: 88px; }
 .elder-tile--new { border-width: calc(var(--elder-edge-w) + 3px); border-color: var(--elder-new, var(--elder-tile-edge)); }
 .elder-ic { flex: none; width: 1.15em; height: 1.15em; }
 .elder-tile .elder-ic { width: 88px; height: 88px; color: var(--elder-ticon, var(--elder-tile-edge)); stroke-width: 1.6; }
-.elder-tile--wide .elder-ic { width: 44px; height: 44px; }
+.elder-tile--wide .elder-ic { width: 56px; height: 56px; }
 .elder-badge {
   position: absolute;
   top: 10px;
