@@ -20,3 +20,10 @@ body {
 .error { color: #b00020; font-size: 14px; }
 .muted { color: #666; font-size: 14px; }
 .mono { font-family: ui-monospace, Menlo, monospace; word-break: break-all; font-size: 13px; }
+
+/* 가족 화면 모양 — 11/12 목업 가족 홈 값(사진 올리기·가족방·초대 화면이 같이 쓴다). 색은 정해지면 첫 줄만 바뀐다 */
+.fam-skin { --bg:#ffffff; --fg:#1f1b2e; --line:#cfc8e6; --card:#ffffff; --primary:#5b3fa8; --on-primary:#ffffff; --soft:#f4f1fb; --me:#e7defa; --me-e:#5b3fa8; min-height:100dvh; background:var(--bg); color:var(--fg); font-size:15px; line-height:1.5; }
+.fam-skin h1 { font-size:20px; font-weight:800; }
+.fam-skin .card { border:1.5px solid var(--line); border-radius:18px; padding:14px; background:var(--card); box-shadow:none; }
+.fam-skin .btn { display:inline-flex; align-items:center; justify-content:center; min-height:46px; border-radius:14px; font-weight:800; }
+.fam-skin .btn:not(.secondary) { background:var(--primary); color:var(--on-primary); }

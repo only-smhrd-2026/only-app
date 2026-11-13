@@ -17,6 +17,8 @@ export default function JOIN_001() {
   const token = window.location.hash.slice(1)
   const [status, setStatus] = useState<InviteStatusOut>()
   const [statusError, setStatusError] = useState(token ? '' : '링크가 올바르지 않아요. 방장에게 다시 받아 주세요.')
+  const [tries, setTries] = useState(0)
+  const [canRetry, setCanRetry] = useState(false) // 연결이 끊겼을 때만 — 없는·끝난 링크(4xx)는 다시 해도 같다
   const me = useFetch<UserOut>('/api/auth/me')
   const [name, setName] = useState<string>() // 손대기 전에는 /api/auth/me 의 이름
   const [relation, setRelation] = useState<RelationTag>()
@@ -29,8 +31,11 @@ export default function JOIN_001() {
     if (!token) return
     api<InviteStatusOut>('/api/invites/status', { body: { token } })
       .then(setStatus)
-      .catch((e: ApiError) => setStatusError(e.message))
-  }, [token])
+      .catch((e: ApiError) => {
+        setStatusError(e.message)
+        setCanRetry(e.status === 0 || e.status >= 500)
+      })
+  }, [token, tries])
 
   const myName = (name ?? me.data?.name ?? '').trim()
   const nick = nickname.trim()
@@ -59,6 +64,14 @@ export default function JOIN_001() {
     <main className="page fam-skin">
       <h1>가족방 참여</h1>
       {statusError && <p className="error" role="alert">{statusError}</p>}
+      {canRetry && (
+        <button
+          className="btn secondary"
+          onClick={() => { setStatusError(''); setCanRetry(false); setTries((n) => n + 1) }}
+        >
+          다시 시도
+        </button>
+      )}
       {!status && !statusError && <p className="muted">불러오는 중…</p>}
       {status && !invite && <p>이 링크는 더 쓸 수 없어요. 방장에게 새 링크를 받아 주세요.</p>}
       {invite && (
