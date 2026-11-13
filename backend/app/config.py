@@ -44,6 +44,8 @@ STT_MAX_SEC = 60  # 녹음 상한 (FR-VS-001, 화면 RECORD_MS). 더 긴 소리�
 STT_MAX_CHARS = 500
 UPLOAD_MAX_BYTES = 10 * 1024 * 1024
 UPLOAD_MAX_FILES = 20  # 한 번에 올리는 사진 수 (D17)
+# 사진 한마디(caption)·사진 속 사람(people_note) 글자 수 — photos 표의 VARCHAR(100) 과 같게 (D17)
+UPLOAD_MAX_NOTE_CHARS = 100
 UPLOAD_MAX_PIXELS = 30_000_000  # 사진 한 장 픽셀 수(가로×세로). 넘으면 거절 — 서버 메모리 보호 (D17)
 UPLOAD_MAX_SIDE = 65_500  # 사진 한 변 픽셀. 길쭉한 조작 그림(1×3천만)은 줄 주소표만 240MB — JPEG 한계와 같게 (D17)
 UPLOAD_MAX_EXIF_BYTES = 64 * 1024  # 사진 정보(EXIF). 폰 사진은 64KB 안 — 넘으면 회전·촬영일을 읽지 않음 (D17)
