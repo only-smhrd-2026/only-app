@@ -377,6 +377,20 @@ def _unconfirmed(body: TurnIn) -> bool:
     )
 
 
+def _confirmed(session: TalkSession, body: TurnIn, text: str) -> tuple[TurnIn, str, bool]:
+    """바로 앞이 확인 질문이었으면 답을 푼다 → (저장할 body, 저장할 말, '아니요'였는지). 맡긴 문장은 비운다 (D52 ③).
+
+    '맞아요·네'(말·칩) = 맡긴 문장이 답(확인을 거친 음성, retried=true). '다시 말할게요·아니요' = 저장하지 않음.
+    다른 말 = 그 말이 새 답.
+    """
+    pending = _pending.pop(session.session_id, None)
+    answer = coach.confirm_answer(text) if pending else None
+    if answer == "YES":
+        update = {"input_type": "VOICE", "stt_confidence": pending[1], "retried": True}
+        return body.model_copy(update=update), pending[0], False
+    return body, text, answer == "NO"
+
+
 def _save_elder(db, session: TalkSession, body: TurnIn, text: str) -> None:
     last_ai = _last_ai_turn(session)
     _add_turn(
@@ -404,7 +418,9 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
     if _expired(session):  # 5분 상한 (D8). 방금 한 답은 저장한 뒤 마무리
         text = (body.text or "").strip()
         if text and body.event is None and not _unconfirmed(body):
-            _save_elder(db, session, body, text)
+            body, text, said_no = _confirmed(session, body, text)  # 확인 질문 뒤 '맞아요'면 맡긴 문장을
+            if not said_no:
+                _save_elder(db, session, body, text)
         reply, _ = _ask(db, session, coach_context(db, room, session), end="LIMIT")
         _finish(db, session, "LIMIT")
         db.commit()
@@ -438,15 +454,10 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
         _pending[session.session_id] = (text, body.stt_confidence)
         db.commit()  # 위 재질문과 같은 이유 — 음성을 만들기 전에 세션 행 잠금을 푼다
         return _out(db, session, room, coach.confirm_question(text))
-    pending = _pending.pop(session.session_id, None)
-    if pending:  # 바로 앞이 확인 질문이었다
-        answer = coach.confirm_answer(text)
-        if answer == "NO":  # 잘못 들었다 → 저장 없이 원래 질문을 다시 (화면은 [다시 말할게요]를 보통 녹음으로 받는다)
-            db.commit()
-            return _out(db, session, room, _last_reply.get(session.session_id) or _fallback(session))
-        if answer == "YES":  # '맞아요'가 답으로 남지 않게 맡긴 문장을 어르신 답으로 (retried = 확인을 거친 음성)
-            text = pending[0]
-            body = body.model_copy(update={"input_type": "VOICE", "stt_confidence": pending[1], "retried": True})
+    body, text, said_no = _confirmed(session, body, text)
+    if said_no:  # 잘못 들었다 → 저장 없이 원래 질문을 다시 (화면은 [다시 말할게요]를 보통 바로 녹음으로 받는다)
+        db.commit()
+        return _out(db, session, room, _last_reply.get(session.session_id) or _fallback(session))
 
     _no_response[session.session_id] = 0
     _save_elder(db, session, body, text)

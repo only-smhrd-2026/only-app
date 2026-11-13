@@ -267,3 +267,18 @@ def test_text_input_and_get_returns_past_turns(client):
     assert [t["speaker"] for t in got["turns"]] == ["AI", "ELDER", "AI"]
     assert got["turns"][1]["text"] == "손주랑 바다에 갔어요" and got["turns"][-1]["text"] == got["last_ai"]["text"]
     assert set(got["turns"][0]) == {"speaker", "text"}  # 신뢰도·시각 같은 안쪽 칸은 내보내지 않는다
+
+
+def test_limit_after_confirm_saves_heard_text(client):
+    """5분 상한에 걸린 턴에서도 확인 질문 뒤 '맞아요'면 '맞아요'가 아니라 맡긴 문장이 저장된다."""
+    ctx = setup_elder(client)
+    sid = _create(client, ctx)["session_id"]
+    url = f"/api/elder/sessions/{sid}/turns"
+    for _ in range(2):
+        client.post(url, json={"text": "네", "input_type": "CHIP"})
+    low = {"text": "강가에 갔어요", "input_type": "VOICE", "stt_confidence": 0.5}
+    client.post(url, json=low)  # 확인 질문 (턴 없음)
+    _shift(sid, [80] * 6)  # 5행 + 지금 = 간격 6개 × 80초 = 480초 > 5분
+    r = client.post(url, json={"text": "맞아요", "input_type": "CHIP"}).json()
+    assert r["state"] == "ENDED" and r["end_reason"] == "LIMIT"
+    assert [t["text"] for t in _elder_turns(sid)] == ["네", "네", "강가에 갔어요"]

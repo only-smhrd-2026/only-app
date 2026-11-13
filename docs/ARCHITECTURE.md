@@ -14,7 +14,7 @@ only-app/
 │       ├── hooks/useFetch.ts GET + reload / useElderSession.ts 대화 화면 세션 복원(회상·일기)
 │       ├── lib/audio.ts      녹음(MediaRecorder)·재생·브라우저 TTS
 │       ├── elder.css         어르신 규격 (CSS 변수 10개, 클래스 6개)
-│       ├── components/VoiceSession/   말하기 왕복 상태기계 (홍진성)
+│       ├── components/VoiceSession/   말하기 왕복 상태기계 + 말풍선 대화 화면 (홍진성, D52)
 │       └── screens/elder/*, screens/family/*   화면 (김승희), NotYet.tsx = 준비 중
 ├── backend/
 │   ├── app/main.py           FastAPI 앱, 라우터 등록, lifespan(스케줄러)
