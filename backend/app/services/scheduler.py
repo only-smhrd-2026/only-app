@@ -16,11 +16,11 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select
 
-from app.config import NO_RECORD_DAYS, TZ, now_kst, today_kst
+from app.config import NO_RECORD_DAYS, TZ, WEEKLY_HOUR, now_kst, today_kst
 from app.db import SessionLocal
 from app.models import DailyPick, Diary, FamilyRoom, Notification, TalkSession
 from app.routers.devices import notify_family
-from app.services import picks
+from app.services import picks, weekly
 
 log = logging.getLogger("app.jobs")
 scheduler = BackgroundScheduler(timezone=TZ)
@@ -128,11 +128,21 @@ def no_record_alerts() -> None:
 
 
 def weekly_summaries() -> None:
-    """일요일 19:00 — 집계 창 [지난 일요일 19:00, 이번 일요일 19:00) 로 주간 요약 생성 + WEEKLY_READY 알림 (D19).
-
-    TODO(천주웅 배선 / 홍진성 요약 AI).
-    """
-    log.info("job weekly_summaries: 아직 비어 있음")
+    """활성 가족방의 최근 완료된 주간 집계를 만든다. 한 방이 실패해도 다음 방을 계속한다."""
+    now = now_kst()
+    failed = 0
+    with SessionLocal() as db:
+        room_ids = db.scalars(
+            select(FamilyRoom.room_id).where(FamilyRoom.status == "ACTIVE").order_by(FamilyRoom.room_id)
+        ).all()
+        for room_id in room_ids:
+            try:
+                weekly.build(db, room_id, now)
+            except Exception as e:
+                db.rollback()
+                failed += 1
+                log.warning("job weekly_summaries room=%s error=%s", room_id, type(e).__name__)
+    log.info("job weekly_summaries rooms=%d failed=%d", len(room_ids), failed)
 
 
 def catch_up() -> None:
@@ -152,7 +162,7 @@ def start() -> None:
     )
     scheduler.add_job(
         weekly_summaries,
-        CronTrigger(day_of_week="sun", hour=19, minute=0, timezone=TZ),
+        CronTrigger(day_of_week="sun", hour=WEEKLY_HOUR, minute=0, timezone=TZ),
         id="weekly_summaries",
         replace_existing=True,
     )
