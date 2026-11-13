@@ -1,8 +1,8 @@
 /**
  * UPLOAD_002 — 사진 올리기 2/2: 보낼 가족방 고르기·보내기 (FR-ME-002 중 받는 가족방 고르기, D17).
  * UPLOAD_001 이 uploadDraft 에 넣은 사진·요청 번호를 체크한 가족방마다 보낸다.
- * 사진 설명(한마디)·사진 속 사람 칸은 서버 올리기 요청이 아직 받지 않아 없다(서버가 받게 되면 붙임).
- * 결과 화면 UPLOAD_003 은 나중에. 디자인 없음 (김승희 교체).
+ * 한마디·사진 속 사람은 묶음에 한 번 — 그 묶음의 모든 사진에 같은 값(FR-ME-002).
+ * 결과 화면 UPLOAD_003 은 나중에. 모양은 11/12 목업 가족 화면 값(.fam-skin, UPLOAD_001.css).
  */
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
@@ -17,6 +17,8 @@ type Result = { ok: boolean; text: string }
 
 // 사진 자체가 문제일 때 서버가 주는 코드 (routers/photos.py) — 어느 가족방에 보내도 같은 답이다
 const PHOTO_PROBLEMS = ['BAD_IMAGE', 'IMAGE_TOO_LARGE', 'PHOTO_TOO_BIG', 'TOO_MANY_PHOTOS']
+// 서버 config.py 의 UPLOAD_MAX_NOTE_CHARS 와 같게 (한마디·사진 속 사람 글자 수)
+const MAX_NOTE = 100
 
 export default function UPLOAD_002() {
   const nav = useNavigate()
@@ -27,6 +29,8 @@ export default function UPLOAD_002() {
   const [unchecked, setUnchecked] = useState<Set<number>>(() => new Set())
   const [results, setResults] = useState<Record<number, Result>>({})
   const [busy, setBusy] = useState(false)
+  const [caption, setCaption] = useState(draft.caption)
+  const [peopleNote, setPeopleNote] = useState(draft.peopleNote)
   // 화면을 떠나면(뒤로 가기 등) 올리던 요청을 멈춘다. 안 멈추면 남은 가족방에 계속 올라가고,
   // 그 사이 사진을 다시 골라 보내면 요청 번호가 달라 같은 사진이 두 번 저장된다
   const leaving = useRef<AbortController | null>(null)
@@ -41,16 +45,16 @@ export default function UPLOAD_002() {
   if (rooms.error) {
     // 새로고침하면 고른 사진이 사라진다 — 그 자리에서 다시 읽게 한다
     return (
-      <main className="page">
+      <main className="page fam-skin">
         <p className="error">{rooms.error.message}</p>
         <button className="btn" onClick={rooms.reload}>다시 시도</button>
       </main>
     )
   }
-  if (!rooms.data) return <main className="page"><p className="muted">불러오는 중…</p></main>
+  if (!rooms.data) return <main className="page fam-skin"><p className="muted">불러오는 중…</p></main>
   if (rooms.data.length === 0) {
     return (
-      <main className="page">
+      <main className="page fam-skin">
         <h1>올릴 가족방 고르기</h1>
         <p>먼저 가족방을 만들어 주세요</p>
         <Link className="btn" to="/groups/new">가족방 만들기</Link>
@@ -80,6 +84,9 @@ export default function UPLOAD_002() {
     draft.files.forEach((f) => form.append('files', f))
     // 가족방마다 같은 번호여도 된다 — 서버는 '같은 가족방 + 같은 번호'만 같은 요청으로 본다 (D17)
     form.append('upload_batch_id', draft.batchId)
+    // 적은 글만 보낸다 — 빈 칸은 칸 자체를 보내지 않음
+    if (caption.trim()) form.append('caption', caption.trim())
+    if (peopleNote.trim()) form.append('people_note', peopleNote.trim())
     const next = { ...results }
     // 차례로 보낸다(동시에 말고) — 서버가 사진 변환을 한 번에 한 요청씩 하므로
     for (const room of targets) {
@@ -113,11 +120,45 @@ export default function UPLOAD_002() {
   }
 
   return (
-    <main className="page">
+    <main className="page fam-skin">
       <h1>올릴 가족방 고르기</h1>
       <section className="card">
         <p className="upload-count">사진 {draft.files.length}장</p>
         <PhotoGrid files={draft.files} />
+        {/*
+          보내는 중·한 번 보낸 뒤에는 글을 못 고친다(체크 상자와 같음). 서버는 같은 번호(upload_batch_id)의
+          두 번째 요청에 처음 저장본을 그대로 돌려줘서, 글을 고쳐 다시 보내도 바뀌지 않는다 (D17).
+          고칠 때마다 uploadDraft 에도 적는다 — draft 는 열 때 만든 복사본이라, 뒤로 갔다 와도 글이 남게
+        */}
+        <div className="form">
+          <label>
+            한마디 (선택)
+            <input
+              value={caption}
+              maxLength={MAX_NOTE}
+              placeholder="예: 설날 온 가족이 모인 날"
+              disabled={busy || sent}
+              onChange={(e) => {
+                setCaption(e.target.value)
+                uploadDraft.caption = e.target.value
+              }}
+            />
+          </label>
+          <label>
+            사진 속 사람 (선택)
+            <input
+              value={peopleNote}
+              maxLength={MAX_NOTE}
+              placeholder="예: 할머니, 큰딸, 손주 둘"
+              disabled={busy || sent}
+              onChange={(e) => {
+                setPeopleNote(e.target.value)
+                uploadDraft.peopleNote = e.target.value
+              }}
+            />
+          </label>
+          <p className="muted">안 적어도 돼요. 적어 두면 AI 가 어르신과 이야기할 때 참고해요.</p>
+        </div>
       </section>
       <section className="card">
         {list.map((room) => (
