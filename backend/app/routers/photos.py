@@ -276,7 +276,8 @@ def upload_photos(room_id: int, user: CurrentUser, db: DB, form: Annotated[FormD
 def list_photos(room_id: int, user: CurrentUser, db: DB):
     """가족 화면에 올린 사진 목록, 최신 먼저 (FR-ME-004)."""
     require_member(room_id, user, db)  # 로그인 안 함 401, 남의 가족방 404
-    # 어르신 사진첩(elder.py album)과 같은 조건 — 지운 사진·그림일기 사진(FAMILY_DIARY)은 빼고 같은 사진만 보인다
+    # 지운 사진·그림일기 사진(FAMILY_DIARY)은 뺀다.
+    # 어르신 사진첩(elder.py album)은 여기서 어르신이 찍은 사진(ELDER_CAMERA)도 뺀다 (D60)
     photos = db.scalars(
         select(Photo)
         .where(

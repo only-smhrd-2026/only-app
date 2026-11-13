@@ -31,7 +31,7 @@ def _upload(client, content=None, **kwargs):
     )
 
 
-def test_upload_album_media_and_diary(client):
+def test_upload_media_and_diary_but_not_in_album(client):
     setup_elder(client)
     r = _upload(client)
     assert r.status_code == 201, r.text
@@ -39,7 +39,8 @@ def test_upload_album_media_and_diary(client):
     with SessionLocal() as db:
         stored = db.get(Photo, photo["photo_id"])
         assert stored.source == "ELDER_CAMERA" and stored.uploaded_by is None
-    assert client.get("/api/elder/album").json()["photos"][0]["photo_id"] == photo["photo_id"]
+    # 일기에 찍은 사진은 사진첩에 넣지 않는다 — 지난 일기에서 일기와 함께 본다 (D60)
+    assert photo["photo_id"] not in [p["photo_id"] for p in client.get("/api/elder/album").json()["photos"]]
     media = client.get(photo["url"])
     assert media.status_code == 200 and media.headers["content-type"] == "image/jpeg"
     r = client.post(
