@@ -169,6 +169,14 @@ html[data-font='XXL'] { --elder-font-size: 28px; --elder-font-size-s: 26px; --el
 /* 제목 위와 버튼 위(.elder-bottom)가 남는 자리를 반씩 나눠 가져, 제목과 글 상자가 세로 가운데에 온다 */
 .elder-hearts-title { flex: none; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: auto; color: var(--elder-primary); }
 .elder-hearts-line { display: block; }
+/* 마음 체크 (D66): 진행 점 8개 · 머리말 · 보기 4개(답 버튼 56px, 세로로 쌓기) · 초대 시트의 하트 */
+.elder-steps { flex: none; display: flex; justify-content: center; gap: 10px; padding-top: 4px; }
+.elder-steps i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--elder-fg); opacity: .45; }
+.elder-steps i.on { background: var(--elder-fg); opacity: 1; }
+.elder-mood-stem { flex: none; font-size: var(--elder-font-size-s); }
+.elder-answers { flex: none; display: grid; gap: 10px; margin-top: auto; }
+.elder-answers .elder-chip { border-radius: var(--elder-radius); border-color: var(--elder-fg); font-weight: 800; }
+.elder-mood-heart { flex: none; align-self: center; width: 44px; height: 44px; color: var(--elder-primary); fill: currentColor; }
 .elder-ask {
   flex: none;
   align-self: stretch;
