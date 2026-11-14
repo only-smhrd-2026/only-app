@@ -80,13 +80,16 @@ export type WeeklyCard = {
 }
 export type WeeklyOut = {
   week_start: string // 그 주 월요일 'YYYY-MM-DD'
+  prev_week_start: string | null // 지난 주 이야기가 있으면 그 주 월요일 — ‹ 로 ?week_start= (목업 ⑤)
+  next_week_start: string | null // 다음 주 이야기가 있으면 그 주 월요일 — ›
   memory_days: number // 회상 대화에서 말씀하신 날 수 (0~7)
   diary_days: number // 일기 쓴 날 수 (0~7)
   qa_list: WeeklyCard[] // 주간 요약 AI 의 카드 최대 4장. 아직 안 붙었거나 실패하면 []
   recall_check: Record<string, unknown>
   mood_trend: { date: string; mood: Mood | null }[] // 7칸, 월 → 일
   talk_volume: { words: number; turns: number; avg_words: number }
-  diaries: { diary_id: number; date: string; mood: Mood }[]
+  // illustration_url = 가족 홈 일기 카드와 같은 사진·그림일기 주소. 그림 없는 일기·지운 일기는 null → 기분 날씨 그림
+  diaries: { diary_id: number; date: string; mood: Mood; illustration_url: string | null }[]
   notes: { lines: string[] } | null // 안부 한 줄 — 기운 없음·위급 대화가 있던 주 (D62)
 }
 

@@ -8,9 +8,9 @@ from sqlalchemy import select
 
 from app.config import TZ
 from app.db import SessionLocal
-from app.models import Diary, FamilyRoom, Notification, TalkSession, WeeklySummary
+from app.models import Diary, FamilyRoom, Notification, Photo, TalkSession, WeeklySummary
 from app.services import scheduler, weekly
-from tests.conftest import make_room, signup
+from tests.conftest import add_photos, make_room, signup
 
 NOW = datetime(2026, 11, 15, 19, tzinfo=TZ)
 
@@ -34,14 +34,14 @@ def _talk(db, room_id, at, kind="MEMORY", texts=(), private=False):
     )
 
 
-def _diary(db, room_id, at, mood="SUNNY", author_type="ELDER", status="POSTED"):
+def _diary(db, room_id, at, mood="SUNNY", author_type="ELDER", status="POSTED", **picture):
     diary = Diary(
         room_id=room_id,
         author_type=author_type,
         author_user_id=db.get(FamilyRoom, room_id).owner_user_id if author_type == "FAMILY" else None,
         body="저장하면 안 되는 테스트 본문",
         mood=mood,
-        illustration_type="NONE",
+        **({"illustration_type": "NONE"} | picture),
         request_id=uuid.uuid4(),
         posted_at=at,
         status=status,
@@ -158,6 +158,25 @@ def test_only_elder_words_count_and_private_talk_is_left_out(client):
     assert row.talk_volume == {"words": 3, "turns": 3, "avg_words": 1.0}
 
 
+def test_diary_pictures_like_home_cards(client):
+    """일기 사진 줄: 사진·그림일기는 가족 홈 카드와 같은 주소, 그림 없는 일기·나중에 지운 일기는 None (목업 ⑤)"""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    photo_id = add_photos(room_id, 1)[0]
+    with SessionLocal() as db:
+        photo = _diary(db, room_id, _at(10), illustration_type="PHOTO", photo_id=photo_id)
+        drawn = _diary(db, room_id, _at(11), illustration_type="AI_DRAWING", illustration_key="draw/1.png")
+        plain = _diary(db, room_id, _at(12))
+        gone = _diary(db, room_id, _at(13))
+        db.commit()
+        weekly.build(db, room_id, NOW)
+        db.get(Diary, gone).status = "DELETED"
+        db.commit()
+        key = db.get(Photo, photo_id).object_key
+    urls = {d["diary_id"]: d["illustration_url"] for d in client.get(f"/api/rooms/{room_id}/weekly").json()["diaries"]}
+    assert urls == {photo: f"/api/media/{key}", drawn: "/api/media/draw/1.png", plain: None, gone: None}
+
+
 def test_get_latest_specific_and_permissions(client):
     signup(client)
     room_id = make_room(client)["room_id"]
@@ -173,6 +192,8 @@ def test_get_latest_specific_and_permissions(client):
     assert response.json()["week_start"] == "2026-11-09"
     assert set(response.json()) == {
         "week_start",
+        "prev_week_start",
+        "next_week_start",
         "memory_days",
         "diary_days",
         "qa_list",
@@ -182,7 +203,10 @@ def test_get_latest_specific_and_permissions(client):
         "diaries",
         "notes",
     }
-    assert client.get(path + "?week_start=2026-11-02").json()["week_start"] == "2026-11-02"
+    assert (response.json()["prev_week_start"], response.json()["next_week_start"]) == ("2026-11-02", None)
+    older = client.get(path + "?week_start=2026-11-02").json()
+    assert (older["week_start"], older["prev_week_start"]) == ("2026-11-02", None)
+    assert older["next_week_start"] == "2026-11-09"
     response = client.get(path + "?week_start=2026-10-26")
     assert response.status_code == 404
     assert response.json()["code"] == "WEEKLY_NOT_FOUND"

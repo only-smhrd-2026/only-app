@@ -104,6 +104,7 @@ ELDER_DIARY_003: POST /elder/sessions/{id}/draft
 마음 체크:   GET /elder/mood-check → {due} (마지막 체크 뒤 14일 + 오늘의 한 장이 PENDING 이 아닐 때) · POST /elder/mood-check {answers: 0~3 여덟 칸}
              → 합 0~4 USUAL / 5~9 DOWN / 10~ HARD, 가족방·날짜당 1줄. 어르신 응답에는 점수·단계가 없다 (D56)
 주간 이야기: GET /rooms/{id}/weekly[?week_start=] → 집계 줄(이야기한 날·일기 쓴 날·기분·말 수). 없으면 404 WEEKLY_NOT_FOUND
+             + prev_week_start·next_week_start(‹ › 지난·다음 주가 있으면) · diaries[].illustration_url(가족 홈 일기 카드와 같은 그림 주소)
 일기:        GET /diaries/{id} (가족, 상세) · GET /elder/diaries (기기, 내 일기 목록 — 일기 쓰기 화면의 [지난 일기] ELDER_DIARY_004, D60) · POST /rooms/{id}/diaries (가족 일기, 같은 방 + 같은 request_id 는 1개)
 사진첩:      GET /elder/album — 가족이 올린 사진만. 어르신이 일기에 찍은 사진은 지난 일기에서 본다 (D60)
 가족방:      PATCH /rooms/{id}/settings (방장만 — 추억 시간은 정각, 글자 L·XL·XXL, 말 속도 "0.80"·"0.90"·"1.00", 목소리 FEMALE·MALE, 입력 방식)
