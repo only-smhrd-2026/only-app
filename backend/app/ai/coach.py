@@ -31,7 +31,7 @@ from app.ai.schemas import (
     FamilyQuestion,
     question_marks,
 )
-from app.config import DIARY_TURNS, MAX_TURNS, today_kst
+from app.config import DIARY_TURNS, FAMILY_DRAFT_MAX, MAX_TURNS, today_kst
 
 
 @dataclass
@@ -309,5 +309,12 @@ def family_draft(text: str, question: str, answer: str) -> str:
         # 쓴 말과 답을 그대로 잇는다(질문은 AI 의 말이라 넣지 않는다). 어르신께 읽어 드리는 글이라
         # 금지어가 든 문장은 뺀다 — 덩어리째 빼면 한 문장 때문에 쓴 말이 다 사라진다 (11/13 실제 평가)
         sentences = [p for s in (text, answer) for p in re.split(r"(?<=[.!?~…])\s+", " ".join(s.split())) if p]
-        said = " ".join(_sentence(p) for p in sentences if not any(w in p for w in BANNED_WORDS))
-        return said[:400] or FAMILY_DRAFT_EMPTY
+        kept = [_sentence(p) for p in sentences if not any(w in p for w in BANNED_WORDS)]
+        # 200자에 들어가는 문장까지만 — 문장 중간에서 끊긴 글이 어르신께 읽히지 않게 (D61)
+        said = ""
+        for sentence in kept:
+            if len(said) + len(sentence) + (1 if said else 0) > FAMILY_DRAFT_MAX:
+                break
+            said = f"{said} {sentence}".lstrip()
+        # 첫 문장 하나가 200자를 넘을 때만 글자 수로 자른다
+        return said or " ".join(kept)[:FAMILY_DRAFT_MAX] or FAMILY_DRAFT_EMPTY

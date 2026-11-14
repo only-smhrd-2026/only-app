@@ -48,6 +48,7 @@ MOOD_LOW_WINDOW_DAYS = 7  # 위 날수를 세는 기간이자, 같은 알림을 
 # 일기 사진이 옛 사진이면(분류 is_old + 신뢰도 이 이상) 일기 1·2번 질문을 그 사진 속 그때로 (FR-DI-002, D58)
 OLD_PHOTO_CONF_MIN = 0.8
 FAMILY_TEXT_MAX = 200  # 가족 일기 한마디·답 글자 수 (FR-DI-006)
+FAMILY_DRAFT_MAX = 200  # 가족 일기 AI 초안 글자 수 — 어르신 가족 소식 화면에 한 번에 보이는 만큼 (D61)
 FAMILY_AI_RATE_PER_MIN = 10  # 가족 일기 동무(질문·초안) 같은 사람 분당 상한. 한 사람이 하루 상한을 다 쓰지 못하게 (D58)
 STT_MAX_BYTES = 5 * 1024 * 1024
 STT_MAX_SEC = 60  # 녹음 상한 (FR-VS-001, 화면 RECORD_MS). 더 긴 소리는 변환할 때 잘라 STT 과금·메모리를 막는다

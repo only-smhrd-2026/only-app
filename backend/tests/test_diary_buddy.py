@@ -102,14 +102,23 @@ def test_family_fallback_draft_drops_banned_words():
 
 
 def test_family_output_rules():
-    """모델 출력 검사: 질문 1개(물음표로 끝남)·60자·금지어, 초안 400자·금지어."""
+    """모델 출력 검사: 질문 1개(물음표로 끝남)·60자·금지어, 초안 200자·금지어 (D61)."""
     assert FamilyQuestion(question=" 공원에 다녀오셨군요. 누구랑 가셨어요? ").question.endswith("?")
     for bad in ("누구랑 가셨어요? 어디였어요?", "좋았겠어요.", "점수는 몇 점이었어요?", "가" * 60 + "?"):
         with pytest.raises(ValidationError):
             FamilyQuestion(question=bad)
-    for bad in ("오늘 정답을 맞혔어요.", "가" * 401):
+    assert len(FamilyDraft(body="가" * 200).body) == 200
+    for bad in ("오늘 정답을 맞혔어요.", "가" * 201):
         with pytest.raises(ValidationError):
             FamilyDraft(body=bad)
+
+
+def test_family_fallback_draft_cuts_at_sentence_within_200():
+    """AI 없이 쓴 말·답을 이은 초안은 200자에 들어가는 문장까지만 — 문장 중간에서 끊지 않는다 (D61)."""
+    first, second, third = "가" * 120 + ".", "나" * 60 + ".", "다" * 60 + "."
+    assert coach.family_draft(first, "", f"{second} {third}") == f"{first} {second}"  # 121 + 1 + 61 = 183자
+    # 첫 문장 하나가 200자를 넘을 때만 글자 수로 자른다 (마침표를 붙이면 201자)
+    assert coach.family_draft("가" * 200, "", "") == "가" * 200
 
 
 def test_family_words_go_as_json_data_not_instructions(client, claude):

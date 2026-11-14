@@ -35,4 +35,4 @@ class FamilyDraftIn(FamilyAskIn):
 
 
 class FamilyDraftOut(BaseModel):
-    body: str  # 가족 존댓말 1인칭 3~5문장. 가족이 고쳐 쓴 뒤 POST /rooms/{id}/diaries 로 올린다
+    body: str  # 가족 존댓말 1인칭 2~4문장·200자까지 (D61). 가족이 고쳐 쓴 뒤 POST /rooms/{id}/diaries 로 올린다
