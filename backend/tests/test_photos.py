@@ -552,12 +552,70 @@ def test_same_batch_id_keeps_first_caption(client):
     assert _batch_count(batch) == 2
 
 
-def test_four_text_fields_is_400(client):
-    """글 칸은 upload_batch_id·caption·people_note 셋까지. 모르는 칸 하나를 더 보내면 400."""
+def test_five_text_fields_is_400(client):
+    """글 칸은 upload_batch_id·caption·people_note·source 넷까지. 모르는 칸 하나를 더 보내면 400."""
     signup(client)
     url = f"/api/rooms/{make_room(client)['room_id']}/photos"
-    data = {"upload_batch_id": str(uuid.uuid4()), "caption": "a", "people_note": "b", "unknown": "c"}
+    data = {
+        "upload_batch_id": str(uuid.uuid4()),
+        "caption": "a",
+        "people_note": "b",
+        "source": "FAMILY",
+        "unknown": "c",
+    }
     assert client.post(url, files=[("files", ("a.jpg", _jpeg(), "image/jpeg"))], data=data).status_code == 400
+
+
+def _source(photo_id: int) -> str:
+    with SessionLocal() as db:
+        return db.get(Photo, photo_id).source
+
+
+def test_family_diary_source_is_saved_and_hidden_from_list(client):
+    """source=FAMILY_DIARY 로 2장 → 두 사진 모두 FAMILY_DIARY 이고 가족 사진 목록에 안 나온다.
+    source 칸 없이 올리면 지금처럼 FAMILY 이고 목록에 나온다."""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    url = f"/api/rooms/{room_id}/photos"
+    files = [("files", (f"{i}.jpg", _jpeg(), "image/jpeg")) for i in range(2)]
+    r = client.post(url, files=files, data={"upload_batch_id": str(uuid.uuid4()), "source": "FAMILY_DIARY"})
+    assert r.status_code == 201, r.text
+    assert [_source(p["photo_id"]) for p in r.json()["photos"]] == ["FAMILY_DIARY", "FAMILY_DIARY"]
+    assert _list(client, room_id) == []
+    r = client.post(url, files=files[:1], data={"upload_batch_id": str(uuid.uuid4())})
+    assert r.status_code == 201, r.text
+    plain = r.json()["photos"][0]["photo_id"]
+    assert _source(plain) == "FAMILY"
+    assert [p["photo_id"] for p in _list(client, room_id)] == [plain]
+
+
+def test_other_source_is_422_and_saves_nothing(client):
+    """ELDER_CAMERA(어르신 카메라만 쓰는 값)·모르는 값·글 대신 파일이면 422 VALIDATION 이고 저장된 사진은 0장."""
+    signup(client)
+    url = f"/api/rooms/{make_room(client)['room_id']}/photos"
+    files = [("files", ("a.jpg", _jpeg(), "image/jpeg"))]
+    as_file = [("source", ("s.txt", b"FAMILY", "text/plain"))]
+    for more_files, data in (([], {"source": "ELDER_CAMERA"}), ([], {"source": "X"}), (as_file, {})):
+        batch = str(uuid.uuid4())
+        r = client.post(url, files=files + more_files, data={"upload_batch_id": batch, **data})
+        assert r.status_code == 422 and r.json()["code"] == "VALIDATION"
+        assert _batch_count(batch) == 0
+
+
+def test_same_batch_id_keeps_first_source(client):
+    """같은 upload_batch_id 로 처음엔 FAMILY_DIARY, 다음엔 source 없이 다시 보내면
+    201 이고 photo_id·source 는 처음 그대로, 사진 수도 그대로 (D17)."""
+    signup(client)
+    url = f"/api/rooms/{make_room(client)['room_id']}/photos"
+    files = [("files", ("a.jpg", _jpeg(), "image/jpeg"))]
+    batch = str(uuid.uuid4())
+    r1 = client.post(url, files=files, data={"upload_batch_id": batch, "source": "FAMILY_DIARY"})
+    r2 = client.post(url, files=files, data={"upload_batch_id": batch})
+    assert r1.status_code == 201 and r2.status_code == 201
+    first = r1.json()["photos"][0]["photo_id"]
+    assert [p["photo_id"] for p in r2.json()["photos"]] == [first]
+    assert _source(first) == "FAMILY_DIARY"
+    assert _batch_count(batch) == 1
 
 
 # ---------------------------------------------------------------- 사진 목록 (GET, FR-ME-004)
