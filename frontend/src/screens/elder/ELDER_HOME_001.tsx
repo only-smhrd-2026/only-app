@@ -7,16 +7,22 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { ElderHomeOut, SessionOut } from '../../api/types'
+import type { ElderHomeOut, MoodCheckDueOut, SessionOut } from '../../api/types'
 import todayPreview from '../../assets/today-preview.svg?inline' // 미리보기 전용 — 배포 빌드에 파일이 따로 남지 않게
 import { useLive } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
 import { speak, stopSpeaking } from '../../lib/audio'
+import { moodSnoozed, snoozeMood } from '../../lib/moodCheck'
 import { readPaused, resumePath } from '../../lib/pausedSession'
+import ELDER_MOOD_001 from './ELDER_MOOD_001'
 import ELDER_TODAY_001 from './ELDER_TODAY_001'
 import './ELDER_HOME_001.css'
 
 let closedPickId: number | null = null
+// 마음 체크를 권할지는 홈을 '새로 열 때' 한 번만 서버에 묻는다(앱을 켬·날이 바뀜·30분 넘게 숨었다 돌아옴).
+// 대화를 마치고 돌아온 홈에서는 다시 묻지 않는다 — 6~8번 이야기한 직후에 8문항을 잇지 않게.
+// (D66 — 11/14 임시로 정한 것, 팀원과 상의해 다시 정한다)
+let moodAsk: Promise<boolean> | null = null
 const STALE_MS = 30 * 60 * 1000 // 이만큼 넘게 숨어 있다 돌아오면 홈을 다시 읽는다 (FR-ME-006, D45 ④)
 const RETRY_MS = 5_000 // 홈 읽기가 실패하면 이만큼 뒤에 다시 — 성공할 때까지
 const NOTICE_MS = 4_000
@@ -58,6 +64,7 @@ export default function ELDER_HOME_001() {
   const [skipping, setSkipping] = useState(false)
   const [skippedPickId, setSkippedPickId] = useState<number | null>(null) // 건너뛰기가 저장된 pick → SKIPPED 로 보인다
   const [notice, setNotice] = useState('')
+  const [moodDue, setMoodDue] = useState(false) // 마음 체크 초대를 띄울 차례 (D56)
   const noticeTimer = useRef<number | undefined>(undefined)
   const live = useLive()
 
@@ -75,6 +82,8 @@ export default function ELDER_HOME_001() {
   // (서버는 30분 지난 대화를 끝난 것으로 봐서, 오래된 번호를 다시 쓰면 들어가자마자 끝난다)
   const refresh = useCallback(() => {
     sessionIds.current.clear()
+    moodAsk = null // 홈을 새로 읽는다 = 마음 체크도 다시 묻는다
+    setMoodDue(false)
     setStartError(undefined)
     reload()
   }, [reload])
@@ -105,6 +114,21 @@ export default function ELDER_HOME_001() {
     const timer = window.setTimeout(reload, RETRY_MS)
     return () => window.clearTimeout(timer)
   }, [preview, error, reload])
+
+  // 마음 체크 초대: 오늘 이미 권했으면([할게요]·[다음에]) 묻지 않는다. 못 물으면(망 오류) 이번에는 넘어간다
+  useEffect(() => {
+    if (preview || !serverHome) return
+    moodAsk ??= moodSnoozed()
+      ? Promise.resolve(false)
+      : api<MoodCheckDueOut>('/api/elder/mood-check').then((r) => r.due, () => false)
+    let alive = true
+    void moodAsk.then((due) => {
+      if (alive && due && !moodSnoozed()) setMoodDue(true)
+    })
+    return () => {
+      alive = false
+    }
+  }, [preview, serverHome])
 
   // 홈을 떠나면 읽던 오류 문장을 끊는다 — 다음 화면 소리 위로 이어지지 않게
   useEffect(() => () => stopSpeaking(), [])
@@ -209,6 +233,14 @@ export default function ELDER_HOME_001() {
   // 오늘 사진 대화를 하다 나왔으면 팝업 대신 '이어서' — 팝업의 [이야기하기]는 새 대화를 1번 질문부터 연다
   const showToday = pick?.status === 'PENDING' && pick.pick_id !== closedPickId && pick.pick_id !== dismissedPickId
     && paused?.kind !== 'MEMORY'
+  // 오늘의 한 장 팝업·하던 대화가 있으면 마음 체크는 권하지 않는다 (D56: 같은 때 겹치지 않게)
+  const showMood = moodDue && !showToday && !paused
+  function answerMood(start: boolean) {
+    snoozeMood() // 어느 쪽을 눌러도 오늘은 다시 권하지 않는다. 다 하면 서버가 2주 뒤에 다시 권한다
+    setMoodDue(false)
+    stopSpeaking()
+    if (start) nav('/elder/mood-check', { state: { home } })
+  }
   function onMemory() {
     if (!home) return
     const p = preview ? null : readPaused() // 한 번 더 읽는다 — 홈을 켜 둔 사이 30분이 지났을 수 있다
@@ -246,7 +278,7 @@ export default function ELDER_HOME_001() {
         </svg>
         <span>하루한장</span>
       </header>
-      <div className="elder-tiles" inert={showToday} aria-hidden={showToday}>
+      <div className="elder-tiles" inert={showToday || showMood} aria-hidden={showToday || showMood}>
         <button type="button" className={`elder-tile elder-tile--1${resumeMemory || status === 'PENDING' ? ' elder-tile--new' : ''}`} onClick={onMemory} disabled={busy}>
           <HomeIcon>
             <rect x="3" y="5" width="18" height="14" rx="2.5" />
@@ -288,6 +320,9 @@ export default function ELDER_HOME_001() {
         ? <p className="elder-text elder-home-note" role="alert">{startError}</p>
         : notice && <p className="elder-text elder-home-note" role="status">{notice}</p>}
       {showToday && <ELDER_TODAY_001 home={home} busy={busy || skipping} error={startError} onTalk={talkFromToday} onSkip={() => void skipToday()} />}
+      {showMood && (
+        <ELDER_MOOD_001 speed={Number(home.settings.tts_speed) || 0.85} onYes={() => answerMood(true)} onLater={() => answerMood(false)} />
+      )}
     </main>
   )
 }

@@ -4,6 +4,7 @@
  * say()·speak() 는 늘 resolve 한다. 끝까지 못 들려줬을 때만 false(사용자 터치 전이라 자동 재생이 막힘, 전화벨이 소리를 멈춤)
  * — 부르는 쪽이 '눌러서 들어 보세요'를 띄운다 (D48).
  */
+import { MOOD_PROMPT } from './moodCheck'
 
 export type Recorder = { stop: () => Promise<Blob> }
 
@@ -73,6 +74,7 @@ export const PROMPT = {
   thanks: '고마워요. 오늘은 여기까지 할게요.',
   tooMany: '잠시 후 다시 말씀해 주세요', // 서버 429 TOO_MANY_REQUESTS 문장 그대로 (routers/stt.py)
   sttLimit: '오늘은 말로 답하기를 다 썼어요. 버튼을 눌러 답해 주세요.', // 서버 429 STT_DAILY_LIMIT 문장 그대로
+  ...MOOD_PROMPT, // 마음 체크 11문장 — 글은 lib/moodCheck.ts 에 있다(공식 문구라 그 파일에서만 고친다). mp3 는 같은 명령을 그 파일에 돌려 만든다
 } as const
 
 const FILES = import.meta.glob<string>('../assets/audio/*.mp3', { eager: true, query: '?url', import: 'default' })

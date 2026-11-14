@@ -14,6 +14,7 @@ import ELDER_DIARY_004 from './screens/elder/ELDER_DIARY_004'
 import ELDER_FAMILY_001 from './screens/elder/ELDER_FAMILY_001'
 import ELDER_HOME_001 from './screens/elder/ELDER_HOME_001'
 import ELDER_MEMORY_001 from './screens/elder/ELDER_MEMORY_001'
+import ELDER_MOOD_002 from './screens/elder/ELDER_MOOD_002'
 import GROUP_001 from './screens/family/GROUP_001'
 import GROUP_002 from './screens/family/GROUP_002'
 import HOME_001 from './screens/family/HOME_001'
@@ -27,7 +28,7 @@ import UPLOAD_003 from './screens/family/UPLOAD_003'
 export type ScreenDef = { id: string; path: string; title: string; Screen?: ComponentType }
 
 export const SCREENS: ScreenDef[] = [
-  // ---- 어르신 (10 + 지난 일기)
+  // ---- 어르신 (10 + 지난 일기 + 마음 체크 2)
   { id: 'ELDER_CONNECT_001', path: '/elder/connect', title: '어르신 기기 연결', Screen: ELDER_CONNECT_001 },
   { id: 'ELDER_HOME_001', path: '/elder', title: '어르신 홈', Screen: ELDER_HOME_001 },
   { id: 'ELDER_TODAY_001', path: '/elder/today', title: '오늘의 한 장', Screen: ELDER_HOME_001 },
@@ -39,6 +40,9 @@ export const SCREENS: ScreenDef[] = [
   { id: 'ELDER_DIARY_003', path: '/elder/diary/:sessionId/confirm', title: '일기 확인', Screen: ELDER_DIARY_003 },
   { id: 'ELDER_DIARY_004', path: '/elder/diaries', title: '지난 일기', Screen: ELDER_DIARY_004 }, // 11/13 새 화면 (D60)
   { id: 'ELDER_FAMILY_001', path: '/elder/family-news', title: '가족 소식', Screen: ELDER_FAMILY_001 },
+  // 11/14 새 화면 2개 — 마음 체크 (D56·D66). 초대는 오늘의 한 장처럼 홈 위에 뜬다
+  { id: 'ELDER_MOOD_001', path: '/elder/mood', title: '마음 체크 초대', Screen: ELDER_HOME_001 },
+  { id: 'ELDER_MOOD_002', path: '/elder/mood-check', title: '마음 체크', Screen: ELDER_MOOD_002 },
   // ---- 가족 (15)
   { id: 'LOGIN_001', path: '/login', title: '로그인', Screen: LOGIN_001 },
   { id: 'JOIN_001', path: '/join', title: '가족방 참여', Screen: JOIN_001 },
