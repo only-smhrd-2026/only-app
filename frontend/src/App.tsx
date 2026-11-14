@@ -2,8 +2,10 @@
  * 화면 25개 + 지난 일기(11/13, D60) ↔ 경로 표 (설계안 v1 4절). 파일 이름 = 화면설계서 화면 ID (D11).
  * 아직 없는 화면은 NotYet 이 "준비 중" 을 보여 준다. 화면을 만들면 Screen 칸에 컴포넌트를 넣는다.
  */
-import type { ComponentType } from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { useEffect, type ComponentType } from 'react'
+import { Navigate, Route, Routes } from 'react-router-dom'
+import type { DeviceOut } from './api/types'
+import { useFetch } from './hooks/useFetch'
 import NotYet from './screens/NotYet'
 import ELDER_ALBUM_001 from './screens/elder/ELDER_ALBUM_001'
 import ELDER_CONNECT_001 from './screens/elder/ELDER_CONNECT_001'
@@ -62,12 +64,37 @@ export const SCREENS: ScreenDef[] = [
   { id: 'NOTI_001', path: '/notifications', title: '알림', Screen: NOTI_001 },
 ]
 
+/**
+ * 홈 화면 아이콘으로 열 때의 첫 주소 (manifest start_url, D68). 어르신 폰이면 어르신 홈, 아니면 가족 홈
+ * (가족 홈은 로그인 안 했으면 로그인으로 보낸다). 한 폰이 둘 다면(개발용 폰) 어르신이 먼저다.
+ * 401 이 아닌 실패(폰을 켠 직후 망이 아직 안 붙음 등)는 붙을 때까지 다시 묻는다 — 어르신 폰이 가족 화면으로 가지 않게.
+ */
+function Start() {
+  const { data, error, reload } = useFetch<DeviceOut>('/api/devices/me')
+  const notElder = error?.status === 401
+  useEffect(() => {
+    if (!error || notElder) return
+    const timer = window.setTimeout(reload, 5_000) // 어르신 홈(ELDER_HOME_001)과 같은 간격
+    return () => window.clearTimeout(timer)
+  }, [error, notElder, reload])
+  if (data) return <Navigate to="/elder" replace />
+  if (notElder) return <Navigate to="/" replace />
+  if (error)
+    return (
+      <main className="elder">
+        <p className="elder-text">연결이 잠깐 끊겼어요. 잠시 뒤에 다시 열어 볼게요.</p>
+      </main>
+    )
+  return null
+}
+
 export default function App() {
   return (
     <Routes>
       {SCREENS.map(({ id, path, title, Screen }) => (
         <Route key={id} path={path} element={Screen ? <Screen /> : <NotYet id={id} title={title} />} />
       ))}
+      <Route path="/start" element={<Start />} />
       <Route path="*" element={<NotYet id="404" title="없는 주소" />} />
     </Routes>
   )
