@@ -115,6 +115,7 @@ CREATE TABLE photos (
     corrected_at TIMESTAMPTZ,
     model_version VARCHAR(30),
     analyzed_at TIMESTAMPTZ,                                       -- NULL = 아직 분류 전
+    ai_scene VARCHAR(100),                                         -- 분류 AI 가 본 '보이는 모습' 한 줄, 대화 재료 (D71)
     CONSTRAINT uq_photos_room_id_object_key UNIQUE (room_id, object_key)   -- S10 업로드 멱등
 );
 CREATE INDEX ix_photos_room_status ON photos(room_id, status);
@@ -159,9 +160,10 @@ CREATE TABLE sessions (
 --   공통  : turn_no, speaker(AI|ELDER), text, created_at
 --   어르신: stt_confidence(0~1), input_type(VOICE|CHIP|BUTTON|TEXT — TEXT 는 글로 쓰기 D52), retried, reply_to_turn_no
 --   AI    : question_type(RECALL|REMEMBER|KNOWHOW|THEN_NOW|COMMON|RECHECK|CLOSING|NONE), latency_ms
---   출제  : question_code(문제 은행 code, 되짚기는 없음), hint_level(0~3), recheck_result(REMEMBERED|HINTED|SKIPPED|NA),
+--   출제  : question_code(문제 은행 code, AI 가 쓴 생각 문제는 'GEN-유형' 예 GEN-REMEMBER — D72, 되짚기는 없음),
+--           hint_level(0~3), recheck_result(REMEMBERED|HINTED|SKIPPED|NA),
 --           answer_summary — 14일 반복 방지는 최근 14일 세션의 question_code → question_bank.code 의 카테고리·활동,
---           둘 다 없는 문제(그때 vs 지금·공통)는 그 code 자체 (FR-AI-002, D39)
+--           둘 다 없는 문제(그때 vs 지금·공통)는 그 code 자체 (FR-AI-002, D39). 유형 돌리기는 90일 (D72)
 CREATE INDEX ix_sessions_room_started ON sessions(room_id, started_at);   -- S14
 CREATE INDEX ix_sessions_pick ON sessions(pick_id);                       -- S14
 ALTER TABLE daily_picks

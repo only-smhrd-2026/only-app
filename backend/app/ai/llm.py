@@ -1,4 +1,4 @@
-"""LLM 어댑터 (D4, D14). 시그니처 고정: call_json(prompt_name, data, Schema) -> Schema
+"""LLM 어댑터 (D4, D14). 시그니처 고정: call_json(prompt_name, data, Schema) -> Schema (사진 분류만 image= 를 더 넘김)
 
 - 지시는 system(prompts/<name>.md)에만, 데이터는 JSON 문자열로 user 메시지에 (구분자 없음 → 위조 불가).
 - 출력은 JSON 스키마로 강제하고 pydantic(Schema) 검사. 실패 1회 재시도, 재실패 시 LlmError (호출자가 고정 문장 사용).
@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import time
@@ -17,8 +18,8 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-from app.ai.schemas import BANNED_WORDS
-from app.config import LLM_PER_DAY, ROOT, WEEKLY_CARDS_MAX, settings
+from app.ai.schemas import BANNED_WORDS, TAXONOMY
+from app.config import CLASSIFY_PER_DAY, LLM_PER_DAY, ROOT, WEEKLY_CARDS_MAX, settings
 from app.security import daily_allowed
 
 log = logging.getLogger("app.ai")
@@ -37,27 +38,48 @@ class LlmError(RuntimeError):
     pass
 
 
+class LlmRefused(LlmError):
+    """모델이 답했지만 쓸 수 없음(거절·검사 2번 실패). 다시 불러도 같을 가능성이 높다.
+
+    LlmError 의 자식이라 기존 호출자는 그대로 고정 문장으로 간다. 사진 분류만 이것을 '분류 끝(none)'으로 본다 (D71).
+    """
+
+
 def load_prompt(prompt_name: str) -> str:
     """prompts/<name>.md + 금지어 목록 (NFR-DE-003). 금지어는 data/banned_words.json 한 곳에서 관리한다."""
     rule = (
         "\n\n# 금지어 (코드가 검사한다)\n다음 말은 어떤 경우에도 쓰지 않는다. 어르신 말에 들어 있으면 그 부분은 "
         f"다른 말로 바꾸거나 뺀다: {', '.join(BANNED_WORDS)}"
     )
-    return (PROMPTS_DIR / f"{prompt_name}.md").read_text("utf-8") + rule
+    text = (PROMPTS_DIR / f"{prompt_name}.md").read_text("utf-8")
+    if prompt_name == "classify_photo":  # 고르는 기준·목록은 taxonomy.json 한 곳 — 정답표 안내와 같은 글 (D71)
+        text += "\n\n# 분류 기준\n" + "\n".join(f"- {r}" for r in TAXONOMY["_rules"])
+        text += f"\n\n활동 목록: {', '.join(TAXONOMY['activity'])}\n주제 목록: {', '.join(TAXONOMY['category'])}"
+    return text + rule
 
 
-def call_json(prompt_name: str, data: dict[str, Any], schema: type[T]) -> T:
+def call_json(
+    prompt_name: str,
+    data: dict[str, Any],
+    schema: type[T],
+    *,
+    image: bytes | None = None,
+    timeout: float | None = None,
+) -> T:
+    """image = JPEG 바이트(사진 분류만, data 앞에 붙는다). timeout = 시도당 시간 상한(초), 없으면 프롬프트별 기본."""
     provider = settings.LLM_PROVIDER
     t0 = time.perf_counter()
     tokens = 0
+    # 사진 분류는 대화와 따로 센다 — 사진을 많이 올려도 어르신 대화가 고정 문장으로 바뀌지 않게 (D71)
+    kind, cap = ("classify", CLASSIFY_PER_DAY) if prompt_name == "classify_photo" else ("llm", LLM_PER_DAY)
     try:
         if provider == "mock":
             out = _mock(prompt_name, data, schema)
         elif provider == "anthropic":
-            if not daily_allowed("llm", LLM_PER_DAY):
+            if not daily_allowed(kind, cap):
                 log.warning("llm daily cap prompt=%s", prompt_name)
                 raise LlmError("하루 상한")  # 호출자가 고정 문장으로 이어 간다 (D14·D46)
-            out, tokens = _anthropic(prompt_name, data, schema)
+            out, tokens = _anthropic(prompt_name, data, schema, image, timeout)
         else:
             raise LlmError(f"LLM_PROVIDER={provider} 는 지원하지 않습니다")
     finally:
@@ -124,7 +146,9 @@ def _simplify(schema: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def _anthropic(prompt_name: str, data: dict[str, Any], schema: type[T]) -> tuple[T, int]:
+def _anthropic(
+    prompt_name: str, data: dict[str, Any], schema: type[T], image: bytes | None = None, timeout: float | None = None
+) -> tuple[T, int]:
     import anthropic  # 키가 있을 때만 쓰는 의존성
 
     if not settings.ANTHROPIC_API_KEY:
@@ -133,9 +157,15 @@ def _anthropic(prompt_name: str, data: dict[str, Any], schema: type[T]) -> tuple
     # SDK 재시도는 끈다: 기본값(재시도 2회, Retry-After 만큼 대기)이면 멈춘 호출 하나가 위 시간 상한을 훌쩍 넘긴다.
     # API 오류·시간 초과는 바로 LlmError → 호출자가 고정 문장(턴)이나 글만 초안(일기)으로 이어 간다.
     client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY, max_retries=0)
-    timeout = TURN_TIMEOUT_SEC if prompt_name in TURN_PROMPTS else OTHER_TIMEOUT_SEC
+    timeout = timeout or (TURN_TIMEOUT_SEC if prompt_name in TURN_PROMPTS else OTHER_TIMEOUT_SEC)
     system = load_prompt(prompt_name)
-    user = json.dumps(data, ensure_ascii=False)
+    user: Any = json.dumps(data, ensure_ascii=False)
+    if image is not None:  # 사진은 글(데이터) 앞에. 사진 속 글자도 지시가 아니라 데이터다 (D14, classify_photo.md)
+        b64 = base64.standard_b64encode(image).decode("ascii")
+        user = [
+            {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}},
+            {"type": "text", "text": user},
+        ]
     json_schema = _simplify(schema.model_json_schema())
     tokens = 0
     last_err: Exception | None = None
@@ -152,13 +182,13 @@ def _anthropic(prompt_name: str, data: dict[str, Any], schema: type[T]) -> tuple
                 },
                 timeout=timeout,
             )
-        except anthropic.APIError as e:
+        except anthropic.APIError as e:  # 400 도 여기 — 크레딧 부족도 400 이라 '다시 해도 같다'로 보지 않는다
             log.warning("llm api error prompt=%s attempt=%d type=%s", prompt_name, attempt, type(e).__name__)
             raise LlmError(type(e).__name__) from e
         tokens += response.usage.input_tokens + response.usage.output_tokens
         if response.stop_reason == "refusal":
             log.warning("llm refusal prompt=%s attempt=%d", prompt_name, attempt)
-            raise LlmError("refusal")
+            raise LlmRefused("refusal")
         raw = next((b.text for b in response.content if b.type == "text"), "")
         try:
             return schema.model_validate_json(raw), tokens
@@ -167,4 +197,4 @@ def _anthropic(prompt_name: str, data: dict[str, Any], schema: type[T]) -> tuple
             log.warning("llm validation prompt=%s attempt=%d len=%d", prompt_name, attempt, len(raw))
             last_err = e
             system += "\n\n[주의] 직전 답이 출력 규칙(금지어·물음표·글자 수·개수)을 어겼습니다. 규칙대로 다시 답하세요."
-    raise LlmError(f"검증 실패: {type(last_err).__name__}")
+    raise LlmRefused(f"검증 실패: {type(last_err).__name__}")

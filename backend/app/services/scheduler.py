@@ -4,6 +4,7 @@
 - 19:00 일기 알림 (천주웅)
 - 19:00 이틀째 기록 없음 가족 알림 (천주웅) — 기록 = 어르신이 말한 대화(models.ELDER_SPOKE)·어르신 일기
 - 일요일 19:00 주간 요약 (배선 천주웅, 요약 AI 홍진성)
+- 10분마다 분류 전 가족 사진 분류 (AI-04, 홍진성 — D71)
 compose 는 restart: unless-stopped, uvicorn --workers 1 전제 (잡이 두 번 돌지 않게).
 """
 
@@ -16,7 +17,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select
 
-from app.config import NO_RECORD_DAYS, TZ, WEEKLY_HOUR, now_kst, today_kst
+from app.ai import classify
+from app.config import CLASSIFY_EVERY_MIN, NO_RECORD_DAYS, TZ, WEEKLY_HOUR, now_kst, today_kst
 from app.db import SessionLocal
 from app.models import ELDER_SPOKE, DailyPick, Diary, FamilyRoom, Notification, TalkSession
 from app.routers.devices import notify_family
@@ -145,6 +147,14 @@ def weekly_summaries() -> None:
     log.info("job weekly_summaries rooms=%d failed=%d", len(room_ids), failed)
 
 
+def classify_photos() -> None:
+    """분류 전 가족 사진을 분류한다 (AI-04, D71). 한 번에 CLASSIFY_BATCH 장 — 남은 것은 다음 차례에."""
+    with SessionLocal() as db:
+        done, left = classify.run_pending(db)
+    if done or left:  # 할 일이 없을 때는 10분마다 줄을 남기지 않는다
+        log.info("job classify_photos done=%d left=%d", done, left)
+
+
 def catch_up() -> None:
     """기동 시 놓친 작업 보정 (D9). 예: 지난 일요일 주간 요약이 없으면 지금 생성. TODO(천주웅)."""
     log.info("catch_up: 아직 비어 있음")
@@ -164,6 +174,12 @@ def start() -> None:
         weekly_summaries,
         CronTrigger(day_of_week="sun", hour=WEEKLY_HOUR, minute=0, timezone=TZ),
         id="weekly_summaries",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        classify_photos,
+        CronTrigger(minute=f"*/{CLASSIFY_EVERY_MIN}", timezone=TZ),
+        id="classify_photos",
         replace_existing=True,
     )
     scheduler.start()

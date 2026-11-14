@@ -87,35 +87,61 @@ def test_photo_tags_threshold_none_and_correction():
     assert quiz.photo_tags(p) == (None, "김치 재료")
 
 
-# ---------------------------------------------------------------- 코치 (모델 출력 검사)
+# ---------------------------------------------------------------- 코치 (생각 문제, D72)
+# 모델이 그 유형으로 쓰고, 틀을 어기면 문제 은행 원문
 Q_OPEN = quiz.Quiz("KH-test-01", "KNOWHOW", "김장 배추는 몇 포기나 하셨어요?", None)
 Q_CHOICE = quiz.Quiz("KH-test-02", "KNOWHOW", "배추는 어떻게 절이셨어요?", ["소금물에", "통소금으로"])
 
 
-def test_quiz_text_is_bank_original(monkeypatch):
-    monkeypatch.setattr(
-        llm, "call_json", lambda *a: CoachTurn(text="딸이랑 하셨군요.", suggestions=["많이요", "조금요"])
-    )
-    reply, signal, _ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)
-    assert reply.text == f"딸이랑 하셨군요. {Q_OPEN.prompt_text}" and signal == "NONE"
-    assert reply.suggestions == ["많이요", "조금요"] and reply.question_type == "KNOWHOW"  # 넘기기 칩 없음 (D52 ⑧)
+def plan(qtype: str = "KNOWHOW", fallback: quiz.Quiz = Q_OPEN) -> quiz.QuizPlan:
+    return quiz.QuizPlan(qtype, fallback, "예시 문장", [])
 
-    reply, *_ = coach.next_question(CTX, QUIZ_TURN, Q_CHOICE)  # 2지선다는 선택지가 칩
-    assert reply.suggestions == ["소금물에", "통소금으로"]
 
-    monkeypatch.setattr(llm, "call_json", lambda *a: CoachTurn(text="딸이랑 하셨어요?", suggestions=[]))
-    reply, *_ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)  # 맞장구에 질문이 섞임 → 원문만
-    assert reply.text == Q_OPEN.prompt_text and reply.suggestions == coach.QUIZ_FALLBACK_CHIPS
+def test_generated_quiz_kept_when_it_fits_its_type(monkeypatch):
+    good = {
+        "KNOWHOW": "딸이랑 하셨군요. 배추는 어떻게 절이셨어요?",
+        "REMEMBER": "바다에 가셨군요. 바닷가에서 드시던 것, 생각나는 대로 말씀해 주세요.",
+        "THEN_NOW": "그러셨군요. 옛날 장터랑 요즘 시장은 뭐가 제일 달라요?",
+    }
+    for qtype, text in good.items():
+        monkeypatch.setattr(llm, "call_json", lambda *a, t=text: CoachTurn(text=t, suggestions=["소금물", "통소금"]))
+        reply, signal, _ = coach.next_question(CTX, QUIZ_TURN, plan(qtype))
+        assert (reply.text, reply.question_type, signal) == (text, qtype, "NONE")
+        assert reply.suggestions == ["소금물", "통소금"]
+        assert quiz.record_code(plan(qtype), reply.text) == f"GEN-{qtype}"  # 출제 기록 = GEN-유형
+    two = "그러셨군요. 아기는 업어서 재우셨어요, 안아서 재우셨어요?"  # 둘 중 고르기도 노하우
+    monkeypatch.setattr(llm, "call_json", lambda *a: CoachTurn(text=two, suggestions=["업어서", "안아서"]))
+    assert coach.next_question(CTX, QUIZ_TURN, plan())[0].text == two
 
-    two = CoachTurn(text="딸이랑 하셨군요. 정말 든든하셨겠어요.", suggestions=["네", "네", "다음에 할게요"])
-    monkeypatch.setattr(llm, "call_json", lambda *a: two)
-    reply, *_ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)  # 맞장구는 첫 문장만, 칩은 겹침·넘기기를 거름
-    assert reply.text == f"딸이랑 하셨군요. {Q_OPEN.prompt_text}"
-    assert reply.suggestions == ["네"]
+    ok = CoachTurn(text=good["KNOWHOW"], suggestions=["네", "네", coach.SKIP_CHIP])
+    monkeypatch.setattr(llm, "call_json", lambda *a: ok)
+    assert coach.next_question(CTX, QUIZ_TURN, plan())[0].suggestions == ["네"]  # 겹침·넘기기 칩은 거른다
+    monkeypatch.setattr(llm, "call_json", lambda *a: CoachTurn(text=good["KNOWHOW"], suggestions=[coach.SKIP_CHIP]))
+    assert coach.next_question(CTX, QUIZ_TURN, plan())[0].suggestions == coach.QUIZ_FALLBACK_CHIPS
 
-    monkeypatch.setattr(llm, "call_json", lambda *a: CoachTurn(text="네.", suggestions=[coach.SKIP_CHIP]))
-    reply, *_ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)  # 옛 넘기기 칩만 오면 기본 답 칩
-    assert reply.suggestions == coach.QUIZ_FALLBACK_CHIPS
+
+def test_generated_quiz_off_its_frame_falls_back_to_bank(monkeypatch):
+    off = [
+        ("KNOWHOW", "딸이랑 하셨군요."),  # 문제가 없음 (mock 과 같음)
+        ("KNOWHOW", "딸이랑 하셨어요?"),  # 그냥 회상 질문 — 노하우 말(어떻게·뭘·몇 …)도 둘 중 고르기도 없음
+        ("KNOWHOW", "그러셨군요. 이 사진은 몇 년도 같으세요?"),  # 연도 맞히기
+        ("KNOWHOW", "그러셨군요. 이분 성함이 어떻게 되세요?"),  # 이름 맞히기
+        ("REMEMBER", "그러셨군요. 바닷가 음식은 뭐가 있었어요?"),  # 떠올리기 틀('생각나는 대로')이 아님
+        ("THEN_NOW", "그러셨군요. 요즘 시장은 어떠세요?"),  # 그때가 없음
+    ]
+    for qtype, text in off:
+        monkeypatch.setattr(llm, "call_json", lambda *a, t=text: CoachTurn(text=t, suggestions=["네", "아니요"]))
+        reply, *_ = coach.next_question(CTX, QUIZ_TURN, plan(qtype))
+        assert reply.text.endswith(Q_OPEN.prompt_text) and reply.question_type == "KNOWHOW", text
+        assert reply.suggestions == coach.QUIZ_FALLBACK_CHIPS  # 모델 칩은 모델 문제용이라 쓰지 않는다
+        assert quiz.record_code(plan(qtype), reply.text) == Q_OPEN.code  # 출제 기록 = 은행 code
+
+    monkeypatch.setattr(llm, "call_json", lambda *a: CoachTurn(text="딸이랑 하셨군요. 정말 든든하셨겠어요."))
+    reply, *_ = coach.next_question(CTX, QUIZ_TURN, plan(fallback=Q_CHOICE))  # 맞장구는 첫 문장만
+    assert reply.text == f"딸이랑 하셨군요. {Q_CHOICE.prompt_text}"
+    assert reply.suggestions == ["소금물에", "통소금으로"]  # 2지선다 은행 문제는 선택지가 칩
+    monkeypatch.setattr(llm, "call_json", lambda *a: CoachTurn(text="딸이랑 하셨어요?"))
+    assert coach.next_question(CTX, QUIZ_TURN, plan())[0].text == Q_OPEN.prompt_text  # 질문 섞인 맞장구는 버림
 
 
 def test_llm_failure_still_asks_bank_question(monkeypatch):
@@ -123,9 +149,39 @@ def test_llm_failure_still_asks_bank_question(monkeypatch):
         raise llm.LlmError("timeout")
 
     monkeypatch.setattr(llm, "call_json", boom)
-    reply, signal, _ = coach.next_question(CTX, QUIZ_TURN, Q_OPEN)
+    reply, signal, _ = coach.next_question(CTX, QUIZ_TURN, plan())
     assert reply.text == Q_OPEN.prompt_text and reply.question_type == "KNOWHOW" and signal == "NONE"
     assert coach.next_question(CTX, 2) == (coach.FALLBACK_QUESTION, "NONE", False)
+
+
+def test_next_type_rotates_least_recent_first():
+    assert quiz.next_type(BANK, []) == "KNOWHOW"  # 안 낸 유형은 노하우 → 떠올리기 → 그때 vs 지금 순
+    assert quiz.next_type(BANK, [("GEN-KNOWHOW", yesterday())]) == "REMEMBER"
+    past = [("GEN-KNOWHOW", yesterday(-60)), ("RM-kimchi-01", yesterday()), ("TN-house-01", yesterday(10))]
+    assert quiz.next_type(BANK, past) == "KNOWHOW"  # 은행 문제도 그 유형으로 센다, 셋 다 냈으면 가장 오래된 것
+    assert quiz.next_type(BANK, [("CM-food-01", yesterday())]) == "KNOWHOW"  # 공통은 돌리기에 안 셈
+
+
+def test_same_activity_rotates_within_its_knowhow():
+    """같은 김장 사진을 15일마다 → 노하우 두 문제를 번갈아 (D72 — 전에는 늘 첫 문제만)."""
+    hist, codes = [], []
+    for day in (0, 15, 30, 45):
+        at = NOON_TODAY + timedelta(days=day)
+        q = quiz.choose(BANK, "김장", "김치 재료", hist, at.date())
+        codes.append(q.code)
+        hist.append((q.code, at))
+    assert codes == ["KH-kimjang-01", "KH-kimjang-02", "KH-kimjang-01", "KH-kimjang-02"]
+
+
+def test_season_topic_when_no_activity_or_category():
+    p = Photo(activity="none", category="none", season="WINTER", confidence=Decimal("0.90"), analyzed_at=now_kst())
+    assert quiz.photo_tags(p) == (None, "겨울 음식")
+    p.season = "AUTUMN"
+    assert quiz.photo_tags(p) == (None, None)  # 가을은 짝이 없다
+    p.season, p.confidence = "SPRING", Decimal("0.50")
+    assert quiz.photo_tags(p) == (None, None)  # 확신이 낮으면 계절도 쓰지 않는다
+    tax = json.loads((ROOT / "data" / "taxonomy.json").read_text("utf-8"))
+    assert set(quiz.SEASON_CATEGORY.values()) <= set(tax["category"])  # 주제 목록의 글자 그대로
 
 
 def test_signal_rules(monkeypatch):
@@ -204,7 +260,9 @@ def test_fourth_question_is_quiz_recorded_once(client, question_bank, monkeypatc
     assert r["turn_no"] == QUIZ_TURN and r["ai"]["question_type"] == q["qtype"] in ("THEN_NOW", "COMMON")
     assert r["ai"]["text"] == f"아, 그러셨군요. {q['prompt_text']}"  # mock 맞장구 + 원문
     assert coach.SKIP_CHIP not in r["ai"]["suggestions"] and len(r["ai"]["suggestions"]) <= 2  # 답 칩만 (D52 ⑧)
-    assert sent[QUIZ_TURN - 1]["quiz"]["prompt_text"] == q["prompt_text"]
+    assert (
+        sent[QUIZ_TURN - 1]["quiz"]["type"] in quiz.GEN_TYPES
+    )  # 모델은 유형을 받아 쓰고, mock 은 틀을 못 지켜 은행 원문
 
     r = _answer(client, sid, 1, "다음에 할게요")  # 말로 넘기면 회상으로. 다음 턴 모델은 문제였던 턴을 안다
     assert r["ai"]["question_type"] == "RECALL"
@@ -342,6 +400,32 @@ def test_model_output_limits():
     assert CoachReply(
         text="오늘은 뭐 하셨어요?", suggestions=["밖에 다녀왔어요"]
     ).suggestions  # 고정 답(코드)은 12자까지
+
+
+def test_generated_quiz_recorded_as_gen_and_types_rotate(client, question_bank, monkeypatch):
+    """모델이 틀을 지킨 생각 문제 → 출제 기록 GEN-유형, 다음 대화는 다른 유형, 최근 문제를 넘긴다 (D72)."""
+    good = {
+        "KNOWHOW": "그러셨군요. 그때 음식은 어떻게 준비하셨어요?",
+        "REMEMBER": "그러셨군요. 그날 드시던 것, 생각나는 대로 말씀해 주세요.",
+        "THEN_NOW": "그러셨군요. 옛날 잔치랑 요즘 잔치는 뭐가 달라요?",
+    }
+    real, seen = llm.call_json, []
+
+    def fake(name, data, schema):
+        if name == "memory_coach" and data.get("quiz"):
+            seen.append(data["quiz"])
+            return CoachTurn(text=good[data["quiz"]["type"]], suggestions=["네", "아니요"])
+        return real(name, data, schema)
+
+    monkeypatch.setattr(llm, "call_json", fake)
+    ctx = setup_elder(client)
+    sids = [_create(client, ctx) for _ in range(3)]
+    ais = [_answer(client, sid, QUIZ_TURN - 1)["ai"] for sid in sids]
+    assert [a["question_type"] for a in ais] == ["KNOWHOW", "REMEMBER", "RECALL"]  # 유형을 돌리고, 하루 2문제
+    assert ais[0]["text"] == good["KNOWHOW"] and ais[0]["suggestions"] == ["네", "아니요"]
+    codes = [t["question_code"] for sid in sids[:2] for t in _turns(sid)[0] if t.get("question_code")]
+    assert codes == ["GEN-KNOWHOW", "GEN-REMEMBER"]
+    assert seen[0]["recent"] == [] and seen[1]["recent"] == [good["KNOWHOW"]]  # 같은 주제를 피하게
 
 
 def test_recall_reply_has_two_chips(monkeypatch):

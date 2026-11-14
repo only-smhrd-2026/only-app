@@ -139,6 +139,7 @@ class Photo(Base):
     corrected_at: Mapped[datetime | None] = mapped_column(TS)
     model_version: Mapped[str | None] = mapped_column(String(30))
     analyzed_at: Mapped[datetime | None] = mapped_column(TS)  # None = 아직 분류 전
+    ai_scene: Mapped[str | None] = mapped_column(String(100))  # 분류 AI 가 본 '보이는 모습' 한 줄 — 대화 재료 (D71)
 
 
 class DailyPick(Base):
