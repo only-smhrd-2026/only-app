@@ -20,6 +20,7 @@ import ELDER_MEMORY_001 from './screens/elder/ELDER_MEMORY_001'
 import ELDER_MOOD_002 from './screens/elder/ELDER_MOOD_002'
 import GROUP_001 from './screens/family/GROUP_001'
 import GROUP_002 from './screens/family/GROUP_002'
+import GROUP_004 from './screens/family/GROUP_004'
 import HOME_001 from './screens/family/HOME_001'
 import JOIN_001 from './screens/family/JOIN_001'
 import LOGIN_001 from './screens/family/LOGIN_001'
@@ -53,6 +54,8 @@ export const SCREENS: ScreenDef[] = [
   { id: 'GROUP_001', path: '/groups/new', title: '가족방 만들기', Screen: GROUP_001 },
   { id: 'GROUP_002', path: '/groups/:roomId/members', title: '구성원', Screen: GROUP_002 },
   { id: 'GROUP_003', path: '/groups/:roomId/settings', title: '가족방 설정' },
+  // 11/14 밤 새 화면 — 가족방 탭의 하위 화면: 올린 사진 + AI 가 본 것 + 활동 고치기 (D73, 목업 ⑦)
+  { id: 'GROUP_004', path: '/groups/:roomId/photos', title: '올린 사진', Screen: GROUP_004 },
   { id: 'HOME_001', path: '/', title: '가족 홈', Screen: HOME_001 },
   { id: 'HOME_002', path: '/diaries/:diaryId', title: '일기 상세' },
   { id: 'UPLOAD_001', path: '/upload', title: '사진 올리기', Screen: UPLOAD_001 },
@@ -92,7 +95,7 @@ function Start() {
 // 가족 탭 첫 화면 5개는 공통 틀(위 막대·아래 탭, D70) 안에 들어간다. 가족방 탭은 지금 구성원 화면(월요일 팀이 한 화면으로)
 const TAB_SCREENS = new Set(['HOME_001', 'UPLOAD_001', 'FDIARY_001', 'WEEKLY_001', 'GROUP_002'])
 // 그 밖의 가족 화면은 위 ← 만 있는 하위 화면 틀(D70). 로그인·참여는 틀 없이(목업 '설계서대로')
-const SUB_SCREENS = new Set(['GROUP_001', 'GROUP_003', 'HOME_002', 'UPLOAD_002', 'UPLOAD_003', 'FDIARY_002', 'FDIARY_003', 'NOTI_001'])
+const SUB_SCREENS = new Set(['GROUP_001', 'GROUP_003', 'GROUP_004', 'HOME_002', 'UPLOAD_002', 'UPLOAD_003', 'FDIARY_002', 'FDIARY_003', 'NOTI_001'])
 const route = ({ id, path, title, Screen }: ScreenDef) => (
   <Route key={id} path={path} element={Screen ? <Screen /> : <NotYet id={id} title={title} />} />
 )

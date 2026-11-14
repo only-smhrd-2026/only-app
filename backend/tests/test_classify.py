@@ -147,7 +147,7 @@ def test_mock_never_calls_vision(client, monkeypatch):
     ctx = setup_elder(client)
     with SessionLocal() as db:
         assert classify.run_pending(db) == (0, 0)
-        assert classify.classify(db, db.get(Photo, ctx["photo_ids"][0])) is False
+        assert classify.classify(db.get(Photo, ctx["photo_ids"][0])) is False
 
 
 class FakeClaude:
@@ -293,3 +293,44 @@ def test_kimjang_photo_gets_kimjang_knowhow_end_to_end(client, question_bank, vi
     with SessionLocal() as db:
         turns = db.get(TalkSession, uuid.UUID(sid)).turns
     assert [t["question_code"] for t in turns if t.get("question_code")][0].startswith("KH-kimjang-")
+
+
+def test_photo_list_shows_ai_label_and_family_fix(client, vision):
+    """가족방 탭 '올린 사진'(D73): 목록에 AI 가 본 활동·모습, 가족이 고친 활동은 다음 대화 데이터로."""
+    ctx = setup_elder(client)
+    room, first = ctx["room_id"], ctx["photo_ids"][0]
+    real_files(ctx["photo_ids"])
+    only_these_pending(ctx["photo_ids"])
+
+    def listed() -> dict:
+        r = client.get(f"/api/rooms/{room}/photos")
+        assert r.status_code == 200, r.text
+        return {p["photo_id"]: p for p in r.json()["photos"]}
+
+    before = listed()[first]
+    assert (before["source"], before["analyzed"], before["ai_activity"], before["ai_scene"]) == (
+        "FAMILY",
+        False,
+        None,
+        None,
+    )
+    vision(KIMJANG, KIMJANG, KIMJANG)
+    with SessionLocal() as db:
+        assert classify.run_pending(db) == (3, 0)
+    after = listed()[first]
+    assert (after["analyzed"], after["ai_activity"], after["ai_scene"]) == (True, "김장", KIMJANG.scene)
+    assert after["corrected_activity"] is None
+
+    r = client.patch(f"/api/rooms/{room}/photos/{first}/correction", json={"corrected_activity": "장 담그기"})
+    assert r.status_code == 200, r.text
+    assert (r.json()["corrected_activity"], r.json()["ai_activity"]) == (
+        "장 담그기",
+        "김장",
+    )  # AI 가 본 것은 그대로 둔다
+    with SessionLocal() as db:
+        talk = TalkSession(kind="MEMORY", photo_id=first, turns=[])
+        assert sessions.coach_context(db, db.get(FamilyRoom, room), talk).photo["activity"] == "장 담그기"
+    client.patch(f"/api/rooms/{room}/photos/{first}/correction", json={"corrected_activity": "none"})
+    with SessionLocal() as db:
+        talk = TalkSession(kind="MEMORY", photo_id=first, turns=[])
+        assert sessions.coach_context(db, db.get(FamilyRoom, room), talk).photo["activity"] is None  # 맞는 것 없음

@@ -13,6 +13,12 @@ class PhotoOut(BaseModel):
     caption: str | None
     people_note: str | None
     status: str
+    # 가족방 탭 '올린 사진'(GROUP_004)이 쓰는 AI 분류 (D71·D73). 분류 전이면 analyzed=false 이고 ai_* 는 null
+    source: str = "FAMILY"  # FAMILY | ELDER_CAMERA | FAMILY_DIARY
+    analyzed: bool = False
+    ai_activity: str | None = None  # 분류 AI 가 본 활동(data/taxonomy.json 의 글자 또는 'none')
+    ai_scene: str | None = None  # 분류 AI 가 본 '보이는 모습' 한 줄
+    corrected_activity: str | None = None  # 가족이 고친 활동('none' = 맞는 것 없음) — 있으면 AI 활동보다 먼저
 
 
 class PhotoBatchOut(BaseModel):

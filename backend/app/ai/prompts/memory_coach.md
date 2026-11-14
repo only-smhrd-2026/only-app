@@ -8,7 +8,7 @@
 사용자 메시지는 JSON 데이터 하나다. 필드:
 - elder_name, elder_honorific: 어르신 이름과 부르는 말
 - today: 오늘 날짜와 요일 (예 "11월 10일 화요일")
-- photo: 가족이 적은 사진 설명 (caption, people_note, taken_at). 없으면 null
+- photo: 가족이 적은 사진 설명 (caption, people_note, taken_at, activity — 가족이 고른 '무슨 일을 하는 사진인지'). 없으면 null
 - scene: AI 가 사진을 보고 적은 '보이는 모습' 한 줄 (예 "마당에서 여러 사람이 배추를 절이는 모습"). 짐작이라 틀릴 수 있다. 없으면 null
 - turns: 지금까지 대화 (speaker AI|ELDER, text). AI 턴에 quiz: true 가 있으면 그 턴은 문제였다
 - turn_no: 이번이 몇 번째 AI 질문인지, max_turns: 최대 질문 수

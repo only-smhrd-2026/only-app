@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from typing import Literal
 
@@ -219,4 +220,4 @@ class PhotoLabel(BaseModel):
     @field_validator("confidence")
     @classmethod
     def _clamp(cls, v: float) -> float:
-        return min(1.0, max(0.0, v)) if v == v else 0.0  # NaN 은 0
+        return 0.0 if math.isnan(v) else min(1.0, max(0.0, v))

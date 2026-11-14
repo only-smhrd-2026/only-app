@@ -52,7 +52,7 @@ def _store(photo: Photo, label: PhotoLabel | None) -> None:
     photo.ai_scene = label.scene or None
 
 
-def classify(db, photo: Photo, timeout: float | None = None) -> bool:
+def classify(photo: Photo, timeout: float | None = None) -> bool:
     """사진 1장을 분류해 칸을 채운다(커밋은 호출자). 분류가 끝났으면 True, 분류 전 그대로면 False."""
     if settings.LLM_PROVIDER == "mock":
         return False
@@ -97,7 +97,7 @@ def run_pending(db) -> tuple[int, int]:
     ).all()
     done = fails = 0
     for photo in photos:
-        if classify(db, photo):
+        if classify(photo):
             db.commit()
             done, fails = done + 1, 0
         else:

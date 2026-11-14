@@ -100,6 +100,12 @@ export default function GROUP_002() {
   return (
     <main className="page fam-skin">
       <h1>{room.elder_name} {room.elder_honorific} 가족방</h1>
+      {/* 올린 사진 + AI 가 본 것 (GROUP_004, D73). 월요일 새 모양에서는 목업 ⑦ 의 '올린 사진 n장 ›' 줄 */}
+      <section className="card">
+        <p><strong>올린 사진 {room.photo_count}장</strong></p>
+        <p className="muted">AI 가 사진을 보고 이야기 거리를 찾아요 · 틀리면 고쳐 주세요</p>
+        <Link className="btn secondary" to={`/groups/${roomId}/photos`}>올린 사진 보기</Link>
+      </section>
       <section className="card">
         <p><strong>초대 링크</strong></p>
         {!room.is_owner ? (

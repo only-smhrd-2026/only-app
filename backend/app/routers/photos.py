@@ -118,6 +118,7 @@ def to_jpeg(data: bytes) -> tuple[bytes, date | None]:
 
 
 def photo_out(p: Photo) -> PhotoOut:
+    analyzed = p.analyzed_at is not None
     return PhotoOut(
         photo_id=p.photo_id,
         url=f"/api/media/{p.object_key}",
@@ -125,6 +126,11 @@ def photo_out(p: Photo) -> PhotoOut:
         caption=p.caption,
         people_note=p.people_note,
         status=p.status,
+        source=p.source,
+        analyzed=analyzed,
+        ai_activity=p.activity if analyzed else None,  # 분류 AI 가 본 것 그대로 (가족방 탭 '올린 사진', D73)
+        ai_scene=p.ai_scene if analyzed else None,
+        corrected_activity=p.corrected_activity,
     )
 
 
