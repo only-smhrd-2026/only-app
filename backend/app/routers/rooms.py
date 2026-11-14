@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Request
 from sqlalchemy import distinct, func, select
+from sqlalchemy.orm import Session
 
 from app.config import now_kst
 from app.deps import DB, CurrentUser, require_member, require_owner
@@ -33,9 +34,26 @@ INVITE_COLS = {
 }
 
 
-def room_out(room: FamilyRoom, user_id: int) -> RoomOut:
+def family_photo_count(db: Session, room_id: int) -> int:
+    """가족이 올린 사진 수(지운 것 빼고, 같은 사진은 1장). 기기 링크 조건과 가족 홈 '시작 3단계'(D70)가 같이 쓴다."""
+    return db.scalar(
+        select(func.count(distinct(Photo.object_key))).where(
+            Photo.room_id == room_id, Photo.status == "ACTIVE", Photo.source == "FAMILY"
+        )
+    )
+
+
+def room_out(room: FamilyRoom, user_id: int, db: Session) -> RoomOut:
     out = RoomOut.model_validate(room)
     out.is_owner = room.owner_user_id == user_id
+    # ponytail: 가족방마다 셈 2번(목록이면 방 수만큼) — 한 사람의 가족방은 몇 개뿐. 늘면 group_by 한 번으로
+    out.photo_count = family_photo_count(db, room.room_id)
+    out.member_count = db.scalar(
+        select(func.count(RoomMember.member_id)).where(
+            RoomMember.room_id == room.room_id, RoomMember.removed_at.is_(None)
+        )
+    )
+    out.device_connected = room.device_token_hash is not None
     return out
 
 
@@ -54,7 +72,7 @@ def create_room(body: RoomCreateIn, user: CurrentUser, db: DB):
     )
     db.commit()
     db.refresh(room)
-    return room_out(room, user.user_id)
+    return room_out(room, user.user_id, db)
 
 
 @router.get("", response_model=list[RoomOut])
@@ -69,7 +87,7 @@ def list_rooms(user: CurrentUser, db: DB):
         )
         .order_by(FamilyRoom.room_id)
     ).all()
-    return [room_out(r, user.user_id) for r in rooms]
+    return [room_out(r, user.user_id, db) for r in rooms]
 
 
 @router.get("/{room_id}/members", response_model=list[MemberOut])
@@ -102,12 +120,7 @@ def create_invite(room_id: int, body: InviteCreateIn, request: Request, user: Cu
     room = require_owner(room_id, user, db)
     now = now_kst()
     if body.kind == "ELDER_DEVICE":
-        n = db.scalar(
-            select(func.count(distinct(Photo.object_key))).where(
-                Photo.room_id == room_id, Photo.status == "ACTIVE", Photo.source == "FAMILY"
-            )
-        )
-        if (n or 0) < ELDER_DEVICE_MIN_PHOTOS:
+        if family_photo_count(db, room_id) < ELDER_DEVICE_MIN_PHOTOS:
             raise ApiError(409, "NEED_PHOTOS", "사진을 3장 이상 올린 뒤에 어르신 기기를 연결할 수 있어요")
         expires_at, path = now + timedelta(hours=24), "elder/connect"
     else:
@@ -170,7 +183,7 @@ def update_settings(room_id: int, body: RoomSettingsIn, user: CurrentUser, db: D
     for key, value in changed.items():
         setattr(room, key, value)
     db.commit()
-    return room_out(room, user.user_id)
+    return room_out(room, user.user_id, db)
 
 
 @router.delete("/{room_id}/members/{user_id}", response_model=OkOut)

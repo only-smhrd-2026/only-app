@@ -28,6 +28,11 @@ class RoomOut(BaseModel):
     device_input_mode: str  # VOICE | BUTTON — 가족방 설정 화면(GROUP_003)이 지금 값을 보여 준다
     status: str
     is_owner: bool = False
+    # 가족 홈 '시작 3단계'·어르신 바꾸기 판 (D70). 사진 수는 기기 링크 조건(사진 3장)과 같은 셈
+    photo_count: int = 0
+    member_count: int = 0
+    device_connected: bool = False  # 어르신 폰이 연결돼 있는지
+    device_last_seen_at: datetime | None = None  # 그 폰이 마지막으로 서버에 온 때 (5분마다 갱신, deps.py)
 
 
 class MemberOut(BaseModel):

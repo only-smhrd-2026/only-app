@@ -14,6 +14,11 @@ export type RoomOut = {
   device_input_mode: 'VOICE' | 'BUTTON'
   status: string
   is_owner: boolean
+  // 가족 홈 '시작 3단계'·어르신 바꾸기 판 (D70). 사진 수는 기기 링크 조건(사진 3장)과 같은 셈
+  photo_count: number
+  member_count: number
+  device_connected: boolean
+  device_last_seen_at: string | null // 어르신 폰이 마지막으로 서버에 온 때 (5분마다 갱신)
 }
 /** PATCH /api/rooms/{room_id}/settings (방장만). 보낸 칸만 바뀐다. 추억 시간은 정각만, 말 속도는 글자로 */
 export type RoomSettingsIn = {

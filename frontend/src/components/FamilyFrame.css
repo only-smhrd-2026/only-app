@@ -1,0 +1,83 @@
+/* 가족 화면 공통 틀 (D70) — 값은 목업 설계자료/목업_1115_가족 의 .fam 그대로: 색 ① 보라·파스텔, 회색 바탕 + 흰 카드.
+   글꼴 Pretendard(OFL, public/fonts — KS X 1001 한글 부분 글자판 4굵기. 그 밖의 글자는 시스템 글꼴로 보인다) */
+@font-face { font-family: Pretendard; font-weight: 400; font-display: swap; src: url('/fonts/Pretendard-Regular.subset.woff2') format('woff2'); }
+@font-face { font-family: Pretendard; font-weight: 600; font-display: swap; src: url('/fonts/Pretendard-SemiBold.subset.woff2') format('woff2'); }
+@font-face { font-family: Pretendard; font-weight: 700; font-display: swap; src: url('/fonts/Pretendard-Bold.subset.woff2') format('woff2'); }
+@font-face { font-family: Pretendard; font-weight: 800; font-display: swap; src: url('/fonts/Pretendard-ExtraBold.subset.woff2') format('woff2'); }
+
+.fam {
+  --bg:#f4f3f8; --surface:#ffffff; --text:#1f1b2e; --text-2:#5d5970; --text-3:#8f8ba1;
+  --line:#e7e3f1; --primary:#5b3fa8; --on-primary:#ffffff; --tint:#efeafb; --tint-2:#f8f6fd;
+  --ok:#2f7a4f; --danger:#e5484d; --r:20px; --gut:16px;
+  --t1:#ece6fb; --t1e:#5b3fa8; --t2:#fde7ef; --t2e:#a8275f; --t3:#fff1cf; --t3e:#8a5a00; --t4:#e2f4e5; --t4e:#1f6b3a;
+  --font: Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
+  display:flex; flex-direction:column; height:100dvh; max-width:520px; margin:0 auto;
+  background:var(--bg); color:var(--text); font:15px/1.5 var(--font); letter-spacing:-.01em; word-break:keep-all;
+  -webkit-font-smoothing:antialiased;
+}
+.fam button, .fam input, .fam select, .fam textarea { font-family:var(--font); letter-spacing:inherit; }
+.fam h1, .fam h2, .fam h3, .fam p { margin:0; }
+.fam-ic { flex:none; width:20px; height:20px; }
+
+/* 위 막대 — 지금 보는 어르신 + 종 (아이폰 앱 화면은 위 안전 영역만큼 내린다) */
+.fam-bar { flex:none; display:flex; align-items:center; gap:2px; min-height:56px; padding:env(safe-area-inset-top,0px) 6px 0 10px; background:var(--bg); }
+.fam-bar--sub { padding-left:4px; }
+.fam-switch { display:flex; align-items:center; gap:9px; min-height:44px; border:0; background:none; padding:4px 8px 4px 4px; border-radius:14px; color:var(--text); font-size:18.5px; font-weight:800; letter-spacing:-.03em; }
+.fam-switch:active { background:var(--tint); }
+.fam-chev { width:18px; height:18px; color:var(--text-3); }
+.fam-brand { padding:0 6px; color:var(--primary); font-size:19px; font-weight:800; letter-spacing:-.03em; }
+.fam-grow { flex:1; }
+.fam-icon-btn { position:relative; flex:none; width:44px; height:44px; display:grid; place-items:center; border:0; background:none; border-radius:999px; color:var(--text); }
+.fam-icon-btn:active { background:var(--tint); }
+.fam-icon-btn .fam-ic { width:24px; height:24px; }
+.fam-badge { position:absolute; top:5px; right:4px; min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:var(--danger); color:#fff; font:700 11px/18px var(--font); font-style:normal; text-align:center; box-shadow:0 0 0 2px var(--bg); }
+
+/* 본문 — 이 칸만 스크롤 */
+.fam-body { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+/* 틀 안에 들어온 옛 화면(사진 올리기·주간 이야기·가족방 — 월요일 팀이 새 모양으로): 화면 높이·바탕은 틀이 맡는다 */
+.fam-body .fam-skin { min-height:0; background:transparent; }
+
+/* 아래 탭 5개 — 고른 탭은 보라 알약 (아이폰 홈 막대만큼 아래 여백) */
+.fam-tabs { flex:none; display:grid; grid-template-columns:repeat(5,1fr); background:var(--surface); border-top:1px solid var(--line); padding:7px 2px calc(9px + env(safe-area-inset-bottom,0px)); }
+.fam-tab { display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--text-3); font-size:11.5px; font-weight:600; letter-spacing:-.04em; text-decoration:none; }
+.fam-pill { width:54px; height:30px; display:grid; place-items:center; border-radius:999px; transition:background .15s; }
+.fam-tab .fam-ic { width:23px; height:23px; }
+.fam-tab.on { color:var(--primary); font-weight:800; }
+.fam-tab.on .fam-pill { background:var(--tint); }
+
+/* 얼굴 동그라미 — 이름 첫 글자 */
+.fam-av { flex:none; width:36px; height:36px; border-radius:999px; display:grid; place-items:center; font-size:15px; font-weight:800; letter-spacing:0; }
+.fam-av--s { width:30px; height:30px; font-size:13.5px; }
+.fam-tone-a { background:var(--t1); color:var(--t1e); }
+.fam-tone-b { background:var(--t2); color:var(--t2e); }
+.fam-tone-c { background:var(--t3); color:var(--t3e); }
+.fam-tone-d { background:var(--t4); color:var(--t4e); }
+
+/* 공통 카드·버튼 — 가족 홈이 쓰고, 월요일 팀 가족 화면도 같이 쓴다 */
+.fam-stack { display:flex; flex-direction:column; gap:12px; padding:2px 0 28px; }
+.fam-card { background:var(--surface); border-radius:var(--r); margin:0 var(--gut); }
+.fam-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; height:50px; padding:0 18px; border:0; border-radius:14px; font-size:16px; font-weight:700; text-decoration:none; cursor:pointer; }
+.fam-btn--primary { background:var(--primary); color:var(--on-primary); }
+.fam-btn--tonal { background:var(--tint); color:var(--primary); }
+.fam-btn--sm { height:36px; padding:0 13px; border-radius:11px; font-size:14px; }
+.fam-btn--block { display:flex; width:100%; }
+.fam-btn:disabled { opacity:.5; }
+.fam-btn .fam-ic { width:20px; height:20px; }
+.fam-text-btn { border:0; background:none; padding:10px; color:var(--primary); font-size:14.5px; font-weight:700; }
+.fam-error { margin:16px var(--gut); color:var(--danger); font-size:14px; }
+
+/* 어르신 바꾸기 판 — 아래에서 올라옴 */
+.fam-scrim { position:fixed; inset:0; z-index:5; border:0; padding:0; background:rgba(18,16,28,.42); animation:fam-fade .18s; }
+.fam-sheet { position:fixed; left:0; right:0; bottom:0; z-index:6; max-width:520px; margin:0 auto; background:var(--surface); border-radius:24px 24px 0 0; padding:8px 8px calc(14px + env(safe-area-inset-bottom,0px)); animation:fam-up .24s cubic-bezier(.2,.8,.2,1); }
+.fam-grab { display:block; width:40px; height:4px; border-radius:9px; background:#d6d2e2; margin:2px auto 14px; }
+.fam-sheet h2 { margin:0 12px 8px; font-size:17px; letter-spacing:-.02em; }
+.fam-opt { display:flex; align-items:center; gap:12px; width:100%; padding:12px; border:0; background:none; border-radius:14px; color:var(--text); text-align:left; }
+.fam-opt.on { background:var(--tint-2); }
+.fam-opt > span:not(.fam-av):not(.fam-add) { flex:1; display:flex; flex-direction:column; line-height:1.35; }
+.fam-opt b { font-size:16px; }
+.fam-opt small { color:var(--text-3); font-size:13px; }
+.fam-ok { color:var(--primary); width:22px; height:22px; }
+.fam-add { flex:none; width:36px; height:36px; border-radius:999px; display:grid; place-items:center; background:#f0eef5; color:var(--text-2); }
+.fam-me { display:flex; align-items:center; gap:2px; margin:6px 12px 0; padding-top:6px; border-top:1px solid var(--line); color:var(--text-2); font-size:14px; }
+@keyframes fam-up { from { transform:translateY(100%); } }
+@keyframes fam-fade { from { opacity:0; } }
