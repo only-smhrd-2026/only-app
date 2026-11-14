@@ -2,11 +2,13 @@
  * WEEKLY_001 — 주간 이야기 (FR-FD-007). 집계 숫자(이야기한 날·일기 쓴 날·기분 날씨 7칸)와
  * 주간 요약 AI 의 질문·답 카드(최대 4장, D62)·안부 한 줄. 점수처럼 보이게 쓰지 않는다(NFR-DE-003).
  */
+import { useEffect } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import type { WeeklyOut } from '../../api/types'
 import ElderPhoto from '../../components/ElderPhoto'
 import MoodIcon from '../../components/MoodIcon'
 import { useFetch } from '../../hooks/useFetch'
+import { markWeeklySeen } from '../../lib/weeklySeen'
 import './WEEKLY_001.css'
 
 // 'YYYY-MM-DD' 뒤에 T00:00:00 을 붙여야 날짜가 하루 밀리지 않는다
@@ -15,6 +17,10 @@ const day = (iso: string, opts: Intl.DateTimeFormatOptions) => new Date(iso + 'T
 export default function WEEKLY_001() {
   const { roomId } = useParams()
   const { data, error, reload } = useFetch<WeeklyOut>('/api/rooms/' + roomId + '/weekly')
+  // 본 주는 가족 홈 '도착했어요' 띠를 다시 띄우지 않는다 (D70, lib/weeklySeen)
+  useEffect(() => {
+    if (data) markWeeklySeen(Number(roomId), data.week_start)
+  }, [data, roomId])
 
   if (error?.status === 401) return <Navigate to="/login" replace />
   if (error?.code === 'WEEKLY_NOT_FOUND')

@@ -1,0 +1,92 @@
+/* HOME_001 가족 홈 (D70) — 목업 설계자료/목업_1115_가족 의 마음 카드·주간 띠·일기 카드·시작 3단계 값 그대로.
+   색 변수·카드·버튼·얼굴 동그라미는 components/FamilyFrame.css (그쪽 .fam h3·.fam p 의 margin 0 보다 세게 두 겹으로 쓴 곳이 있다) */
+.fam-stack .home-day-h { margin:6px var(--gut) -4px; color:var(--text-3); font-size:13px; font-weight:700; }
+
+/* 마음 카드 — 한 줄 요약, 누르면 펼침 (11/14 사용자) */
+.home-mood { padding:12px 8px 12px 16px; }
+.home-mood-row { display:flex; align-items:center; gap:8px; }
+.home-mood-main { flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; border:0; background:none; padding:2px 0; color:var(--text); text-align:left; line-height:1.35; }
+.home-mood-main b { font-size:16px; letter-spacing:-.02em; }
+.home-mood-main small { color:var(--text-2); font-size:13px; }
+.home-round { flex:none; width:40px; height:40px; border-radius:999px; display:grid; place-items:center; background:var(--primary); color:var(--on-primary); }
+.home-round .fam-ic { width:19px; height:19px; }
+.home-chev { flex:none; width:36px; height:40px; display:grid; place-items:center; border:0; background:none; border-radius:12px; color:var(--text-3); }
+.home-chev .fam-ic { transition:transform .2s; }
+.home-mood.open .home-chev .fam-ic { transform:rotate(180deg); }
+.home-mood-more { display:flex; flex-direction:column; gap:12px; padding:14px 8px 4px 0; }
+.home-week { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; text-align:center; }
+.home-day { display:flex; flex-direction:column; align-items:center; gap:6px; padding:8px 0 9px; border-radius:12px; color:var(--text-2); font-size:12px; }
+.home-day b { font-weight:600; }
+.home-day i { width:7px; height:7px; border-radius:50%; background:#dcd7e8; }
+.home-day i.on { background:var(--primary); }
+.home-day .elder-ic { width:22px; height:22px; color:var(--text); }
+.home-day s { display:block; width:22px; height:22px; line-height:22px; color:var(--text-3); text-decoration:none; }
+.home-day.low { background:var(--tint-2); outline:1.5px dashed #b4a6dd; outline-offset:-1.5px; }
+.home-day.today b { color:var(--primary); font-weight:800; }
+.home-legend { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; color:var(--text-3); font-size:12px; }
+.home-legend span { display:inline-flex; align-items:center; gap:5px; }
+.home-legend i { width:7px; height:7px; border-radius:50%; background:var(--primary); }
+.home-legend em { width:14px; height:10px; border-radius:4px; outline:1.5px dashed #b4a6dd; outline-offset:-1.5px; }
+.home-check { display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:12px; background:var(--tint-2); font-size:14px; }
+.home-check .fam-ic { width:18px; height:18px; color:var(--t2e); }
+.home-fine { color:var(--text-3); font-size:12.5px; line-height:1.55; }
+
+/* 주간 이야기 도착 띠 — 새로 왔고 아직 안 본 동안만 (11/14 사용자) */
+.home-banner { display:flex; align-items:center; gap:12px; margin:0 var(--gut); padding:14px 12px 14px 14px; border:0; border-radius:var(--r); background:linear-gradient(120deg,#ece5fc,#fbeaf2); color:var(--text); text-align:left; }
+.home-banner-ic { flex:none; width:42px; height:42px; border-radius:14px; display:grid; place-items:center; background:#fff; color:var(--primary); }
+.home-banner-txt { flex:1; display:flex; flex-direction:column; line-height:1.35; }
+.home-banner-txt b { font-size:15.5px; }
+.home-banner-txt small { color:var(--text-2); font-size:13px; }
+.home-banner-chev { color:var(--text-3); }
+
+/* 일기 카드 — 큰 사진, 자르지 않고 4:3 칸에 맞춤 (11/14 사용자) */
+.home-post { display:flex; flex-direction:column; gap:11px; padding:14px 0; overflow:hidden; }
+.home-post-h { display:flex; align-items:center; gap:10px; padding:0 16px; }
+.home-post-who { flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.3; }
+.home-post-who b { display:flex; align-items:center; gap:6px; font-size:15px; letter-spacing:-.02em; }
+.home-post-who small { color:var(--text-3); font-size:12.5px; }
+.home-new { padding:1px 7px; border-radius:999px; background:var(--tint); color:var(--primary); font-size:11px; font-style:normal; font-weight:800; letter-spacing:0; }
+.home-post-mood { display:flex; align-items:center; gap:4px; color:var(--text-2); font-size:12.5px; }
+.home-post-mood .elder-ic { width:18px; height:18px; }
+.home-post-photo { position:relative; display:block; margin:0 16px; padding:0; border:0; border-radius:14px; overflow:hidden; aspect-ratio:4/3; background:#f1eff6; }
+.home-post-photo img { display:block; width:100%; height:100%; object-fit:contain; }
+.home-tag { position:absolute; left:10px; top:10px; display:flex; align-items:center; gap:4px; padding:4px 9px 4px 7px; border-radius:999px; background:rgba(31,27,46,.6); color:#fff; font-size:12px; font-weight:700; }
+.home-tag .fam-ic { width:14px; height:14px; }
+.home-post-text { border:0; background:none; padding:0 16px; color:var(--text); font-size:15.5px; line-height:1.62; text-align:left; }
+.home-clamp { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.home-post-only { margin:0 16px; padding:16px; border:0; border-radius:14px; background:var(--tint-2); color:var(--text); font-size:16px; line-height:1.68; text-align:left; }
+.home-post-f { display:flex; align-items:center; gap:8px; padding:0 16px; }
+.home-reacts { display:flex; gap:8px; }
+.home-react { display:inline-flex; align-items:center; gap:5px; height:36px; padding:0 12px; border:1px solid var(--line); border-radius:999px; background:var(--surface); font-size:17px; line-height:1; }
+.home-react span { color:var(--text-2); font-size:13px; font-weight:700; }
+.home-react.on { background:var(--tint); border-color:#c9bbef; }
+.home-react.on span { color:var(--primary); }
+.home-heard { display:flex; align-items:center; gap:6px; color:var(--ok); font-size:13.5px; font-weight:600; }
+.home-heard .fam-ic { width:17px; height:17px; }
+.home-heard.not { color:var(--text-3); font-weight:500; }
+
+/* 처음 홈 — 시작 3단계 (11/14 사용자) */
+.home-start { padding:20px 16px 6px; }
+.home-start h2 { font-size:19px; letter-spacing:-.03em; }
+.home-start > .fam-btn { margin:2px 0 14px; }
+.home-start .home-lead { margin:4px 0 14px; color:var(--text-2); font-size:14px; }
+.home-steps { list-style:none; margin:0; padding:0; }
+.home-steps li { display:flex; align-items:center; gap:12px; padding:14px 0; border-top:1px solid var(--line); }
+.home-num { flex:none; width:30px; height:30px; border-radius:999px; display:grid; place-items:center; background:var(--tint); color:var(--primary); font-size:14px; font-weight:800; }
+.home-num .fam-ic { width:17px; height:17px; }
+.home-steps li.done .home-num { background:var(--primary); color:#fff; }
+.home-steps li.done b { color:var(--text-2); }
+.home-steps li.lock { color:var(--text-3); }
+.home-steps li.lock .home-num { background:#f0eef5; color:var(--text-3); }
+.home-steps li > div { flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.4; }
+.home-steps b { font-size:15.5px; }
+.home-steps small { color:var(--text-2); font-size:13px; }
+.home-steps li.lock small { color:var(--text-3); }
+.home-lk { width:18px; height:18px; color:var(--text-3); }
+.home-bar-p { height:5px; margin-top:7px; border-radius:9px; background:#ece9f4; overflow:hidden; }
+.home-bar-p i { display:block; height:100%; border-radius:9px; background:var(--primary); }
+.home-link { margin-top:4px; color:var(--text-3); font:12px/1.4 ui-monospace, Menlo, monospace; word-break:break-all; }
+.home-empty { display:flex; flex-direction:column; align-items:center; gap:6px; padding:26px 36px 12px; color:var(--text-2); text-align:center; }
+.home-empty b { color:var(--text); font-size:16px; }
+.home-empty p { font-size:14px; }
+.home-empty svg { width:120px; height:90px; margin-bottom:4px; }
