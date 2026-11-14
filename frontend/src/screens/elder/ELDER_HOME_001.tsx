@@ -1,6 +1,7 @@
 /**
  * ELDER_HOME_001 — 앱 이름과 큰 상자 4개 홈 (D51, 11/12 멘토링 반영).
  * 오늘의 한 장 팝업과 다시 읽기는 유지하고, 회상 상태는 누를 때 글과 소리로 알린다.
+ * 뒤로 키로 나간 대화는 30분 안에 그 상자의 이어서로 잇는다(D52 ⑥).
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -11,6 +12,7 @@ import todayPreview from '../../assets/today-preview.svg?inline' // 미리보기
 import { useLive } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
 import { speak, stopSpeaking } from '../../lib/audio'
+import { readPaused, resumePath } from '../../lib/pausedSession'
 import ELDER_TODAY_001 from './ELDER_TODAY_001'
 import './ELDER_HOME_001.css'
 
@@ -169,12 +171,14 @@ export default function ELDER_HOME_001() {
     setSkipping(true) // 서버가 저장할 때까지 팝업을 띄운 채 두 버튼을 잠근다
     setStartError(undefined)
     try {
-      await api('/api/elder/picks/today/skip', { method: 'POST' })
+      await api('/api/elder/picks/today/skip', { body: { pick_id: pickId } }) // 화면이 보고 있던 사진 번호 (D65)
       if (!live.current) return // 기다리는 동안 떠났으면 손대지 않는다(다음 화면의 소리를 끊지 않게)
       setSkippedPickId(pickId) // 홈을 다시 읽지 않는다 — 읽으면 화면 전체가 '잠시만요…'로 깜빡인다
       closeToday()
-    } catch {
+    } catch (e) {
       if (!live.current) return
+      // 옛 화면에서 눌렀다(켜 둔 채 날이 바뀜) → 오늘 사진은 건너뛰어지지 않았다. 홈을 다시 읽어 오늘 것을 보여 준다 (D45 ④)
+      if (e instanceof ApiError && e.code === 'PICK_EXPIRED') return refresh()
       const message = '건너뛰지 못했어요. 다시 눌러 주세요.'
       setStartError(message) // 저장이 안 됐으니 팝업을 남기고 그 안에 알린다
       void speak(message, Number(home.settings.tts_speed) || 0.85)
@@ -196,11 +200,22 @@ export default function ELDER_HOME_001() {
     )
   if (!home) return loading ? <main className="elder"><p className="elder-text">잠시만요…</p></main> : null
 
+  // 뒤로 키로 나간 대화(30분 안). 회상·사진첩 대화는 회상 상자, 일기 대화는 일기 쓰기 상자에 '이어서' (D52 ⑥)
+  const paused = preview ? null : readPaused()
+  const resumeDiary = paused?.kind === 'DIARY'
+  const resumeMemory = !!paused && !resumeDiary
   const pick = home.today_pick
   const status = pick && pick.pick_id === skippedPickId ? 'SKIPPED' : pick?.status
+  // 오늘 사진 대화를 하다 나왔으면 팝업 대신 '이어서' — 팝업의 [이야기하기]는 새 대화를 1번 질문부터 연다
   const showToday = pick?.status === 'PENDING' && pick.pick_id !== closedPickId && pick.pick_id !== dismissedPickId
+    && paused?.kind !== 'MEMORY'
   function onMemory() {
     if (!home) return
+    const p = preview ? null : readPaused() // 한 번 더 읽는다 — 홈을 켜 둔 사이 30분이 지났을 수 있다
+    if (p && p.kind !== 'DIARY') {
+      nav(resumePath(p), { state: { home } })
+      return
+    }
     if (status === 'PENDING') {
       void startMemory()
       return
@@ -213,6 +228,10 @@ export default function ELDER_HOME_001() {
     setNotice(message)
     noticeTimer.current = window.setTimeout(() => setNotice(''), NOTICE_MS)
     void speak(message, Number(home.settings.tts_speed) || 0.85)
+  }
+  function onDiary() {
+    const p = preview ? null : readPaused()
+    nav(p?.kind === 'DIARY' ? resumePath(p) : '/elder/diary', { state: { home } })
   }
 
   return (
@@ -228,21 +247,23 @@ export default function ELDER_HOME_001() {
         <span>하루한장</span>
       </header>
       <div className="elder-tiles" inert={showToday} aria-hidden={showToday}>
-        <button type="button" className={`elder-tile elder-tile--1${status === 'PENDING' ? ' elder-tile--new' : ''}`} onClick={onMemory} disabled={busy}>
+        <button type="button" className={`elder-tile elder-tile--1${resumeMemory || status === 'PENDING' ? ' elder-tile--new' : ''}`} onClick={onMemory} disabled={busy}>
           <HomeIcon>
             <rect x="3" y="5" width="18" height="14" rx="2.5" />
             <circle cx="8.5" cy="10" r="1.6" />
             <path d="M21 16l-5-5-7.5 8" />
           </HomeIcon>
           <span>{busy ? '잠시만요' : '회상'}</span>
-          {status === 'PENDING' && <span className="elder-badge">새 사진</span>}
+          {resumeMemory ? <span className="elder-badge">이어서</span>
+            : status === 'PENDING' && <span className="elder-badge">새 사진</span>}
         </button>
-        <button type="button" className="elder-tile elder-tile--2" onClick={() => nav('/elder/diary', { state: { home } })}>
+        <button type="button" className={`elder-tile elder-tile--2${resumeDiary ? ' elder-tile--new' : ''}`} onClick={onDiary}>
           <HomeIcon>
             <path d="M6 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
             <path d="M8.5 8h6M8.5 12h6M8.5 16h3.5" />
           </HomeIcon>
           <span>일기 쓰기</span>
+          {resumeDiary && <span className="elder-badge">이어서</span>}
         </button>
         <button type="button" className="elder-tile elder-tile--3" onClick={() => nav('/elder/family-news', { state: { home } })}>
           <HomeIcon>

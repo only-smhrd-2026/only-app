@@ -19,7 +19,8 @@ export default function ELDER_MEMORY_001() {
   async function finish() {
     // 오류로 끝났으면 오늘의 한 장은 PENDING 그대로라(D27) '다 들었어요' 기록을 남기지 않는다. 사진첩 대화는 오늘의 한 장이 아니다
     if (session?.kind === 'MEMORY' && ended?.end_reason !== 'ERROR') {
-      await api('/api/elder/picks/today/listened', { method: 'POST' }).catch(() => {})
+      // 대화 번호를 보내면 서버가 그 대화의 사진에 기록한다 — 자정을 넘겨 끝나도 새 날 사진에 남지 않게 (D65)
+      await api('/api/elder/picks/today/listened', { body: { session_id: sessionId } }).catch(() => {})
     }
     nav('/elder', { replace: true })
   }
