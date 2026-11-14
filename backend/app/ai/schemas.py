@@ -11,7 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.config import ROOT
+from app.config import FAMILY_DRAFT_MAX, ROOT
 
 BANNED_WORDS: list[str] = json.loads((ROOT / "data" / "banned_words.json").read_text("utf-8"))["words"]
 # 위급 표현 조각 (D55 ① 안전망). 띄어쓰기를 뺀 어르신 말에 들어 있으면 AI 판단과 상관없이 위급으로 본다
@@ -137,10 +137,10 @@ class FamilyQuestion(BaseModel):
 
 
 class FamilyDraft(BaseModel):
-    """가족 일기 초안. 가족이 쓴 말과 답만으로 쓴 존댓말 1인칭 본문(최대 5문장). 어르신께 소리로 읽어 드린다."""
+    """가족 일기 초안. 가족이 쓴 말과 답만으로 쓴 존댓말 1인칭 본문(최대 4문장·200자). 어르신께 소리로 읽어 드린다."""
 
-    # family_draft 의 모델 출력 (FR-DI-007, D58). 가족이 FDIARY_003 에서 고쳐 쓴 뒤 올린다
-    body: str = Field(min_length=1, max_length=400)
+    # family_draft 의 모델 출력 (FR-DI-007, D58·D61). 가족이 FDIARY_003 에서 고쳐 쓴 뒤 올린다
+    body: str = Field(min_length=1, max_length=FAMILY_DRAFT_MAX)
 
     @field_validator("body")
     @classmethod
