@@ -3,8 +3,9 @@
   옛 사진이면 1·2번은 그 사진 속 그때를 묻는다 (FR-DI-002, D58).
   가족 모드 (FR-DI-006·007, D58) — 가족이 쓴 몇 마디 → 질문 1개 → 답 → 존댓말 1인칭 초안. 저장은 화면이 한다.
 
-문제는 코드가 고르고(ai/quiz.py), 모델은 앞에 붙일 맞장구 한 문장과 답 칩만 만든다 — 문제 문장은 원문 그대로.
-question_type 은 모델이 아니라 여기서 정한다: 모델 질문 RECALL, 문제 = 문제 은행 qtype, 마무리 CLOSING.
+4번째 질문(생각 문제, D72 섞기): 유형은 코드가 돌려 정하고(ai/quiz.py), 모델이 맞장구 + 그 유형 문제를 사진·대화에
+맞춰 쓴다. 코드가 유형 틀·정답 있는 질문(연도·나이·이름 맞히기)을 검사해 걸리면 문제 은행 원문으로 바꾼다.
+question_type 은 모델이 아니라 여기서 정한다: 모델 질문 RECALL, 생각 문제 = 그 유형(은행 문제면 qtype), 마무리 CLOSING.
 모델은 어르신 직전 말로 signal(NONE|LOW|SAD|RISK|STOP)과 private 을 함께 낸다. LOW 는 기록하고 이어 가고,
 SAD·RISK·STOP 이면 그 턴 말은 마무리 인사다 (FR-AI-005, D55). 위급(RISK) 마무리는 코드 문장.
 되짚기(RECHECK)·story_facts 는 AI-07(#46).
@@ -20,7 +21,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from app.ai import llm
-from app.ai.quiz import Quiz
+from app.ai.quiz import Quiz, QuizPlan
 from app.ai.schemas import (
     BANNED_WORDS,
     CoachReply,
@@ -41,6 +42,8 @@ class CoachContext:
     photo: dict[str, Any] | None = None  # {caption, people_note, taken_at}
     turns: list[dict[str, str]] = field(default_factory=list)  # [{speaker: AI|ELDER, text}]
     old_photo: bool = False  # 일기 사진이 옛 사진(분류 추정) — 일기 1·2번을 그 사진 속 그때로 (FR-DI-002, D58)
+    # 분류 AI 가 본 '보이는 모습' 한 줄 (D71). 질문 재료로만 — 일기 초안(diary_draft)에는 넘기지 않는다
+    scene: str | None = None
 
 
 FALLBACK_QUESTION = CoachReply(
@@ -79,6 +82,7 @@ def _data(ctx: CoachContext, turn_no: int, closing: bool = False, max_turns: int
         "elder_name": ctx.elder_name,
         "elder_honorific": ctx.elder_honorific,
         "photo": ctx.photo,
+        "scene": ctx.scene,  # 분류 AI 가 본 모습 한 줄 — 틀릴 수 있어 '~같아요'로만 (D71, 프롬프트 규칙)
         "turns": ctx.turns[-12:],
         "turn_no": turn_no,
         "max_turns": max_turns,
@@ -87,11 +91,11 @@ def _data(ctx: CoachContext, turn_no: int, closing: bool = False, max_turns: int
 
 
 def _memory_data(
-    ctx: CoachContext, turn_no: int, closing: bool = False, quiz: Quiz | None = None, max_turns: int = MAX_TURNS
+    ctx: CoachContext, turn_no: int, closing: bool = False, quiz: QuizPlan | None = None, max_turns: int = MAX_TURNS
 ) -> dict[str, Any]:
     """회상 대화용 데이터. 오늘 날짜·요일은 묻지 않고 말에 섞어 알려 주기 위해 넘긴다 (FR-AI-003)."""
     d = today_kst()
-    quiz_data = {"prompt_text": quiz.prompt_text, "choices": quiz.choices} if quiz else None
+    quiz_data = {"type": quiz.qtype, "example": quiz.example, "recent": quiz.recent} if quiz else None
     return _data(ctx, turn_no, closing, max_turns) | {
         "today": f"{d.month}월 {d.day}일 {WEEKDAYS[d.weekday()]}요일",
         "quiz": quiz_data,
@@ -122,6 +126,34 @@ def _quiz_reply(quiz: Quiz, lead: str, chips: list[str]) -> CoachReply:
     return CoachReply(text=quiz.prompt_text, suggestions=suggestions, question_type=quiz.qtype)
 
 
+# 생각 문제에 쓰면 안 되는 말 — 정답이 있는 질문(연도·나이·날짜·이름 맞히기)과 시험 말투 (FR-AI-003, D72).
+# 금지어(점수·정답·틀리 …)는 CoachTurn 이 따로 검사한다. 걸리면 문제 은행 원문으로 바꾼다
+QUIZ_NOT = re.compile(
+    r"몇\s*년도|몇\s*살|연세|오늘(은|이)?\s*(며칠|몇\s*월)|무슨\s*요일|이름이\s*(뭐|무엇)|성함|누구(예요|일까|인지)"
+    r"|맞혀|맞춰|맞히|퀴즈|기억력"
+)
+THEN_WORDS = ("옛날", "그때", "예전", "젊으셨을", "어릴 때")
+NOW_WORDS = ("요즘", "지금", "요새")
+KNOWHOW_WORDS = ("어떻게", "어떤", "뭘", "무엇", "무슨", "몇", "요령", "방법")  # 방법·요령·했던 것을 묻는 말
+TWO_CHOICE = re.compile(r"요,\s*\S.*요\?$")  # '업어서 재우셨어요, 안아서 재우셨어요?' — 둘 중 고르기
+
+
+def quiz_ok(qtype: str, text: str) -> bool:
+    """AI 가 쓴 생각 문제가 그 유형의 틀을 지켰는지 (D72). 아니면 호출자가 문제 은행 원문으로 바꾼다."""
+    if QUIZ_NOT.search(text):
+        return False
+    marks = question_marks(text)
+    if qtype == "REMEMBER":  # 떠올리기 = '…, 생각나는 대로 말씀해 주세요.' — 말한 개수만 기록 (FR-AI-003)
+        return marks == 0 and ("생각나는 대로" in text or "떠오르는 대로" in text)
+    if marks != 1 or not text.rstrip().endswith("?"):
+        return False
+    if qtype == "THEN_NOW":  # 그때와 요즘을 견준다
+        return any(w in text for w in THEN_WORDS) and any(w in text for w in NOW_WORDS)
+    # KNOWHOW: 해 보신 일의 방법·요령을 묻는 질문 — 그냥 회상 질문('누구랑 하셨어요?')이면 은행 문제로
+    question = re.split(r"(?<=[.!])\s+", text.strip())[-1]
+    return any(w in question for w in KNOWHOW_WORDS) or bool(TWO_CHOICE.search(question))
+
+
 def _skipped_quiz(ctx: CoachContext, signal: str) -> bool:
     """문제에 넘기자고 답했는지 — 그 문제만 넘기고 대화는 이어 간다 (FR-AI-003, D52 ⑧).
 
@@ -146,9 +178,11 @@ def confirm_answer(text: str) -> str | None:
 
 
 def next_question(
-    ctx: CoachContext, turn_no: int, quiz: Quiz | None = None, max_turns: int = MAX_TURNS
+    ctx: CoachContext, turn_no: int, quiz: QuizPlan | None = None, max_turns: int = MAX_TURNS
 ) -> tuple[CoachReply, str, bool]:
-    """turn_no 번째 AI 말, signal(NONE|LOW|SAD|RISK|STOP), private. quiz 가 있으면 맞장구 + 문제 은행 원문 (FR-AI-002).
+    """turn_no 번째 AI 말, signal(NONE|LOW|SAD|RISK|STOP), private.
+
+    quiz(생각 문제 계획)가 있으면 맞장구 + 모델이 쓴 그 유형 문제, 검사에 걸리면 맞장구 + 문제 은행 원문 (D72).
 
     max_turns = 이 대화의 최대 질문 수 (오늘의 한 장 6, 사진첩 2 — routers/sessions.py 가 넘긴다).
     signal 이 SAD·RISK·STOP 이면 reply 는 마무리 인사다 — 호출자가 대화를 끝낸다 (FR-AI-005, D55). LOW 는 이어 간다.
@@ -156,7 +190,7 @@ def next_question(
     try:
         out = llm.call_json("memory_coach", _memory_data(ctx, turn_no, quiz=quiz, max_turns=max_turns), CoachTurn)
     except (llm.LlmError, NotImplementedError):
-        return (_quiz_reply(quiz, "", []) if quiz else FALLBACK_QUESTION), "NONE", False
+        return (_quiz_reply(quiz.fallback, "", []) if quiz else FALLBACK_QUESTION), "NONE", False
     if out.signal != "NONE" and not any(t["speaker"] == "ELDER" for t in ctx.turns):  # 어르신 말 전의 신호 → 무시
         return FALLBACK_QUESTION, "NONE", False
     if out.signal == "RISK":  # 위급은 문제 넘기기로 보지 않는다
@@ -166,7 +200,11 @@ def next_question(
             return FALLBACK_QUESTION, "NONE", out.private
         return _closing_reply(out.text), out.signal, out.private
     if quiz:
-        return _quiz_reply(quiz, out.text, out.suggestions), out.signal, out.private
+        if quiz_ok(quiz.qtype, out.text):
+            chips = list(dict.fromkeys(c for c in out.suggestions if not _is_skip(c)))[:2] or QUIZ_FALLBACK_CHIPS
+            return CoachReply(text=out.text, suggestions=chips, question_type=quiz.qtype), out.signal, out.private
+        # 틀을 안 지킴 → 맞장구(첫 문장) + 은행 원문. 모델 칩은 모델 문제에 맞춘 것이라 쓰지 않는다
+        return _quiz_reply(quiz.fallback, out.text, []), out.signal, out.private
     reply = CoachReply(text=out.text, suggestions=out.suggestions[:2], question_type="RECALL")  # 늘 2개 (D52 ④)
     return reply, out.signal, out.private
 

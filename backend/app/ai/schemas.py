@@ -16,6 +16,8 @@ from app.config import FAMILY_DRAFT_MAX, ROOT
 BANNED_WORDS: list[str] = json.loads((ROOT / "data" / "banned_words.json").read_text("utf-8"))["words"]
 # 위급 표현 조각 (D55 ① 안전망). 띄어쓰기를 뺀 어르신 말에 들어 있으면 AI 판단과 상관없이 위급으로 본다
 RISK_WORDS: list[str] = json.loads((ROOT / "data" / "risk_words.json").read_text("utf-8"))["words"]
+# 사진 분류 이름표 (활동·주제 각 20 + 고르는 기준 _rules). 정답표·문제 은행과 같은 글자 (D71)
+TAXONOMY: dict = json.loads((ROOT / "data" / "taxonomy.json").read_text("utf-8"))
 
 
 def has_risk_words(text: str) -> bool:
@@ -185,3 +187,36 @@ class DiaryDraft(BaseModel):
         if any(len(s) > 20 for s in out):
             raise ValueError("그릴 사물은 20자 이내")
         return out
+
+
+SCENE_MAX = 60  # 보이는 모습 한 줄 — 넘으면 자른다 (photos.ai_scene VARCHAR(100) 안, D71)
+
+
+class PhotoLabel(BaseModel):
+    """사진 한 장의 분류 (FR-ME-003, D71). 보이는 모습을 먼저 적고 그다음 이름표를 고른다(필드 순서 = 쓰는 순서)."""
+
+    # 검사는 너그럽게: 목록 밖 값은 none, 긴 한 줄은 자름 — 다시 부르지 않는다(분류는 다시 불러도 비슷하다).
+    # 인젝션 피해는 오분류로 한정된다(D14). enum 은 구조화 출력이 목록 밖 값을 못 쓰게 한다.
+    scene: str
+    usable: bool
+    is_old: bool
+    season: Literal["SPRING", "SUMMER", "AUTUMN", "WINTER", "NONE"]
+    activity: str = Field(json_schema_extra={"enum": [*TAXONOMY["activity"], "none"]})
+    category: str = Field(json_schema_extra={"enum": [*TAXONOMY["category"], "none"]})
+    confidence: float
+
+    @field_validator("scene")
+    @classmethod
+    def _scene_rules(cls, v: str) -> str:
+        v = " ".join(v.split())[:SCENE_MAX]
+        return "" if any(w in v for w in BANNED_WORDS) else v  # 대화 재료라 금지어가 섞이면 버린다
+
+    @field_validator("activity", "category")
+    @classmethod
+    def _in_list(cls, v: str, info) -> str:
+        return v if v in TAXONOMY[info.field_name] else "none"
+
+    @field_validator("confidence")
+    @classmethod
+    def _clamp(cls, v: float) -> float:
+        return min(1.0, max(0.0, v)) if v == v else 0.0  # NaN 은 0

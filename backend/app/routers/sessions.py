@@ -26,11 +26,12 @@ from typing import Any
 from fastapi import APIRouter
 from sqlalchemy import func, select
 
-from app.ai import coach, quiz, tts
+from app.ai import classify, coach, quiz, tts
 from app.ai.schemas import CoachReply, has_risk_words
 from app.config import (
     ALBUM_PER_DAY,
     ALBUM_TURNS,
+    CLASSIFY_SYNC_SEC,
     DIARY_TURNS,
     MAX_SESSION_SEC,
     MAX_TURNS,
@@ -120,6 +121,8 @@ def coach_context(db, room: FamilyRoom, session: TalkSession) -> coach.CoachCont
             and photo.confidence is not None
             and float(photo.confidence) >= OLD_PHOTO_CONF_MIN
         ),
+        # 분류 AI 가 본 '보이는 모습' 한 줄 (D71) — 대화에 못 쓰는 사진(usable=false)이면 넘기지 않는다
+        scene=photo.ai_scene if photo and photo.usable is not False else None,
     )
 
 
@@ -176,7 +179,8 @@ def _ask(
         picked = quiz.pick(db, session) if session.kind == "MEMORY" and turn_no == QUIZ_TURN else None
         # 최대 질문 수도 같이 넘긴다 — 사진첩은 2, 오늘의 한 장은 6 (AI 가 몇 번째 질문인지 알고 말하게)
         reply, signal, private = coach.next_question(ctx, turn_no, picked, _max_turns(session))
-        code = picked.code if picked and signal not in coach.ENDING_SIGNALS else None
+        # 출제 기록: 은행 원문이면 그 code, AI 가 쓴 생각 문제면 GEN-유형 (D72). 마무리로 바뀐 턴은 기록 없음
+        code = quiz.record_code(picked, reply.text) if picked and signal not in coach.ENDING_SIGNALS else None
     _note_mood(db, session, signal, private)  # 가족 마음 카드·알림·주간 요약용 (FR-AI-005, FR-FD-006, D55)
     _add_turn(
         session,
@@ -404,6 +408,10 @@ def create_session(body: SessionCreateIn, device: CurrentDevice, db: DB):
         photo = db.get(Photo, photo_id)
         if not photo or photo.room_id != room.room_id:
             raise ApiError(404, "PHOTO_NOT_FOUND", "사진을 찾을 수 없어요")
+        if body.kind == "DIARY" and photo.source == "ELDER_CAMERA" and photo.analyzed_at is None:
+            # 방금 찍은 사진 — 옛 사진 일기(D58)·1번 질문 재료(D71)는 첫 질문 전에 분류가 있어야 돈다.
+            # 상한(CLASSIFY_SYNC_SEC)을 넘거나 실패하면 분류 전 그대로 평소 일기 (어르신 카메라 사진은 다시 하지 않음)
+            classify.classify(db, photo, timeout=CLASSIFY_SYNC_SEC)
     session = TalkSession(
         session_id=body.session_id,
         room_id=room.room_id,

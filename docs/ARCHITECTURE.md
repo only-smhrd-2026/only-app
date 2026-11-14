@@ -63,7 +63,7 @@ signup → POST /rooms (가족방+구성원) → 사진 3장 이상 → POST /ro
 [말하기] ─녹음(≤60초)─► POST /api/stt (multipart, 메모리에서만 전사 후 폐기)
    ◄─ {transcript, confidence}  → 화면에 전사 표시, [맞아요]/[다시 말할게요], 3초 무조작 확정
 [맞아요] ─► POST /api/elder/sessions/{id}/turns {text, input_type:VOICE, stt_confidence, retried}
-   서버: ELDER 턴 저장 → (회상 4번째 질문이면 quiz.pick 이 문제 은행에서 고름) → coach.next_question(LLM 또는 mock) → 금지어·형식 검사 → AI 턴 저장(문제면 question_code) → TTS(mock 이면 None)
+   서버: ELDER 턴 저장 → (회상 4번째 질문이면 quiz.pick 이 생각 문제 유형을 돌려 정하고 대체용 은행 문제를 고름) → coach.next_question(LLM 또는 mock — 생각 문제는 모델이 그 유형으로 쓰고, 틀을 안 지키면 은행 원문) → 금지어·형식 검사 → AI 턴 저장(문제면 question_code: 은행 code 또는 GEN-유형, D72) → TTS(mock 이면 None)
    ◄─ {kind, photo_url, ai:{text, audio_b64?, suggestions[], choice_mode, question_type}, state, turn_no, input_locked}
 화면: audio_b64 재생(말 속도는 playbackRate, D46) 또는 speechSynthesis → 칩 표시 → WAITING(20초 무조작이면 event:NO_RESPONSE)
 8번째 답 → AI 마무리(CLOSING) + state:ENDED(COMPLETED) → daily_picks COMPLETED → [다 들었어요] → POST /elder/picks/today/listened (오늘의 한 장 대화 kind=MEMORY 만)
