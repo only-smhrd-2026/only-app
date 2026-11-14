@@ -1,0 +1,18 @@
+/* 목업 가족 홈 마음 카드(.card·.week·.day)를 이름만 바꿔 옮긴 것 — 김승희 11/16 ⑧ 칸 글 */
+.weekly-card { display: flex; flex-direction: column; gap: 10px; }
+.weekly-card h2 { margin: 0; font-size: 16px; }
+.weekly-card p { margin: 0; }
+.weekly-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+.weekly-day { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 7px 0; border-radius: 12px; font-size: 12px; }
+.weekly-day b { font-weight: 700; opacity: .75; }
+.weekly-day .elder-ic, .weekly-day s { display: block; flex: none; width: 22px; height: 22px; }
+
+/* 주간 요약 (D62·D67): 안부 한 줄은 맨 위에 눈에 띄게, 질문·답 카드는 왼쪽 작은 사진(누르면 크게) + 날짜·Q·A */
+.fam-skin .card.weekly-note { border-color: var(--primary); } /* .fam-skin .card 의 테두리 색보다 앞서게 */
+.weekly-note p { margin: 0; font-weight: 700; }
+.weekly-qa { display: flex; gap: 12px; align-items: flex-start; }
+.weekly-qa + .weekly-qa { padding-top: 10px; border-top: 1px solid var(--line); }
+.weekly-qa .weekly-thumb { flex: none; width: 96px; height: 72px; min-height: 0; }
+.weekly-qa-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.weekly-q { color: #666; font-size: 14px; }
+.weekly-a { font-weight: 700; }
