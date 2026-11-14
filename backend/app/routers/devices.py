@@ -74,6 +74,13 @@ def connect(body: DeviceConnectIn, response: Response, db: DB):
     return _out(room)
 
 
+@router.get("/me", response_model=DeviceOut)
+def me(room: CurrentDevice):
+    """이 폰이 어르신 기기로 연결돼 있는지 — 홈 화면 아이콘으로 열 때(/start, D68) 어르신 홈으로 보낼지 가린다.
+    읽기만 한다(어르신 홈 GET /api/elder/home 은 오늘 사진을 보여 준 수를 올린다)."""
+    return _out(room)
+
+
 @router.patch("/me/permissions", response_model=DeviceOut)
 def set_permissions(body: PermissionsIn, room: CurrentDevice, db: DB):
     changed = body.model_dump(exclude_none=True)
