@@ -2,7 +2,7 @@
  * ELDER_MOOD_002 — 마음 체크 8문항 (D56·D66). 한 번에 하나씩 읽어 주고 보기 4개로 답한다.
  * 끝에는 고맙다는 말만 — 결과·점수는 어르신께 보이지 않는다(가족 홈 마음 카드에 3단계 문장으로만).
  * 답은 8개를 다 골라야 서버에 간다. 도중에 나가면 저장하지 않는다(다음 날 홈에서 다시 권한다).
- * 문항·보기 글은 lib/moodCheck.ts — 공식 문구라 여기서 고치지 않는다.
+ * 문항·보기 글은 lib/moodCheck.ts 한 곳 — 바꾸면 mp3 도 다시 만든다.
  */
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -29,20 +29,10 @@ export default function ELDER_MOOD_002() {
   const item = MOOD_ITEMS[k] as string | undefined // 8개를 다 답하면 undefined
 
   useEffect(() => {
-    let alive = true
-    const read = async () => {
-      if (step === 'done') return void say(MOOD_PROMPT.moodThanks, speed)
-      if (step !== 'asking' || !item) return
-      // 머리말은 첫 문항 앞에 한 번만 읽는다. 읽는 중에 답하면 여기서 끊기고 다음 문항으로 넘어간다
-      if (k === 0) await say(MOOD_PROMPT.moodStem, speed)
-      if (alive) void say(item, speed)
-    }
-    void read()
-    return () => {
-      alive = false
-      stopSpeaking()
-    }
-  }, [k, item, step, speed])
+    if (step === 'done') void say(MOOD_PROMPT.moodThanks, speed)
+    else if (step === 'asking' && item) void say(item, speed) // 읽는 중에 답하면 끊기고 다음 문항을 읽는다
+    return () => stopSpeaking()
+  }, [item, step, speed])
 
   useEffect(() => () => clearTimeout(sayingTimer.current), [])
 
@@ -102,7 +92,6 @@ export default function ELDER_MOOD_002() {
           <div className="elder-steps" role="img" aria-label={`${MOOD_ITEMS.length}개 중 ${k + 1}번째`}>
             {MOOD_ITEMS.map((_, n) => <i key={n} className={n <= k ? 'on' : undefined} />)}
           </div>
-          <p className="elder-text elder-mood-stem">{MOOD_PROMPT.moodStem}</p>
           {paper(item)}
           <div className="elder-answers">
             {MOOD_ANSWERS.map((label, value) => (
