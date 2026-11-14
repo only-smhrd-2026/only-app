@@ -31,6 +31,7 @@ from app.schemas.elder import (
     AlbumPhotoOut,
     ElderHomeOut,
     ElderSettingsOut,
+    ElderVoiceIn,
     PickListenedIn,
     PickSkipIn,
     TodayPickOut,
@@ -149,9 +150,22 @@ def home(device: CurrentDevice, db: DB):
         # 못 들은 가족 이모지가 있으면 몇 개든 소식 1건 — 하트만 온 날에도 가족 소식에 들어갈 계기가 생긴다 (D63)
         unread_family_news=(unread or 0) + (1 if unheard_hearts(db, room.room_id) else 0),
         settings=ElderSettingsOut(
-            font_size=room.font_size, tts_speed=room.tts_speed, input_mode=room.device_input_mode
+            font_size=room.font_size,
+            tts_speed=room.tts_speed,
+            input_mode=room.device_input_mode,
+            tts_voice=room.tts_voice,
         ),
     )
+
+
+@router.post("/voice", response_model=OkOut)
+def choose_voice(body: ElderVoiceIn, device: CurrentDevice, db: DB):
+    """처음 연결 때 어르신이 들어 보고 고른 목소리 (ELDER_CONNECT_001, D74). 같은 값을 두 번 보내도 그대로."""
+    room = db.get(FamilyRoom, device.room_id)
+    if room.tts_voice != body.voice:
+        room.tts_voice = body.voice
+        db.commit()
+    return OkOut()
 
 
 @router.post("/picks/today/listened", response_model=OkOut)

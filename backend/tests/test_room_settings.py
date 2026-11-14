@@ -15,7 +15,11 @@ def test_partial_settings(client):
     response = client.patch(path, json={"font_size": "XXL"})
     assert response.status_code == 200
     result = response.json()
-    assert (result["font_size"], result["memory_time"], result["tts_speed"]) == ("XXL", "09:00:00", "0.85")
+    assert (result["font_size"], result["memory_time"], result["tts_speed"]) == (
+        "XXL",
+        "09:00:00",
+        "0.90",
+    )  # 기본 0.90 (D74)
     assert client.patch(path, json={}).json() == result
     assert client.patch(path, json={"font_size": None}).json() == result
 
@@ -32,6 +36,7 @@ def test_elder_home_reflects_settings(client):
         "font_size": "L",
         "tts_speed": "1.00",
         "input_mode": "BUTTON",
+        "tts_voice": "FEMALE",
     }
 
 
@@ -55,7 +60,9 @@ def test_time_validation_is_atomic(client):
     assert response.json()["diary_time"] == "20:30:00"
 
 
-@pytest.mark.parametrize("body", [{"font_size": "XXXL"}, {"tts_speed": "0.9"}, {"device_input_mode": "TEXT"}])
+@pytest.mark.parametrize(
+    "body", [{"font_size": "XXXL"}, {"tts_speed": "0.85"}, {"tts_voice": "CHILD"}, {"device_input_mode": "TEXT"}]
+)
 def test_invalid_settings(client, body):
     signup(client)
     room_id = make_room(client)["room_id"]
@@ -127,3 +134,19 @@ def test_remove_member_is_idempotent_and_blocks_access(client, family):
     response = client.post("/api/invites/accept", json={"token": token, "relation_tag": "GRANDCHILD"})
     assert response.status_code == 403
     assert response.json()["code"] == "MEMBER_REMOVED"
+
+
+def test_voice_from_elder_first_connect_and_family_settings(client):
+    """목소리 (D74): 어르신이 처음 연결 때 고르고(기기 쿠키), 가족 방장이 설정에서 바꾼다.
+    둘 다 어르신 홈 설정에 나온다."""
+    ctx = setup_elder(client)
+    assert client.get("/api/elder/home").json()["settings"]["tts_voice"] == "FEMALE"  # 처음은 여자 목소리
+    assert client.post("/api/elder/voice", json={"voice": "MALE"}).status_code == 200
+    assert client.post("/api/elder/voice", json={"voice": "MALE"}).status_code == 200  # 두 번 눌러도 그대로
+    assert client.get("/api/elder/home").json()["settings"]["tts_voice"] == "MALE"
+    assert client.post("/api/elder/voice", json={"voice": "CHILD"}).status_code == 422
+    path = f"/api/rooms/{ctx['room_id']}/settings"
+    r = client.patch(path, json={"tts_voice": "FEMALE", "tts_speed": "0.80"})
+    assert r.status_code == 200 and (r.json()["tts_voice"], r.json()["tts_speed"]) == ("FEMALE", "0.80")
+    client.cookies.delete("device")
+    assert client.post("/api/elder/voice", json={"voice": "MALE"}).status_code == 401  # 기기 쿠키 없이는 못 바꾼다

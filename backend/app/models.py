@@ -67,7 +67,8 @@ class FamilyRoom(Base):
     memory_time: Mapped[time] = mapped_column(Time, server_default="09:00")
     diary_time: Mapped[time] = mapped_column(Time, server_default="19:00")
     font_size: Mapped[str] = mapped_column(String(5), server_default="XL")  # L | XL | XXL
-    tts_speed: Mapped[Decimal] = mapped_column(Numeric(3, 2), server_default="0.85")
+    tts_speed: Mapped[Decimal] = mapped_column(Numeric(3, 2), server_default="0.90")  # 0.80 | 0.90 | 1.00 (D74)
+    tts_voice: Mapped[str] = mapped_column(String(6), server_default="FEMALE")  # FEMALE | MALE (D74)
     integration_scope: Mapped[str] = mapped_column(String(15), server_default="NONE")
     integration_consent_at: Mapped[datetime | None] = mapped_column(TS)
     external_user_id: Mapped[str | None] = mapped_column(String(64), unique=True)

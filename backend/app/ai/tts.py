@@ -1,4 +1,4 @@
-"""TTS 어댑터 (D4). 시그니처 고정: synthesize(text, speed) -> bytes | None
+"""TTS 어댑터 (D4). 시그니처 고정: synthesize(text, speed, voice) -> bytes | None (voice 는 D74 에서 더함)
 
 None 이면 브라우저 speechSynthesis 로 읽는다 (D5). TTS_PROVIDER=mock 은 항상 None.
 google 은 Cloud Text-to-Speech Chirp 3 HD ko-KR (D35·D46). 결과는 mp3 바이트.
@@ -24,7 +24,8 @@ log = logging.getLogger("app.ai")
 
 # 전역 주소. 도쿄 리전 주소(asia-northeast1-)는 더 느렸다 (실측 1.15초 대 0.96초)
 GOOGLE_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
-VOICE = "ko-KR-Chirp3-HD-Kore"  # 임시. 목소리 1개 고정(FR-VS-004)은 11/17 청취 평가(TEST-01 #17)에서 확정
+# 목소리 2개 중 어르신이 고른다 (D74, TEST-01 청취 평가 — FR-VS-004 '목소리 1개 고정'을 바꿈). 가족방 칸 tts_voice
+VOICES = {"FEMALE": "ko-KR-Chirp3-HD-Kore", "MALE": "ko-KR-Chirp3-HD-Charon"}
 # 합성 시간이 글 길이에 비례해서 상한도 길이에 맞춘다: 대화 한 턴(120자 이하)은 6.6초, 일기 낭독(400자)은 15초.
 # LLM 이 평소(1.5~3초)면 TTS 가 막혀도 화면의 15초 포기(VoiceSession) 전에 자막만으로 넘어간다.
 # LLM 이 8.4초를 넘긴 턴(재시도 포함 최대 12초)에서 TTS 까지 막히면 15초를 넘는다
@@ -32,7 +33,8 @@ TTS_BASE_SEC = 3.0
 TTS_PER_CHAR_SEC = 0.03
 
 
-def synthesize(text: str, speed: float = 0.85) -> bytes | None:
+def synthesize(text: str, speed: float = 0.90, voice: str = "FEMALE") -> bytes | None:
+    """voice = FEMALE | MALE (가족방 tts_voice, D74). 모르는 값은 FEMALE."""
     provider = settings.TTS_PROVIDER
     t0 = time.perf_counter()
     try:
@@ -42,16 +44,16 @@ def synthesize(text: str, speed: float = 0.85) -> bytes | None:
             if not daily_allowed("tts", TTS_PER_DAY):  # 실패가 아니라 상한 → 가족 알림 없이 브라우저 목소리 (D5·D46)
                 log.warning("tts daily cap")
                 return None
-            return _google(text)
+            return _google(text, voice if voice in VOICES else "FEMALE")
         raise NotImplementedError(f"TTS_PROVIDER={provider} 는 아직 없습니다")
     finally:
         ms = int((time.perf_counter() - t0) * 1000)
-        log.info("tts provider=%s ms=%d chars=%d speed=%.2f", provider, ms, len(text), speed)
+        log.info("tts provider=%s ms=%d chars=%d speed=%.2f voice=%s", provider, ms, len(text), speed, voice)
 
 
-# 같은 문장(무응답 때 다시 묻기·고정 안내)은 다시 합성하지 않는다 (FR-VS-004). 실패는 캐시되지 않는다
+# 같은 문장(무응답 때 다시 묻기·고정 안내)은 다시 합성하지 않는다 (FR-VS-004) — 목소리마다 따로. 실패는 캐시되지 않는다
 @lru_cache(maxsize=128)
-def _google(text: str) -> bytes:
+def _google(text: str, voice: str = "FEMALE") -> bytes:
     """Google Chirp 3 HD. 재시도 없음 — 실패하면 부른 쪽이 자막만으로 넘어간다 (D5)."""
     if not settings.GOOGLE_TTS_API_KEY:
         raise RuntimeError("TTS_PROVIDER=google 인데 GOOGLE_TTS_API_KEY 가 비어 있음 (.env)")
@@ -60,7 +62,7 @@ def _google(text: str) -> bytes:
         headers={"X-Goog-Api-Key": settings.GOOGLE_TTS_API_KEY},
         json={
             "input": {"text": text},
-            "voice": {"languageCode": "ko-KR", "name": VOICE},
+            "voice": {"languageCode": "ko-KR", "name": VOICES[voice]},
             "audioConfig": {"audioEncoding": "MP3"},
         },
         timeout=TTS_BASE_SEC + TTS_PER_CHAR_SEC * len(text),

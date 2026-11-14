@@ -190,7 +190,7 @@ def test_reask_and_confirm_release_row_lock_before_tts(client, monkeypatch):
     sid = _create(client, ctx)["session_id"]
     locked = []
 
-    def synth(sentence, speed):
+    def synth(sentence, speed, voice="FEMALE"):
         with engine.connect() as other:  # 다른 연결이 그 행을 바로 잡을 수 있어야 한다 (기다리지 않고 확인: NOWAIT)
             try:
                 other.execute(text("SELECT 1 FROM sessions WHERE session_id = :id FOR UPDATE NOWAIT"), {"id": sid})
