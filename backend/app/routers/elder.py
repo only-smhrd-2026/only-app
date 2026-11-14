@@ -24,8 +24,17 @@ from app.models import DailyPick, Diary, FamilyRoom, Photo
 from app.routers.devices import notify_family
 from app.routers.diaries import unheard_hearts
 from app.routers.photos import _UPLOAD_BODY, _upload_lock, photo_out, to_jpeg
+from app.routers.sessions import load_session
 from app.schemas.common import OkOut
-from app.schemas.elder import AlbumOut, AlbumPhotoOut, ElderHomeOut, ElderSettingsOut, TodayPickOut
+from app.schemas.elder import (
+    AlbumOut,
+    AlbumPhotoOut,
+    ElderHomeOut,
+    ElderSettingsOut,
+    PickListenedIn,
+    PickSkipIn,
+    TodayPickOut,
+)
 from app.schemas.photos import PhotoOut
 from app.services import picks, storage
 
@@ -146,8 +155,17 @@ def home(device: CurrentDevice, db: DB):
 
 
 @router.post("/picks/today/listened", response_model=OkOut)
-def listened(device: CurrentDevice, db: DB):
-    pick = picks.today_pick(db, device.room_id, today_kst())
+def listened(device: CurrentDevice, db: DB, body: PickListenedIn | None = None):
+    """[다 들었어요] 기록. 대화 번호가 오면 그 대화의 사진에 적는다 (D65).
+
+    자정을 넘겨 끝난 대화가 새 날 사진에 남지 않게. 번호 없이 오면(배포 전부터 켜 둔 옛 화면) 지금처럼 오늘 것.
+    오늘의 한 장이 없는 대화(사진첩)는 아무것도 안 한다.
+    """
+    if body and body.session_id:
+        session = load_session(db, body.session_id, device)  # 다른 방 대화는 없는 것처럼 404
+        pick = db.get(DailyPick, session.pick_id) if session.pick_id else None
+    else:
+        pick = picks.today_pick(db, device.room_id, today_kst())
     if pick and pick.listened_at is None:
         pick.listened_at = now_kst()
         db.commit()
@@ -155,9 +173,20 @@ def listened(device: CurrentDevice, db: DB):
 
 
 @router.post("/picks/today/skip", response_model=OkOut)
-def skip(device: CurrentDevice, db: DB):
-    """오늘의 한 장을 건너뛰고, 같은 사진의 두 번째 건너뛰기에 가족에게 알린다."""
+def skip(device: CurrentDevice, db: DB, body: PickSkipIn | None = None):
+    """오늘의 한 장을 건너뛰고, 같은 사진의 두 번째 건너뛰기에 가족에게 알린다.
+
+    pick_id = 화면이 보고 있던 사진. 오늘 것이 아니면(켜 둔 채 날이 바뀜) 409 PICK_EXPIRED — 홈이 다시 읽는다
+    (D45 ④·D65). 번호 없이 오면(배포 전부터 켜 둔 옛 화면) 지금처럼 오늘 것을 건너뛴다.
+    """
+    if body and body.pick_id is not None:
+        pick = db.get(DailyPick, body.pick_id)
+        if not pick or pick.room_id != device.room_id:
+            raise ApiError(404, "PICK_NOT_FOUND", "오늘의 한 장을 찾을 수 없어요")
+        if pick.pick_date != today_kst():  # 안 막으면 옛 화면의 [건너뛰기]가 새 날 사진을 건너뛴다
+            raise ApiError(409, "PICK_EXPIRED", "날짜가 바뀌었어요. 오늘 사진을 다시 보여 드릴게요")
     # 상태 변경과 확인을 한 문장으로 처리해 중복 요청도 한 번만 센다.
+    # 가족방의 오늘 pick 은 한 줄뿐이라(UNIQUE) 위에서 본 그 줄이다
     photo_id = db.scalar(
         update(DailyPick)
         .where(

@@ -1,3 +1,4 @@
+import uuid
 from datetime import date
 from decimal import Decimal
 
@@ -9,6 +10,16 @@ class TodayPickOut(BaseModel):
     photo_id: int
     photo_url: str  # /api/media/{key}
     status: str  # PENDING | COMPLETED | SKIPPED | EXPIRED
+
+
+class PickSkipIn(BaseModel):
+    # 화면이 보고 있던 오늘의 한 장. 오늘 것이 아니면 409 PICK_EXPIRED (D45 ④·D65).
+    # 배포 전부터 켜 둔 옛 화면은 번호 없이 보낸다 → 지금처럼 오늘 것을 건너뛴다
+    pick_id: int | None = None
+
+
+class PickListenedIn(BaseModel):
+    session_id: uuid.UUID | None = None  # 방금 마친 대화 — 그 대화의 사진에 기록한다. 없으면(옛 화면) 오늘 것
 
 
 class ElderSettingsOut(BaseModel):

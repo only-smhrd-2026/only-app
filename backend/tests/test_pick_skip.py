@@ -1,4 +1,4 @@
-"""같은 사진을 두 번 건너뛸 때의 가족 알림을 검증한다."""
+"""같은 사진을 두 번 건너뛸 때의 가족 알림, 옛 화면에서 누른 건너뛰기·다 들었어요(D65)를 검증한다."""
 
 import uuid
 from datetime import timedelta
@@ -148,3 +148,61 @@ def test_skipped_then_completed_still_counts(client):
     assert client.post("/api/elder/picks/today/skip").status_code == 200
     with SessionLocal() as db:
         assert len(_alerts(db, ctx["room_id"])) == 1
+
+
+SKIP, LISTENED = "/api/elder/picks/today/skip", "/api/elder/picks/today/listened"
+
+
+def _status(pick_id):
+    with SessionLocal() as db:
+        return db.get(DailyPick, pick_id).status
+
+
+def test_skip_checks_the_pick_the_screen_was_showing(client):
+    """화면이 보고 있던 pick 번호를 같이 보낸다 (D65): 날이 바뀐 옛 화면이면 409 이고 오늘 사진은 그대로,
+    없는 번호·남의 가족방 번호는 404, 오늘 것이면 건너뛴다."""
+    ctx = setup_elder(client)
+    pick_id, yesterday = ctx["pick"]["pick_id"], today_kst() - timedelta(days=1)
+    with SessionLocal() as db:
+        old = DailyPick(room_id=ctx["room_id"], photo_id=ctx["pick"]["photo_id"], pick_date=yesterday)
+        db.add(old)
+        db.commit()
+        old_id = old.pick_id
+    stale = client.post(SKIP, json={"pick_id": old_id})
+    assert stale.status_code == 409
+    assert stale.json()["code"] == "PICK_EXPIRED"
+    assert (_status(pick_id), _status(old_id)) == ("PENDING", "PENDING")  # 오늘 사진이 대신 건너뛰어지지 않는다
+    assert client.post(SKIP, json={"pick_id": 999999}).status_code == 404
+
+    other = setup_elder(client)  # 다른 가족방의 기기
+    foreign = client.post(SKIP, json={"pick_id": pick_id})
+    assert foreign.status_code == 404
+    assert foreign.json()["code"] == "PICK_NOT_FOUND"
+    assert (_status(pick_id), _status(other["pick"]["pick_id"])) == ("PENDING", "PENDING")
+    assert client.post(SKIP, json={"pick_id": other["pick"]["pick_id"]}).status_code == 200
+    assert (_status(pick_id), _status(other["pick"]["pick_id"])) == ("PENDING", "SKIPPED")
+
+
+def test_listened_goes_to_the_pick_of_that_talk(client):
+    """[다 들었어요]는 대화 번호로 그 대화의 사진에 적힌다 — 자정을 넘겨 끝나도 새 날 사진에 남지 않는다 (D65)."""
+    ctx = setup_elder(client)
+    pick = ctx["pick"]
+    sid = str(uuid.uuid4())
+    body = {"session_id": sid, "kind": "MEMORY", "pick_id": pick["pick_id"], "photo_id": pick["photo_id"]}
+    assert client.post("/api/elder/sessions", json=body).status_code == 201
+    with SessionLocal() as db:  # 대화하는 사이 날이 바뀌었다 — 그 pick 은 어제 것이 되고 홈이 오늘 것을 새로 뽑는다
+        db.get(DailyPick, pick["pick_id"]).pick_date = today_kst() - timedelta(days=1)
+        db.commit()
+    today = client.get("/api/elder/home").json()["today_pick"]
+    assert today["pick_id"] != pick["pick_id"]
+
+    assert client.post(LISTENED, json={"session_id": sid}).status_code == 200
+    with SessionLocal() as db:
+        assert db.get(DailyPick, pick["pick_id"]).listened_at is not None
+        assert db.get(DailyPick, today["pick_id"]).listened_at is None
+
+    assert client.post(LISTENED, json={"session_id": str(uuid.uuid4())}).status_code == 404  # 없는 대화
+    setup_elder(client)  # 다른 가족방의 기기 — 남의 대화는 없는 것처럼
+    foreign = client.post(LISTENED, json={"session_id": sid})
+    assert foreign.status_code == 404
+    assert foreign.json()["code"] == "SESSION_NOT_FOUND"
