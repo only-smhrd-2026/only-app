@@ -148,6 +148,21 @@ class FamilyDraft(BaseModel):
         return check_banned(v.strip())
 
 
+class WeeklyCard(BaseModel):
+    """주간 이야기 카드 한 장 — weekly_summary 의 모델 출력 (FR-FD-005, D62).
+
+    규칙 검사는 ai/weekly.check 가 카드마다 한다. 한 장이 걸려도 나머지를 살리려고 여기서는 모양만 본다.
+    """
+
+    ref: str  # 입력 pairs 의 ref — 근거가 된 어르신 답
+    answer: str  # 가족에게 전하는 전달형 한 문장
+    quote: str  # 그 답 원문에서 글자 그대로 옮긴 구절
+
+
+class WeeklyCards(BaseModel):
+    cards: list[WeeklyCard]
+
+
 class DiaryDraft(BaseModel):
     """일기 초안. 어르신이 하신 말만으로 쓴 1인칭 본문(말씀만큼, 최대 5문장), 기분, 그릴 사물(최대 3개)."""
 
