@@ -13,6 +13,10 @@
 6. POST /rooms/{id}/diaries — 가족 일기 올리기. 같은 가족방 + 같은 request_id 는 1개.
 7. GET /diaries/{id} — 일기 한 건(HOME_002). 구성원만, 지워진 일기는 404.
 8. GET /elder/diaries — 어르신 '내 일기' 목록(기기 쿠키). 어르신이 쓴 게시 일기만 최신 먼저.
+9. POST /diaries/{id}/reaction — 가족 이모지(HEART·SMILE·CLAP)를 어르신 일기에. 본문 {kind, on} = 이 상태로 만듦
+   (켜기·바꾸기·취소), 한 사람 1칸. POST /elder/diaries/{id}/like — 어르신 [좋아요]를 가족 일기에(기기 쿠키). 본문 {on}.
+10. GET /elder/family-news 의 hearts — 어르신이 아직 못 들은 가족 이모지('하트가 왔어요' 첫 장, D63).
+    읽어 드린 뒤 POST /elder/hearts/heard {until} 이 그때까지 온 칸에 heard_at 을 적는다.
 
 담당: 일기 프롬프트·그림 화풍(image.STYLE) 다듬기 홍진성 / 사진 일기(카메라)·가족 일기·목록 세부 천주웅.
 그림 제공자는 Workers AI FLUX.2 klein 4B 로 연결됨(D37, IMAGE_PROVIDER=cloudflare).
@@ -32,13 +36,24 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.ai import coach, image, tts
-from app.config import DIARY_DRAFT_MIN, ELDER_DIARY_LIST_LIMIT, now_kst
+from app.config import DIARY_DRAFT_MIN, ELDER_DIARY_LIST_LIMIT, ELDER_HEARTS_LIMIT, now_kst
 from app.deps import DB, CurrentDevice, CurrentUser, require_member
 from app.errors import ApiError
 from app.models import Diary, FamilyRoom, Photo, RoomMember, User
 from app.routers.devices import notify_family
 from app.routers.sessions import DIARY_SAVED, _tts_failed, coach_context, load_session
-from app.schemas.diaries import DiaryCreateIn, DiaryListOut, DiaryOut, DraftOut, ElderDiaryIn
+from app.schemas.diaries import (
+    DiaryCreateIn,
+    DiaryListOut,
+    DiaryOut,
+    DraftOut,
+    ElderDiaryIn,
+    ElderLikeIn,
+    FamilyNewsOut,
+    HeartOut,
+    HeartsHeardIn,
+    ReactionIn,
+)
 from app.services import storage
 
 log = logging.getLogger("app.diaries")
@@ -144,6 +159,37 @@ def make_draft(session_id: uuid.UUID, device: CurrentDevice, db: DB):
         return out
 
 
+def _member_names(db, room_id: int) -> dict[int, str]:
+    """가족방 사람의 user_id → 별명(없으면 이름). 방에서 나간 사람도 그 줄은 남아 있어 이름이 나온다."""
+    rows = db.execute(
+        select(RoomMember.user_id, RoomMember.nickname, User.name)
+        .join(User, User.user_id == RoomMember.user_id)
+        .where(RoomMember.room_id == room_id)
+    ).all()
+    return {user_id: nickname or name for user_id, nickname, name in rows}
+
+
+def _elder_diaries_with_reactions(room_id: int):
+    return select(Diary).where(
+        Diary.room_id == room_id,
+        Diary.author_type == "ELDER",
+        Diary.status == "POSTED",
+        func.jsonb_array_length(Diary.reactions) > 0,
+    )
+
+
+def _unheard(reaction: dict) -> bool:
+    return reaction.get("by") == "FAMILY" and "heard_at" not in reaction
+
+
+def unheard_hearts(db, room_id: int) -> list[tuple[Diary, dict]]:
+    """어르신이 아직 못 들은 가족 이모지 (일기, 칸), 받은 순서. 가족 소식 첫 장과 홈 숫자(elder.py)가 쓴다 (D63)."""
+    # ponytail: 리액션이 달린 어르신 일기를 읽어 코드로 거른다(일기는 하루 한두 편). 느려지면 jsonb_path_exists 조건으로
+    diaries = db.scalars(_elder_diaries_with_reactions(room_id)).all()
+    found = [(diary, r) for diary in diaries for r in diary.reactions if _unheard(r)]
+    return sorted(found, key=lambda pair: pair[1]["at"])
+
+
 def _rows(db, room: FamilyRoom, *cond, me: int | None = None, limit: int = 50) -> list[DiaryOut]:
     """일기 행 → DiaryOut (최근 limit 개, 기본 50). me = 보는 가족 user_id, None 이면 어르신 기기가 보는 것."""
     rows = db.execute(
@@ -157,6 +203,8 @@ def _rows(db, room: FamilyRoom, *cond, me: int | None = None, limit: int = 50) -
         .order_by(Diary.posted_at.desc(), Diary.diary_id.desc())
         .limit(limit)
     ).all()
+    # 리액션을 누른 가족의 이름은 응답에만 붙인다 (DB 에는 user_id 만)
+    names = _member_names(db, room.room_id) if any(d.reactions for d, *_ in rows) else {}
     out = []
     for d, name, photo_key, nickname in rows:
         mine = d.author_user_id == me if me is not None else d.author_type == "ELDER"
@@ -177,6 +225,9 @@ def _rows(db, room: FamilyRoom, *cond, me: int | None = None, limit: int = 50) -
                 posted_at=d.posted_at,
                 read_by_elder=by_elder,
                 read_by_me=mine or by_me,
+                reactions=[
+                    dict(r, name=names.get(r.get("user_id")) if r.get("by") == "FAMILY" else None) for r in d.reactions
+                ],
             )
         )
     return out
@@ -275,14 +326,22 @@ def elder_my_diaries(device: CurrentDevice, db: DB):
     return DiaryListOut(diaries=_rows(db, room, Diary.author_type == "ELDER", limit=ELDER_DIARY_LIST_LIMIT))
 
 
-@router.get("/elder/family-news", response_model=DiaryListOut)
+@router.get("/elder/family-news", response_model=FamilyNewsOut)
 def elder_family_news(device: CurrentDevice, db: DB):
-    """어르신이 아직 안 들은 이 가족방의 가족 일기, 최근 50개 (FR-FD-003).
+    """어르신이 아직 안 들은 이 가족방의 가족 일기, 최근 50개 (FR-FD-003) + 아직 못 들은 가족 이모지 (D63).
 
     홈의 안 들은 소식 수(elder.py home)와 같은 조건. 50개가 넘으면 들은 뒤 다시 부를 때 나머지가 나온다.
+    hearts 는 가족 소식 첫 장 '하트가 왔어요' — 받은 순서. 읽어 드린 뒤 POST /elder/hearts/heard.
     """
     room = db.get(FamilyRoom, device.room_id)
-    return DiaryListOut(diaries=_rows(db, room, Diary.author_type == "FAMILY", Diary.elder_read_at.is_(None)))
+    names = _member_names(db, room.room_id)
+    hearts = [
+        HeartOut(diary_id=diary.diary_id, kind=r["kind"], name=names.get(r.get("user_id")), at=r["at"])
+        for diary, r in unheard_hearts(db, room.room_id)[:ELDER_HEARTS_LIMIT]
+    ]
+    return FamilyNewsOut(
+        diaries=_rows(db, room, Diary.author_type == "FAMILY", Diary.elder_read_at.is_(None)), hearts=hearts
+    )
 
 
 @router.post("/elder/diaries/{diary_id}/read", status_code=204)
@@ -294,6 +353,43 @@ def elder_mark_read(diary_id: int, device: CurrentDevice, db: DB):
     db.execute(
         update(Diary).where(Diary.diary_id == diary_id, Diary.elder_read_at.is_(None)).values(elder_read_at=now_kst())
     )
+    db.commit()
+
+
+@router.post("/elder/diaries/{diary_id}/like", response_model=DiaryOut)
+def elder_like(diary_id: int, body: ElderLikeIn, device: CurrentDevice, db: DB):
+    """어르신 [좋아요]를 가족 일기에 (D54). 본문 {on} = '이 상태로 만들어 줘' — 두 번 와도 같다. 기기 쿠키 전용."""
+    diary = db.get(Diary, diary_id, with_for_update=True)  # 같은 순간의 다른 리액션과 서로 덮어쓰지 않게
+    if diary is None or diary.room_id != device.room_id or diary.status != "POSTED":
+        raise ApiError(404, "DIARY_NOT_FOUND", "일기를 찾을 수 없어요")
+    if diary.author_type != "FAMILY":  # 404 확인 뒤에 — 먼저 하면 남의 가족방에 어떤 일기가 있는지 드러난다
+        raise ApiError(409, "REACTION_NOT_ALLOWED", "좋아요는 가족 일기에만 누를 수 있어요")
+    liked = any(r.get("by") == "ELDER" for r in diary.reactions)
+    if body.on and not liked:
+        # 새 리스트를 통째로 넣어야 저장된다. 어르신 칸에는 user_id 키를 넣지 않는다
+        diary.reactions = [*diary.reactions, {"by": "ELDER", "kind": "LIKE", "at": now_kst().isoformat()}]
+    elif not body.on and liked:
+        diary.reactions = [r for r in diary.reactions if r.get("by") != "ELDER"]
+    db.commit()  # 바뀐 게 없어도 — 행 잠금이 풀린다
+    return _rows(db, db.get(FamilyRoom, device.room_id), Diary.diary_id == diary_id)[0]
+
+
+@router.post("/elder/hearts/heard", status_code=204)
+def elder_hearts_heard(body: HeartsHeardIn, device: CurrentDevice, db: DB):
+    """가족 소식 첫 장을 들으셨다 — until 까지 온 가족 이모지에 들은 시각을 적는다 (D63).
+
+    그 뒤에 온 것은 다음에 읽어 드린다(듣는 사이에 온 하트가 읽히지 않은 채 '들음'이 되지 않게).
+    여러 번 불러도 처음 들은 시각 그대로.
+    """
+    now = now_kst().isoformat()
+
+    def due(reaction: dict) -> bool:
+        return _unheard(reaction) and datetime.fromisoformat(reaction["at"]) <= body.until
+
+    # 행 잠금 — 같은 순간의 가족 이모지(send_reaction)와 서로 덮어쓰지 않게
+    for diary in db.scalars(_elder_diaries_with_reactions(device.room_id).with_for_update()).all():
+        if any(due(r) for r in diary.reactions):
+            diary.reactions = [dict(r, heard_at=now) if due(r) else r for r in diary.reactions]
     db.commit()
 
 
@@ -337,3 +433,33 @@ def mark_read(diary_id: int, user: CurrentUser, db: DB):
         .values(family_read_by=Diary.family_read_by.op("||")(func.jsonb_build_array(user.user_id)))
     )
     db.commit()
+
+
+@router.post("/diaries/{diary_id}/reaction", response_model=DiaryOut)
+def send_reaction(diary_id: int, body: ReactionIn, user: CurrentUser, db: DB):
+    """가족 이모지를 어르신 일기에 (D54). 본문 {kind, on} = '이 상태로 만들어 줘' — 켜기·바꾸기·취소, 한 사람 1칸.
+
+    같은 요청이 두 번 와도 결과가 같다. 가족 쿠키 전용(mark_read 와 같은 이유로 어르신 주소와 나눈다).
+    """
+    diary = db.get(Diary, diary_id, with_for_update=True)  # 두 가족이 동시에 눌러도 서로의 칸을 덮어쓰지 않게
+    member = diary is not None and db.scalar(
+        select(RoomMember.member_id).where(
+            RoomMember.room_id == diary.room_id,
+            RoomMember.user_id == user.user_id,
+            RoomMember.removed_at.is_(None),
+        )
+    )
+    if not member or diary.status != "POSTED":  # 다른 방 일기도 없는 것처럼 404 (D43)
+        raise ApiError(404, "DIARY_NOT_FOUND", "일기를 찾을 수 없어요")
+    if diary.author_type != "ELDER":  # 404 확인 뒤에 — 먼저 하면 남의 가족방에 어떤 일기가 있는지 드러난다
+        raise ApiError(409, "REACTION_NOT_ALLOWED", "이모지는 어르신 일기에만 보낼 수 있어요")
+    mine = next((r for r in diary.reactions if r.get("by") == "FAMILY" and r.get("user_id") == user.user_id), None)
+    others = [r for r in diary.reactions if r is not mine]
+    same = mine is not None and mine.get("kind") == body.kind
+    if body.on and not same:  # 없던 것을 켜거나 다른 이모지에서 바꿔 끼움. 새 리스트를 통째로 넣어야 저장된다
+        new = {"by": "FAMILY", "user_id": user.user_id, "kind": body.kind, "at": now_kst().isoformat()}
+        diary.reactions = [*others, new]
+    elif not body.on and same:  # 켜져 있는 그 이모지만 끈다. 다른 이모지로 바뀌어 있으면 이미 꺼진 상태
+        diary.reactions = others
+    db.commit()  # 바뀐 게 없어도 — 행 잠금이 풀린다
+    return _rows(db, db.get(FamilyRoom, diary.room_id), Diary.diary_id == diary_id, me=user.user_id)[0]

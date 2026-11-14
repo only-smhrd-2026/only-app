@@ -22,7 +22,7 @@ class ElderHomeOut(BaseModel):
     elder_name: str
     elder_honorific: str
     today_pick: TodayPickOut | None
-    unread_family_news: int
+    unread_family_news: int  # 안 들은 가족 일기 수 + 못 들은 가족 이모지가 있으면 1 (D63)
     settings: ElderSettingsOut
 
 

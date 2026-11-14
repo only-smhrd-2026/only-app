@@ -136,8 +136,23 @@ export type DiaryOut = {
   posted_at: string
   read_by_elder: boolean
   read_by_me: boolean // false 면 가족 홈 '새 일기'
+  reactions: Reaction[] // 리액션 (D54). 누른 사람마다 1칸 — 가족 이모지는 어르신 일기에, 어르신 좋아요는 가족 일기에
+}
+// 리액션 한 칸. name = 누른 가족의 별명(없으면 이름), 어르신은 null
+// 가족: POST /api/diaries/{id}/reaction { kind, on } · 어르신: POST /api/elder/diaries/{id}/like { on } → 둘 다 DiaryOut
+// on 은 '이 상태로 만들어 줘' — 화면은 지금 보이는 상태의 반대를 보낸다(같은 요청이 두 번 가도 결과가 같다)
+export type Reaction = {
+  by: 'ELDER' | 'FAMILY'
+  kind: 'LIKE' | 'HEART' | 'SMILE' | 'CLAP'
+  user_id: number | null
+  name: string | null
+  at: string
 }
 export type DiaryListOut = { diaries: DiaryOut[] }
+// 어르신 가족 소식 GET /api/elder/family-news (D63): 안 들은 가족 일기 + 아직 못 들은 가족 이모지(첫 장 '하트가 왔어요', 받은 순서)
+// 첫 장을 읽어 드린 뒤 POST /api/elder/hearts/heard { until: 읽어 드린 마지막 하트의 at } → 204
+export type Heart = { diary_id: number; kind: 'HEART' | 'SMILE' | 'CLAP'; name: string | null; at: string }
+export type FamilyNewsOut = DiaryListOut & { hearts: Heart[] }
 // ---- 가족 일기 동무 (backend/app/schemas/family_diary.py, D58) — FDIARY_002 질문 · FDIARY_003 초안. 서버는 저장하지 않는다
 // POST /api/rooms/{room_id}/family-diary/ask · /draft. 여러 가족방에 보내도 고른 방 하나로 한 번만 부른다
 export type FamilyAskIn = { text: string } // 가족이 쓴 말 1~200자
