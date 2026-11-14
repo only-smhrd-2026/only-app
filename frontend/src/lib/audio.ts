@@ -51,16 +51,18 @@ export function cue() {
 }
 
 /**
- * 화면 고정 안내 → src/assets/audio/<키>.mp3 (서버 TTS 와 같은 목소리로 미리 합성, FR-VS-004 '같은 안내 문장은 미리 합성해 캐시', D48).
+ * 화면 고정 안내 → 어르신이 고른 목소리의 mp3: 여자 src/assets/audio/<키>.mp3 · 남자 src/assets/audio/male/<키>.mp3
+ * (서버 TTS 와 같은 목소리로 미리 합성, FR-VS-004 '같은 안내 문장은 미리 합성해 캐시', D48·D74).
  * 빌드가 주소에 해시를 붙여 다시 만들면 폰 캐시도 바뀐다. 여기 없는 문장·파일이 없을 때는 기기 목소리로 읽는다.
- * 문장이나 목소리(tts.VOICE, 11/17 TEST-01)를 바꾸면 mp3 를 다시 만든다
- * (홍진성 PC, 실제 키, 문장 수만큼 Google 호출 — 한 줄에 '  키: '문장',' 모양을 지켜야 아래 명령이 읽는다):
+ * 문장이나 목소리(backend tts.VOICES)를 바꾸면 mp3 를 다시 만든다
+ * (홍진성 PC, 실제 키, 문장 수 × 목소리 2개만큼 Google 호출 — 한 줄에 '  키: '문장',' 모양을 지켜야 아래 명령이 읽는다):
  *   cd backend && uv run python - <<'EOF'
  *   import pathlib, re
  *   from app.ai import tts
  *   src = pathlib.Path('../frontend/src/lib/audio.ts').read_text()
  *   for key, text in re.findall(r"^  (\w+): '([^']+)',", src, re.M):
- *       pathlib.Path(f'../frontend/src/assets/audio/{key}.mp3').write_bytes(tts._google(text))
+ *       for voice, sub in (('FEMALE', ''), ('MALE', 'male/')):
+ *           pathlib.Path(f'../frontend/src/assets/audio/{sub}{key}.mp3').write_bytes(tts._google(text, voice))
  *   EOF
  */
 export const PROMPT = {
@@ -74,14 +76,31 @@ export const PROMPT = {
   thanks: '고마워요. 오늘은 여기까지 할게요.',
   tooMany: '잠시 후 다시 말씀해 주세요', // 서버 429 TOO_MANY_REQUESTS 문장 그대로 (routers/stt.py)
   sttLimit: '오늘은 말로 답하기를 다 썼어요. 버튼을 눌러 답해 주세요.', // 서버 429 STT_DAILY_LIMIT 문장 그대로
+  voiceAsk: '어떤 목소리가 좋으세요? 눌러서 들어 보세요.', // 목소리 고르기(ELDER_CONNECT_001) — 고르기 전이라 여자 목소리 mp3 만 (D74)
+  voiceHello: '안녕하세요. 이 목소리로 이야기 나눠요.', // 목소리 고르기·가족방 설정 — 누른 목소리로 들려준다 (D74)
   ...MOOD_PROMPT, // 마음 체크 11문장 — 글은 lib/moodCheck.ts 에 있다(공식 문구라 그 파일에서만 고친다). mp3 는 같은 명령을 그 파일에 돌려 만든다
 } as const
 
-const FILES = import.meta.glob<string>('../assets/audio/*.mp3', { eager: true, query: '?url', import: 'default' })
-const PROMPT_URL = new Map<string, string>()
-for (const [key, text] of Object.entries(PROMPT)) {
-  const url = FILES[`../assets/audio/${key}.mp3`]
-  if (url) PROMPT_URL.set(text, url)
+const FILES = import.meta.glob<string>('../assets/audio/**/*.mp3', { eager: true, query: '?url', import: 'default' })
+const PROMPT_KEY = new Map<string, string>(Object.entries(PROMPT).map(([key, text]) => [text, key]))
+
+// 어르신이 고른 목소리(가족방 tts_voice, D74). 홈을 읽을 때 setVoice 로 맞추고 폰에도 적어 둔다
+// — 홈을 거치지 않고 하위 화면에서 새로고침해도 고정 안내가 같은 목소리로 나온다
+const VOICE_KEY = 'haru.elder.voice'
+let voice: 'FEMALE' | 'MALE' = 'FEMALE'
+try {
+  if (localStorage.getItem(VOICE_KEY) === 'MALE') voice = 'MALE'
+} catch {
+  // 저장소가 막힌 브라우저 — 여자 목소리
+}
+
+export function setVoice(v: 'FEMALE' | 'MALE') {
+  voice = v
+  try {
+    localStorage.setItem(VOICE_KEY, v)
+  } catch {
+    // 저장소가 막힌 브라우저 — 이 화면에서만
+  }
 }
 
 let current: HTMLAudioElement | null = null
@@ -119,7 +138,7 @@ function play(src: string, rate: number): Promise<boolean> {
 
 /**
  * 서버 TTS(base64 mp3) 재생. 끝나면 resolve. 자동재생이 막히거나 재생하지 못하면 reject. stopSpeaking() 으로 멈출 수 있다.
- * rate = 말 속도(0.70·0.85·1.00). 서버는 1.0배로 합성하고 여기서 늦춘다 (D46). 음높이는 브라우저가 그대로 둔다.
+ * rate = 말 속도(0.80·0.90·1.00, D74). 서버는 1.0배로 합성하고 여기서 늦춘다 (D46). 음높이는 브라우저가 그대로 둔다.
  */
 export function playBase64(b64: string, rate = 1, mime = 'audio/mpeg'): Promise<void> {
   return play(`data:${mime};base64,${b64}`, rate).then(() => {})
@@ -128,10 +147,12 @@ export function playBase64(b64: string, rate = 1, mime = 'audio/mpeg'): Promise<
 /**
  * 읽기: 서버 음성(b64) → 고정 안내 mp3 → 기기 목소리 순. 앞서 읽던 것은 끊는다. 끝까지 들려줬으면 true.
  * 자동 재생이 막혔을 때는 기기 목소리로 다시 읽지 않는다 — 크롬은 같은 규칙으로 막는다 (D48).
+ * v = 고정 안내 mp3 의 목소리. 평소에는 고른 목소리, 목소리 고르기·가족방 설정에서 들려줄 때만 따로 준다 (D74).
  */
-export function say(text: string, rate = 0.85, b64?: string | null): Promise<boolean> {
+export function say(text: string, rate = 0.9, b64?: string | null, v = voice): Promise<boolean> {
   stopSpeaking()
-  const src = b64 ? `data:audio/mpeg;base64,${b64}` : PROMPT_URL.get(text)
+  const key = PROMPT_KEY.get(text)
+  const src = b64 ? `data:audio/mpeg;base64,${b64}` : key && FILES[`../assets/audio/${v === 'MALE' ? 'male/' : ''}${key}.mp3`]
   if (!src) return speak(text, rate)
   return play(src, rate).catch((e: unknown) =>
     e instanceof DOMException && e.name === 'NotAllowedError' ? false : speak(text, rate),
@@ -142,7 +163,7 @@ export function say(text: string, rate = 0.85, b64?: string | null): Promise<boo
  * 브라우저 TTS. 없으면 바로 resolve (자막만). 기기에 한국어 음성이 없어 onend/onerror 가 안 오면 글자 수 기준 시간 뒤 resolve.
  * 사용자 터치 전이라 막히면 false — 크롬은 speak() 안에서 바로 error 'not-allowed' 를 보낸다 (D48).
  */
-export function speak(text: string, rate = 0.85): Promise<boolean> {
+export function speak(text: string, rate = 0.9): Promise<boolean> {
   return new Promise((resolve) => {
     if (!('speechSynthesis' in window)) return resolve(true)
     window.speechSynthesis.cancel()

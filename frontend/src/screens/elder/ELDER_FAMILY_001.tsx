@@ -54,7 +54,7 @@ const heartIcon = (
 export default function ELDER_FAMILY_001() {
   const nav = useNavigate()
   const { home } = (useLocation().state ?? {}) as ElderNavState
-  const speed = Number(home?.settings.tts_speed) || 0.85
+  const speed = Number(home?.settings.tts_speed) || 0.9
   const { data, error, loading, reload } = useFetch<FamilyNewsOut>('/api/elder/family-news')
   const live = useLive()
   const [index, setIndex] = useState(0)

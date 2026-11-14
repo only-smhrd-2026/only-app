@@ -42,3 +42,9 @@
   outline: calc(var(--elder-edge-w) * 2) solid var(--elder-fg);
   outline-offset: calc(var(--elder-edge-w) * 2);
 }
+
+/* 목소리 고르기 (D74) — 가로로 긴 버튼 세로로, 고른 것은 옅은 보라(.elder-like 와 같은 색). 남는 자리를 채워 결정 버튼은 맨 아래 */
+.elder-connect-voice { display: grid; gap: var(--elder-gap); align-content: start; flex: 1 1 auto; min-height: 0; }
+.elder-connect-voice-btn { display: flex; align-items: center; gap: var(--elder-gap); padding: 4px 20px; text-align: left; }
+.elder-connect-voice-btn[aria-pressed="true"] { background: var(--elder-me); border-color: var(--elder-me-e); color: var(--elder-me-f); }
+.elder-connect-ok { margin-left: auto; }

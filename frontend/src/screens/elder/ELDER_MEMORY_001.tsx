@@ -44,7 +44,7 @@ export default function ELDER_MEMORY_001() {
         sessionId={sessionId}
         initial={session}
         history={history}
-        speed={Number(home.settings.tts_speed) || 0.85}
+        speed={Number(home.settings.tts_speed) || 0.9}
         inputMode={home.settings.input_mode}
         onEnded={setEnded}
         endAction={ended ? { label: '다 들었어요', onClick: finish } : undefined}

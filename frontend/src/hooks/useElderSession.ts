@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import type { ElderHomeOut, SessionGetOut, SessionOut, TurnOut } from '../api/types'
+import { setVoice } from '../lib/audio'
 import { clearPaused } from '../lib/pausedSession'
 
 /** 앞 화면이 navigate(…, { state }) 로 넘기는 것 */
@@ -67,6 +68,7 @@ export function useElderSession(sessionId: string) {
             input_locked: s.input_locked,
           })
         }
+        setVoice(h.settings.tts_voice) // 새로고침으로 홈을 다시 읽었을 때도 고른 목소리로 (D74)
         setHome(h)
       })
       .catch(() => live.current && nav('/elder', { replace: true }))

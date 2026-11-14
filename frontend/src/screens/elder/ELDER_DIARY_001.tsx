@@ -26,7 +26,7 @@ export default function ELDER_DIARY_001() {
   // 같은 번호로는 서버가 그 대화를 돌려줘 사진이 일기에 안 붙는다
   const pendingPhoto = useRef<{ file: File; batchId: string; sessionId: string } | undefined>(undefined)
   const [error, setError] = useState<string>()
-  const speed = Number(home?.settings.tts_speed) || 0.85
+  const speed = Number(home?.settings.tts_speed) || 0.9
   const [saying, setSaying] = useState(false)
   const sayingTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 

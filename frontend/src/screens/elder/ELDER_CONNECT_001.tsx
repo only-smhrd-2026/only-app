@@ -1,14 +1,19 @@
 /**
  * ELDER_CONNECT_001 — 어르신 기기 연결. 가족이 보낸 링크 /elder/connect#<토큰> 으로 들어온다 (D16, 토큰은 # 뒤).
- * [시작하기] → 기기 쿠키 발급 → 마이크 권한 → 어르신 홈.
+ * [시작하기] → 기기 쿠키 발급 → 마이크 권한 → 목소리 고르기(여자·남자, D74) → 어르신 홈.
  */
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { DeviceOut, InviteStatusOut } from '../../api/types'
 import connectPreview from '../../assets/elder-connect-preview.svg'
-import { speak, stopSpeaking } from '../../lib/audio'
+import { PROMPT, say, setVoice, speak, stopSpeaking } from '../../lib/audio'
 import './ELDER_CONNECT_001.css'
+
+const VOICES = [
+  ['FEMALE', '여자 목소리'],
+  ['MALE', '남자 목소리'],
+] as const
 
 export default function ELDER_CONNECT_001() {
   const nav = useNavigate()
@@ -18,7 +23,8 @@ export default function ELDER_CONNECT_001() {
     token ? undefined : '링크가 올바르지 않아요. 가족에게 다시 받아 주세요.',
   )
   const [busy, setBusy] = useState(false)
-  const [step, setStep] = useState<'invite' | 'permissions'>('invite')
+  const [step, setStep] = useState<'invite' | 'permissions' | 'voice'>('invite')
+  const [picked, setPicked] = useState<'FEMALE' | 'MALE'>()
   const connected = useRef(false)
 
   useEffect(() => {
@@ -54,14 +60,41 @@ export default function ELDER_CONNECT_001() {
         /* 거부해도 버튼 모드로 진행 */
       }
       await api('/api/devices/me/permissions', { method: 'PATCH', body: { perm_mic } })
+      setStep('voice')
+      setBusy(false)
+      void say(PROMPT.voiceAsk, 0.9, null, 'FEMALE') // 고르기 전이라 기본(여자) 목소리로 묻는다 (D74)
+    } catch (e) {
+      fail(e)
+    }
+  }
+
+  // 누르면 그 목소리로 인사 한 마디 + 고름. 다시 누르면 다시 들려준다 (D74)
+  function listen(v: 'FEMALE' | 'MALE') {
+    setPicked(v)
+    void say(PROMPT.voiceHello, 0.9, null, v)
+  }
+
+  // 고른 목소리를 가족방에 저장하고, 이 폰의 고정 안내도 그 목소리로 → 홈
+  async function choose() {
+    if (!picked || busy) return
+    stopSpeaking()
+    setBusy(true)
+    setError(undefined)
+    try {
+      await api('/api/elder/voice', { body: { voice: picked } })
+      setVoice(picked)
       nav('/elder', { replace: true })
     } catch (e) {
-      // 서버 문장이 아닌 오류(응답이 중간에 끊김 등)는 영어라 그대로 보여 주거나 읽지 않는다
-      const message = e instanceof ApiError ? e.message : '연결하지 못했어요. 다시 눌러 주세요.'
-      setError(message)
-      void speak(message)
-      setBusy(false)
+      fail(e)
     }
+  }
+
+  function fail(e: unknown) {
+    // 서버 문장이 아닌 오류(응답이 중간에 끊김 등)는 영어라 그대로 보여 주거나 읽지 않는다
+    const message = e instanceof ApiError ? e.message : '연결하지 못했어요. 다시 눌러 주세요.'
+    setError(message)
+    void speak(message)
+    setBusy(false)
   }
 
   return (
@@ -87,7 +120,38 @@ export default function ELDER_CONNECT_001() {
           {busy && <p className="elder-text" role="status">연결 중…</p>}
         </div>
       )}
-      {status?.valid && (
+      {step === 'voice' && (
+        <div className="elder-connect-voice" aria-live="polite">
+          <p className="elder-text elder-connect-bubble">어떤 목소리가 좋으세요?<br />눌러서 들어 보세요.</p>
+          {VOICES.map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              className="elder-btn elder-btn--secondary elder-connect-voice-btn"
+              aria-pressed={picked === v}
+              onClick={() => listen(v)}
+            >
+              <svg className="elder-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 9.5v5h3.2L12 18.5v-13L7.2 9.5z" />
+                <path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.3 6.3a8 8 0 0 1 0 11.4" />
+              </svg>
+              {label}
+              {picked === v && (
+                <svg className="elder-ic elder-connect-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M5 12.5l4.5 4.5L19 7.5" />
+                </svg>
+              )}
+            </button>
+          ))}
+          <p className="elder-text elder-connect-guide">나중에 가족이 설정에서 바꿀 수 있어요.</p>
+        </div>
+      )}
+      {step === 'voice' && (
+        <button className="elder-btn elder-connect-start" onClick={choose} disabled={!picked || busy}>
+          {busy ? '저장 중…' : '이 목소리로 할게요'}
+        </button>
+      )}
+      {status?.valid && step !== 'voice' && (
         <>
           <button className="elder-btn elder-connect-start" onClick={start} disabled={busy}>
             {busy ? '연결 중…' : '시작하기'}

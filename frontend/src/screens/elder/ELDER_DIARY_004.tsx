@@ -19,7 +19,7 @@ const day = (iso: string) => new Date(iso).toLocaleDateString('ko-KR', { month: 
 
 export default function ELDER_DIARY_004() {
   const { home } = (useLocation().state ?? {}) as ElderNavState
-  const speed = Number(home?.settings.tts_speed) || 0.85
+  const speed = Number(home?.settings.tts_speed) || 0.9
   const { data, error, loading, reload } = useFetch<DiaryListOut>('/api/elder/diaries')
   const [open, setOpen] = useState<DiaryOut>()
   const view = useRef<HTMLDialogElement>(null)

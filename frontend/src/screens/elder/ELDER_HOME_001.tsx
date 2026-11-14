@@ -11,7 +11,7 @@ import type { ElderHomeOut, MoodCheckDueOut, SessionOut } from '../../api/types'
 import todayPreview from '../../assets/today-preview.svg?inline' // 미리보기 전용 — 배포 빌드에 파일이 따로 남지 않게
 import { useLive } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
-import { speak, stopSpeaking } from '../../lib/audio'
+import { setVoice, speak, stopSpeaking } from '../../lib/audio'
 import { moodSnoozed, snoozeMood } from '../../lib/moodCheck'
 import { readPaused, resumePath } from '../../lib/pausedSession'
 import ELDER_MOOD_001 from './ELDER_MOOD_001'
@@ -45,7 +45,7 @@ const previewHome: ElderHomeOut = {
   elder_honorific: '어르신',
   today_pick: { pick_id: 1, photo_id: 1, photo_url: todayPreview, status: 'PENDING' },
   unread_family_news: 0,
-  settings: { font_size: 'XL', tts_speed: 0.85, input_mode: 'VOICE' },
+  settings: { font_size: 'XL', tts_speed: 0.9, input_mode: 'VOICE', tts_voice: 'FEMALE' },
 }
 
 export default function ELDER_HOME_001() {
@@ -71,7 +71,9 @@ export default function ELDER_HOME_001() {
   useEffect(() => () => window.clearTimeout(noticeTimer.current), [])
 
   useEffect(() => {
-    if (home) document.documentElement.dataset.font = home.settings.font_size
+    if (!home) return
+    document.documentElement.dataset.font = home.settings.font_size
+    setVoice(home.settings.tts_voice) // 고정 안내 mp3 도 가족방 목소리로 (D74)
   }, [home])
 
   useEffect(() => {
@@ -167,7 +169,7 @@ export default function ELDER_HOME_001() {
       // 서버 문장이 아닌 오류(응답이 중간에 끊김 등)는 영어라 그대로 보여 주거나 읽지 않는다
       const message = e instanceof ApiError ? e.message : '대화를 시작하지 못했어요. 다시 눌러 주세요.'
       setStartError(message)
-      void speak(message, Number(home.settings.tts_speed) || 0.85)
+      void speak(message, Number(home.settings.tts_speed) || 0.9)
     }
   }
 
@@ -205,7 +207,7 @@ export default function ELDER_HOME_001() {
       if (e instanceof ApiError && e.code === 'PICK_EXPIRED') return refresh()
       const message = '건너뛰지 못했어요. 다시 눌러 주세요.'
       setStartError(message) // 저장이 안 됐으니 팝업을 남기고 그 안에 알린다
-      void speak(message, Number(home.settings.tts_speed) || 0.85)
+      void speak(message, Number(home.settings.tts_speed) || 0.9)
     } finally {
       setSkipping(false)
     }
@@ -259,7 +261,7 @@ export default function ELDER_HOME_001() {
     window.clearTimeout(noticeTimer.current)
     setNotice(message)
     noticeTimer.current = window.setTimeout(() => setNotice(''), NOTICE_MS)
-    void speak(message, Number(home.settings.tts_speed) || 0.85)
+    void speak(message, Number(home.settings.tts_speed) || 0.9)
   }
   function onDiary() {
     const p = preview ? null : readPaused()
@@ -321,7 +323,7 @@ export default function ELDER_HOME_001() {
         : notice && <p className="elder-text elder-home-note" role="status">{notice}</p>}
       {showToday && <ELDER_TODAY_001 home={home} busy={busy || skipping} error={startError} onTalk={talkFromToday} onSkip={() => void skipToday()} />}
       {showMood && (
-        <ELDER_MOOD_001 speed={Number(home.settings.tts_speed) || 0.85} onYes={() => answerMood(true)} onLater={() => answerMood(false)} />
+        <ELDER_MOOD_001 speed={Number(home.settings.tts_speed) || 0.9} onYes={() => answerMood(true)} onLater={() => answerMood(false)} />
       )}
     </main>
   )
