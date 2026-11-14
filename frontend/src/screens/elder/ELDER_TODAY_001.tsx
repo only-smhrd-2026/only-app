@@ -16,7 +16,7 @@ type Props = {
 export default function ELDER_TODAY_001({ home, busy, error, onTalk, onSkip }: Props) {
   const photo = home.today_pick
   const prompt = `${home.elder_name} ${home.elder_honorific}, 같이 이야기해 볼까요?`
-  const speed = Number(home.settings.tts_speed) || 0.85
+  const speed = Number(home.settings.tts_speed) || 0.9
 
   useEffect(() => {
     if (!photo) return

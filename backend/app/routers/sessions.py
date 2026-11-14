@@ -273,7 +273,7 @@ def _risk_close(db, session: TalkSession, room: FamilyRoom) -> SessionOut:
 def _ai_out(db, session: TalkSession, room: FamilyRoom, reply: CoachReply) -> AiOut:
     audio_b64 = None
     try:
-        audio = tts.synthesize(reply.text, float(room.tts_speed))
+        audio = tts.synthesize(reply.text, float(room.tts_speed), room.tts_voice)
         audio_b64 = base64.b64encode(audio).decode() if audio else None
     except Exception as e:  # TTS 실패 → 자막만 + 가족 알림 1건 (D5)
         log.warning("tts failed session=%s type=%s", session.session_id, type(e).__name__)

@@ -95,7 +95,7 @@ def test_tts_llm_daily_cap(monkeypatch):
     monkeypatch.setattr(settings, "TTS_PROVIDER", "google")
     monkeypatch.setattr(settings, "LLM_PROVIDER", "anthropic")
     calls = []
-    monkeypatch.setattr(tts, "_google", lambda text: calls.append(text) or b"mp3")
+    monkeypatch.setattr(tts, "_google", lambda text, voice="FEMALE": calls.append(text) or b"mp3")
     monkeypatch.setitem(security._daily_hits, ("tts", today_kst()), TTS_PER_DAY - 1)
     assert tts.synthesize("가") == b"mp3"  # 상한 전 마지막 1번은 부르고 센다
     assert tts.synthesize("나") is None and calls == ["가"]
@@ -342,17 +342,20 @@ def test_google_tts_adapter(monkeypatch):
     assert sent["url"] == tts.GOOGLE_URL and sent["headers"] == {"X-Goog-Api-Key": "key-123"}  # 주소에는 키가 없다
     assert sent["body"] == {
         "input": {"text": text},
-        "voice": {"languageCode": "ko-KR", "name": tts.VOICE},
+        "voice": {"languageCode": "ko-KR", "name": "ko-KR-Chirp3-HD-Kore"},  # 기본 = 여자 목소리 (D74)
         "audioConfig": {"audioEncoding": "MP3"},
     }
     assert sent["timeout"] == pytest.approx(tts.TTS_BASE_SEC + tts.TTS_PER_CHAR_SEC * len(text))
-    assert tts.synthesize(text, 0.70) == b"mp3!" and sent["n"] == 1  # 캐시
+    assert tts.synthesize(text, 0.80) == b"mp3!" and sent["n"] == 1  # 캐시
+    assert tts.synthesize(text, 0.90, "MALE") == b"mp3!" and sent["n"] == 2  # 목소리가 다르면 따로 합성 (D74)
+    assert sent["body"]["voice"]["name"] == "ko-KR-Chirp3-HD-Charon"
+    assert tts.synthesize("모르는 목소리", 0.90, "CHILD") == b"mp3!" and sent["body"]["voice"]["name"].endswith("Kore")
 
     reply["status"] = 429  # 한도 초과 → 예외 → 부른 쪽이 자막만
     with pytest.raises(httpx.HTTPStatusError):
         tts.synthesize("다른 문장이에요.")
     reply["status"] = 200
-    assert tts.synthesize("다른 문장이에요.") == b"mp3!" and sent["n"] == 3  # 실패는 캐시되지 않는다
+    assert tts.synthesize("다른 문장이에요.") == b"mp3!" and sent["n"] == 5  # 실패는 캐시되지 않는다
 
     monkeypatch.setattr(settings, "GOOGLE_TTS_API_KEY", "")
     with pytest.raises(RuntimeError):
@@ -370,7 +373,7 @@ def test_turn_carries_tts_audio_and_survives_tts_failure(client, monkeypatch):
         assert r.status_code == 201, r.text
         return r.json()
 
-    monkeypatch.setattr(tts, "synthesize", lambda text, speed: b"mp3!")
+    monkeypatch.setattr(tts, "synthesize", lambda text, speed, voice="FEMALE": b"mp3!")
     assert base64.b64decode(start()["ai"]["audio_b64"]) == b"mp3!"
 
     def broken(text, speed):

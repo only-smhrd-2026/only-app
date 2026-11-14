@@ -13,7 +13,7 @@ export default function ELDER_ALBUM_001() {
   const loc = useLocation()
   // 홈이 넘긴 정보를 회상 화면까지 넘긴다 → 회상 화면이 세션·홈을 다시 읽지 않아 첫 질문을 서버 음성으로 읽는다
   const { home } = (loc.state ?? {}) as ElderNavState
-  const speed = Number(home?.settings.tts_speed) || 0.85
+  const speed = Number(home?.settings.tts_speed) || 0.9
   const { data, error, loading, reload } = useFetch<AlbumOut>('/api/elder/album')
   const live = useLive()
   const [busy, setBusy] = useState(false)

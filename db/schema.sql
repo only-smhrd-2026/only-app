@@ -41,7 +41,8 @@ CREATE TABLE family_rooms (
     memory_time TIME NOT NULL DEFAULT '09:00',
     diary_time TIME NOT NULL DEFAULT '19:00',
     font_size VARCHAR(5) NOT NULL DEFAULT 'XL' CHECK (font_size IN ('L', 'XL', 'XXL')),
-    tts_speed NUMERIC(3,2) NOT NULL DEFAULT 0.85 CHECK (tts_speed IN (0.70, 0.85, 1.00)),
+    tts_speed NUMERIC(3,2) NOT NULL DEFAULT 0.90 CHECK (tts_speed IN (0.80, 0.90, 1.00)),   -- D74 (전 0.70·0.85·1.00)
+    tts_voice VARCHAR(6) NOT NULL DEFAULT 'FEMALE' CHECK (tts_voice IN ('FEMALE', 'MALE')),  -- D74 어르신이 처음 연결 때 고름
     integration_scope VARCHAR(15) NOT NULL DEFAULT 'NONE' CHECK (integration_scope IN ('NONE', 'SUMMARY_ONLY')),
     integration_consent_at TIMESTAMPTZ,
     external_user_id VARCHAR(64) UNIQUE,

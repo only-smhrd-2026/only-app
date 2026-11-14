@@ -38,7 +38,7 @@ export default function ELDER_DIARY_002() {
         initial={session}
         history={history}
         maxTurns={DIARY_TURNS}
-        speed={Number(home.settings.tts_speed) || 0.85}
+        speed={Number(home.settings.tts_speed) || 0.9}
         inputMode={home.settings.input_mode}
         onEnded={onEnded}
         endAction={stopped ? { label: '다 들었어요', onClick: () => nav('/elder', { replace: true }) } : undefined}

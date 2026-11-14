@@ -1,6 +1,7 @@
 import uuid
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -26,6 +27,13 @@ class ElderSettingsOut(BaseModel):
     font_size: str
     tts_speed: Decimal
     input_mode: str
+    tts_voice: str = "FEMALE"  # FEMALE | MALE — 화면 고정 안내 mp3 도 이 목소리로 (D74)
+
+
+class ElderVoiceIn(BaseModel):
+    """처음 연결 때 어르신이 고른 목소리 (ELDER_CONNECT_001, D74). 가족은 가족방 설정에서 바꾼다."""
+
+    voice: Literal["FEMALE", "MALE"]
 
 
 class ElderHomeOut(BaseModel):

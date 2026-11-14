@@ -17,7 +17,7 @@ const TAP_GAP_MS = 600 // 보기 버튼이 같은 자리에 있어서, 두 번 �
 export default function ELDER_MOOD_002() {
   const nav = useNavigate()
   const { home } = (useLocation().state ?? {}) as ElderNavState
-  const speed = Number(home?.settings.tts_speed) || 0.85
+  const speed = Number(home?.settings.tts_speed) || 0.9
   const live = useLive()
   const [answers, setAnswers] = useState<number[]>([])
   const [step, setStep] = useState<'asking' | 'saving' | 'failed' | 'done'>('asking')

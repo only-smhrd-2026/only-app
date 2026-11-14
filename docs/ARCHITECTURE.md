@@ -106,8 +106,9 @@ ELDER_DIARY_003: POST /elder/sessions/{id}/draft
 주간 이야기: GET /rooms/{id}/weekly[?week_start=] → 집계 줄(이야기한 날·일기 쓴 날·기분·말 수). 없으면 404 WEEKLY_NOT_FOUND
 일기:        GET /diaries/{id} (가족, 상세) · GET /elder/diaries (기기, 내 일기 목록 — 일기 쓰기 화면의 [지난 일기] ELDER_DIARY_004, D60) · POST /rooms/{id}/diaries (가족 일기, 같은 방 + 같은 request_id 는 1개)
 사진첩:      GET /elder/album — 가족이 올린 사진만. 어르신이 일기에 찍은 사진은 지난 일기에서 본다 (D60)
-가족방:      PATCH /rooms/{id}/settings (방장만 — 추억 시간은 정각, 글자 L·XL·XXL, 말 속도 "0.70"·"0.85"·"1.00", 입력 방식)
+가족방:      PATCH /rooms/{id}/settings (방장만 — 추억 시간은 정각, 글자 L·XL·XXL, 말 속도 "0.80"·"0.90"·"1.00", 목소리 FEMALE·MALE, 입력 방식)
              DELETE /rooms/{id}/members/{user_id} (방장만, 방장 자신은 400) · DELETE /rooms/{id}/device (기기만 끊는다)
+목소리:      POST /elder/voice {voice: FEMALE·MALE} (기기 — 처음 연결 때 어르신이 들어 보고 고름, 가족은 위 settings 의 tts_voice, D74)
 사진:        POST /rooms/{id}/photos 에 caption·people_note(묶음에 한 번, 100자) · PATCH /rooms/{id}/photos/{photo_id}/correction (분류 정정)
 ```
 

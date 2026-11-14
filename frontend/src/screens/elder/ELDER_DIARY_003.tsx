@@ -28,7 +28,7 @@ export default function ELDER_DIARY_003() {
   const loc = useLocation()
   const live = useLive()
   const [home] = useState((loc.state as ElderNavState | null)?.home)
-  const speed = Number(home?.settings.tts_speed) || 0.85
+  const speed = Number(home?.settings.tts_speed) || 0.9
   const [requestId] = useState(() => crypto.randomUUID()) // '네, 올려요' 멱등 키
   const [againId] = useState(() => crypto.randomUUID()) // '다시 말할래요' 새 대화 (두 번 눌러도 하나)
   const [draft, setDraft] = useState<DraftOut>()

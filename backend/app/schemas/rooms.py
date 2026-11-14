@@ -25,6 +25,7 @@ class RoomOut(BaseModel):
     diary_time: time
     font_size: str
     tts_speed: Decimal
+    tts_voice: str  # FEMALE | MALE — 어르신께 들려 드리는 목소리 (D74)
     device_input_mode: str  # VOICE | BUTTON — 가족방 설정 화면(GROUP_003)이 지금 값을 보여 준다
     status: str
     is_owner: bool = False
@@ -101,5 +102,6 @@ class RoomSettingsIn(BaseModel):
     memory_time: time | None = None  # 정각만 — rooms.py가 검사, D44
     diary_time: time | None = None
     font_size: Literal["L", "XL", "XXL"] | None = None
-    tts_speed: Literal["0.70", "0.85", "1.00"] | None = None  # RoomOut과 같이 글자로 받는다
+    tts_speed: Literal["0.80", "0.90", "1.00"] | None = None  # RoomOut과 같이 글자로 받는다 (D74)
+    tts_voice: Literal["FEMALE", "MALE"] | None = None  # 어르신께 들려 드리는 목소리 (D74)
     device_input_mode: Literal["VOICE", "BUTTON"] | None = None

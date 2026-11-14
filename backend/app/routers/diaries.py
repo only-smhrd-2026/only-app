@@ -112,7 +112,9 @@ def _speech(body: str, mood: str, room: FamilyRoom) -> tuple[str | None, bool]:
     """본문 + 기분 + '이대로 올릴까요?' 서버 TTS (ONLY_500). None 이면 화면이 같은 문장을 브라우저 TTS 로 읽는다 (D5).
     반환 (음성 base64, 실패했나). 문장을 바꾸면 ELDER_DIARY_003.tsx 의 readAloud 도 같이."""
     try:
-        audio = tts.synthesize(f"{body} 오늘 기분은 {MOOD_LABEL[mood]}. 이대로 올릴까요?", float(room.tts_speed))
+        audio = tts.synthesize(
+            f"{body} 오늘 기분은 {MOOD_LABEL[mood]}. 이대로 올릴까요?", float(room.tts_speed), room.tts_voice
+        )
     except Exception as e:
         log.warning("tts failed type=%s", type(e).__name__)
         return None, True

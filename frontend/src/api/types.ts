@@ -11,6 +11,7 @@ export type RoomOut = {
   diary_time: string
   font_size: 'L' | 'XL' | 'XXL'
   tts_speed: string | number
+  tts_voice: 'FEMALE' | 'MALE' // 어르신께 들려 드리는 목소리 (D74)
   device_input_mode: 'VOICE' | 'BUTTON'
   status: string
   is_owner: boolean
@@ -25,7 +26,8 @@ export type RoomSettingsIn = {
   memory_time?: string
   diary_time?: string
   font_size?: 'L' | 'XL' | 'XXL'
-  tts_speed?: '0.70' | '0.85' | '1.00'
+  tts_speed?: '0.80' | '0.90' | '1.00' // D74 (전 0.70·0.85·1.00)
+  tts_voice?: 'FEMALE' | 'MALE'
   device_input_mode?: 'VOICE' | 'BUTTON'
 }
 
@@ -52,7 +54,12 @@ export type ElderHomeOut = {
   elder_honorific: string
   today_pick: TodayPickOut | null
   unread_family_news: number
-  settings: { font_size: 'L' | 'XL' | 'XXL'; tts_speed: string | number; input_mode: 'VOICE' | 'BUTTON' }
+  settings: {
+    font_size: 'L' | 'XL' | 'XXL'
+    tts_speed: string | number
+    input_mode: 'VOICE' | 'BUTTON'
+    tts_voice: 'FEMALE' | 'MALE' // 고정 안내 mp3 도 이 목소리로 (D74)
+  }
 }
 
 export type SttOut = { transcript: string; confidence: number }
