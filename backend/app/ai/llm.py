@@ -18,7 +18,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from app.ai.schemas import BANNED_WORDS
-from app.config import LLM_PER_DAY, ROOT, settings
+from app.config import LLM_PER_DAY, ROOT, WEEKLY_CARDS_MAX, settings
 from app.security import daily_allowed
 
 log = logging.getLogger("app.ai")
@@ -84,8 +84,14 @@ _MOCK_CHIPS = [
 
 
 def _mock(prompt_name: str, data: dict[str, Any], schema: type[T]) -> T:
+    if prompt_name == "weekly_summary":  # 어르신 답을 그대로 따온 카드 — 키 없는 PC 에서도 카드가 보이게 (D62)
+        cards = [
+            {"ref": p["ref"], "answer": f"'{p['said'][:30]}'라고 하셨어요.", "quote": p["said"][:30]}
+            for p in data["pairs"][:WEEKLY_CARDS_MAX]
+        ]
+        return schema.model_validate({"cards": cards})
     if prompt_name != "memory_coach":  # 일기(diary_*·family_*)는 coach 의 고정 문장으로 이어 간다
-        raise LlmError(f"mock 은 memory_coach 만 지원합니다 (요청: {prompt_name})")
+        raise LlmError(f"mock 은 memory_coach·weekly_summary 만 지원합니다 (요청: {prompt_name})")
     turn_no = int(data.get("turn_no", 1))
     if data.get("closing"):
         text = "오늘 이야기 들려주셔서 고마워요. 모아서 가족들한테 전해 드릴게요."
@@ -113,6 +119,8 @@ def _simplify(schema: dict[str, Any]) -> dict[str, Any]:
         out["additionalProperties"] = False
     if "items" in out and isinstance(out["items"], dict):
         out["items"] = _simplify(out["items"])
+    if "$defs" in out:  # 중첩 모델(주간 카드 목록) — 구조화 출력은 안쪽 객체에도 같은 규칙을 요구한다
+        out["$defs"] = {k: _simplify(v) for k, v in out["$defs"].items()}
     return out
 
 
