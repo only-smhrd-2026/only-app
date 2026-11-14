@@ -154,7 +154,9 @@ _UPLOAD_BODY = {
         },
     }
 }
-# 가족 사진 올리기만 글 칸 2개를 더 받는다. _UPLOAD_BODY 는 어르신 카메라(elder.py)도 쓰므로 그대로 두고 복사해서 더한다
+# 가족이 올릴 때 고를 수 있는 photos.source. ELDER_CAMERA 는 어르신 카메라(elder.py)만 쓰는 값이라 받지 않는다
+UPLOAD_SOURCES = ("FAMILY", "FAMILY_DIARY")
+# 가족 사진 올리기만 글 칸 3개를 더 받는다. _UPLOAD_BODY 는 어르신 카메라(elder.py)도 쓰므로 그대로 두고 복사해서 더한다
 _FAMILY_UPLOAD_BODY = copy.deepcopy(_UPLOAD_BODY)
 _FAMILY_UPLOAD_BODY["requestBody"]["content"]["multipart/form-data"]["schema"]["properties"].update(
     {
@@ -164,6 +166,12 @@ _FAMILY_UPLOAD_BODY["requestBody"]["content"]["multipart/form-data"]["schema"]["
             "description": "한마디 (선택) — 이 묶음의 모든 사진에 같은 값",
         },
         "people_note": {"type": "string", "maxLength": UPLOAD_MAX_NOTE_CHARS, "description": "사진 속 사람 (선택)"},
+        "source": {
+            "type": "string",
+            "enum": list(UPLOAD_SOURCES),
+            "default": "FAMILY",
+            "description": "FAMILY_DIARY = 가족 일기 사진 (사진 목록·어르신 사진첩·오늘의 한 장에 안 나옴)",
+        },
     }
 )
 
@@ -179,8 +187,8 @@ def _member_first(room_id: int, user: CurrentUser, db: DB) -> None:
 async def _upload_form(request: Request, _: Annotated[None, Depends(_member_first)]) -> AsyncIterator[FormData]:
     """구성원 확인 뒤에야 본문을 읽는다. 21번째 사진을 만나면 그 자리에서 멈춘다 (D17)."""
     try:
-        # 글 칸은 upload_batch_id·caption·people_note 셋
-        form = await request.form(max_files=UPLOAD_MAX_FILES, max_fields=3)
+        # 글 칸은 upload_batch_id·caption·people_note·source 넷
+        form = await request.form(max_files=UPLOAD_MAX_FILES, max_fields=4)
     except HTTPException as e:  # Starlette 가 400 으로 멈춤. 장수 초과만 우리 코드로, 깨진 본문은 그대로
         if str(e.detail).startswith("Too many files"):
             raise ApiError(400, "TOO_MANY_PHOTOS", f"사진은 한 번에 {UPLOAD_MAX_FILES}장까지 올릴 수 있어요") from None
@@ -213,7 +221,8 @@ def upload_photos(room_id: int, user: CurrentUser, db: DB, form: Annotated[FormD
     """받은 사진을 JPEG 로 다시 만들어 저장. 20장·10MB·30M 픽셀 제한, JPEG/PNG 만(HEIC 는 위 ALLOWED_FORMATS).
     upload_batch_id: 화면이 사진을 고를 때마다 새 번호를 만들고, 같은 요청을 다시 보낼 때([올리기] 두 번·재전송)만
     같은 번호를 쓴다. 같은 번호의 두 번째 요청은 사진을 보지 않고 처음 저장본을 돌려준다 — 사진이 달라도 (D17).
-    caption·people_note: 선택, 100자, 묶음의 모든 사진에 같은 값. 같은 번호로 다시 보내면 처음 글 그대로."""
+    caption·people_note: 선택, 100자, 묶음의 모든 사진에 같은 값. 같은 번호로 다시 보내면 처음 글 그대로.
+    source: 선택, FAMILY(기본) 또는 FAMILY_DIARY(가족 일기 사진). 같은 번호로 다시 보내면 처음 값 그대로."""
     files = [f for f in form.getlist("files") if isinstance(f, UploadFile)]
     if not files:
         raise ApiError(422, "VALIDATION", "사진을 골라 주세요")
@@ -224,6 +233,9 @@ def upload_photos(room_id: int, user: CurrentUser, db: DB, form: Annotated[FormD
         raise ApiError(422, "VALIDATION", "입력값이 올바르지 않습니다") from None
     caption = _note(form, "caption", "한마디는")
     people_note = _note(form, "people_note", "사진 속 사람은")
+    source = form.get("source") or "FAMILY"  # 칸이 없거나 빈 칸이면 지금처럼 FAMILY
+    if source not in UPLOAD_SOURCES:  # ELDER_CAMERA·모르는 값·글 칸 이름으로 온 파일
+        raise ApiError(422, "VALIDATION", "입력값이 올바르지 않습니다")
     # 그림을 풀기 전에 장당 크기부터.
     # ponytail: 10MB 는 본문을 다 받은 뒤에 본다(구성원만, 합계는 배포 Caddy 220MB). 받는 도중 끊으려면 스트림 감싸기
     for n, f in enumerate(files, 1):
@@ -262,7 +274,7 @@ def upload_photos(room_id: int, user: CurrentUser, db: DB, form: Annotated[FormD
                 taken_at=taken_at,
                 caption=caption,  # 묶음의 모든 사진에 같은 글
                 people_note=people_note,
-                source="FAMILY",
+                source=source,  # 묶음의 모든 사진에 같은 값
             )
             db.add(photo)
             photos.append(photo)
