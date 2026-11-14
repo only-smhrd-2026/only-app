@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 
 Mood = Literal["SUNNY", "CLOUDY", "RAINY", "MOON"]
 IllustrationType = Literal["PHOTO", "AI_DRAWING", "NONE"]
@@ -39,6 +39,27 @@ class DiaryCreateIn(BaseModel):
     illustration_type: IllustrationType = "NONE"
 
 
+class ReactionIn(BaseModel):
+    """가족이 어르신 일기에 보내는 이모지 (D54). on = '이 상태로 만들어 줘' — 같은 요청이 두 번 와도 결과가 같다."""
+
+    kind: Literal["HEART", "SMILE", "CLAP"]
+    on: bool
+
+
+class ElderLikeIn(BaseModel):
+    """어르신이 가족 일기에 누르는 [좋아요] (D54). 종류가 하나라 on 만."""
+
+    on: bool
+
+
+class ReactionOut(BaseModel):
+    by: Literal["ELDER", "FAMILY"]
+    kind: Literal["LIKE", "HEART", "SMILE", "CLAP"]
+    user_id: int | None = None  # 가족만
+    name: str | None = None  # 가족만 — 가족방 별명, 없으면 이름. 응답에만 있다 (DB 에는 user_id 만)
+    at: datetime
+
+
 class DiaryOut(BaseModel):
     diary_id: int
     room_id: int
@@ -54,7 +75,30 @@ class DiaryOut(BaseModel):
     posted_at: datetime
     read_by_elder: bool  # 어르신이 들었는지 (가족 일기용, FR-FD-004)
     read_by_me: bool  # 지금 보는 사람이 봤는지(내가 쓴 것은 true). 가족 홈 '새 일기 N개' 한 줄 (D36)
+    # 리액션 (D54). 누른 사람마다 1칸 — 가족 HEART·SMILE·CLAP 은 어르신 일기에, 어르신 LIKE 는 가족 일기에.
+    # name 은 응답에만 있다
+    reactions: list[ReactionOut]
 
 
 class DiaryListOut(BaseModel):
     diaries: list[DiaryOut]
+
+
+class HeartOut(BaseModel):
+    """어르신이 아직 못 들은 가족 이모지 한 개 — 가족 소식 첫 장 '하트가 왔어요' (D63)."""
+
+    diary_id: int  # 어르신이 쓴 어느 일기에 보냈는지
+    kind: Literal["HEART", "SMILE", "CLAP"]
+    name: str | None  # 보낸 가족의 가족방 별명, 없으면 이름
+    at: datetime
+
+
+class FamilyNewsOut(DiaryListOut):
+    """어르신 가족 소식 (GET /elder/family-news): 안 들은 가족 일기 + 아직 못 들은 가족 이모지(받은 순서)."""
+
+    hearts: list[HeartOut]
+
+
+class HeartsHeardIn(BaseModel):
+    # 읽어 드린 마지막 하트의 at. 그 뒤에 온 하트는 다음에 읽어 드린다. 시간대 없는 시각은 422
+    until: AwareDatetime

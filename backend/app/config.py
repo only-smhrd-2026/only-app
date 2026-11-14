@@ -31,6 +31,8 @@ ALBUM_PER_DAY = 3
 ALBUM_TURNS = 2  # 사진첩 대화 장당 AI 질문 수 (FR-ME-008)
 # 어르신 사진첩 '내 일기' 목록이 한 번에 돌려주는 개수(최신 순) — 사진 목록 PHOTO_LIST_LIMIT 와 같은 값 (D8)
 ELDER_DIARY_LIST_LIMIT = 100
+# 가족 소식 첫 장 '하트가 왔어요'가 한 번에 받는 가족 이모지 수. 넘으면 들은 뒤 나머지가 나온다 (D63)
+ELDER_HEARTS_LIMIT = 20
 # 가족 사진 목록·어르신 사진첩이 한 번에 돌려주는 장수(최신 순) — 두 화면이 같은 사진을 보이게 한 값으로 (D8)
 PHOTO_LIST_LIMIT = 100
 NOTI_LIST_LIMIT = 50  # 가족 알림 목록이 한 번에 돌려주는 개수, 최신 순
