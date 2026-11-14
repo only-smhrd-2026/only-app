@@ -72,6 +72,13 @@ def test_every_label_has_questions():
     assert len(none_pool) >= 20, "none 사진 공통 풀이 너무 적으면 14일 안에 같은 문제가 반복됨"
 
 
+def test_family_fix_screen_uses_same_activities():
+    """가족 '활동 고치기'(GROUP_004, D73)의 목록이 분류 목록과 같은 글자 — 다르면 고친 활동이 문제 은행과 안 맞는다."""
+    tsx = (ROOT / "frontend" / "src" / "screens" / "family" / "GROUP_004.tsx").read_text("utf-8")
+    listed = re.findall(r"'([^']+)'", tsx.split("const ACTIVITIES = [", 1)[1].split("]", 1)[0])
+    assert listed == load("taxonomy.json")["activity"]
+
+
 def test_seed_loads_question_bank():
     """seed 와 같은 방법(QuestionBank(**q))으로 넣었을 때 제약을 통과하고, choices 없음은 SQL NULL 로 저장."""
     questions = load("question_bank.json")["questions"]

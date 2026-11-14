@@ -35,7 +35,20 @@ def test_correct_repeat_and_change(client, context, monkeypatch):
     response = client.patch(path, json={"corrected_activity": "  장 담그기  "})
     assert response.status_code == 200, response.text
     assert response.json()["photo_id"] == photo_id
-    assert set(response.json()) == {"photo_id", "url", "taken_at", "caption", "people_note", "status"}
+    assert set(response.json()) == {
+        "photo_id",
+        "url",
+        "taken_at",
+        "caption",
+        "people_note",
+        "status",
+        # AI 분류·가족이 고친 활동 (D73 가족방 탭 '올린 사진')
+        "source",
+        "analyzed",
+        "ai_activity",
+        "ai_scene",
+        "corrected_activity",
+    }
     with SessionLocal() as db:
         photo = db.get(Photo, photo_id)
         assert photo.corrected_activity == "장 담그기"

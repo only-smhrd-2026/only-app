@@ -102,6 +102,8 @@ def coach_context(db, room: FamilyRoom, session: TalkSession) -> coach.CoachCont
                 "caption": photo.caption,
                 "people_note": photo.people_note,
                 "taken_at": photo.taken_at.isoformat() if photo.taken_at else None,
+                # 가족이 '올린 사진'에서 고른 활동 (D73). 'none'(맞는 것 없음)은 넘기지 않는다
+                "activity": photo.corrected_activity if photo.corrected_activity not in (None, "none") else None,
             }
             if photo
             else None
@@ -411,7 +413,7 @@ def create_session(body: SessionCreateIn, device: CurrentDevice, db: DB):
         if body.kind == "DIARY" and photo.source == "ELDER_CAMERA" and photo.analyzed_at is None:
             # 방금 찍은 사진 — 옛 사진 일기(D58)·1번 질문 재료(D71)는 첫 질문 전에 분류가 있어야 돈다.
             # 상한(CLASSIFY_SYNC_SEC)을 넘거나 실패하면 분류 전 그대로 평소 일기 (어르신 카메라 사진은 다시 하지 않음)
-            classify.classify(db, photo, timeout=CLASSIFY_SYNC_SEC)
+            classify.classify(photo, timeout=CLASSIFY_SYNC_SEC)
     session = TalkSession(
         session_id=body.session_id,
         room_id=room.room_id,

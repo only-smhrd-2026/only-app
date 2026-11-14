@@ -1,0 +1,30 @@
+/* GROUP_004 올린 사진 (D73) — 목업 설계자료/목업_1115_가족 ⑦ 값 그대로. 색 변수·카드·판은 components/FamilyFrame.css */
+.gp-head { display:flex; flex-direction:column; gap:2px; margin:0 var(--gut); }
+.gp-head h1 { font-size:22px; font-weight:800; letter-spacing:-.03em; }
+.gp-head p { color:var(--text-3); font-size:13.5px; }
+.fam .gp-intro { margin:0 var(--gut); color:var(--text-3); font-size:12.5px; line-height:1.55; } /* .fam p 의 margin 0 보다 세게 */
+
+/* 사진 격자 — 칸은 정사각형으로 채우고(가족 화면), 크게 볼 때는 자르지 않는다 */
+.gp-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin:0 var(--gut); }
+.gp-tile { position:relative; display:block; padding:0; border:0; border-radius:12px; overflow:hidden; aspect-ratio:1; background:#e9e6f1; cursor:pointer; }
+.gp-tile img { display:block; width:100%; height:100%; object-fit:cover; }
+.gp-ai { position:absolute; left:6px; bottom:6px; max-width:calc(100% - 12px); padding:3px 8px; border-radius:999px; background:rgba(31,27,46,.64); color:#fff; font-size:11.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.gp-ai.wait { background:rgba(255,255,255,.92); color:var(--text-2); }
+.gp-ai.fixed { background:var(--primary); }
+.gp-empty { display:flex; flex-direction:column; align-items:flex-start; gap:12px; padding:18px 16px; color:var(--text-2); }
+
+/* AI 가 본 것 · 활동 고치기 판 */
+.gp-sheet { max-height:92dvh; overflow-y:auto; }
+.gp-pic { margin:4px 8px 12px; border-radius:16px; overflow:hidden; aspect-ratio:4/3; background:#f1eff6; }
+.gp-pic img { display:block; width:100%; height:100%; object-fit:contain; }
+.gp-chips { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:0 12px; }
+.gp-chip { display:inline-flex; align-items:center; height:32px; padding:0 12px; border-radius:999px; background:var(--tint-2); color:var(--text-2); font-size:13.5px; font-weight:600; }
+.gp-chip.on { background:var(--tint); color:var(--primary); }
+.fam .gp-line { padding:10px 12px 4px; color:var(--text); font-size:15.5px; line-height:1.55; }
+.fam .gp-fine { padding:0 12px 4px; color:var(--text-3); font-size:12.5px; line-height:1.55; }
+.gp-cta { padding:12px 8px 2px; }
+.fam .gp-sheet-text { margin:-4px 12px 8px; color:var(--text-2); font-size:14px; }
+.gp-opts { max-height:min(52dvh,380px); overflow-y:auto; overscroll-behavior:contain; }
+
+/* 고친 뒤 잠깐 뜨는 한 줄 */
+.gp-snack { position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom,0px)); z-index:7; transform:translateX(-50%); width:max-content; max-width:calc(100% - 32px); padding:12px 16px; border-radius:14px; background:#1f1b2e; color:#fff; font-size:14px; line-height:1.4; animation:fam-fade .18s; }

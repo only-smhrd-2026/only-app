@@ -125,7 +125,21 @@ export type TurnIn = {
 
 export type AlbumOut = { photos: { photo_id: number; url: string; taken_at: string | null; caption: string | null }[] }
 // ---- 사진 올리기 (backend/app/schemas/photos.py, D17)
-export type PhotoOut = { photo_id: number; url: string; taken_at: string | null; caption: string | null; people_note: string | null; status: string }
+export type PhotoOut = {
+  photo_id: number
+  url: string
+  taken_at: string | null
+  caption: string | null
+  people_note: string | null
+  status: string
+  // AI 분류 (D71·D73, 가족방 탭 '올린 사진' GROUP_004). 분류 전이면 analyzed=false, ai_* 는 null
+  source: 'FAMILY' | 'ELDER_CAMERA' | 'FAMILY_DIARY'
+  analyzed: boolean
+  ai_activity: string | null // data/taxonomy.json 의 활동 글자 또는 'none'
+  ai_scene: string | null // 보이는 모습 한 줄
+  corrected_activity: string | null // 가족이 고친 활동('none' = 맞는 것 없음) — 있으면 이것이 먼저
+}
+export type PhotoListOut = { photos: PhotoOut[] }
 export type PhotoBatchOut = { upload_batch_id: string; photos: PhotoOut[] }
 
 // ---- 일기 (backend/app/schemas/diaries.py, D36)
