@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.ai import coach, llm, quiz
 from app.ai.schemas import CoachTurn
-from app.config import ALBUM_TURNS, MAX_TURNS, QUIZ_TURN, ROOT, TZ, now_kst
+from app.config import ALBUM_TURNS, MAX_TURNS, PHOTO_CONF_MIN, QUIZ_TURN, ROOT, TZ, now_kst
 from app.db import SessionLocal
 from app.models import Photo, QuestionBank, TalkSession
 from app.routers import sessions
@@ -75,9 +75,10 @@ def test_inactive_never_chosen():
 def test_photo_tags_threshold_none_and_correction():
     assert quiz.photo_tags(None) == (None, None)
     assert quiz.photo_tags(Photo(activity="김장", category="김치 재료")) == (None, None)  # 분류 전
-    p = Photo(activity="김장", category="김치 재료", confidence=Decimal("0.69"), analyzed_at=now_kst())
-    assert quiz.photo_tags(p) == (None, None)  # 신뢰도 0.7 미만 → none 사진
-    p.confidence = Decimal("0.70")
+    below = Decimal(str(PHOTO_CONF_MIN)) - Decimal("0.01")
+    p = Photo(activity="김장", category="김치 재료", confidence=below, analyzed_at=now_kst())
+    assert quiz.photo_tags(p) == (None, None)  # 신뢰도 기준(0.5, D71) 미만 → none 사진
+    p.confidence = Decimal(str(PHOTO_CONF_MIN))
     assert quiz.photo_tags(p) == ("김장", "김치 재료")
     p.activity = "none"
     assert quiz.photo_tags(p) == (None, "김치 재료")
@@ -178,7 +179,7 @@ def test_season_topic_when_no_activity_or_category():
     assert quiz.photo_tags(p) == (None, "겨울 음식")
     p.season = "AUTUMN"
     assert quiz.photo_tags(p) == (None, None)  # 가을은 짝이 없다
-    p.season, p.confidence = "SPRING", Decimal("0.50")
+    p.season, p.confidence = "SPRING", Decimal(str(PHOTO_CONF_MIN)) - Decimal("0.01")
     assert quiz.photo_tags(p) == (None, None)  # 확신이 낮으면 계절도 쓰지 않는다
     tax = json.loads((ROOT / "data" / "taxonomy.json").read_text("utf-8"))
     assert set(quiz.SEASON_CATEGORY.values()) <= set(tax["category"])  # 주제 목록의 글자 그대로
