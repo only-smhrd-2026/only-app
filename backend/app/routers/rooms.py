@@ -7,15 +7,16 @@ from fastapi import APIRouter, Request
 from sqlalchemy import distinct, func, select
 
 from app.config import now_kst
-from app.deps import DB, CurrentUser, require_owner
+from app.deps import DB, CurrentUser, require_member, require_owner
 from app.errors import ApiError
-from app.models import FamilyRoom, Photo, RoomMember
+from app.models import FamilyRoom, Photo, RoomMember, User
 from app.schemas.common import OkOut
 from app.schemas.rooms import (
     InviteCreatedOut,
     InviteCreateIn,
     InviteKind,
     InviteOut,
+    MemberOut,
     RoomCreateIn,
     RoomOut,
     RoomSettingsIn,
@@ -69,6 +70,31 @@ def list_rooms(user: CurrentUser, db: DB):
         .order_by(FamilyRoom.room_id)
     ).all()
     return [room_out(r, user.user_id) for r in rooms]
+
+
+@router.get("/{room_id}/members", response_model=list[MemberOut])
+def list_members(room_id: int, user: CurrentUser, db: DB):
+    """구성원 목록 (GROUP_002 ④, FR-AD-007). 구성원이면 누구나, 내보낸 사람은 빼고 들어온 순서."""
+    require_member(room_id, user, db)
+    owner_user_id = db.get(FamilyRoom, room_id).owner_user_id
+    rows = db.execute(
+        select(RoomMember, User.name)
+        .join(User, User.user_id == RoomMember.user_id)
+        .where(RoomMember.room_id == room_id, RoomMember.removed_at.is_(None))
+        .order_by(RoomMember.joined_at, RoomMember.member_id)
+    ).all()
+    # 다른 가족에게 보이는 목록이라 이메일·로그인 방식은 넣지 않는다
+    return [
+        MemberOut(
+            user_id=member.user_id,
+            name=name,
+            nickname=member.nickname,
+            relation_tag=member.relation_tag,
+            joined_at=member.joined_at,
+            is_owner=member.user_id == owner_user_id,
+        )
+        for member, name in rows
+    ]
 
 
 @router.post("/{room_id}/invites", response_model=InviteCreatedOut, status_code=201)

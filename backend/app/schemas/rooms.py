@@ -30,6 +30,15 @@ class RoomOut(BaseModel):
     is_owner: bool = False
 
 
+class MemberOut(BaseModel):
+    user_id: int
+    name: str  # users.name — 가입·초대 수락 때 정한 이름
+    nickname: str | None  # room_members.nickname — 어르신이 부르는 호칭(예: 큰딸). 없으면 null
+    relation_tag: RelationTag
+    joined_at: datetime
+    is_owner: bool  # family_rooms.owner_user_id 와 같은 사람 (room_members 에는 방장 칸이 없다)
+
+
 class InviteCreateIn(BaseModel):
     kind: InviteKind
 
