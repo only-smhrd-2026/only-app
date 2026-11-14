@@ -1,7 +1,8 @@
 """그림일기 이미지 어댑터 (D4, D36, D37). 시그니처 고정: generate(draw_spec: dict, seed: int) -> bytes | None
 
-draw_spec = {"objects": ["화투패", "찻잔"]} — 어르신이 말씀하신 사물 1~3개 (prompts/diary_draft.md 가 고른다.
-사람·얼굴·건물·특정 장소·글자 없음). 사진 없는 일기만 그린다.
+draw_spec = {"objects": ["teacup", "pumpkin"], "seed": 123} — 그릴 사물 1~3개, 영어 이름 (prompts/diary_draft.md 가
+말씀하신 사물이나 하신 일에서 떠오르는 사물로 고른다. 사람·얼굴·건물·특정 장소·글자 없음). 고른 사물이 없으면
+기분 그림 MOOD_OBJECTS[기분]. 시드는 일기마다 다르다(D69 — D37 의 '시드 0 고정'을 바꿈). 사진 없는 일기만 그린다.
 게시가 그림을 기다리므로(D36) 실제 호출은 20초 안에 끝나야 한다. 시간 초과·실패는 예외나 None → 글만 게시.
 결과는 JPEG 바이트 (저장 key 가 .jpg 이고 /api/media 가 image/jpeg 로 내보낸다. 받은 그림은 항상 JPEG 로 다시 인코딩).
 
@@ -36,6 +37,14 @@ STYLE = (
     "Cream paper background, soft warm pastel colors, naive childlike style, centered, plenty of empty space. "
     "No people, no faces, no hands, no text, no letters, no numbers."
 )
+# 그릴 사물이 없는 일기는 고른 기분으로 그린다 — 기분 칩 그림 + 작은 사물 하나 (D69, 11/14 사용자:
+# 해·꽃 / 구름·풀잎 / 우산·빗방울 / 달·별). 이름은 영어 — 한국어 이름을 넣으니 그림에 글자가 섞였다(11/14 실측).
+MOOD_OBJECTS = {
+    "SUNNY": ["sun", "flower"],
+    "CLOUDY": ["cloud", "blades of grass"],
+    "RAINY": ["umbrella", "raindrops"],
+    "MOON": ["crescent moon", "stars"],
+}
 
 
 def _placeholder(draw_spec: dict[str, Any], seed: int) -> bytes:
