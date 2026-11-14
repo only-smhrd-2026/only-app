@@ -95,7 +95,7 @@ def _draw(room_id: int, session_id: uuid.UUID, draw_spec: dict) -> tuple[str, by
     """그림일기 1장을 그려 저장한다. 실패하면 None → 글만 게시 (D36, 11/5 사용자 결정)."""
     key = f"rooms/{room_id}/{session_id}.jpg"
     try:
-        data = image.generate(draw_spec)
+        data = image.generate(draw_spec, draw_spec["seed"])
         if not data:
             return None
         storage.put(key, data)
@@ -138,7 +138,9 @@ def make_draft(session_id: uuid.UUID, device: CurrentDevice, db: DB):
             raise ApiError(409, "DIARY_NOT_READY", "일기로 쓸 이야기가 없어요")
         draft = coach.diary_draft(ctx)
         photo = db.get(Photo, session.photo_id) if session.photo_id else None
-        draw_spec = {"objects": draft.draw_objects} if draft.draw_objects and not photo else None
+        # 그릴 사물이 없으면 기분 그림. 시드는 대화 번호로 — 같은 사물·기분이 날마다 같은 그림이 되지 않게 (D69)
+        objects = draft.draw_objects or image.MOOD_OBJECTS[draft.mood]
+        draw_spec = None if photo else {"objects": objects, "seed": session_id.int % 2**31}
         drawn = _draw(room.room_id, session_id, draw_spec) if draw_spec else None
         audio_b64, failed = _speech(draft.body, draft.mood, room)
         if failed and session_id not in _tts_failed:  # 낭독 실패도 가족 알림은 대화에 1건 (D5, _ai_out 과 같이)

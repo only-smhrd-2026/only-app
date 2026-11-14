@@ -265,7 +265,7 @@ def diary_draft(ctx: CoachContext) -> DiaryDraft:
     try:
         draft = llm.call_json("diary_draft", data, DiaryDraft)
     except (llm.LlmError, NotImplementedError):
-        # LLM 이 없거나 실패: 어르신 말을 그대로 이어 붙인다(말씀에 없는 내용 없음). 그릴 사물을 모르니 그림도 없다.
+        # LLM 이 없거나 실패: 어르신 말을 그대로 이어 붙인다(말씀에 없는 내용 없음). 사물을 모르니 기분 그림(D69).
         # 본문은 화면에 보이고 소리로 읽히므로 금지어가 든 답은 뺀다 (NFR-DE-003, confirm_question 과 같은 규칙).
         said = " ".join(
             a.rstrip(" .") + "." for a in answers if not mood_of(a) and not any(w in a for w in BANNED_WORDS)

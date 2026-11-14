@@ -14,7 +14,7 @@ from app.ai import coach, image, llm, tts
 from app.ai.schemas import BANNED_WORDS, CoachReply, DiaryDraft
 from app.config import DIARY_DRAFT_MIN, settings
 from app.db import SessionLocal
-from app.models import Diary, Notification
+from app.models import Diary, Notification, Photo
 from app.routers import diaries, sessions
 from tests.conftest import add_photos, connect_device, make_room, setup_elder, signup
 
@@ -27,8 +27,9 @@ def _family_and_elder(client) -> int:
     return setup_elder(client)["room_id"]
 
 
-def _talk(client, answers=("경로당에 다녀왔어요", "영자 씨랑요", "맑음")) -> tuple[str, list[dict]]:
-    r = client.post("/api/elder/sessions", json={"session_id": str(uuid.uuid4()), "kind": "DIARY"})
+def _talk(client, answers=("경로당에 다녀왔어요", "영자 씨랑요", "맑음"), photo_id=None) -> tuple[str, list[dict]]:
+    body = {"session_id": str(uuid.uuid4()), "kind": "DIARY"} | ({"photo_id": photo_id} if photo_id else {})
+    r = client.post("/api/elder/sessions", json=body)
     assert r.status_code == 201, r.text
     sid, replies = r.json()["session_id"], [r.json()]
     for a in answers:
@@ -62,7 +63,7 @@ def test_three_questions_then_post_once_and_family_sees_new(client, monkeypatch)
 
     draft = _draft(client, sid).json()
     assert draft["mood"] == "SUNNY" and "경로당" in draft["body"] and "맑음" not in draft["body"]
-    assert draft["illustration_type"] == "NONE"  # mock LLM 은 그릴 사물을 모른다 → 글만
+    assert draft["illustration_type"] == "AI_DRAWING"  # mock LLM 은 사물을 모른다 → 기분 그림(D69, 개발은 자리표시)
     assert _draft(client, sid).json() == draft and len(calls) == 1  # 30분 안엔 같은 초안 (LLM·그림 다시 안 부름)
 
     diaries._drafts[uuid.UUID(sid)].made_at -= timedelta(minutes=DIARY_DRAFT_MIN + 1)
@@ -77,8 +78,9 @@ def test_three_questions_then_post_once_and_family_sees_new(client, monkeypatch)
     assert _post(client, sid).json()["diary_id"] == diary_id  # 같은 대화를 새 request_id 로
     assert _sent(room_id) == 1  # 가족 1명 → 알림 1건, 다시 눌러도 늘지 않음
     assert _draft(client, sid).json()["code"] == "DIARY_POSTED"  # 올린 뒤 다시 만들면 올린 그림을 덮어쓴다 → 금지
-    with SessionLocal() as db:  # 그릴 것이 없던 일기의 draw_spec 은 SQL NULL (JSON null 아님)
-        assert db.scalar(select(Diary.draw_spec.is_(None)).where(Diary.diary_id == diary_id))
+    with SessionLocal() as db:  # 그릴 사물이 없던 일기는 '맑음' 기분 그림, 시드는 대화 번호로 (D69)
+        spec = db.scalar(select(Diary.draw_spec).where(Diary.diary_id == diary_id))
+        assert spec == {"objects": ["sun", "flower"], "seed": uuid.UUID(sid).int % 2**31}
 
     listed = client.get(f"/api/rooms/{room_id}/diaries").json()["diaries"]
     assert [d["diary_id"] for d in listed] == [diary_id]
@@ -195,6 +197,34 @@ def test_drawing_failure_posts_text_only(client, monkeypatch):
     assert draft["illustration_type"] == "NONE" and draft["illustration_b64"] is None  # 실패 → 글만
     posted = _post(client, sid)
     assert posted.status_code == 201 and posted.json()["illustration_url"] is None
+
+
+def test_mood_drawing_when_nothing_to_draw_and_seed_per_diary(client, monkeypatch):
+    """그릴 사물이 없으면 기분 그림. 시드는 모든 그림이 대화 번호로 — 같은 사물도 일기마다 다른 그림 (D69)."""
+    _family_and_elder(client)
+    seen = []
+    monkeypatch.setattr(image, "generate", lambda spec, seed=0: seen.append((spec["objects"], seed)) or JPEG_SOI)
+    sids = []
+    for objects in (["pumpkin"], []):
+        picked = DiaryDraft(body="장에 다녀왔다.", mood="RAINY", draw_objects=objects)
+        monkeypatch.setattr(coach, "diary_draft", lambda ctx, d=picked: d)
+        sid, _ = _talk(client)
+        assert _draft(client, sid).json()["illustration_type"] == "AI_DRAWING"
+        sids.append(sid)
+    seeds = [uuid.UUID(s).int % 2**31 for s in sids]
+    assert seen == [(["pumpkin"], seeds[0]), (["umbrella", "raindrops"], seeds[1])] and seeds[0] != seeds[1]
+
+
+def test_photo_diary_is_not_drawn_and_draw_spec_is_sql_null(client, monkeypatch):
+    room_id = _family_and_elder(client)
+    monkeypatch.setattr(image, "generate", lambda *a: pytest.fail("사진 일기는 그리지 않는다"))
+    with SessionLocal() as db:
+        photo_id = db.scalar(select(Photo.photo_id).where(Photo.room_id == room_id).limit(1))
+    sid, _ = _talk(client, photo_id=photo_id)
+    assert _draft(client, sid).json()["illustration_type"] == "PHOTO"
+    diary_id = _post(client, sid).json()["diary_id"]
+    with SessionLocal() as db:  # 그리지 않은 일기의 draw_spec 은 SQL NULL (JSON null 아님)
+        assert db.scalar(select(Diary.draw_spec.is_(None)).where(Diary.diary_id == diary_id))
 
 
 def test_read_aloud_tts_failure_alerts_family_once(client, monkeypatch):
