@@ -166,7 +166,8 @@ html[data-font='XXL'] { --elder-font-size: 28px; --elder-font-size-s: 26px; --el
 .elder-like svg, .elder-hearts-title svg { flex: none; width: 28px; height: 28px; }
 .elder-like[aria-pressed="true"] { background: var(--elder-me); border-color: var(--elder-me-e); color: var(--elder-me-f); }
 .elder-like[aria-pressed="true"] svg, .elder-hearts-title svg { fill: currentColor; }
-.elder-hearts-title { flex: none; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--elder-primary); }
+/* 제목 위와 버튼 위(.elder-bottom)가 남는 자리를 반씩 나눠 가져, 제목과 글 상자가 세로 가운데에 온다 */
+.elder-hearts-title { flex: none; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: auto; color: var(--elder-primary); }
 .elder-hearts-line { display: block; }
 .elder-ask {
   flex: none;
