@@ -3,11 +3,12 @@
 from datetime import date
 
 from fastapi import APIRouter
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.deps import DB, CurrentUser, require_member
 from app.errors import ApiError
-from app.models import WeeklySummary
+from app.models import Diary, FamilyRoom, WeeklySummary
+from app.routers.diaries import _rows as diary_rows
 from app.schemas.weekly import WeeklyOut
 
 router = APIRouter(prefix="/rooms/{room_id}/weekly", tags=["weekly"])
@@ -22,7 +23,15 @@ def get_weekly(room_id: int, user: CurrentUser, db: DB, week_start: date | None 
     row = db.scalar(stmt.order_by(WeeklySummary.week_start.desc()).limit(1))
     if row is None:
         raise ApiError(404, "WEEKLY_NOT_FOUND", "아직 주간 이야기가 없어요")
+    # 일기 사진 줄(WEEKLY_001, 목업 ⑤): 가족 홈 일기 카드와 같은 그림 주소. 지워진 일기는 None
+    ids = [d["diary_id"] for d in row.diaries]
+    shown = diary_rows(db, db.get(FamilyRoom, room_id), Diary.diary_id.in_(ids), me=user.user_id)
+    urls = {d.diary_id: d.illustration_url for d in shown}
+    # ‹ › 지난 주·다음 주 — 그 주 줄이 있을 때만
+    week, mine = WeeklySummary.week_start, WeeklySummary.room_id == room_id
     return WeeklyOut(
+        prev_week_start=db.scalar(select(func.max(week)).where(mine, week < row.week_start)),
+        next_week_start=db.scalar(select(func.min(week)).where(mine, week > row.week_start)),
         week_start=row.week_start,
         memory_days=row.memory_days,
         diary_days=row.diary_days,
@@ -30,6 +39,6 @@ def get_weekly(room_id: int, user: CurrentUser, db: DB, week_start: date | None 
         recall_check=row.recall_check,
         mood_trend=row.mood_trend,
         talk_volume=row.talk_volume,
-        diaries=row.diaries,
+        diaries=[{**d, "illustration_url": urls.get(d["diary_id"])} for d in row.diaries],
         notes=row.notes,
     )
