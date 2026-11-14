@@ -40,4 +40,7 @@
 }
 
 .elder-today-sheet p { margin: 0; text-align: center; }
-.elder-today-photo-wrap { flex: 1 1 190px; min-height: 96px; max-height: 230px; }
+/* 사진 칸: 화면 높이의 36% 기준(대화 화면과 같은 기준, D60·D64). 자리가 모자라면 사진 칸이 먼저 줄어든다.
+   부품(ElderPhoto)이 붙이는 elder-photo-box--grow 보다 앞서게 클래스 두 개로 적는다 */
+.elder-today-sheet .elder-today-photo-wrap { flex: 1 1 36dvh; min-height: 96px; max-height: 36dvh; }
+.elder-today-cap { font-size: var(--elder-font-size-s); }

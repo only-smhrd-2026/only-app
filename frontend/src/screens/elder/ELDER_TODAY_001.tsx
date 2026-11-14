@@ -1,6 +1,7 @@
-/** ELDER_TODAY_001 — 홈 위에 뜨는 오늘의 한 장 시트. */
+/** ELDER_TODAY_001 — 홈 위에 뜨는 오늘의 한 장 시트. 사진은 자르지 않고 ElderPhoto 로 — 누르면 크게(D60). */
 import { useEffect } from 'react'
 import type { ElderHomeOut } from '../../api/types'
+import ElderPhoto from '../../components/ElderPhoto'
 import { speak, stopSpeaking } from '../../lib/audio'
 import './ELDER_TODAY_001.css'
 
@@ -44,10 +45,8 @@ export default function ELDER_TODAY_001({ home, busy, error, onTalk, onSkip }: P
       <section className="elder-today-sheet" role="dialog" aria-modal="true" aria-labelledby="elder-today-title">
         <span className="elder-today-handle" aria-hidden="true" />
         <h1 id="elder-today-title">오늘의 한 장이 왔어요</h1>
-        <div className="elder-photo-box elder-today-photo-wrap">
-          <img src={photo.photo_url} alt="가족이 올린 오늘의 사진" />
-          <span className="elder-cap">가족이 올린 사진</span>
-        </div>
+        <p className="elder-today-cap">가족이 올린 사진</p>
+        <ElderPhoto className="elder-today-photo-wrap" src={photo.photo_url} alt="가족이 올린 오늘의 사진" />
         <p className="elder-today-prompt">{prompt}</p>
         {error && <p className="elder-text" role="alert">{error}</p>}
         <div className="elder-two">
