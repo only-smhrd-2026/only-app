@@ -55,4 +55,4 @@ def accept_invite(body: InviteAcceptIn, user: CurrentUser, db: DB):
     if body.name:
         user.name = body.name
     db.commit()
-    return room_out(room, user.user_id)
+    return room_out(room, user.user_id, db)
