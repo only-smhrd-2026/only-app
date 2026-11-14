@@ -55,6 +55,28 @@ export type SttOut = { transcript: string; confidence: number }
 // ---- 알림 (backend/app/schemas/notifications.py)
 export type NotificationOut = { notification_id: number; room_id: number; kind: string; title: string; body: string | null; link_screen: string | null; sent_at: string; read_at: string | null } // read_at이 null이면 안 읽음
 export type NotificationListOut = { notifications: NotificationOut[]; unread: number } // 최신 순 최대 50개, unread는 안 읽은 전체 수
+// ---- 주간 이야기 (backend/app/schemas/weekly.py · ai/weekly.py)
+// 질문·답 카드 한 장 (D62). 질문은 대화 원문, 답은 어르신 말을 전하는 전달형 한 문장. 사진이 지워졌거나 없으면 photo_url null
+export type WeeklyCard = {
+  photo_id: number | null
+  photo_url: string | null
+  date: string
+  question: string
+  answer: string
+  session_id: string
+  source_turns: number[]
+}
+export type WeeklyOut = {
+  week_start: string // 그 주 월요일 'YYYY-MM-DD'
+  memory_days: number // 회상 대화에서 말씀하신 날 수 (0~7)
+  diary_days: number // 일기 쓴 날 수 (0~7)
+  qa_list: WeeklyCard[] // 주간 요약 AI 의 카드 최대 4장. 아직 안 붙었거나 실패하면 []
+  recall_check: Record<string, unknown>
+  mood_trend: { date: string; mood: Mood | null }[] // 7칸, 월 → 일
+  talk_volume: { words: number; turns: number; avg_words: number }
+  diaries: { diary_id: number; date: string; mood: Mood }[]
+  notes: { lines: string[] } | null // 안부 한 줄 — 기운 없음·위급 대화가 있던 주 (D62)
+}
 
 export type AiOut = {
   text: string

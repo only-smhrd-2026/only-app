@@ -24,6 +24,7 @@ import NOTI_001 from './screens/family/NOTI_001'
 import UPLOAD_001 from './screens/family/UPLOAD_001'
 import UPLOAD_002 from './screens/family/UPLOAD_002'
 import UPLOAD_003 from './screens/family/UPLOAD_003'
+import WEEKLY_001 from './screens/family/WEEKLY_001'
 
 export type ScreenDef = { id: string; path: string; title: string; Screen?: ComponentType }
 
@@ -57,7 +58,7 @@ export const SCREENS: ScreenDef[] = [
   { id: 'FDIARY_001', path: '/fdiary', title: '가족 일기' },
   { id: 'FDIARY_002', path: '/fdiary/write', title: '가족 일기 쓰기' },
   { id: 'FDIARY_003', path: '/fdiary/confirm', title: '가족 일기 확인' },
-  { id: 'WEEKLY_001', path: '/weekly/:roomId', title: '주간 이야기' },
+  { id: 'WEEKLY_001', path: '/weekly/:roomId', title: '주간 이야기', Screen: WEEKLY_001 },
   { id: 'NOTI_001', path: '/notifications', title: '알림', Screen: NOTI_001 },
 ]
 
