@@ -20,6 +20,7 @@ from app.config import (
     FAMILY_AI_RATE_PER_MIN,
     LOGIN_RATE_PER_MIN,
     SESSION_COOKIE_DAYS,
+    SPEECH_RATE_PER_MIN,
     STT_RATE_PER_MIN,
     now_kst,
     settings,
@@ -93,6 +94,7 @@ def clear_cookie(response: Response, name: str) -> None:
 _login_hits: dict[str, deque[float]] = defaultdict(deque)
 _stt_hits: dict[str, deque[float]] = defaultdict(deque)
 _family_ai_hits: dict[int, deque[float]] = defaultdict(deque)
+_speech_hits: dict[int, deque[float]] = defaultdict(deque)
 
 
 def _allowed(hits: deque[float], per_min: int) -> bool:
@@ -118,6 +120,12 @@ def family_ai_allowed(user_id: int) -> bool:
     """가족 일기 동무(Claude)는 가입한 누구나 부를 수 있다. 한 사람이 서버 전체 하루 상한(D46 ⑨)을 다 써서
     어르신 대화가 고정 문장으로 바뀌지 않게, 같은 사람은 분당 상한까지만 (D58)."""
     return _allowed(_family_ai_hits[user_id], FAMILY_AI_RATE_PER_MIN)
+
+
+def speech_allowed(room_id: int) -> bool:
+    """어르신 화면 읽어 주기(Google TTS, D78)는 서버 전체 하루 상한(TTS_PER_DAY)을 대화와 같이 쓴다.
+    한 가족방이 그 몫을 다 써서 다른 방 대화가 기기 목소리로 바뀌지 않게, 같은 방은 분당 상한까지만."""
+    return _allowed(_speech_hits[room_id], SPEECH_RATE_PER_MIN)
 
 
 # ponytail: 서버 전체 하루 횟수도 프로세스 메모리 (워커 1개 D9). 날짜가 키라 한국 자정에 저절로 0.

@@ -1,5 +1,7 @@
 """어르신 홈·오늘의 한 장·사진첩 (기기 쿠키)."""
 
+import base64
+import logging
 import uuid
 from collections.abc import AsyncIterator
 from typing import Annotated
@@ -10,6 +12,7 @@ from starlette.datastructures import FormData, UploadFile
 from starlette.exceptions import HTTPException
 from starlette.requests import ClientDisconnect
 
+from app.ai import tts
 from app.config import (
     PHOTO_LIST_LIMIT,
     PICK_SKIP_ALERT,
@@ -31,14 +34,18 @@ from app.schemas.elder import (
     AlbumPhotoOut,
     ElderHomeOut,
     ElderSettingsOut,
+    ElderSpeechIn,
+    ElderSpeechOut,
     ElderVoiceIn,
     PickListenedIn,
     PickSkipIn,
     TodayPickOut,
 )
 from app.schemas.photos import PhotoOut
+from app.security import speech_allowed
 from app.services import picks, storage
 
+log = logging.getLogger("app.elder")
 router = APIRouter(prefix="/elder", tags=["elder"])
 
 
@@ -166,6 +173,28 @@ def choose_voice(body: ElderVoiceIn, device: CurrentDevice, db: DB):
         room.tts_voice = body.voice
         db.commit()
     return OkOut()
+
+
+@router.post("/speech", response_model=ElderSpeechOut)
+def speech(body: ElderSpeechIn, device: CurrentDevice, db: DB):
+    """어르신 화면이 읽는 글을 가족방이 고른 목소리로 (D78). 대화 말은 대화 응답의 audio_b64 가 따로 준다.
+
+    소리를 못 만들면(mock·서버 하루 상한·분당 상한·제공자 장애) audio_b64 null — 화면이 기기 목소리로 읽는다.
+    같은 문장은 tts 가 다시 합성하지 않는다(lru_cache). 읽을 글은 로그에 남기지 않는다 (D15).
+    """
+    room_id = device.room_id
+    room = db.get(FamilyRoom, room_id)
+    speed, voice = float(room.tts_speed), room.tts_voice
+    db.close()  # 합성(최대 약 9초) 동안 DB 연결을 쥐지 않는다 (routers/stt.py 와 같이)
+    if not speech_allowed(room_id):
+        log.info("speech rate limited room=%s", room_id)
+        return ElderSpeechOut(audio_b64=None)
+    try:
+        audio = tts.synthesize(body.text, speed, voice)
+    except Exception as e:  # 키 없음·제공자 장애·시간 초과. 예외 글에는 주소가 섞일 수 있어 타입만 (D15)
+        log.warning("speech tts failed room=%s type=%s", room_id, type(e).__name__)
+        audio = None
+    return ElderSpeechOut(audio_b64=base64.b64encode(audio).decode() if audio else None)
 
 
 @router.post("/picks/today/listened", response_model=OkOut)

@@ -3,7 +3,9 @@ from datetime import date
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.config import SPEECH_MAX_CHARS
 
 
 class TodayPickOut(BaseModel):
@@ -34,6 +36,16 @@ class ElderVoiceIn(BaseModel):
     """처음 연결 때 어르신이 고른 목소리 (ELDER_CONNECT_001, D74). 가족은 가족방 설정에서 바꾼다."""
 
     voice: Literal["FEMALE", "MALE"]
+
+
+class ElderSpeechIn(BaseModel):
+    """어르신 화면이 소리로 읽을 글 — 팝업 문장·안내·가족 소식·지난 일기 (D78). 로그에 남기지 않는다 (D15)."""
+
+    text: str = Field(min_length=1, max_length=SPEECH_MAX_CHARS)
+
+
+class ElderSpeechOut(BaseModel):
+    audio_b64: str | None  # 가족방이 고른 목소리 mp3. null 이면 화면이 기기 목소리로 (mock·상한·제공자 장애)
 
 
 class ElderHomeOut(BaseModel):

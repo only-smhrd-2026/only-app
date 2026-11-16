@@ -20,19 +20,21 @@ export default function ELDER_TODAY_001({ home, busy, error, onTalk, onSkip }: P
 
   useEffect(() => {
     if (!photo) return
+    let alive = true
     const retryAfterGesture = () => {
       window.removeEventListener('pointerup', retryAfterGesture)
       window.removeEventListener('keydown', retryAfterGesture)
       void speak(prompt, speed)
     }
-    void speak(prompt, speed)
-    // 자동 읽기가 막혔을 때만(크롬은 막히면 대기 줄에 안 넣어 speaking=false) 첫 터치·키에 다시 읽는다.
+    // 자동 읽기가 막혔을 때만(speak 가 false) 첫 터치·키에 다시 읽는다. 고른 목소리는 서버 소리라 받아서 틀어 본 뒤에 안다 (D78).
     // 터치는 손을 뗄 때(pointerup)부터 소리가 허용된다 — pointerdown 이면 폰에서 또 막힌다.
-    if (!('speechSynthesis' in window) || !window.speechSynthesis.speaking) {
+    void speak(prompt, speed).then((heard) => {
+      if (heard || !alive) return
       window.addEventListener('pointerup', retryAfterGesture, { once: true })
       window.addEventListener('keydown', retryAfterGesture, { once: true })
-    }
+    })
     return () => {
+      alive = false
       window.removeEventListener('pointerup', retryAfterGesture)
       window.removeEventListener('keydown', retryAfterGesture)
       stopSpeaking()
