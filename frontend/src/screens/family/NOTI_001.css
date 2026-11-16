@@ -1,0 +1,19 @@
+.noti-heading, .noti-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.noti-chips { display: flex; gap: 8px; overflow-x: auto; padding: 8px 0 20px; }
+.noti-chip { flex-shrink: 0; min-height: 44px; border: 1px solid #ddd5ec; background: white; color: #554569; border-radius: 24px; padding: 10px 16px; font: inherit; cursor: pointer; }
+.noti-chip[aria-pressed="true"] { background: #6b4ba3; border-color: #6b4ba3; color: white; }
+.noti-chip span { margin-left: 6px; font-weight: 700; }
+.noti-toolbar { font-size: 14px; color: #685c78; }
+.noti-toolbar button { min-height: 44px; border: 0; background: transparent; font: inherit; color: #644193; cursor: pointer; }
+.noti-period { font-size: 15px; margin: 24px 0 10px; color: #6f627e; }
+.noti-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.noti-card { background: #fff; border-radius: 16px; overflow: hidden; }
+.noti-unread { background: #f1eafa; }
+.noti-urgent { background: #fde7ee; }
+.noti-open { width: 100%; display: grid; gap: 8px; padding: 20px; text-align: left; font: inherit; border: 0; background: transparent; color: #30273b; cursor: pointer; overflow-wrap: anywhere; }
+.noti-open strong { line-height: 1.5; }
+.noti-open time { color: #75687f; font-size: 13px; }
+.noti-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #754db0; margin-right: 8px; vertical-align: middle; }
+.noti-phone { display: inline-flex; min-height: 44px; align-items: center; margin: 0 20px 16px; padding: 0 18px; border-radius: 12px; color: #9e2349; background: #fff; font-weight: 700; text-decoration: none; }
+.noti-page button:focus-visible, .noti-phone:focus-visible { outline: 3px solid #6b4ba3; outline-offset: 2px; }
+.noti-page button:disabled { opacity: .6; cursor: wait; }
