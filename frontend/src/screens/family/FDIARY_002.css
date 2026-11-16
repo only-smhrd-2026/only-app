@@ -1,0 +1,30 @@
+/* FDIARY_002 오늘 한 장 2/3 — 목업 설계자료/목업_1115_가족 ④ .form·.field·.input·.buddy·.bubble·.dots·.chipb 값 그대로.
+   진행 막대·아래 버튼은 steps.css. .fam p 의 margin 0 보다 세게 하려고 p 는 .fam 을 앞에 붙인다 */
+.fd2-mini { margin:0 var(--gut); width:132px; aspect-ratio:4/3; border-radius:14px; overflow:hidden; background:#eceaf2; }
+.fd2-mini img { display:block; width:100%; height:100%; object-fit:cover; }
+
+.fd2-form { padding:18px 16px; display:flex; flex-direction:column; gap:20px; }
+.fd2-live:empty { display:none; } /* 질문 전에는 빈 칸이 간격(gap)을 차지하지 않게 */
+.fd2-field { display:flex; flex-direction:column; gap:9px; }
+.fd2-label { font-size:14.5px; font-weight:800; }
+.fd2-input { width:100%; box-sizing:border-box; border:1px solid var(--line); border-radius:14px; background:var(--surface); padding:12px 14px; font:16px/1.55 var(--font); letter-spacing:-.01em; color:var(--text); resize:none; outline:none; }
+.fd2-input:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(91,63,168,.12); }
+.fd2-input::placeholder { color:var(--text-3); }
+.fd2-count { align-self:flex-end; margin-top:-4px; font-size:12px; color:var(--text-3); }
+
+/* 일기 동무 말풍선 */
+.fd2-buddy { display:flex; gap:10px; align-items:flex-start; }
+.fd2-buddy .fam-ic { width:18px; height:18px; }
+.fam .fd2-buddy-name { margin-bottom:4px; font-size:12.5px; font-weight:700; color:var(--text-3); }
+.fd2-bubble { padding:12px 14px; border-radius:4px 18px 18px 18px; background:var(--tint); font-size:15.5px; line-height:1.55; font-weight:600; }
+.fd2-dots { display:inline-flex; gap:5px; padding:4px 2px; }
+.fd2-dots i { width:7px; height:7px; border-radius:50%; background:var(--primary); opacity:.3; animation:fd2-blink 1s infinite; }
+.fd2-dots i:nth-child(2) { animation-delay:.2s; }
+.fd2-dots i:nth-child(3) { animation-delay:.4s; }
+@keyframes fd2-blink { 50% { opacity:1; } }
+
+/* 기분 칩 넷 — 얼굴(MoodIcon) + 말 (D75) */
+.fd2-moods { display:flex; flex-wrap:wrap; gap:8px; }
+.fd2-mood { display:inline-flex; align-items:center; gap:5px; height:38px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:var(--surface); font-size:14.5px; font-weight:600; color:var(--text); cursor:pointer; }
+.fd2-mood .elder-ic { width:18px; height:18px; }
+.fd2-mood.on { background:var(--tint); border-color:#c9bbef; color:var(--primary); font-weight:800; }
