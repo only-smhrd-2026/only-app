@@ -5,6 +5,7 @@
 - 19:00 이틀째 기록 없음 가족 알림 (천주웅) — 기록 = 어르신이 말한 대화(models.ELDER_SPOKE)·어르신 일기
 - 일요일 19:00 주간 요약 (배선 천주웅, 요약 AI 홍진성)
 - 10분마다 분류 전 가족 사진 분류 (AI-04, 홍진성 — D71)
+- 04:00 어제 대화에서 이야기 기억 뽑기·보관 기간 지난 기억 지우기 (AI-07, 홍진성 — D77)
 compose 는 restart: unless-stopped, uvicorn --workers 1 전제 (잡이 두 번 돌지 않게).
 """
 
@@ -17,9 +18,18 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select
 
-from app.ai import classify
+from app.ai import classify, story
 from app.ai.weekly import summarize
-from app.config import CLASSIFY_EVERY_MIN, DAILY_ALERT_HOUR, NO_RECORD_DAYS, TZ, WEEKLY_HOUR, now_kst, today_kst
+from app.config import (
+    CLASSIFY_EVERY_MIN,
+    DAILY_ALERT_HOUR,
+    NO_RECORD_DAYS,
+    STORY_HOUR,
+    TZ,
+    WEEKLY_HOUR,
+    now_kst,
+    today_kst,
+)
 from app.db import SessionLocal
 from app.models import ELDER_SPOKE, DailyPick, Diary, FamilyRoom, Notification, TalkSession, WeeklySummary
 from app.routers.devices import notify_family
@@ -214,6 +224,13 @@ def classify_photos() -> None:
         log.info("job classify_photos done=%d left=%d", done, left)
 
 
+def story_facts() -> None:
+    """어제 대화에서 이야기 기억을 뽑고, 보관 기간이 지난 기억을 지운다 (AI-07, D77)."""
+    with SessionLocal() as db:
+        rooms, kept = story.run(db, today_kst() - timedelta(days=1))
+    log.info("job story_facts rooms=%d kept=%d", rooms, kept)
+
+
 def catch_up() -> None:
     """기동 시 놓친 작업 보정 (D9). 예: 지난 일요일 주간 요약이 없으면 지금 생성. TODO(천주웅)."""
     jobs = [weekly_summaries]
@@ -254,6 +271,9 @@ def start() -> None:
         CronTrigger(minute=f"*/{CLASSIFY_EVERY_MIN}", timezone=TZ),
         id="classify_photos",
         replace_existing=True,
+    )
+    scheduler.add_job(
+        story_facts, CronTrigger(hour=STORY_HOUR, minute=0, timezone=TZ), id="story_facts", replace_existing=True
     )
     scheduler.start()
     catch_up()

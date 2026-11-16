@@ -97,8 +97,9 @@ class CoachTurn(BaseModel):
     # 문제 이름표(KNOWHOW 등)가 붙어 출제 기록이 섞이거나, API 계약에 없는 값으로 500 이 나지 않게.
     text: str = Field(min_length=1, max_length=MODEL_TEXT_MAX)
     suggestions: list[str] = Field(default_factory=list, max_length=3)
-    # LOW 는 기록하고 이어 감, SAD·RISK·STOP 이면 대화를 끝낸다 (FR-AI-005, D55)
-    signal: Literal["NONE", "LOW", "SAD", "RISK", "STOP"] = "NONE"
+    # LOW 는 기록하고 이어 감, SAD·RISK·STOP 이면 대화를 끝낸다 (FR-AI-005, D55).
+    # DENY = 어제 이야기 질문에 '그런 말 안 했어' — 그 기억을 끄고 대화는 이어 간다 (FR-AI-008, D77)
+    signal: Literal["NONE", "LOW", "SAD", "RISK", "STOP", "DENY"] = "NONE"
     private: bool = False  # '애들한테 말하지 마' → 그 대화는 기운 없는 날에서 뺀다. 위급만 예외 (D55 ③)
 
     @field_validator("text")
@@ -164,6 +165,22 @@ class WeeklyCard(BaseModel):
 
 class WeeklyCards(BaseModel):
     cards: list[WeeklyCard]
+
+
+class StoryFactItem(BaseModel):
+    """다음 대화에서 안부로 이어 물을 이야기 하나 — story_facts 의 모델 출력 (FR-AI-007, D77).
+
+    규칙 검사는 ai/story.check 가 하나씩 한다. 하나가 걸려도 나머지를 살리려고 여기서는 모양만 본다.
+    """
+
+    ref: str  # 입력 pairs 의 ref — 근거가 된 어르신 답
+    kind: Literal["PLAN", "EVENT"]  # PLAN 앞으로 하실 일·약속, EVENT 요즘 하신 일
+    fact: str  # 그 답을 전하는 한 문장
+    quote: str  # 그 답 원문에서 글자 그대로 옮긴 구절
+
+
+class StoryFactItems(BaseModel):
+    facts: list[StoryFactItem]
 
 
 class DiaryDraft(BaseModel):
