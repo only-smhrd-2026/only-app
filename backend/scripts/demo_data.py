@@ -8,19 +8,21 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from app.ai.weekly import summarize
 from app.config import TZ, now_kst, settings
 from app.db import SessionLocal
-from app.models import Diary, FamilyRoom, MoodCheck, TalkSession, WeeklySummary
+from app.models import Diary, FamilyRoom, MoodCheck, Notification, TalkSession, WeeklySummary
+from app.routers.devices import notify_family
 from app.services import weekly
 
 
 def fill(db: Session, room_id: int, now: datetime) -> dict[str, int]:
     """같은 방·날짜에는 같은 번호를 사용한다. 기존 줄은 변경하지 않는다."""
-    room = db.get(FamilyRoom, room_id)
+    room = db.get(FamilyRoom, room_id, with_for_update=True)
     if room is None or room.status != "ACTIVE":
         raise ValueError("가족방이 없거나 닫혀 있어 시연 자료를 넣지 않았어요")
     now = now.astimezone(TZ)
-    counts = {"sessions": 0, "diaries": 0, "mood_checks": 0, "weekly_summaries": 0}
+    counts = {"sessions": 0, "diaries": 0, "mood_checks": 0, "weekly_summaries": 0, "hearts": 0, "notifications": 0}
 
     def key(kind, day):
         return uuid.uuid5(uuid.NAMESPACE_URL, f"haru-demo:{room_id}:{kind}:{day.isoformat()}")
@@ -39,6 +41,7 @@ def fill(db: Session, room_id: int, now: datetime) -> dict[str, int]:
                 "speaker": "ELDER",
                 "text": "마당에서 가족과 꽃을 가꾸던 기억이 나요",
                 "created_at": (at + timedelta(seconds=10)).isoformat(),
+                "reply_to_turn_no": 1,
             },
         ]
         counts["sessions"] += (
@@ -64,7 +67,7 @@ def fill(db: Session, room_id: int, now: datetime) -> dict[str, int]:
         )
     for offset, mood in enumerate(("GOOD", "SO_SO", "UPSET", "LONELY"), 1):
         at = (now - timedelta(days=offset)).replace(hour=18, minute=0, second=0, microsecond=0)
-        counts["diaries"] += (
+        inserted = (
             db.execute(
                 pg_insert(Diary)
                 .values(
@@ -75,12 +78,58 @@ def fill(db: Session, room_id: int, now: datetime) -> dict[str, int]:
                     illustration_type="NONE",
                     request_id=key("diary", at.date()),
                     posted_at=at,
+                    reactions=[{"by": "FAMILY", "user_id": room.owner_user_id, "kind": "HEART", "at": now.isoformat()}]
+                    if offset == 1
+                    else [],
                 )
                 .on_conflict_do_nothing()
                 .returning(Diary.diary_id)
             ).scalar_one_or_none()
             is not None
         )
+        counts["diaries"] += inserted
+        counts["hearts"] += int(inserted and offset == 1)
+    for offset in (1, 2):
+        at = (now - timedelta(days=offset)).replace(hour=17, minute=0, second=0, microsecond=0)
+        counts["diaries"] += (
+            db.execute(
+                pg_insert(Diary)
+                .values(
+                    room_id=room_id,
+                    author_type="FAMILY",
+                    author_user_id=room.owner_user_id,
+                    body="오늘도 잘 지내고 있어요. 함께 산책할 날을 기다려요.",
+                    mood="GOOD",
+                    illustration_type="NONE",
+                    request_id=key("family-diary", at.date()),
+                    posted_at=at,
+                )
+                .on_conflict_do_nothing()
+                .returning(Diary.diary_id)
+            ).scalar_one_or_none()
+            is not None
+        )
+    for kind, title, link in (
+        ("DIARY_POSTED", "시연 일기 소식 1", "HOME_001"),
+        ("DIARY_POSTED", "시연 일기 소식 2", "HOME_001"),
+        ("DEVICE_CONNECTED", "시연 기기가 연결되었어요", "GROUP_002"),
+    ):
+        exists = db.scalar(
+            select(Notification.notification_id)
+            .where(
+                Notification.room_id == room_id,
+                Notification.kind == kind,
+                Notification.title == title,
+                Notification.link_screen == link,
+            )
+            .limit(1)
+        )
+        if exists is None:
+            notify_family(db, room_id, kind, title, link=link)
+            new = [n for n in db.new if isinstance(n, Notification)]
+            for notification in new:
+                notification.sent_at = now
+            counts["notifications"] += len(new)
     day = (now - timedelta(days=10)).date()
     counts["mood_checks"] += (
         db.execute(
@@ -108,6 +157,7 @@ def fill(db: Session, room_id: int, now: datetime) -> dict[str, int]:
     )
     weekly.build(db, room_id, now)
     counts["weekly_summaries"] = int(before is None)
+    summarize(db, room_id, week)
     return counts
 
 
