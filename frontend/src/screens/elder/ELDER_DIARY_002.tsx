@@ -1,5 +1,5 @@
 /**
- * ELDER_DIARY_002 — 일기 대화. 질문 3개(뭐 하셨어요 → 누구랑 → 기분은, 기분은 날씨 칩 4개)를 VoiceSession 말풍선으로 (D53 ①).
+ * ELDER_DIARY_002 — 일기 대화. 질문 3개(뭐 하셨어요 → 누구랑 → 기분은, 기분은 칩 4개 좋았어요·그저 그랬어요·속상했어요·쓸쓸했어요, D75)를 VoiceSession 말풍선으로 (D53 ①).
  * 다 답하면(COMPLETED·5분 LIMIT) ELDER_DIARY_003 확인으로. "그만할래"·무응답·오류로 끝나면 저장하지 않는다 (FR-DI-003).
  */
 import { useState } from 'react'

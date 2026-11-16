@@ -172,8 +172,8 @@ class DiaryDraft(BaseModel):
     # FR-DI-003/005. docstring 은 스키마 description 으로 모델에게 가므로 모델이 읽을 말로 적는다.
 
     body: str = Field(min_length=1, max_length=400)
-    mood: Literal["SUNNY", "CLOUDY", "RAINY", "MOON"]
-    # 그림일기에 그릴 사물 최대 3개, 영어 이름 (사람·얼굴·건물·특정 장소·글자 제외). 비면 기분 그림(D69)
+    mood: Literal["GOOD", "SO_SO", "UPSET", "LONELY"]
+    # 그림일기에 그릴 사물 최대 3개, 영어 이름 (사람·얼굴·건물·특정 장소·글자 제외). 비면 그리지 않는다(D75)
     draw_objects: list[str] = Field(default_factory=list, max_length=3)
 
     @field_validator("body")

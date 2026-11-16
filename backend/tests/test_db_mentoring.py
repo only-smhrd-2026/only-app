@@ -29,7 +29,7 @@ def _notice(room_id, kind):
 
 
 def _diary(room_id, **kw):
-    base = {"author_type": "ELDER", "body": "일기", "mood": "SUNNY", "illustration_type": "NONE"}
+    base = {"author_type": "ELDER", "body": "일기", "mood": "GOOD", "illustration_type": "NONE"}
     return Diary(room_id=room_id, request_id=uuid.uuid4(), **base, **kw)
 
 

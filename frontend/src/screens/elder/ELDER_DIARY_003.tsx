@@ -196,6 +196,11 @@ export default function ELDER_DIARY_003() {
           <span className="elder-tag">그림일기 · AI 그림</span>
         </div>
       )}
+      {draft.illustration_type === 'NONE' && (
+        <div className="elder-photo-box elder-photo-box--grow elder-mood-pic">
+          <MoodIcon mood={draft.mood} />
+        </div>
+      )}
       <button type="button" className={`elder-paper${saying ? ' elder-saying' : ''}`} onClick={readDraft}>
         <span>{draft.body}</span>
         <svg className="elder-spk" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

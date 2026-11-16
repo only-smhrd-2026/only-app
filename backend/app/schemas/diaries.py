@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import AwareDatetime, BaseModel, Field
 
-Mood = Literal["SUNNY", "CLOUDY", "RAINY", "MOON"]
+Mood = Literal["GOOD", "SO_SO", "UPSET", "LONELY"]  # 좋았어요·그저 그랬어요·속상했어요·쓸쓸했어요 (D75)
 IllustrationType = Literal["PHOTO", "AI_DRAWING", "NONE"]
 
 

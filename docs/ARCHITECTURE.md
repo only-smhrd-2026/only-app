@@ -78,7 +78,7 @@ signup → POST /rooms (가족방+구성원) → 사진 3장 이상 → POST /ro
 
 ```
 어르신 홈 [오늘 이야기하기] → ELDER_DIARY_001 [이야기할래요] → POST /elder/sessions {kind: DIARY}
-ELDER_DIARY_002: 말하기 왕복(위와 같음) 질문 3개 — 뭐 하셨어요 → 누구랑 → 기분은(칩 4개 맑음·구름·비·달)
+ELDER_DIARY_002: 말하기 왕복(위와 같음) 질문 3개 — 뭐 하셨어요 → 누구랑 → 기분은(칩 4개 좋았어요·그저 그랬어요·속상했어요·쓸쓸했어요, D75)
    사진이 옛 사진(분류 is_old + 신뢰도 0.8↑)이면 1·2번은 그 사진 속 그때를 묻는다 (D58 — 분류 AI #29 전에는 늘 평소 일기)
    3번째 답 → "일기를 써 볼게요" + ENDED(COMPLETED)   (그만할래요·무응답·오류로 끝나면 저장 안 함)
 ELDER_DIARY_003: POST /elder/sessions/{id}/draft

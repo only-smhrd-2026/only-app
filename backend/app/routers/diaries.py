@@ -105,7 +105,7 @@ def _draw(room_id: int, session_id: uuid.UUID, draw_spec: dict) -> tuple[str, by
     return key, data
 
 
-MOOD_LABEL = {code: label for label, code in coach.DIARY_MOODS.items()}  # SUNNY → 맑음
+MOOD_LABEL = {code: label for label, code in coach.DIARY_MOODS.items()}  # GOOD → 좋았어요
 
 
 def _speech(body: str, mood: str, room: FamilyRoom) -> tuple[str | None, bool]:
@@ -140,9 +140,10 @@ def make_draft(session_id: uuid.UUID, device: CurrentDevice, db: DB):
             raise ApiError(409, "DIARY_NOT_READY", "일기로 쓸 이야기가 없어요")
         draft = coach.diary_draft(ctx)
         photo = db.get(Photo, session.photo_id) if session.photo_id else None
-        # 그릴 사물이 없으면 기분 그림. 시드는 대화 번호로 — 같은 사물·기분이 날마다 같은 그림이 되지 않게 (D69)
-        objects = draft.draw_objects or image.MOOD_OBJECTS[draft.mood]
-        draw_spec = None if photo else {"objects": objects, "seed": session_id.int % 2**31}
+        # 그릴 사물이 없으면 그리지 않는다 — 화면이 기분 이모지를 크게 보여 준다 (D75).
+        # 시드는 대화 번호로 — 같은 사물이 날마다 같은 그림이 되지 않게 (D69)
+        objects = draft.draw_objects
+        draw_spec = None if photo or not objects else {"objects": objects, "seed": session_id.int % 2**31}
         drawn = _draw(room.room_id, session_id, draw_spec) if draw_spec else None
         audio_b64, failed = _speech(draft.body, draft.mood, room)
         if failed and session_id not in _tts_failed:  # 낭독 실패도 가족 알림은 대화에 1건 (D5, _ai_out 과 같이)

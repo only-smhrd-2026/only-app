@@ -102,22 +102,22 @@ def test_talk_days_low_and_window(client, context):
 def test_latest_elder_mood_only(client, context):
     room_id, midnight, _ = context
     yesterday = midnight - timedelta(days=1)
-    _diary(room_id, yesterday + timedelta(hours=9), "RAINY")
-    _diary(room_id, yesterday + timedelta(hours=10), "SUNNY")
-    _diary(room_id, yesterday + timedelta(hours=11), "MOON", author_type="FAMILY")
-    _diary(room_id, yesterday + timedelta(hours=12), "CLOUDY", status="DELETED")
-    _diary(room_id, midnight - timedelta(days=7), "RAINY")
+    _diary(room_id, yesterday + timedelta(hours=9), "UPSET")
+    _diary(room_id, yesterday + timedelta(hours=10), "GOOD")
+    _diary(room_id, yesterday + timedelta(hours=11), "LONELY", author_type="FAMILY")
+    _diary(room_id, yesterday + timedelta(hours=12), "SO_SO", status="DELETED")
+    _diary(room_id, midnight - timedelta(days=7), "UPSET")
     result = _get(client, room_id)
-    assert result["days"][-2]["diary_mood"] == "SUNNY"
+    assert result["days"][-2]["diary_mood"] == "GOOD"
     assert sum(day["diary_mood"] is not None for day in result["days"]) == 1
     assert result["talked_days"] == 0
 
 
 def test_same_timestamp_uses_later_diary_id(client, context):
     room_id, midnight, _ = context
-    _diary(room_id, midnight, "RAINY")
-    _diary(room_id, midnight, "SUNNY")
-    assert _get(client, room_id)["days"][-1]["diary_mood"] == "SUNNY"
+    _diary(room_id, midnight, "UPSET")
+    _diary(room_id, midnight, "GOOD")
+    assert _get(client, room_id)["days"][-1]["diary_mood"] == "GOOD"
 
 
 def test_korean_midnight_and_first_day_boundary(client, context):
@@ -128,14 +128,14 @@ def test_korean_midnight_and_first_day_boundary(client, context):
     first = midnight - timedelta(days=6)
     _talk(room_id, first)
     _talk(room_id, first - timedelta(microseconds=1), "SAD")
-    _diary(room_id, midnight.astimezone(timezone.utc), "SUNNY")
-    _diary(room_id, (midnight - timedelta(microseconds=1)).astimezone(timezone.utc), "RAINY")
+    _diary(room_id, midnight.astimezone(timezone.utc), "GOOD")
+    _diary(room_id, (midnight - timedelta(microseconds=1)).astimezone(timezone.utc), "UPSET")
     result = _get(client, room_id)
     assert result["days"][-1]["talked"] is True
     assert result["days"][-1]["low"] is False
-    assert result["days"][-1]["diary_mood"] == "SUNNY"
+    assert result["days"][-1]["diary_mood"] == "GOOD"
     assert result["days"][-2]["low"] is True
-    assert result["days"][-2]["diary_mood"] == "RAINY"
+    assert result["days"][-2]["diary_mood"] == "UPSET"
     assert result["days"][0]["talked"] is True
     assert result["days"][0]["low"] is False
     assert result["talked_days"] == 3

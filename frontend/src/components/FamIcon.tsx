@@ -1,4 +1,4 @@
-/** 가족 화면 그림 (D70) — 목업 설계자료/목업_1115_가족 의 const I 도형 그대로(24 칸, 선 굵기 2). 기분 날씨는 MoodIcon. */
+/** 가족 화면 그림 (D70) — 목업 설계자료/목업_1115_가족 의 const I 도형 그대로(24 칸, 선 굵기 2). 기분 얼굴은 MoodIcon. */
 import type { ReactNode } from 'react'
 
 const ICONS = {

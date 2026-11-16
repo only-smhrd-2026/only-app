@@ -34,7 +34,7 @@ def _talk(db, room_id, at, kind="MEMORY", texts=(), private=False):
     )
 
 
-def _diary(db, room_id, at, mood="SUNNY", author_type="ELDER", status="POSTED", **picture):
+def _diary(db, room_id, at, mood="GOOD", author_type="ELDER", status="POSTED", **picture):
     diary = Diary(
         room_id=room_id,
         author_type=author_type,
@@ -84,9 +84,9 @@ def test_build_and_repeated_run(client):
         _talk(db, room_id, _at(8, 18, 59), texts=("범위 밖",))
         _talk(db, room_id, NOW, texts=("범위 밖",))
         diary_id = _diary(db, room_id, _at(11, 20, 5))
-        _diary(db, room_id, NOW, "RAINY")
-        _diary(db, room_id, _at(12), "MOON", "FAMILY")
-        _diary(db, room_id, _at(13), "RAINY", status="DELETED")
+        _diary(db, room_id, NOW, "UPSET")
+        _diary(db, room_id, _at(12), "LONELY", "FAMILY")
+        _diary(db, room_id, _at(13), "UPSET", status="DELETED")
         db.commit()
         weekly.build(db, room_id, NOW)
     row = _rows(room_id)[0]
@@ -94,9 +94,9 @@ def test_build_and_repeated_run(client):
     assert (row.memory_days, row.diary_days) == (2, 1)
     assert row.talk_volume == {"words": 8, "turns": 4, "avg_words": 2.0}
     assert row.mood_trend == [
-        {"date": date(2026, 11, day).isoformat(), "mood": "SUNNY" if day == 11 else None} for day in range(9, 16)
+        {"date": date(2026, 11, day).isoformat(), "mood": "GOOD" if day == 11 else None} for day in range(9, 16)
     ]
-    assert row.diaries == [{"diary_id": diary_id, "date": "2026-11-11", "mood": "SUNNY"}]
+    assert row.diaries == [{"diary_id": diary_id, "date": "2026-11-11", "mood": "GOOD"}]
     assert row.qa_list == []
     assert row.recall_check == {}
     assert row.notes is None
@@ -121,14 +121,14 @@ def test_eight_dates_latest_mood_and_empty_week(client):
             if offset == 7:
                 at -= timedelta(hours=1)
             _talk(db, room_id, at, texts=("네",))
-            _diary(db, room_id, at, "RAINY")
-        _diary(db, room_id, _at(11, 22), "SUNNY")
+            _diary(db, room_id, at, "UPSET")
+        _diary(db, room_id, _at(11, 22), "GOOD")
         db.commit()
         weekly.build(db, room_id, NOW)
         weekly.build(db, room_id, NOW - timedelta(days=7))
     empty, full = _rows(room_id)
     assert (full.memory_days, full.diary_days) == (7, 7)
-    assert full.mood_trend[2]["mood"] == "SUNNY"
+    assert full.mood_trend[2]["mood"] == "GOOD"
     assert len(full.diaries) == 9
     assert empty.talk_volume == {"words": 0, "turns": 0, "avg_words": 0}
     assert (empty.memory_days, empty.diary_days) == (0, 0)

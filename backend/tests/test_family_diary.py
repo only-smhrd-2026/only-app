@@ -10,7 +10,7 @@ from tests.conftest import add_photos, make_room, setup_elder, signup
 
 
 def _post(client, room_id, **extra):
-    data = {"request_id": str(uuid.uuid4()), "body": "오늘 공원을 걸었어요.", "mood": "SUNNY"} | extra
+    data = {"request_id": str(uuid.uuid4()), "body": "오늘 공원을 걸었어요.", "mood": "GOOD"} | extra
     return client.post(f"/api/rooms/{room_id}/diaries", json=data)
 
 
@@ -113,7 +113,7 @@ def _diary(room_id, author_type="FAMILY", status="POSTED"):
             author_type=author_type,
             author_user_id=db.get(FamilyRoom, room_id).owner_user_id if author_type == "FAMILY" else None,
             body="오늘 공원을 걸었어요.",
-            mood="SUNNY",
+            mood="GOOD",
             illustration_type="NONE",
             request_id=uuid.uuid4(),
             status=status,

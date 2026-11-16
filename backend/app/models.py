@@ -226,7 +226,7 @@ class Diary(Base):
     session_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("sessions.session_id"))
     photo_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("photos.photo_id"))
     body: Mapped[str] = mapped_column(Text)
-    mood: Mapped[str] = mapped_column(String(6))  # SUNNY | CLOUDY | RAINY | MOON
+    mood: Mapped[str] = mapped_column(String(6))  # GOOD | SO_SO | UPSET | LONELY (D75)
     illustration_type: Mapped[str] = mapped_column(String(10))  # PHOTO | AI_DRAWING | NONE
     illustration_key: Mapped[str | None] = mapped_column(String(255))
     draw_spec: Mapped[Any | None] = mapped_column(JSONB(none_as_null=True))  # None → SQL NULL (JSON null 아님)

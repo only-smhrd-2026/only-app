@@ -16,7 +16,7 @@ def _diary(room_id, author_type="FAMILY", status="POSTED"):
             author_type=author_type,
             author_user_id=db.get(FamilyRoom, room_id).owner_user_id if author_type == "FAMILY" else None,
             body="오늘 공원을 걸었어요.",
-            mood="SUNNY",
+            mood="GOOD",
             illustration_type="NONE",
             request_id=uuid.uuid4(),
             status=status,
