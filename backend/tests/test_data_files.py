@@ -60,13 +60,16 @@ def test_question_bank_rules():
         assert 1 <= q["priority"] <= 9, c
 
 
-def test_every_label_has_questions():
-    """어떤 사진이든 문제 1개 이상 (FR-AI-002): 활동마다 노하우 2개+, 주제마다 떠올리기 1개+, none 사진용 공통 풀."""
+def test_every_photo_gets_a_fallback_question():
+    """어떤 사진이든 대신 낼 문제 1개 이상 (FR-AI-002). 생각 문제는 AI 가 쓰고 은행 문제는 대체용이라(D72)
+    이름표마다 은행 문제가 있을 필요는 없다(D76 — v2 에서 더한 요즘 사진 이름표는 은행 문제 없이 시작).
+    이름표 칸이 비면 quiz._tiers 가 그때 vs 지금(아무 사진용) → 공통으로 넘어가므로, 그 풀만 충분하면 된다.
+    v1 이름표(taxonomy.json 의 앞 20·20)의 은행 문제는 지우지 않는다 — 줄면 그 사진의 대체 문제가 덜 맞는다."""
     tax = load("taxonomy.json")
     questions = active(load("question_bank.json")["questions"])
-    for a in tax["activity"]:
+    for a in tax["activity"][:20]:
         assert sum(q["qtype"] == "KNOWHOW" and q["activity"] == a for q in questions) >= 2, f"노하우 부족: {a}"
-    for c in tax["category"]:
+    for c in tax["category"][:20]:
         assert any(q["category"] == c for q in questions), f"떠올리기 없음: {c}"
     none_pool = [q for q in questions if q["qtype"] in ("THEN_NOW", "COMMON") and q["activity"] is None]
     assert len(none_pool) >= 20, "none 사진 공통 풀이 너무 적으면 14일 안에 같은 문제가 반복됨"

@@ -17,7 +17,7 @@ from app.config import FAMILY_DRAFT_MAX, ROOT
 BANNED_WORDS: list[str] = json.loads((ROOT / "data" / "banned_words.json").read_text("utf-8"))["words"]
 # 위급 표현 조각 (D55 ① 안전망). 띄어쓰기를 뺀 어르신 말에 들어 있으면 AI 판단과 상관없이 위급으로 본다
 RISK_WORDS: list[str] = json.loads((ROOT / "data" / "risk_words.json").read_text("utf-8"))["words"]
-# 사진 분류 이름표 (활동·주제 각 20 + 고르는 기준 _rules). 정답표·문제 은행과 같은 글자 (D71)
+# 사진 분류 이름표 (활동 29·주제 26 + 고르는 기준 _rules, v2 D76). 정답표·문제 은행과 같은 글자 (D71)
 TAXONOMY: dict = json.loads((ROOT / "data" / "taxonomy.json").read_text("utf-8"))
 
 

@@ -11,10 +11,11 @@ import FamIcon from '../../components/FamIcon'
 import { useFetch } from '../../hooks/useFetch'
 import './GROUP_004.css'
 
-// data/taxonomy.json 의 activity 20개와 같은 글자·순서 (backend/tests/test_data_files.py 가 맞는지 본다)
+// data/taxonomy.json 의 activity 29개와 같은 글자·순서 (backend/tests/test_data_files.py 가 맞는지 본다, D76)
 const ACTIVITIES = [
   '김장', '장 담그기', '떡 만들기', '모내기', '농사', '잔치', '결혼식', '명절 차례', '생일', '가족 식사',
   '장날', '운동회', '소풍', '졸업식', '바닷가', '꽃구경', '등산', '여행', '손주 돌보기', '겨울 놀이',
+  '요리', '반려동물', '운동', '학교 생활', '공연 구경', '카페', '물놀이', '기념일', '캠핑',
 ]
 const NONE = 'none' // 맞는 활동 없음 (분류 AI·가족 고치기 둘 다 같은 글자)
 const nameOf = (v: string) => (v === NONE ? '맞는 것 없음' : v)
