@@ -1,4 +1,17 @@
-/* UPLOAD_002 가족방 고르기. 사진 격자(.upload-grid)는 UPLOAD_001.css, 나머지는 index.css 공통 클래스 */
-.upload-count { margin: 0 0 8px; }
-.upload-room { padding: 8px 0; font-size: 18px; } /* 체크 상자 줄 — 손가락으로 누르기 쉽게 */
-.upload-room input { width: 22px; height: 22px; }
+/* UPLOAD_002 추억 올리기 2/3 — 목업 설계자료/목업_1115_가족 ④ .thumbs·.tb·.flabel small·.note-ai 값 그대로.
+   진행 막대·아래 버튼은 steps.css, 칩·입력 칸(.fd2-*)은 FDIARY_002.css */
+.up2-thumbs { margin:0 var(--gut); display:flex; align-items:center; gap:6px; }
+.up2-tb { flex:none; width:56px; height:56px; border-radius:10px; overflow:hidden; background:#eceaf2; }
+.up2-tb img { display:block; width:100%; height:100%; object-fit:cover; }
+.up2-thumbs small { margin-left:6px; font-size:13.5px; font-weight:600; color:var(--text-2); }
+
+.up2-opt { margin-left:4px; font-size:12.5px; font-weight:600; color:var(--text-3); }
+.fd2-mood .fam-ic { width:16px; height:16px; }
+.fd2-mood:disabled { cursor:default; }
+
+.fam .up2-note-ai { display:flex; align-items:flex-start; gap:8px; padding:12px 14px; border-radius:14px; background:var(--tint-2); font-size:13px; line-height:1.5; color:var(--text-2); }
+.up2-note-ai .fam-ic { flex:none; width:16px; height:16px; margin-top:1px; color:var(--primary); }
+
+/* 틀의 '.fam p { margin:0 }' 보다 세게 — 화면 양옆 여백 */
+.fam .up2-pad { margin:0 var(--gut); }
+.fam .up2-res { color:var(--text-2); font-size:14px; }

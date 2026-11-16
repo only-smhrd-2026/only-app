@@ -20,7 +20,7 @@ export const MAX_BYTES = 10 * 1024 * 1024
 const fileKey = (f: File) => `${f.name}:${f.size}:${f.lastModified}`
 
 /**
- * 고른 사진 3열 격자 — UPLOAD_002·003 도 같이 쓴다.
+ * 고른 사진 3열 격자 (이 화면만 쓴다. Thumb 는 UPLOAD_002·003·FDIARY 도 같이 쓴다).
  * onRemove 를 주면 사진마다 × (빼기), add 를 주면 맨 끝 칸에 그것(이 화면의 [더 고르기])을 놓는다.
  */
 export function PhotoGrid({ files, onRemove, add }: { files: File[]; onRemove?: (i: number) => void; add?: ReactNode }) {
@@ -115,6 +115,7 @@ export default function UPLOAD_001() {
     if (uploadDraft.batchId !== batchId && !sameSet) {
       uploadDraft.caption = ''
       uploadDraft.peopleNote = ''
+      uploadDraft.peopleIds = []
     }
     uploadDraft.files = files
     uploadDraft.batchId = batchId
