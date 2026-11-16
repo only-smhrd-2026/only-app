@@ -10,8 +10,20 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { InviteStatusOut, RelationTag, RoomOut, UserOut } from '../../api/types'
 import { useFetch } from '../../hooks/useFetch'
-import { RelationChips } from './GROUP_001'
-import './GROUP_001.css'
+import '../../components/FamilyFrame.css'
+import './JOIN_001.css'
+
+const RELATIONS: [RelationTag, string][] = [
+  ['CHILD', '자녀'],
+  ['GRANDCHILD', '손주'],
+  ['OTHER', '기타'],
+]
+
+/** ELDER_FAMILY_001과 같은 받침 검사 — '지민이', '민서가' */
+function subjectParticle(word: string) {
+  const code = word.charCodeAt(word.length - 1)
+  return code >= 0xac00 && code <= 0xd7a3 && (code - 0xac00) % 28 !== 0 ? '이' : '가'
+}
 
 export default function JOIN_001() {
   const nav = useNavigate()
@@ -40,6 +52,8 @@ export default function JOIN_001() {
 
   const myName = (name ?? me.data?.name ?? '').trim()
   const nick = nickname.trim()
+  // 어르신 가족 소식의 sender와 동일하게 호칭 다음에 이름을 붙인다.
+  const sender = [nick, myName].filter(Boolean).join(' ') || '가족'
 
   async function accept(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -62,50 +76,81 @@ export default function JOIN_001() {
   const invite = status?.valid && status.kind === 'FAMILY' ? status : undefined
 
   return (
-    <main className="page fam-skin">
-      <h1>가족방 참여</h1>
-      {statusError && <p className="error" role="alert">{statusError}</p>}
+    <main className="fam join-page">
+      <header className="join-heading">
+        <h1>가족방에 들어가기</h1>
+        <p>할머니께 내 소식을 어떻게 읽어 드릴지 정해요</p>
+      </header>
+      {statusError && <p className="join-error" role="alert">{statusError}</p>}
       {canRetry && (
         <button
-          className="btn secondary"
+          className="join-button join-button--secondary"
           onClick={() => { setStatusError(''); setCanRetry(false); setTries((n) => n + 1) }}
         >
           다시 시도
         </button>
       )}
-      {!status && !statusError && <p className="muted">불러오는 중…</p>}
-      {status && !invite && <p>이 링크는 더 쓸 수 없어요. 방장에게 새 링크를 받아 주세요.</p>}
+      {!status && !statusError && <p className="join-muted" role="status">불러오는 중…</p>}
+      {status && !invite && <p role="alert">이 링크는 더 쓸 수 없어요. 방장에게 새 링크를 받아 주세요.</p>}
       {invite && (
         <>
-          <section className="card">
-            <p><strong>{invite.elder_name} 님 가족방에 초대받았어요</strong></p>
+          <section className="join-room" aria-label="초대받은 가족방">
+            <span className="join-avatar" aria-hidden="true">{invite.elder_name.slice(0, 1)}</span>
+            <div>
+              <strong>{invite.elder_name} 님 가족방</strong>
+              <p>가족방에 초대받았어요</p>
+            </div>
           </section>
           {loggedOut || me.error?.status === 401 ? (
-            <section className="card">
+            <section className="join-notice">
               <p>먼저 로그인(처음이면 가입)해 주세요. 끝나면 이 화면으로 돌아와요.</p>
-              <Link className="btn" to="/login" state={{ next: `/join#${token}` }}>로그인하러 가기</Link>
+              <Link className="join-button" to="/login" state={{ next: `/join#${token}` }}>로그인하러 가기</Link>
             </section>
           ) : me.error ? (
-            <section className="card">
-              <p className="error">{me.error.message}</p>
-              <button className="btn" onClick={me.reload}>다시 시도</button>
+            <section className="join-notice">
+              <p className="join-error" role="alert">{me.error.message}</p>
+              <button className="join-button" onClick={me.reload}>다시 시도</button>
             </section>
           ) : !me.data ? (
-            <p className="muted">불러오는 중…</p>
+            <p className="join-muted" role="status">불러오는 중…</p>
           ) : (
-            <form className="form card" onSubmit={accept}>
-              <label>내 이름
-                <input value={name ?? me.data.name} onChange={(e) => setName(e.target.value)} required maxLength={10} />
-              </label>
-              <RelationChips value={relation} onChange={setRelation} />
-              <label>호칭 (선택)
-                <input value={nickname} onChange={(e) => setNickname(e.target.value)} maxLength={12} placeholder="예: 큰딸" />
-              </label>
-              <p className="muted">어르신께는 '{nick ? `${nick} ${myName}` : myName}' 소식으로 읽어 드려요</p>
-              {error && <p className="error" role="alert">{error}</p>}
-              <button className="btn" disabled={busy || !relation || !myName}>
-                {busy ? '들어가는 중…' : '가족방 들어가기'}
-              </button>
+            <form className="join-form" onSubmit={accept} aria-busy={busy}>
+              <fieldset className="join-fields" disabled={busy}>
+                <label className="join-field">내 이름
+                  <input autoComplete="name" value={name ?? me.data.name} onChange={(e) => setName(e.target.value)} required maxLength={10} />
+                </label>
+                <fieldset className="join-relations">
+                  <legend>할머니와의 관계 <span className="join-required">필수</span></legend>
+                  <div className="join-chips">
+                    {RELATIONS.map(([tag, label]) => (
+                      <label className="join-chip" key={tag}>
+                        <input type="radio" name="relation_tag" value={tag} checked={relation === tag} onChange={() => setRelation(tag)} required />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                <label className="join-field">
+                  <span>할머니가 나를 부르는 말 <small>선택</small></span>
+                  <input value={nickname} onChange={(e) => setNickname(e.target.value)} maxLength={12} placeholder="예: 둘째 손주" aria-describedby="join-nickname-help" />
+                  <small id="join-nickname-help">12자까지 쓸 수 있어요</small>
+                </label>
+                <section className="join-readout" aria-label="첫 문장 미리 보기">
+                  <h2>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M4 9.5v5h3.2L12 18.5v-13L7.2 9.5zM15.5 9a4.2 4.2 0 0 1 0 6M18.3 6.3a8 8 0 0 1 0 11.4" />
+                    </svg>
+                    할머니께 이렇게 읽어 드려요
+                  </h2>
+                  <p aria-live="polite">“{sender}{subjectParticle(sender)} 사진 일기를 보냈어요. 읽어 드릴게요.”</p>
+                </section>
+              </fieldset>
+              {error && <p className="join-error" role="alert">{error}</p>}
+              <div className="join-actions">
+                <button className="join-button" disabled={busy || !relation || !myName}>
+                  {busy ? '들어가는 중…' : '가족방 들어가기'}
+                </button>
+              </div>
             </form>
           )}
         </>
