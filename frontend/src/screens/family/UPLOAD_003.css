@@ -1,0 +1,24 @@
+/* UPLOAD_003 추억 올리기 3/3 — 목업 설계자료/목업_1115_가족 ④ .result·.res-ic·.info·.fail-row 값 그대로. 진행 막대·아래 버튼은 steps.css.
+   .fam p 의 margin 0 보다 세게 하려고 p 는 .fam 을 앞에 붙인다 */
+.up3-result { display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px; padding:36px 24px 8px; }
+.up3-ic { width:68px; height:68px; border-radius:999px; display:grid; place-items:center; background:var(--primary); color:#fff; margin-bottom:8px; font-size:34px; font-weight:800; }
+.up3-ic .fam-ic { width:34px; height:34px; stroke-width:2.6; }
+.up3-ic--warn { background:#fdecee; color:var(--danger); }
+.up3-result h1 { font-size:21px; font-weight:800; letter-spacing:-.03em; }
+.fam .up3-result p { color:var(--text-2); font-size:14.5px; }
+
+.up3-info { padding:4px 16px; }
+.fam .up3-info p { display:flex; align-items:center; gap:10px; padding:12px 0; font-size:14.5px; }
+.fam .up3-info p + p { border-top:1px solid var(--line); }
+.up3-info .fam-ic { flex:none; width:20px; height:20px; color:var(--primary); }
+
+.up3-fails { padding:14px 16px; display:flex; flex-direction:column; gap:12px; }
+.up3-fail { display:flex; align-items:center; gap:12px; font-size:14.5px; }
+.up3-fail small { display:block; margin-top:2px; font-size:13px; color:var(--text-2); }
+.up3-tb { flex:none; width:48px; height:48px; border-radius:10px; overflow:hidden; background:#eceaf2; }
+.up3-tb img { display:block; width:100%; height:100%; object-fit:cover; }
+
+/* 폰 연결 안내 — 누르면 그 방 가족방 탭 */
+.up3-link { margin:0 var(--gut); display:flex; align-items:center; gap:10px; padding:14px 16px; border:1px solid #c9bbef; border-radius:var(--r); background:var(--tint-2); color:var(--primary); font-size:14.5px; font-weight:700; text-decoration:none; }
+.up3-link span { flex:1; }
+.up3-link .fam-ic { flex:none; width:20px; height:20px; }
