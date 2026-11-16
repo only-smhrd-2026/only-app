@@ -160,7 +160,8 @@ CREATE TABLE sessions (
 -- 칸 안의 값은 DB 가 아니라 서버 코드가 검사한다 (D38).
 --   공통  : turn_no, speaker(AI|ELDER), text, created_at
 --   어르신: stt_confidence(0~1), input_type(VOICE|CHIP|BUTTON|TEXT — TEXT 는 글로 쓰기 D52), retried, reply_to_turn_no
---   AI    : question_type(RECALL|REMEMBER|KNOWHOW|THEN_NOW|COMMON|RECHECK|CLOSING|NONE), latency_ms
+--   AI    : question_type(RECALL|REMEMBER|KNOWHOW|THEN_NOW|COMMON|RECHECK|CLOSING|NONE), latency_ms,
+--           fact_id(지난 대화의 이야기로 연 첫 질문 — story_facts.fact_id, D77. RECHECK 는 쓰지 않음)
 --   출제  : question_code(문제 은행 code, AI 가 쓴 생각 문제는 'GEN-유형' 예 GEN-REMEMBER — D72, 되짚기는 없음),
 --           hint_level(0~3), recheck_result(REMEMBERED|HINTED|SKIPPED|NA),
 --           answer_summary — 14일 반복 방지는 최근 14일 세션의 question_code → question_bank.code 의 카테고리·활동,

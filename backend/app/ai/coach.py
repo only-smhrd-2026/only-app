@@ -8,7 +8,9 @@
 question_type 은 모델이 아니라 여기서 정한다: 모델 질문 RECALL, 생각 문제 = 그 유형(은행 문제면 qtype), 마무리 CLOSING.
 모델은 어르신 직전 말로 signal(NONE|LOW|SAD|RISK|STOP)과 private 을 함께 낸다. LOW 는 기록하고 이어 가고,
 SAD·RISK·STOP 이면 그 턴 말은 마무리 인사다 (FR-AI-005, D55). 위급(RISK) 마무리는 코드 문장.
-되짚기(RECHECK)·story_facts 는 AI-07(#46).
+이야기 기억 (AI-07 #46, D77) — 그날 첫 회상 대화는 지난 대화의 이야기 하나로 시작한다(story_question). 그 답에
+'그런 말 안 했어'면 모델이 signal DENY 를 내고 호출자가 그 기억을 끈다. 되짚기 문제(RECHECK)는 하지 않는다 — 질문마다
+어르신 말을 되받아 말하는 것으로 갈음한다 (11/12 멘토 '테스트 느낌', D52·D77).
 LLM 이 실패하면(키 없음·검증 실패·장애) 고정 문장으로 대화를 이어 간다 (D14). 문제 턴은 원문만 낸다.
 """
 
@@ -16,6 +18,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any
 
 from pydantic import ValidationError
@@ -218,6 +221,34 @@ def closing(ctx: CoachContext, turn_no: int, max_turns: int = MAX_TURNS) -> tupl
     if out.signal == "RISK":
         return RISK_CLOSING, "RISK", out.private
     return _closing_reply(out.text), out.signal, out.private
+
+
+def _day(d: date) -> str:
+    return f"{d.month}월 {d.day}일 {WEEKDAYS[d.weekday()]}요일"
+
+
+def story_question(ctx: CoachContext, fact: str, when: str, heard_on: date) -> CoachReply | None:
+    """그날 첫 회상 대화의 첫 질문 — 지난 대화에서 들은 이야기를 '~하셨죠'로 꺼내 그 뒤 소식을 묻는다 (FR-AI-008, D77).
+
+    fact = 그 이야기를 전하는 한 문장, when = '어제'·'그저께'·'며칠 전', heard_on = 들은 날 — fact 안의 '내일·모레'는
+    그날 기준이라 오늘과 견줘 지난 일인지 앞일인지 모델이 가린다. AI 가 실패하거나 질문 하나로 끝나지 않으면
+    None — 호출자가 고정 사진 질문으로 시작한다(그 기억은 묻지 않은 채 남는다).
+    """
+    data = {
+        "elder_name": ctx.elder_name,
+        "elder_honorific": ctx.elder_honorific,
+        "today": _day(today_kst()),
+        "when": when,
+        "heard_on": _day(heard_on),
+        "fact": fact,
+    }
+    try:
+        out = llm.call_json("story_question", data, CoachTurn)
+    except (llm.LlmError, NotImplementedError):
+        return None
+    if question_marks(out.text) != 1 or not out.text.endswith(("?", "？")):
+        return None
+    return CoachReply(text=out.text, suggestions=out.suggestions[:2], question_type="RECALL")
 
 
 def confirm_question(heard: str) -> CoachReply:

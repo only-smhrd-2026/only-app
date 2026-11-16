@@ -8,7 +8,8 @@ summarize(db, room_id, week_start) 가 weekly_summaries 한 줄의 qa_list·note
 - 규칙 검사는 코드가 카드마다 한다(check). 걸린 카드만 버린다.
 - 넣지 않는 대화: '가족에게 말하지 마'(private_flag, D55 ③), 기운 없음·위급(emotion_flag — 내용 없이
   CARE_LINE 한 줄, FR-FD-006), 일기 대화(이번 주 일기는 집계의 diaries 로 따로 보인다).
-- 넣지 않는 답: 음성 인식 신뢰도 WEEKLY_STT_MIN 미만, SAID_MIN 자 미만('네'·'몰라').
+- 넣지 않는 답: 음성 인식 신뢰도 WEEKLY_STT_MIN 미만, SAID_MIN 자 미만('네'·'몰라'), 어제 이야기 질문에 한 답(사진
+  이야기가 아님), 어르신이 '그런 말 안 했어'라고 하신 기억의 근거 답 (AI-07, D77).
 - 로그에 어르신 말을 남기지 않는다 (D15) — 개수만.
 """
 
@@ -25,7 +26,7 @@ from sqlalchemy.orm import Session
 from app.ai import llm
 from app.ai.schemas import BANNED_WORDS, WeeklyCard, WeeklyCards
 from app.config import TZ, WEEKLY_CARDS_MAX, WEEKLY_HOUR, WEEKLY_PAIRS_MAX, WEEKLY_STT_MIN, settings
-from app.models import ELDER_SPOKE, FamilyRoom, Photo, TalkSession, WeeklySummary
+from app.models import ELDER_SPOKE, FamilyRoom, Photo, StoryFact, TalkSession, WeeklySummary
 
 log = logging.getLogger("app.ai")
 
@@ -50,6 +51,8 @@ def pairs_of(sessions: list[TalkSession]) -> list[dict[str, Any]]:
             asked = by_no.get(turn.get("reply_to_turn_no"))
             confidence = turn.get("stt_confidence")
             if turn.get("speaker") != "ELDER" or not asked or len(said) < SAID_MIN:
+                continue
+            if asked.get("fact_id"):  # 어제 이야기 질문(D77)에 한 답 — 사진 이야기가 아니다
                 continue
             if confidence is not None and confidence < WEEKLY_STT_MIN:  # 잘못 들은 말을 가족에게 전하지 않는다
                 continue
@@ -116,6 +119,16 @@ def summarize(db: Session, room_id: int, week_start: date) -> None:
     pairs = pairs_of(
         [s for s in sessions if s.kind in ("MEMORY", "ALBUM") and not s.private_flag and s.emotion_flag == "NONE"]
     )
+    # 어르신이 '그런 말 안 했어'라고 하신 기억의 근거 답 — 잘못 들었을 수 있어 가족에게 전하지 않는다 (FR-AI-008, D77)
+    denied = {
+        (str(session_id), turn_no)
+        for session_id, turn_no in db.execute(
+            select(StoryFact.session_id, StoryFact.source_turn_no).where(
+                StoryFact.room_id == room_id, StoryFact.is_active.is_(False)
+            )
+        )
+    }
+    pairs = [pair for pair in pairs if (pair["session_id"], pair["turn_no"]) not in denied]
     photo_ids = {pair["photo_id"] for pair in pairs if pair["photo_id"]}
     photos = db.scalars(select(Photo).where(Photo.photo_id.in_(photo_ids), Photo.status == "ACTIVE")).all()
     photo_urls = {photo.photo_id: f"/api/media/{photo.object_key}" for photo in photos}
