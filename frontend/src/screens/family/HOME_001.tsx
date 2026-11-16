@@ -5,7 +5,7 @@
  * 회상 대화 내용은 여기 없다(주간 이야기로만, R18).
  */
 import { Fragment, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import {
   MOOD_LABEL,
@@ -159,23 +159,14 @@ function WeeklyBanner({ room }: { room: RoomOut }) {
   )
 }
 
-/** 일기 카드 (목업 ②) — 큰 사진(자르지 않음, 11/14 사용자) · 글 세 줄. 누르면 그 자리에서 펼치고 '봤어요'를 남긴다 */
+/** 일기 카드 (목업 ②) — 큰 사진(자르지 않음, 11/14 사용자) · 글 세 줄. 누르면 일기 상세로 간다 */
 function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserOut; onChange: (d: DiaryOut) => void }) {
-  const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const elder = d.author_type === 'ELDER'
   const name = elder ? `${room.elder_name} ${room.elder_honorific}` : (d.author_name ?? '가족')
   const sub = elder ? `${clock(d.posted_at)} · 일기` : [d.author_nickname, clock(d.posted_at), '오늘 한 장'].filter(Boolean).join(' · ')
   const mine = d.reactions.find((r) => r.by === 'FAMILY' && r.user_id === me.user_id)?.kind
   const liked = d.reactions.some((r) => r.by === 'ELDER' && r.kind === 'LIKE')
-
-  // '봤어요' 기록(D36 family_read_by) — 일기 상세 화면(HOME_002, 월요일 김승희)이 생기면 그 화면을 열 때로 옮긴다
-  function toggle() {
-    setOpen((o) => !o)
-    if (d.read_by_me) return
-    onChange({ ...d, read_by_me: true })
-    api(`/api/diaries/${d.diary_id}/read`, { method: 'POST' }).catch(() => {})
-  }
 
   // 가족 이모지 (D54·#145): on = '이 상태로 만들어 줘'. 다른 이모지를 누르면 바꿔 끼우고, 켜진 것을 누르면 끈다
   async function react(kind: Reaction['kind']) {
@@ -189,43 +180,45 @@ function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserO
     }
   }
 
-  const text = <span className={open ? undefined : 'home-clamp'}>{d.body}</span>
+  const text = <span className="home-clamp">{d.body}</span>
   return (
     <article className="fam-card home-post">
-      <header className="home-post-h">
-        <Avatar name={elder ? room.elder_name : name} />
-        <div className="home-post-who">
-          <b>
-            {name}
-            {!d.read_by_me && <i className="home-new">새 일기</i>}
-          </b>
-          <small>{sub}</small>
-        </div>
-        <span className="home-post-mood">
-          <MoodIcon mood={d.mood} />
-          {MOOD_LABEL[d.mood]}
-        </span>
-      </header>
-      {d.illustration_url ? (
-        <>
-          <button type="button" className="home-post-photo" onClick={toggle} aria-label="일기 펼치기">
-            <img src={d.illustration_url} alt={d.illustration_type === 'AI_DRAWING' ? '그림일기 그림' : '일기 사진'} loading="lazy" />
-            {d.illustration_type === 'AI_DRAWING' && (
-              <span className="home-tag">
-                <FamIcon name="sparkle" />
-                그림일기
-              </span>
-            )}
-          </button>
-          <button type="button" className="home-post-text" onClick={toggle} aria-expanded={open}>
+      <Link className="home-post-link" to={`/diaries/${d.diary_id}`}>
+        <header className="home-post-h">
+          <Avatar name={elder ? room.elder_name : name} />
+          <div className="home-post-who">
+            <b>
+              {name}
+              {!d.read_by_me && <i className="home-new">새 일기</i>}
+            </b>
+            <small>{sub}</small>
+          </div>
+          <span className="home-post-mood">
+            <MoodIcon mood={d.mood} />
+            {MOOD_LABEL[d.mood]}
+          </span>
+        </header>
+        {d.illustration_url ? (
+          <>
+            <div className="home-post-photo">
+              <img src={d.illustration_url} alt={d.illustration_type === 'AI_DRAWING' ? '그림일기 그림' : '일기 사진'} loading="lazy" />
+              {d.illustration_type === 'AI_DRAWING' && (
+                <span className="home-tag">
+                  <FamIcon name="sparkle" />
+                  그림일기
+                </span>
+              )}
+            </div>
+            <p className="home-post-text">
+              {text}
+            </p>
+          </>
+        ) : (
+          <p className="home-post-only">
             {text}
-          </button>
-        </>
-      ) : (
-        <button type="button" className="home-post-only" onClick={toggle} aria-expanded={open}>
-          {text}
-        </button>
-      )}
+          </p>
+        )}
+      </Link>
       <footer className="home-post-f">
         {elder ? (
           <div className="home-reacts">
@@ -400,7 +393,7 @@ function NoRoom() {
 function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloadRooms: () => void }) {
   const diaries = useFetch<DiaryListOut>(`/api/rooms/${room.room_id}/diaries`)
   const mood = useFetch<MoodWeekOut>(`/api/rooms/${room.room_id}/mood-week`)
-  // 펼침('봤어요')·이모지로 바뀐 일기. 다시 읽은 목록이 오면 버린다(서버가 이미 반영)
+  // 이모지로 바뀐 일기. 다시 읽은 목록이 오면 버린다(서버가 이미 반영)
   const [edits, setEdits] = useState<{ base?: DiaryListOut; byId: Record<number, DiaryOut> }>({ byId: {} })
 
   // 설치형 앱은 다시 열어도 화면이 새로 뜨지 않는다 → 앱으로 돌아올 때마다 다시 읽는다
@@ -454,6 +447,6 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
 export default function HOME_001() {
   const { me, room, reloadRooms } = useFamily()
   if (!room) return <NoRoom />
-  // 어르신을 바꾸면 펼침·고친 일기를 처음부터 (key)
+  // 어르신을 바꾸면 고친 일기를 처음부터 (key)
   return <RoomHome key={room.room_id} room={room} me={me} reloadRooms={reloadRooms} />
 }

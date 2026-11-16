@@ -22,6 +22,7 @@ import GROUP_001 from './screens/family/GROUP_001'
 import GROUP_002 from './screens/family/GROUP_002'
 import GROUP_004 from './screens/family/GROUP_004'
 import HOME_001 from './screens/family/HOME_001'
+import HOME_002 from './screens/family/HOME_002'
 import JOIN_001 from './screens/family/JOIN_001'
 import LOGIN_001 from './screens/family/LOGIN_001'
 import NOTI_001 from './screens/family/NOTI_001'
@@ -57,7 +58,7 @@ export const SCREENS: ScreenDef[] = [
   // 11/14 밤 새 화면 — 가족방 탭의 하위 화면: 올린 사진 + AI 가 본 것 + 활동 고치기 (D73, 목업 ⑦)
   { id: 'GROUP_004', path: '/groups/:roomId/photos', title: '올린 사진', Screen: GROUP_004 },
   { id: 'HOME_001', path: '/', title: '가족 홈', Screen: HOME_001 },
-  { id: 'HOME_002', path: '/diaries/:diaryId', title: '일기 상세' },
+  { id: 'HOME_002', path: '/diaries/:diaryId', title: '일기 상세', Screen: HOME_002 },
   { id: 'UPLOAD_001', path: '/upload', title: '사진 올리기', Screen: UPLOAD_001 },
   { id: 'UPLOAD_002', path: '/upload/target', title: '올릴 가족방 고르기', Screen: UPLOAD_002 },
   { id: 'UPLOAD_003', path: '/upload/result', title: '올린 결과', Screen: UPLOAD_003 },
