@@ -9,9 +9,9 @@ import { useFetch } from '../../hooks/useFetch'
 import { uploadDraft } from '../../lib/uploadDraft'
 import './UPLOAD_001.css'
 
-// 서버 config.py 의 UPLOAD_MAX_FILES·UPLOAD_MAX_BYTES 와 같게
+// 서버 config.py 의 UPLOAD_MAX_FILES·UPLOAD_MAX_BYTES 와 같게 (MAX_BYTES 는 가족 일기 FDIARY_001 도 같이 쓴다)
 const MAX_FILES = 20
-const MAX_BYTES = 10 * 1024 * 1024
+export const MAX_BYTES = 10 * 1024 * 1024
 
 /** 고른 사진 작은 격자 — UPLOAD_002 도 같이 쓴다 */
 export function PhotoGrid({ files }: { files: File[] }) {
@@ -27,9 +27,9 @@ export function PhotoGrid({ files }: { files: File[] }) {
 /**
  * 사진 한 장 미리보기. 미리보기 주소(URL.createObjectURL)를 이 그림이 직접 만들고, 사라질 때 지운다(안 지우면 사진이 메모리에 남음).
  * 화면이 주소를 한 번만 만들어 두면, 개발 모드(StrictMode)의 '열기→닫기→다시 열기'에서 닫을 때 지운 주소를 다시 써서
- * 뒤로 가기로 돌아온 사진이 깨졌다(그림 폭 0 으로 재현). 열 때마다 새로 만들면 안 깨진다.
+ * 뒤로 가기로 돌아온 사진이 깨졌다(그림 폭 0 으로 재현). 열 때마다 새로 만들면 안 깨진다. 가족 일기 FDIARY_001 도 같이 쓴다.
  */
-function Thumb({ file, alt }: { file: File; alt: string }) {
+export function Thumb({ file, alt }: { file: File; alt: string }) {
   const img = useRef<HTMLImageElement>(null)
   useEffect(() => {
     const url = URL.createObjectURL(file)
