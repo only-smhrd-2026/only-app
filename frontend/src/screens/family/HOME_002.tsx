@@ -2,12 +2,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { api } from '../../api/client'
-import { MOOD_LABEL, type DiaryOut, type RoomOut } from '../../api/types'
+import { MOOD_LABEL, type DiaryOut, type Reaction, type RoomOut, type UserOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
 import { Avatar } from '../../components/FamilyFrame'
 import MoodIcon from '../../components/MoodIcon'
 import { useFetch } from '../../hooks/useFetch'
 import './HOME_002.css'
+
+const REACTS = [
+  ['HEART', '❤️', '하트'],
+  ['SMILE', '😊', '웃음'],
+  ['CLAP', '👏', '박수'],
+] as const
 
 const postedAt = (iso: string) =>
   new Date(iso).toLocaleString('ko-KR', {
@@ -19,10 +25,31 @@ const iga = (word: string) => ((word.charCodeAt(word.length - 1) - 0xac00) % 28 
 function DiaryDetail({ diaryId }: { diaryId: string }) {
   const diary = useFetch<DiaryOut>(`/api/diaries/${encodeURIComponent(diaryId)}`)
   const rooms = useFetch<RoomOut[]>('/api/rooms')
+  const me = useFetch<UserOut>('/api/auth/me')
   const readRequest = useRef<Promise<unknown> | null>(null)
   const [readError, setReadError] = useState(false)
-  const d = diary.data
+  const [edit, setEdit] = useState<{ base: DiaryOut; data: DiaryOut } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [reactionError, setReactionError] = useState(false)
+  const d = edit?.base === diary.data ? edit?.data : diary.data
   const room = rooms.data?.find((r) => r.room_id === d?.room_id)
+  const mine = d?.reactions.find((r) => r.by === 'FAMILY' && r.user_id === me.data?.user_id)?.kind
+
+  // 홈과 같은 API(D54). 응답 일기로 갱신하고 실패하면 기존 선택을 유지한다.
+  async function react(kind: Reaction['kind']) {
+    if (!d || !diary.data || !me.data || d.author_type !== 'ELDER' || busy) return
+    const base = diary.data
+    setBusy(true)
+    setReactionError(false)
+    try {
+      const data = await api<DiaryOut>(`/api/diaries/${d.diary_id}/reaction`, { body: { kind, on: mine !== kind } })
+      setEdit({ base, data })
+    } catch {
+      setReactionError(true)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   useEffect(() => {
     if (!d || !room) return
@@ -35,7 +62,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
     return () => view.abort()
   }, [d, room])
 
-  if (diary.error?.status === 401 || rooms.error?.status === 401) return <Navigate to="/login" replace />
+  if (diary.error?.status === 401 || rooms.error?.status === 401 || me.error?.status === 401) return <Navigate to="/login" replace />
   if (diary.error?.status === 404) {
     return (
       <main className="fam-stack diary-detail">
@@ -46,13 +73,13 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
       </main>
     )
   }
-  const failed = diary.error ?? rooms.error
+  const failed = diary.error ?? rooms.error ?? me.error
   if (failed) {
     return (
       <main className="fam-stack diary-detail">
         <section className="fam-card diary-detail-state">
           <p role="alert">{failed.message}</p>
-          <button type="button" className="fam-btn fam-btn--tonal" onClick={() => { diary.reload(); rooms.reload() }}>
+          <button type="button" className="fam-btn fam-btn--tonal" onClick={() => { diary.reload(); rooms.reload(); me.reload() }}>
             다시 시도
           </button>
           <Link className="fam-text-btn" to="/">가족 홈으로</Link>
@@ -60,7 +87,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
       </main>
     )
   }
-  if (!d || !rooms.data) {
+  if (!d || !rooms.data || !me.data) {
     return (
       <main className="fam-stack diary-detail" aria-busy="true">
         <p className="diary-detail-note" role="status">일기를 불러오고 있어요</p>
@@ -113,6 +140,31 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
         <div className="diary-detail-chips">
           <span className="diary-detail-chip"><MoodIcon mood={d.mood} />기분 · {MOOD_LABEL[d.mood]}</span>
         </div>
+        {elder && (
+          <div className="diary-detail-reactions" role="group" aria-label="가족 이모지" aria-busy={busy}>
+            {REACTS.map(([kind, emoji, label]) => {
+              const n = d.reactions.filter((r) => r.by === 'FAMILY' && r.kind === kind).length
+              const on = mine === kind
+              return (
+                <button
+                  type="button"
+                  key={kind}
+                  className={`diary-detail-react${on ? ' on' : ''}`}
+                  onClick={() => react(kind)}
+                  disabled={busy}
+                  aria-pressed={on}
+                  aria-label={n ? `${label} ${n}개` : label}
+                >
+                  <span aria-hidden="true">{emoji}</span>
+                  {n > 0 && <span>{n}</span>}
+                </button>
+              )
+            })}
+          </div>
+        )}
+        {elder && reactionError && (
+          <p className="diary-detail-note" role="alert">이모지를 보내지 못했어요. 연결을 확인하고 다시 눌러 주세요.</p>
+        )}
         {!elder && (
           <p className={`diary-detail-heard${d.read_by_elder ? '' : ' not'}`}>
             {d.read_by_elder ? (
