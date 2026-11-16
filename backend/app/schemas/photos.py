@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 
 class PhotoOut(BaseModel):
+    is_mine: bool = False
     photo_id: int
     url: str
     taken_at: date | None

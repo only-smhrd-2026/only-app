@@ -136,6 +136,7 @@ export type TurnIn = {
 export type AlbumOut = { photos: { photo_id: number; url: string; taken_at: string | null; caption: string | null }[] }
 // ---- 사진 올리기 (backend/app/schemas/photos.py, D17)
 export type PhotoOut = {
+  is_mine: boolean
   photo_id: number
   url: string
   taken_at: string | null
