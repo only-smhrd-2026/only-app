@@ -20,6 +20,7 @@ import ELDER_MEMORY_001 from './screens/elder/ELDER_MEMORY_001'
 import ELDER_MOOD_002 from './screens/elder/ELDER_MOOD_002'
 import FDIARY_001 from './screens/family/FDIARY_001'
 import FDIARY_002 from './screens/family/FDIARY_002'
+import FDIARY_003 from './screens/family/FDIARY_003'
 import GROUP_001 from './screens/family/GROUP_001'
 import GROUP_002 from './screens/family/GROUP_002'
 import GROUP_004 from './screens/family/GROUP_004'
@@ -65,7 +66,7 @@ export const SCREENS: ScreenDef[] = [
   { id: 'UPLOAD_003', path: '/upload/result', title: '올린 결과', Screen: UPLOAD_003 },
   { id: 'FDIARY_001', path: '/fdiary', title: '가족 일기', Screen: FDIARY_001 },
   { id: 'FDIARY_002', path: '/fdiary/write', title: '가족 일기 쓰기', Screen: FDIARY_002 },
-  { id: 'FDIARY_003', path: '/fdiary/confirm', title: '가족 일기 확인' },
+  { id: 'FDIARY_003', path: '/fdiary/confirm', title: '가족 일기 확인', Screen: FDIARY_003 },
   { id: 'WEEKLY_001', path: '/weekly/:roomId', title: '주간 이야기', Screen: WEEKLY_001 },
   { id: 'NOTI_001', path: '/notifications', title: '알림', Screen: NOTI_001 },
 ]

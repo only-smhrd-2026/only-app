@@ -9,12 +9,10 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { PhotoBatchOut, RoomOut } from '../../api/types'
 import { useFetch } from '../../hooks/useFetch'
-import { clearUploadDraft, uploadDraft, uploadResult, type UploadRoomResult } from '../../lib/uploadDraft'
+import { clearUploadDraft, PHOTO_PROBLEMS, uploadDraft, uploadResult, type UploadRoomResult } from '../../lib/uploadDraft'
 import { PhotoGrid } from './UPLOAD_001'
 import './UPLOAD_002.css'
 
-// 사진 자체가 문제일 때 서버가 주는 코드 (routers/photos.py) — 어느 가족방에 보내도 같은 답이다
-const PHOTO_PROBLEMS = ['BAD_IMAGE', 'IMAGE_TOO_LARGE', 'PHOTO_TOO_BIG', 'TOO_MANY_PHOTOS']
 // 서버 config.py 의 UPLOAD_MAX_NOTE_CHARS 와 같게 (한마디·사진 속 사람 글자 수)
 const MAX_NOTE = 100
 
