@@ -32,6 +32,15 @@ export type RoomSettingsIn = {
 }
 
 export type RelationTag = 'CHILD' | 'GRANDCHILD' | 'OTHER'
+/** GET /api/rooms/{room_id}/members — 내보낸 사람은 빼고 들어온 순서 (#141) */
+export type MemberOut = {
+  user_id: number
+  name: string
+  nickname: string | null // 어르신이 부르는 호칭(예: 큰딸)
+  relation_tag: RelationTag
+  joined_at: string
+  is_owner: boolean
+}
 export type InviteKind = 'FAMILY' | 'ELDER_DEVICE'
 export type InviteCreatedOut = { kind: InviteKind; url: string; expires_at: string } // 종류마다 링크 1개 (D38)
 export type InviteStatusOut = { kind: InviteKind; elder_name: string; expires_at: string; valid: boolean }
