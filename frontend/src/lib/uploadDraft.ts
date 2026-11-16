@@ -11,6 +11,10 @@ export const uploadDraft: { files: File[]; batchId: string; caption: string; peo
   peopleNote: '',
 }
 
+/** 사진 자체가 문제일 때 서버가 주는 코드 (routers/photos.py) — 어느 가족방에 보내도 같은 답이라 남은 방에는 보내지 않는다.
+ * 추억 올리기 UPLOAD_002 와 가족 일기 FDIARY_003 이 같이 쓴다 */
+export const PHOTO_PROBLEMS = ['BAD_IMAGE', 'IMAGE_TOO_LARGE', 'PHOTO_TOO_BIG', 'TOO_MANY_PHOTOS']
+
 /** UPLOAD_002 → UPLOAD_003 이 보낸 결과를 주고받는 곳. 가족방 목록 순서, 성공한 곳은 서버가 준 사진도 같이 담긴다 */
 export type UploadRoomResult = { room_id: number; name: string; ok: boolean; text: string; photos: PhotoOut[] }
 export const uploadResult: { batchId: string; rooms: UploadRoomResult[] } = { batchId: '', rooms: [] }

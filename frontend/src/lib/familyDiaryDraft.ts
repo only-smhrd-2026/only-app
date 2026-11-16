@@ -14,6 +14,17 @@ const empty = () => ({
   draft: '', // 일기 동무가 다듬은 초안 (003 에서 고침)
   room: null as RoomOut | null, // 쓰기 시작할 때 보던 분 — 002 질문·초안을 이 방으로 묻는다
   rooms: [] as RoomOut[], // 내 가족방 전부 — 003 '보낼 분'의 기본값
+  // 003 [게시하기] 때 보낸 그대로(번호·글·기분·사진·보낼 분). 한 방이라도 올라간 뒤에는 이걸 고정해, 1·2단계에서 글·사진을
+  // 바꾸고 와도 남은 방에 '똑같은 일기'만 다시 보낸다 — 할머니마다 다른 일기를 받지 않게(003 리뷰 1번). 같은 번호라 두 번 눌러도 하나씩만(D17)
+  sent: null as null | {
+    postId: string // 일기 request_id
+    batchId: string // 사진 upload_batch_id
+    body: string
+    mood: Mood
+    photo: File | null
+    targets: number[] // 보낼 가족방 번호
+  },
+  done: [] as number[], // 올라간 가족방 번호 — 하나라도 있으면 003 은 잠긴다
 })
 
 export const familyDiaryDraft = empty()
