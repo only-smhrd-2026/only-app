@@ -1,18 +1,87 @@
 /**
  * GROUP_002 — 가족방 탭 (목업 설계자료/목업_1115_가족 ⑥, 이슈 #24). 위 막대에서 고른 분의 가족방 한 화면:
- * 할머니 폰(연결 상태·연결 해제·링크 보내기) → '올린 사진 n장 ›'(GROUP_004) → 구성원(초대·내보내기·쓸 수 있는 링크).
- * 버튼은 방장에게만. 할머니 화면 설정 카드는 다음 칸(#52).
+ * 할머니 폰(연결 상태·연결 해제·링크 보내기) → '올린 사진 n장 ›'(GROUP_004) → 구성원(초대·내보내기·쓸 수 있는 링크)
+ * → 할머니 화면 설정(#52, D74 — 누르면 아래 판에서 고르고 바로 저장. 옛 GROUP_003 화면을 이 카드로 합침).
+ * 버튼은 방장에게만, 방장이 아니면 보기만.
  * 링크 주소(토큰)는 이 화면 state 에만 둔다 (D16 — localStorage·console 금지). 서버는 토큰을 저장하지 않아 나가면 다시 못 본다.
  */
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { InviteCreatedOut, InviteKind, InviteOut, MemberOut, RelationTag, RoomOut } from '../../api/types'
+import type {
+  InviteCreatedOut,
+  InviteKind,
+  InviteOut,
+  MemberOut,
+  RelationTag,
+  RoomOut,
+  RoomSettingsIn,
+} from '../../api/types'
 import FamIcon from '../../components/FamIcon'
 import { Avatar } from '../../components/FamilyFrame'
 import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
+import { PROMPT, say, stopSpeaking } from '../../lib/audio'
 import './GROUP_002.css'
+
+// ── 할머니 화면 설정 (목업 ⑥ 설정 판, D74). 일기 시간·호칭은 넣지 않음(11/13 결정 — 호칭 고치기는 ⑬)
+type SetKey = Exclude<keyof RoomSettingsIn, 'diary_time'>
+type SetDef = { key: SetKey; name: string; help: (hon: string) => string; opts: [value: string, label: string, px?: number][] }
+
+const hourLabel = (h: number) => (h === 0 ? '밤 12시' : h < 12 ? `오전 ${h}시` : h === 12 ? '낮 12시' : `오후 ${h - 12}시`)
+const SETS: SetDef[] = [
+  {
+    key: 'memory_time',
+    name: '추억 시간',
+    help: () => '매일 이 시간에 오늘의 한 장이 정해져요',
+    opts: Array.from({ length: 24 }, (_, h) => [`${String(h).padStart(2, '0')}:00`, hourLabel(h)]), // 정각만 (D44)
+  },
+  {
+    key: 'font_size',
+    name: '글자 크기',
+    help: (hon) => `${hon} 화면의 글자 크기예요`,
+    opts: [
+      ['L', '보통', 22],
+      ['XL', '크게', 24],
+      ['XXL', '아주 크게', 28],
+    ], // 어르신 화면 글자 22·24·28px (D51) — 그 크기로 미리 보여 준다
+  },
+  {
+    key: 'tts_speed',
+    name: '말 속도',
+    help: (hon) => `${hon}께 말하는 빠르기예요`,
+    opts: [
+      ['0.80', '천천히'],
+      ['0.90', '보통'],
+      ['1.00', '조금 빠르게'],
+    ],
+  },
+  {
+    key: 'tts_voice',
+    name: '목소리',
+    help: (hon) => `${hon}께 들려 드리는 목소리예요 · 고르면 그 목소리로 인사해요`,
+    opts: [
+      ['FEMALE', '여자 목소리'],
+      ['MALE', '남자 목소리'],
+    ],
+  },
+  {
+    key: 'device_input_mode',
+    name: '말하는 방법',
+    help: () => '마이크를 쓰기 어려우시면 버튼만으로도 이야기할 수 있어요',
+    opts: [
+      ['VOICE', '음성+버튼'],
+      ['BUTTON', '버튼만'],
+    ],
+  },
+]
+/** 서버 값을 판의 값 모양으로 — 추억 시간 '09:00:00' → '09:00', 말 속도 0.9 → '0.90' */
+function curOf(r: RoomOut, k: SetKey) {
+  if (k === 'memory_time') return r.memory_time.slice(0, 5)
+  if (k === 'tts_speed') return Number(r.tts_speed).toFixed(2)
+  return String(r[k])
+}
+const labelOf = (s: SetDef, v: string) => s.opts.find((o) => o[0] === v)?.[1] ?? v
 
 const RELATION: Record<RelationTag, string> = { CHILD: '자녀', GRANDCHILD: '손주', OTHER: '기타' }
 
@@ -21,6 +90,7 @@ type Sheet =
   | { t: 'member'; m: MemberOut }
   | { t: 'kick'; m: MemberOut }
   | { t: 'unlink' }
+  | { t: 'set'; s: SetDef }
 
 // 받침이 있으면 '과', 없으면 '와' — 할머니와 / 어머님과 (GROUP_004 와 같은 식)
 // 끝 글자가 한글이 아니면(예: 할머니2) '와' — 계산이 음수가 돼 '과'로 잘못 고르지 않게
@@ -60,7 +130,10 @@ function RoomTab() {
   const { me, reloadRooms } = useFamily()
   // 이 탭을 열 때마다 새로 읽는다 — 갤럭시를 연결하고 돌아오면 '연결됐어요', 사진을 올리고 오면 사진 수가 바뀐다
   const rooms = useFetch<RoomOut[]>('/api/rooms')
-  const room = rooms.data?.find((r) => String(r.room_id) === roomId)
+  // 설정을 바꾸면 서버가 돌려준 RoomOut 의 설정 칸으로 덮어쓴다 — 설정은 이 화면에서만 바뀌어 다시 읽지 않아도 된다
+  const [setPatch, setSetPatch] = useState<Partial<RoomOut>>({})
+  const found = rooms.data?.find((r) => String(r.room_id) === roomId)
+  const room = found && { ...found, ...setPatch }
   const members = useFetch<MemberOut[]>(room ? `/api/rooms/${roomId}/members` : null)
   // 링크 목록은 방장만 부를 수 있다 — 방장이 아니면 부르지 않는다
   const invites = useFetch<InviteOut[]>(room?.is_owner ? `/api/rooms/${roomId}/invites` : null)
@@ -90,6 +163,38 @@ function RoomTab() {
       after()
       setSheet(undefined)
       setNote(done)
+    } catch (e) {
+      setError(msgOf(e))
+    }
+    setBusy(false)
+  }
+
+  // 가족방 탭을 떠나면(다른 탭·다른 분으로 바꾸기) 들려주던 인사를 멈춘다 — 늦게 끝난 저장 뒤 다른 화면에서 소리가 나지 않게
+  useEffect(() => stopSpeaking, [])
+
+  /** 설정 판에서 하나 고르기 → 바뀐 칸만 PATCH → 판 닫고 한 줄 알림.
+   * 목소리·말 속도는 고를 때마다 고른 값으로 인사를 들려준다 (D74 '천천히·보통·조금 빠르게 + 들려주기') */
+  async function saveSetting(r: RoomOut, s: SetDef, value: string) {
+    if (busy) return
+    const hello = () => {
+      const voice = s.key === 'tts_voice' ? (value as RoomOut['tts_voice']) : r.tts_voice
+      const speed = s.key === 'tts_speed' ? Number(value) : Number(r.tts_speed)
+      if (s.key === 'tts_voice' || s.key === 'tts_speed') void say(PROMPT.voiceHello, speed, null, voice)
+    }
+    if (curOf(r, s.key) === value) {
+      close() // 앞서 실패한 문장이 판 밖(구성원 카드)에 남지 않게 같이 지운다
+      hello() // 같은 값을 다시 눌러도 들어 볼 수 있게
+      return
+    }
+    setBusy(true)
+    setError(undefined)
+    try {
+      const out = await api<RoomOut>(`/api/rooms/${r.room_id}/settings`, { method: 'PATCH', body: { [s.key]: value } })
+      setSetPatch((p) => ({ ...p, [s.key]: out[s.key] }))
+      reloadRooms() // 가족 홈 '매일 오전 9시에…' 문장도 새 값으로
+      setSheet(undefined)
+      setNote(`바꿨어요 · ${s.name} ${labelOf(s, value)}`)
+      hello()
     } catch (e) {
       setError(msgOf(e))
     }
@@ -309,6 +414,28 @@ function RoomTab() {
         )}
       </section>
 
+      <section className="fam-card">
+        <h2 className="gr-h">{hon} 화면 설정</h2>
+        <div className="gr-set-list">
+          {SETS.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              className="gr-row gr-set"
+              disabled={!owner}
+              onClick={() => open({ t: 'set', s })}
+            >
+              <span>{s.name}</span>
+              <b>{labelOf(s, curOf(room, s.key))}</b>
+              {owner && <FamIcon name="chevRight" className="gr-chev" />}
+            </button>
+          ))}
+        </div>
+        <p className="gr-note">
+          {owner ? `바꾸면 바로 저장돼요 · ${hon}의 다음 대화부터 바뀌어요` : '설정은 방장만 바꿀 수 있어요'}
+        </p>
+      </section>
+
       {sheet && (
         <>
           <button type="button" className="fam-scrim" aria-label="닫기" onClick={close} />
@@ -420,6 +547,38 @@ function RoomTab() {
                 </div>
               </>
             )}
+            {sheet.t === 'set' && (
+              <>
+                <h2>{sheet.s.name}</h2>
+                <p className="gr-sheet-text">{sheet.s.help(hon)}</p>
+                <div className="gr-opts">
+                  {sheet.s.opts.map(([v, label, px]) => {
+                    const on = v === curOf(room, sheet.s.key)
+                    return (
+                      <button
+                        key={v}
+                        type="button"
+                        className={on ? 'fam-opt on' : 'fam-opt'}
+                        // 추억 시간은 24줄이라 판을 열면 고른 줄이 안 보일 수 있다 → 열릴 때 고른 줄까지 스크롤
+                        ref={on ? (el) => el?.scrollIntoView({ block: 'center' }) : undefined}
+                        disabled={busy}
+                        onClick={() => saveSetting(room, sheet.s, v)}
+                      >
+                        <span>
+                          <b>{label}</b>
+                          {px && (
+                            <small className="gr-font-prev" style={{ fontSize: px }}>
+                              {room.elder_name} {hon}, 안녕하세요
+                            </small>
+                          )}
+                        </span>
+                        {on && <FamIcon name="check" className="fam-ok" />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
             {sheet.t === 'unlink' && (
               <>
                 <h2>{hon} 폰 연결을 해제할까요?</h2>
@@ -463,5 +622,6 @@ function sheetLabel(s: Sheet, hon: string) {
   if (s.t === 'invite') return '초대하기'
   if (s.t === 'member') return `${s.m.name} 더 보기`
   if (s.t === 'kick') return `${s.m.name}님 내보내기`
+  if (s.t === 'set') return s.s.name
   return `${hon} 폰 연결 해제`
 }
