@@ -11,6 +11,7 @@ from app.models import Notification, RoomMember, WeeklySummary
 from app.routers import devices
 from app.services import scheduler, weekly
 from tests.conftest import make_room, signup
+from tests.test_weekly import _talk
 
 NOW = datetime(2026, 11, 15, 19, tzinfo=TZ)
 
@@ -27,6 +28,8 @@ def test_active_members_once_per_week(client):
     second = signup(client)
     third = signup(client)
     with SessionLocal() as db:
+        _talk(db, room_id, NOW - timedelta(days=1), texts=("기록",))
+        _talk(db, room_id, NOW - timedelta(days=8), texts=("기록",))
         db.add_all(
             [
                 RoomMember(room_id=room_id, user_id=second["user_id"], relation_tag="GRANDCHILD"),
@@ -51,6 +54,9 @@ def test_active_members_once_per_week(client):
 def test_scheduler_repeated(client, monkeypatch):
     signup(client)
     room_id = make_room(client)["room_id"]
+    with SessionLocal() as db:
+        _talk(db, room_id, NOW - timedelta(days=1), texts=("기록",))
+        db.commit()
     monkeypatch.setattr(scheduler, "now_kst", lambda: NOW)
     scheduler.weekly_summaries()
     scheduler.weekly_summaries()
@@ -61,6 +67,9 @@ def test_scheduler_repeated(client, monkeypatch):
 def test_notification_failure_rolls_back_summary(client, monkeypatch):
     signup(client)
     room_id = make_room(client)["room_id"]
+    with SessionLocal() as db:
+        _talk(db, room_id, NOW - timedelta(days=1), texts=("기록",))
+        db.commit()
     original = devices.notify_family
 
     def fail_after_notice(*args, **kwargs):

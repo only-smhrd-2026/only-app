@@ -79,7 +79,7 @@ def build(db: Session, room_id: int, now: datetime) -> None:
         .returning(WeeklySummary.summary_id)
     )
     created = db.execute(stmt).scalar_one_or_none()
-    if created is not None:
+    if created is not None and (sessions or diaries):
         room = db.get(FamilyRoom, room_id)
         notify_family(
             db, room_id, "WEEKLY_READY", f"{room.elder_name} 님의 이번 주 이야기가 도착했어요", link="WEEKLY_001"
