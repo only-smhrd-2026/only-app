@@ -9,6 +9,7 @@ import { api, ApiError } from '../../api/client'
 import type { PhotoOut, SessionOut } from '../../api/types'
 import { useLive, type ElderNavState } from '../../hooks/useElderSession'
 import { speak, stopSpeaking } from '../../lib/audio'
+import { resizeImage } from '../../lib/resizeImage'
 
 const ASK = '오늘은 뭐 하셨어요? 사진을 찍으실래요, 그냥 이야기하실래요?'
 
@@ -20,6 +21,7 @@ export default function ELDER_DIARY_001() {
   // 같은 화면에서는 같은 session_id → 두 번 눌러도 서버가 멱등으로 세션 하나만 만든다
   const [sessionId] = useState(() => crypto.randomUUID())
   const [busy, setBusy] = useState(false)
+  const [resizing, setResizing] = useState(false)
   const [starting, setStarting] = useState<'photo' | 'talk'>()
   const photoInput = useRef<HTMLInputElement>(null)
   // 사진 찍기는 대화 번호를 따로 쓴다 — [그냥 이야기]의 응답만 끊겨 서버에 사진 없는 대화가 이미 있으면,
@@ -86,14 +88,14 @@ export default function ELDER_DIARY_001() {
   }
 
   function takePhoto() {
-    if (busy) return
+    if (busy || resizing) return
     if (pendingPhoto.current) void start(true)
     else photoInput.current?.click()
   }
 
   return (
     <main className="elder elder--fit">
-      <button type="button" className={`elder-ask${saying ? ' elder-saying' : ''}`} onClick={readQuestion}>
+      <button type="button" className={`elder-ask${saying ? ' elder-saying' : ''}`} onClick={readQuestion} disabled={busy || resizing}>
         <span>{ASK}</span>
         <svg
           className="elder-spk" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -105,16 +107,28 @@ export default function ELDER_DIARY_001() {
       </button>
       <input
         type="file" accept="image/*" capture="environment" hidden ref={photoInput}
-        onChange={(e) => {
+        onChange={async (e) => {
           const file = e.target.files?.[0]
           e.target.value = ''
-          if (!file || busy || !live.current) return
-          pendingPhoto.current = { file, batchId: crypto.randomUUID(), sessionId: crypto.randomUUID() }
+          if (!file || busy || resizing || !live.current) return
+          setResizing(true)
+          setStarting('photo')
+          setError(undefined)
+          let photo = file
+          try {
+            photo = await resizeImage(file, 1280)
+          } catch {
+            // 읽지 못하는 형식 등으로 축소가 실패해도 원본 사진으로 업로드를 시도한다.
+          } finally {
+            if (live.current) setResizing(false)
+          }
+          if (!live.current) return
+          pendingPhoto.current = { file: photo, batchId: crypto.randomUUID(), sessionId: crypto.randomUUID() }
           void start(true)
         }}
       />
       <div className="elder-tiles elder-tiles--rows">
-        <button type="button" className="elder-tile elder-tile--2 elder-tile--wide" onClick={takePhoto} disabled={busy}>
+        <button type="button" className="elder-tile elder-tile--2 elder-tile--wide" onClick={takePhoto} disabled={busy || resizing}>
           <svg
             className="elder-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
@@ -122,9 +136,9 @@ export default function ELDER_DIARY_001() {
             <path d="M4 8h3l1.5-2h7L17 8h3v11H4z" />
             <circle cx="12" cy="13.5" r="3.2" />
           </svg>
-          <span>{busy && starting === 'photo' ? '잠시만요…' : '사진 찍기'}</span>
+          <span>{(busy || resizing) && starting === 'photo' ? '잠시만요…' : '사진 찍기'}</span>
         </button>
-        <button type="button" className="elder-tile elder-tile--4 elder-tile--wide" onClick={() => void start()} disabled={busy}>
+        <button type="button" className="elder-tile elder-tile--4 elder-tile--wide" onClick={() => void start()} disabled={busy || resizing}>
           <svg
             className="elder-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
@@ -135,7 +149,7 @@ export default function ELDER_DIARY_001() {
         </button>
         <button
           type="button" className="elder-tile elder-tile--3 elder-tile--wide"
-          onClick={() => nav('/elder/diaries', { state: { home } })} disabled={busy}
+          onClick={() => nav('/elder/diaries', { state: { home } })} disabled={busy || resizing}
         >
           <svg
             className="elder-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
