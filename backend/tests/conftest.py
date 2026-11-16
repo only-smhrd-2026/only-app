@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
+from collections import defaultdict, deque
 from datetime import timedelta
 from pathlib import Path
 
@@ -42,6 +43,14 @@ from app.config import ROOT, now_kst  # noqa: E402
 from app.db import SessionLocal, engine  # noqa: E402
 from app.models import FamilyRoom, Photo, QuestionBank  # noqa: E402
 from app.services import storage  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def isolate_login_rate(monkeypatch):
+    """테스트끼리 같은 testclient IP의 로그인 횟수를 공유하지 않는다. 한 테스트 안의 상한은 유지한다."""
+    from app import security
+
+    monkeypatch.setattr(security, "_login_hits", defaultdict(deque))
 
 
 @pytest.fixture(scope="session", autouse=True)

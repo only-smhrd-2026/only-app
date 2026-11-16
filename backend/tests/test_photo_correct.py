@@ -36,6 +36,7 @@ def test_correct_repeat_and_change(client, context, monkeypatch):
     assert response.status_code == 200, response.text
     assert response.json()["photo_id"] == photo_id
     assert set(response.json()) == {
+        "is_mine",
         "photo_id",
         "url",
         "taken_at",
@@ -49,6 +50,7 @@ def test_correct_repeat_and_change(client, context, monkeypatch):
         "ai_scene",
         "corrected_activity",
     }
+    assert response.json()["is_mine"] is False  # 이 fixture의 사진은 uploaded_by가 없는 시드형 자료
     with SessionLocal() as db:
         photo = db.get(Photo, photo_id)
         assert photo.corrected_activity == "장 담그기"
