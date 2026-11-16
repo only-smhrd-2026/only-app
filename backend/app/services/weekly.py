@@ -1,6 +1,6 @@
 """주간 이야기 숫자·목록 집계 (D19). AI 요약과 게시는 후속 작업이다.
 
-새 주 줄을 만들 때만 가족에게 WEEKLY_READY 1건씩.
+알림은 예약 작업이 AI 요약 뒤에 보낸다.
 """
 
 from datetime import date, datetime, timedelta
@@ -10,8 +10,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.config import TZ, WEEKLY_HOUR
-from app.models import ELDER_SPOKE, Diary, FamilyRoom, TalkSession, WeeklySummary
-from app.routers.devices import notify_family
+from app.models import ELDER_SPOKE, Diary, TalkSession, WeeklySummary
 
 
 def window(now: datetime) -> tuple[datetime, datetime, date]:
@@ -24,7 +23,7 @@ def window(now: datetime) -> tuple[datetime, datetime, date]:
     return end - timedelta(days=7), end, (end - timedelta(days=6)).date()
 
 
-def build(db: Session, room_id: int, now: datetime) -> None:
+def build(db: Session, room_id: int, now: datetime) -> bool:
     """가족방 집계를 한 번 저장하며 같은 주를 다시 계산해도 처음 결과를 유지한다."""
     start, end, week_start = window(now)
     sessions = db.scalars(
@@ -79,9 +78,5 @@ def build(db: Session, room_id: int, now: datetime) -> None:
         .returning(WeeklySummary.summary_id)
     )
     created = db.execute(stmt).scalar_one_or_none()
-    if created is not None and (sessions or diaries):
-        room = db.get(FamilyRoom, room_id)
-        notify_family(
-            db, room_id, "WEEKLY_READY", f"{room.elder_name} 님의 이번 주 이야기가 도착했어요", link="WEEKLY_001"
-        )
     db.commit()
+    return created is not None and bool(sessions or diaries)

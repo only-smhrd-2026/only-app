@@ -18,9 +18,10 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select
 
 from app.ai import classify
+from app.ai.weekly import summarize
 from app.config import CLASSIFY_EVERY_MIN, DAILY_ALERT_HOUR, NO_RECORD_DAYS, TZ, WEEKLY_HOUR, now_kst, today_kst
 from app.db import SessionLocal
-from app.models import ELDER_SPOKE, DailyPick, Diary, FamilyRoom, Notification, TalkSession
+from app.models import ELDER_SPOKE, DailyPick, Diary, FamilyRoom, Notification, TalkSession, WeeklySummary
 from app.routers.devices import notify_family
 from app.services import picks, weekly
 
@@ -139,7 +140,65 @@ def weekly_summaries() -> None:
         ).all()
         for room_id in room_ids:
             try:
-                weekly.build(db, room_id, now)
+                ready = weekly.build(db, room_id, now)
+                start, end, week_start = weekly.window(now)
+                row = db.scalar(
+                    select(WeeklySummary).where(
+                        WeeklySummary.room_id == room_id,
+                        WeeklySummary.week_start == week_start,
+                    )
+                )
+                # 알림 저장이 실패한 주도 다음 기동에 보정한다. 빈 주는 계속 알리지 않는다.
+                if not ready and row is not None and row.published_at is None:
+                    ready = bool(
+                        db.scalar(
+                            select(TalkSession.session_id)
+                            .where(
+                                TalkSession.room_id == room_id,
+                                TalkSession.started_at >= start,
+                                TalkSession.started_at < end,
+                                ELDER_SPOKE,
+                            )
+                            .limit(1)
+                        )
+                    ) or bool(
+                        db.scalar(
+                            select(Diary.diary_id)
+                            .where(
+                                Diary.room_id == room_id,
+                                Diary.author_type == "ELDER",
+                                Diary.status == "POSTED",
+                                Diary.posted_at >= start,
+                                Diary.posted_at < end,
+                            )
+                            .limit(1)
+                        )
+                    )
+                if ready:
+                    try:
+                        summarize(db, room_id, week_start)
+                    except Exception as exc:
+                        db.rollback()
+                        log.warning("job weekly_summary_ai room=%s error=%s", room_id, type(exc).__name__)
+                    row = db.scalar(
+                        select(WeeklySummary)
+                        .where(
+                            WeeklySummary.room_id == room_id,
+                            WeeklySummary.week_start == week_start,
+                        )
+                        .with_for_update()
+                    )
+                    if row is not None and row.published_at is None:
+                        room = db.get(FamilyRoom, room_id)
+                        notify_family(
+                            db,
+                            room_id,
+                            "WEEKLY_READY",
+                            f"{room.elder_name} 님의 이번 주 이야기가 도착했어요",
+                            link="WEEKLY_001",
+                        )
+                        row.published_at = now_kst()
+                        db.commit()
             except Exception as e:
                 db.rollback()
                 failed += 1
