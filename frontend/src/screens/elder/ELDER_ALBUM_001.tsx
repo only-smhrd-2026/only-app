@@ -36,14 +36,13 @@ export default function ELDER_ALBUM_001() {
       const session = await api<SessionOut>('/api/elder/sessions', {
         body: { session_id: sessionId, kind: 'ALBUM', photo_id: photo.photo_id },
       })
-      if (!live.current) return // 기다리는 중 [처음으로]·뒤로 가기로 떠났으면 다시 끌고 가지 않는다.
+      if (!live.current) return // 기다리는 중 뒤로 가기로 떠났으면 다시 끌고 가지 않는다.
       nav(`/elder/memory/${sessionId}`, { state: { session, photoUrl: photo.url, home } })
     } catch (e) {
       if (live.current) {
         const message = e instanceof ApiError ? e.message : '대화를 시작하지 못했어요. 다시 눌러 주세요.'
         if (e instanceof ApiError && e.code === 'ALBUM_LIMIT') {
           setLimitMessage(message)
-          window.scrollTo(0, 0) // 아래 사진을 눌렀어도 맨 위 안내가 보이게
         } else {
           setStartError(message)
         }
@@ -56,9 +55,8 @@ export default function ELDER_ALBUM_001() {
   }
 
   return (
-    <main className="elder elder-album">
+    <main className="elder elder--fit elder-album">
       <h1 className="elder-text elder-text--lg">사진첩</h1>
-      <button className="elder-btn elder-btn--secondary" onClick={() => nav('/elder')}>처음으로</button>
       {loading ? (
         <p className="elder-text" role="status">잠시만요…</p>
       ) : error ? (
