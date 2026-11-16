@@ -2,7 +2,7 @@ from datetime import datetime, time
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 RelationTag = Literal["CHILD", "GRANDCHILD", "OTHER"]
 InviteKind = Literal["FAMILY", "ELDER_DEVICE"]
@@ -43,6 +43,15 @@ class MemberOut(BaseModel):
     relation_tag: RelationTag
     joined_at: datetime
     is_owner: bool  # family_rooms.owner_user_id 와 같은 사람 (room_members 에는 방장 칸이 없다)
+
+
+class MemberUpdateIn(BaseModel):
+    nickname: str | None = Field(default=None, max_length=12)
+
+    @field_validator("nickname", mode="before")
+    @classmethod
+    def trim_nickname(cls, value):
+        return (value.strip() or None) if isinstance(value, str) else value
 
 
 class InviteCreateIn(BaseModel):
