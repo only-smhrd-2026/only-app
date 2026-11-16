@@ -11,7 +11,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 from PIL import ExifTags, Image, ImageOps
-from sqlalchemy import select
+from sqlalchemy import select, update
 from starlette.datastructures import FormData, UploadFile  # fastapi.UploadFile 은 자식이라 isinstance 안 맞음
 from starlette.exceptions import HTTPException
 from starlette.requests import ClientDisconnect
@@ -34,7 +34,7 @@ from app.config import (
 )
 from app.deps import DB, CurrentUser, require_member
 from app.errors import ApiError
-from app.models import Photo
+from app.models import DailyPick, FamilyRoom, Photo
 from app.schemas.photos import PhotoBatchOut, PhotoCorrectIn, PhotoListOut, PhotoOut
 from app.services import storage
 
@@ -117,9 +117,10 @@ def to_jpeg(data: bytes) -> tuple[bytes, date | None]:
     return out.getvalue(), taken_at
 
 
-def photo_out(p: Photo) -> PhotoOut:
+def photo_out(p: Photo, user_id: int | None = None) -> PhotoOut:
     analyzed = p.analyzed_at is not None
     return PhotoOut(
+        is_mine=user_id is not None and p.uploaded_by == user_id,
         photo_id=p.photo_id,
         url=f"/api/media/{p.object_key}",
         taken_at=p.taken_at,
@@ -260,7 +261,7 @@ def upload_photos(room_id: int, user: CurrentUser, db: DB, form: Annotated[FormD
                 .order_by(Photo.photo_id)  # photo_id = 저장한 차례 = 보낸 순서. object_key 는 '10.jpg' 가 '2.jpg' 앞
             ).all()
             if done:
-                return PhotoBatchOut(upload_batch_id=upload_batch_id, photos=[photo_out(p) for p in done])
+                return PhotoBatchOut(upload_batch_id=upload_batch_id, photos=[photo_out(p, user.user_id) for p in done])
         converted = []
         for n, f in enumerate(files, 1):
             try:
@@ -287,7 +288,7 @@ def upload_photos(room_id: int, user: CurrentUser, db: DB, form: Annotated[FormD
         db.commit()
     finally:
         _upload_lock.release()
-    return PhotoBatchOut(upload_batch_id=batch_id, photos=[photo_out(p) for p in photos])
+    return PhotoBatchOut(upload_batch_id=batch_id, photos=[photo_out(p, user.user_id) for p in photos])
 
 
 @router.get("", response_model=PhotoListOut)
@@ -306,7 +307,7 @@ def list_photos(room_id: int, user: CurrentUser, db: DB):
         .order_by(Photo.uploaded_at.desc(), Photo.photo_id.desc())
         .limit(PHOTO_LIST_LIMIT)  # 어르신 사진첩 album 과 같은 상수
     ).all()
-    return PhotoListOut(photos=[photo_out(p) for p in photos])
+    return PhotoListOut(photos=[photo_out(p, user.user_id) for p in photos])
 
 
 @router.patch("/{photo_id}/correction", response_model=PhotoOut)
@@ -323,4 +324,29 @@ def correct_photo(room_id: int, photo_id: int, body: PhotoCorrectIn, user: Curre
         photo.corrected_activity = value
         photo.corrected_at = now_kst()
         db.commit()
-    return photo_out(photo)
+    return photo_out(photo, user.user_id)
+
+
+@router.delete("/{photo_id}", status_code=204)
+def delete_photo(room_id: int, photo_id: int, user: CurrentUser, db: DB):
+    require_member(room_id, user, db)
+    photo = db.get(Photo, photo_id, with_for_update=True)
+    if photo is None or photo.room_id != room_id or photo.status != "ACTIVE":
+        raise ApiError(404, "PHOTO_NOT_FOUND", "사진을 찾을 수 없어요")
+    if photo.source != "FAMILY":
+        raise ApiError(400, "DIARY_PHOTO", "일기 사진은 여기서 지울 수 없어요")
+    room = db.get(FamilyRoom, room_id)
+    if photo.uploaded_by != user.user_id and room.owner_user_id != user.user_id:
+        raise ApiError(403, "NOT_UPLOADER", "올린 사람이나 방장만 사진을 지울 수 있어요")
+    photo.status = "DELETED"
+    db.execute(
+        update(DailyPick)
+        .where(
+            DailyPick.room_id == room_id,
+            DailyPick.photo_id == photo_id,
+            DailyPick.pick_date == today_kst(),
+            DailyPick.status == "PENDING",
+        )
+        .values(status="EXPIRED")
+    )
+    db.commit()
