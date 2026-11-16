@@ -18,6 +18,7 @@ from app.schemas.rooms import (
     InviteKind,
     InviteOut,
     MemberOut,
+    MemberUpdateIn,
     RoomCreateIn,
     RoomOut,
     RoomSettingsIn,
@@ -102,17 +103,38 @@ def list_members(room_id: int, user: CurrentUser, db: DB):
         .order_by(RoomMember.joined_at, RoomMember.member_id)
     ).all()
     # 다른 가족에게 보이는 목록이라 이메일·로그인 방식은 넣지 않는다
-    return [
-        MemberOut(
-            user_id=member.user_id,
-            name=name,
-            nickname=member.nickname,
-            relation_tag=member.relation_tag,
-            joined_at=member.joined_at,
-            is_owner=member.user_id == owner_user_id,
+    return [member_out(member, name, owner_user_id) for member, name in rows]
+
+
+def member_out(member: RoomMember, name: str, owner_user_id: int) -> MemberOut:
+    """구성원 목록과 호칭 변경 응답을 같은 모양으로 만든다."""
+    return MemberOut(
+        user_id=member.user_id,
+        name=name,
+        nickname=member.nickname,
+        relation_tag=member.relation_tag,
+        joined_at=member.joined_at,
+        is_owner=member.user_id == owner_user_id,
+    )
+
+
+@router.patch("/{room_id}/members/{user_id}", response_model=MemberOut)
+def update_member(room_id: int, user_id: int, body: MemberUpdateIn, user: CurrentUser, db: DB):
+    room = require_owner(room_id, user, db)
+    member = db.scalar(
+        select(RoomMember)
+        .where(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == user_id,
+            RoomMember.removed_at.is_(None),
         )
-        for member, name in rows
-    ]
+        .with_for_update()
+    )
+    if member is None:
+        raise ApiError(404, "MEMBER_NOT_FOUND", "구성원을 찾을 수 없어요")
+    member.nickname = body.nickname
+    db.commit()
+    return member_out(member, db.get(User, user_id).name, room.owner_user_id)
 
 
 @router.post("/{room_id}/invites", response_model=InviteCreatedOut, status_code=201)
