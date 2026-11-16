@@ -1,7 +1,8 @@
 """회상·일기 대화 세션 — 음성 왕복 걷는 해골 (초석 원안 D). 계약은 schemas/sessions.py.
 
 턴 정의: AI 질문 1 + 어르신 답 1 = 1턴. sessions.turn_count = 지금까지 낸 AI 질문 수
-(만들 때 1, 최대 MAX_TURNS=6, D52 ⑦).
+(만들 때 1, 최대 MAX_TURNS=6, D52 ⑦). 그날 첫 회상 대화가 지난 대화의 이야기로 시작하면 그 질문이 하나 더 붙는다
+(첫 AI 턴의 fact_id — 사진 질문 번호·최대 질문 수·문제 차례가 하나씩 밀린다, AI-07 D77).
 마지막(6번째) 답을 받으면 AI 가 마무리 인사(CLOSING) 를 하고 state=ENDED, end_reason=COMPLETED.
 kind=DIARY(일기 대화)는 질문 3개(DIARY_TURNS)로 끝난다. 초안·그림일기·게시는 routers/diaries.py (D36).
 kind=ALBUM(사진첩)은 질문 2개(ALBUM_TURNS)로 끝난다 (FR-ME-008).
@@ -26,7 +27,7 @@ from typing import Any
 from fastapi import APIRouter
 from sqlalchemy import func, select
 
-from app.ai import classify, coach, quiz, tts
+from app.ai import classify, coach, quiz, story, tts
 from app.ai.schemas import CoachReply, has_risk_words
 from app.config import (
     ALBUM_PER_DAY,
@@ -108,9 +109,12 @@ def coach_context(db, room: FamilyRoom, session: TalkSession) -> coach.CoachCont
             if photo
             else None
         ),
-        # 문제였던 AI 턴에는 quiz 표시 → 다음 턴에 평가 없이 "아, 그렇군요"로 받게 (FR-AI-003). 일기 턴엔 없음
+        # 문제였던 AI 턴에는 quiz 표시 → 다음 턴에 평가 없이 "아, 그렇군요"로 받게 (FR-AI-003). 일기 턴엔 없음.
+        # 어제 이야기 턴에는 story 표시 → 다음 턴에 날짜를 다시 말하지 않고, '그런 말 안 했어'면 DENY (D77)
         turns=[
-            {"speaker": t["speaker"], "text": t["text"]} | ({"quiz": True} if t.get("question_code") else {})
+            {"speaker": t["speaker"], "text": t["text"]}
+            | ({"quiz": True} if t.get("question_code") else {})
+            | ({"story": True} if t.get("fact_id") else {})
             for t in session.turns
         ],
         # 일기 사진이 옛 사진이면 1·2번을 그 사진 속 그때로 (FR-DI-002, D58). 분류(AI-04 #29) 전에는 늘 False.
@@ -144,12 +148,17 @@ def _turn_times(session: TalkSession) -> list[datetime]:
     return [datetime.fromisoformat(t["created_at"]) for t in session.turns]
 
 
+def _story_offset(session: TalkSession) -> int:
+    """첫 AI 질문이 지난 대화의 이야기(fact_id)면 1 — 사진 질문 번호·최대 질문 수·문제 차례가 하나씩 밀린다 (D77)."""
+    return 1 if session.turns and session.turns[0].get("fact_id") else 0
+
+
 def _max_turns(session: TalkSession) -> int:
     if session.kind == "DIARY":
         return DIARY_TURNS
     if session.kind == "ALBUM":
         return ALBUM_TURNS
-    return MAX_TURNS
+    return MAX_TURNS + _story_offset(session)
 
 
 def _fallback(session: TalkSession) -> CoachReply:
@@ -169,6 +178,7 @@ def _ask(
     """
     t0 = time.perf_counter()
     turn_no = turn_no or session.turn_count
+    off = _story_offset(session)  # 코치에는 사진 질문 번호로 넘긴다 — 어제 이야기 질문은 세지 않는다 (D77)
     signal, private, code = "NONE", False, None
     if session.kind == "DIARY":
         if end is None:
@@ -176,13 +186,18 @@ def _ask(
         else:  # "일기를 써 볼게요"는 일기를 쓸 때만. 무응답으로 끝나면 저장하지 않으니 다른 인사
             reply = coach.DIARY_CLOSING if end in DIARY_SAVED else coach.DIARY_STOP
     elif end:
-        reply, signal, private = coach.closing(ctx, turn_no, _max_turns(session))
+        reply, signal, private = coach.closing(ctx, turn_no - off, _max_turns(session) - off)
     else:
-        picked = quiz.pick(db, session) if session.kind == "MEMORY" and turn_no == QUIZ_TURN else None
+        picked = quiz.pick(db, session) if session.kind == "MEMORY" and turn_no - off == QUIZ_TURN else None
         # 최대 질문 수도 같이 넘긴다 — 사진첩은 2, 오늘의 한 장은 6 (AI 가 몇 번째 질문인지 알고 말하게)
-        reply, signal, private = coach.next_question(ctx, turn_no, picked, _max_turns(session))
+        reply, signal, private = coach.next_question(ctx, turn_no - off, picked, _max_turns(session) - off)
         # 출제 기록: 은행 원문이면 그 code, AI 가 쓴 생각 문제면 GEN-유형 (D72). 마무리로 바뀐 턴은 기록 없음
         code = quiz.record_code(picked, reply.text) if picked and signal not in coach.ENDING_SIGNALS else None
+    if signal == "DENY":  # '그런 말 안 했어' — 바로 앞 질문이 어제 이야기일 때만 그 기억을 끈다 (FR-AI-008, D77)
+        last = _last_ai_turn(session)
+        if last and last.get("fact_id"):
+            story.deny(db, session.room_id, last["fact_id"])
+        signal = "NONE"
     _note_mood(db, session, signal, private)  # 가족 마음 카드·알림·주간 요약용 (FR-AI-005, FR-FD-006, D55)
     _add_turn(
         session,
@@ -194,6 +209,35 @@ def _ask(
     )
     _last_reply[session.session_id] = reply
     return reply, signal
+
+
+def _ask_story(db, session: TalkSession, ctx: coach.CoachContext) -> CoachReply | None:
+    """그날 첫 회상 대화의 첫 질문을 지난 대화의 이야기로 (FR-AI-008, D77). 물을 기억이 없으면 None(평소 첫 질문).
+
+    물은 기억에는 used_at 을 남긴다 — 그 기억은 다시 묻지 않고, 그 가족방은 오늘 더 묻지 않는다 (story.pick).
+    AI 가 실패하면 그 기억은 묻지 않은 채 두고 고정 사진 질문으로 시작한다 — AI 를 한 번 더 기다리면
+    화면이 첫 말을 기다리는 15초를 넘을 수 있다 (시간 초과 한 번이 약 9초).
+    """
+    fact = story.pick(db, session.room_id)
+    if fact is None:
+        return None
+    t0 = time.perf_counter()
+    reply = coach.story_question(ctx, fact.fact_text, story.when(fact.fact_date), fact.fact_date)
+    if reply is None:
+        reply, fields = coach.FALLBACK_QUESTION, {}
+    else:
+        fact.used_at = now_kst()
+        fields = {"fact_id": fact.fact_id}
+    _add_turn(
+        session,
+        "AI",
+        reply.text,
+        question_type=reply.question_type,
+        latency_ms=int((time.perf_counter() - t0) * 1000),
+        **fields,
+    )
+    _last_reply[session.session_id] = reply
+    return reply
 
 
 _MOOD_RANK = {"NONE": 0, "SAD": 1, "LOW": 1, "RISK": 2}  # 대화의 emotion_flag 는 올라가기만 한다
@@ -426,7 +470,11 @@ def create_session(body: SessionCreateIn, device: CurrentDevice, db: DB):
     )
     db.add(session)
     db.flush()
-    reply, _ = _ask(db, session, coach_context(db, room, session))  # 어르신 말 전이라 signal 은 늘 NONE (coach)
+    ctx = coach_context(db, room, session)
+    # 그날 첫 회상 대화는 지난 대화의 이야기로 시작할 수 있다 (AI-07, D77). 물을 기억이 없으면 평소처럼 사진 질문
+    reply = _ask_story(db, session, ctx) if session.kind == "MEMORY" else None
+    if reply is None:
+        reply, _ = _ask(db, session, ctx)  # 어르신 말 전이라 signal 은 늘 NONE (coach)
     db.commit()
     return _out(db, session, room, reply)
 

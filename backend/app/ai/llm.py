@@ -27,7 +27,8 @@ PROMPTS_DIR = ROOT / "backend" / "app" / "ai" / "prompts"
 
 # 시도당 시간 상한(초). 말하기 턴은 화면이 15초에 포기하므로 6초 × 최대 2번(검증 재시도) 안에 끝나야
 # 고정 문장으로라도 대화가 이어진다(D14). 일기 초안은 확인 화면이 기다리므로 15초 × 최대 2번 (D36).
-TURN_PROMPTS = {"memory_coach", "diary_buddy", "family_buddy"}  # 가족 일기 질문도 화면에서 바로 기다린다 (D58)
+# 가족 일기 질문(D58)·어제 이야기 첫 질문(D77)도 화면에서 바로 기다린다
+TURN_PROMPTS = {"memory_coach", "diary_buddy", "family_buddy", "story_question"}
 TURN_TIMEOUT_SEC = 6.0
 OTHER_TIMEOUT_SEC = 15.0
 
@@ -112,8 +113,17 @@ def _mock(prompt_name: str, data: dict[str, Any], schema: type[T]) -> T:
             for p in data["pairs"][:WEEKLY_CARDS_MAX]
         ]
         return schema.model_validate({"cards": cards})
+    if prompt_name == "story_facts":  # 첫 답을 그대로 따온 기억 하나 — 키 없는 PC 에서도 이어 묻기가 돌게 (D77)
+        facts = [
+            {"ref": p["ref"], "kind": "EVENT", "fact": f"'{p['said'][:30]}'라고 하셨어요.", "quote": p["said"][:30]}
+            for p in data["pairs"][:1]
+        ]
+        return schema.model_validate({"facts": facts})
+    if prompt_name == "story_question":
+        text = f"{data.get('elder_honorific', '어르신')}, {data['when']} 들려주신 이야기 생각나요. 그 뒤로 어떠셨어요?"
+        return schema.model_validate({"text": text, "suggestions": ["좋았어요", "그저 그래요"], "signal": "NONE"})
     if prompt_name != "memory_coach":  # 일기(diary_*·family_*)는 coach 의 고정 문장으로 이어 간다
-        raise LlmError(f"mock 은 memory_coach·weekly_summary 만 지원합니다 (요청: {prompt_name})")
+        raise LlmError(f"mock 은 memory_coach·weekly_summary·story_* 만 지원합니다 (요청: {prompt_name})")
     turn_no = int(data.get("turn_no", 1))
     if data.get("closing"):
         text = "오늘 이야기 들려주셔서 고마워요. 모아서 가족들한테 전해 드릴게요."

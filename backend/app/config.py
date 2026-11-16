@@ -51,6 +51,10 @@ WEEKLY_HOUR = 19  # 주간 집계는 일요일 이 시각, D19 — 집계 창과
 WEEKLY_CARDS_MAX = 4  # 주간 이야기의 질문·답 카드 수 (D62)
 WEEKLY_PAIRS_MAX = 60  # 주간 요약 AI 에 주는 질문·답 쌍 수. 넘으면 긴 답부터 고른다
 WEEKLY_STT_MIN = 0.7  # 음성 인식 신뢰도가 이보다 낮은 답은 가족에게 전하지 않는다 (FR-FD-006)
+STORY_HOUR = 4  # 새벽 이 시각에 어제 대화에서 이야기 기억을 뽑는다 — 가족방마다 AI 1번 (FR-AI-007, D77)
+STORY_FACTS_MAX = 3  # 하루치 대화에서 뽑는 기억 수 상한
+STORY_LOOKBACK_DAYS = 7  # 이어 물을 기억을 찾는 날수 — 이 안에서 가장 최근 대화한 날의 기억 하나 (FR-AI-008, D77)
+STORY_KEEP_DAYS = 30  # 기억 보관 날수 — 지나면 새벽 작업이 지운다 (DBR-013 [가정])
 MOOD_LOW_DAYS = 2  # 기운 없는 말이 나온 날이 최근 MOOD_LOW_WINDOW_DAYS 일 중 이만큼이면 가족 알림 1건 (D55 ②)
 MOOD_LOW_WINDOW_DAYS = 7  # 위 날수를 세는 기간이자, 같은 알림을 다시 보내지 않는 기간
 # 일기 사진이 옛 사진이면(분류 is_old + 신뢰도 이 이상) 일기 1·2번 질문을 그 사진 속 그때로 (FR-DI-002, D58)
