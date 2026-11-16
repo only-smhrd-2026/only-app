@@ -1,9 +1,11 @@
 /**
  * 녹음·재생·브라우저 TTS. 서버 TTS 음성(audio_b64)은 playBase64, 그것이 없을 때(mock·실패)와 화면 고정 안내는 speechSynthesis (D5·D46).
  * 화면 고정 안내(PROMPT)는 서버와 같은 목소리로 미리 합성한 mp3(src/assets/audio)를 먼저 쓴다 (FR-VS-004·D48).
+ * 그 밖의 화면 글(팝업 문장·안내·가족 소식·지난 일기)은 서버가 고른 목소리로 만든 소리를 먼저 쓴다 (POST /api/elder/speech, D78).
  * say()·speak() 는 늘 resolve 한다. 끝까지 못 들려줬을 때만 false(사용자 터치 전이라 자동 재생이 막힘, 전화벨이 소리를 멈춤)
  * — 부르는 쪽이 '눌러서 들어 보세요'를 띄운다 (D48).
  */
+import { api, ApiError } from '../api/client'
 import { MOOD_PROMPT } from './moodCheck'
 
 export type Recorder = { stop: () => Promise<Blob> }
@@ -145,7 +147,8 @@ export function playBase64(b64: string, rate = 1, mime = 'audio/mpeg'): Promise<
 }
 
 /**
- * 읽기: 서버 음성(b64) → 고정 안내 mp3 → 기기 목소리 순. 앞서 읽던 것은 끊는다. 끝까지 들려줬으면 true.
+ * 읽기: 서버 음성(b64) → 고정 안내 mp3 → 서버가 고른 목소리로 만든 소리(D78) → 기기 목소리 순.
+ * 앞서 읽던 것은 끊는다. 끝까지 들려줬으면 true.
  * 자동 재생이 막혔을 때는 기기 목소리로 다시 읽지 않는다 — 크롬은 같은 규칙으로 막는다 (D48).
  * v = 고정 안내 mp3 의 목소리. 평소에는 고른 목소리, 목소리 고르기·가족방 설정에서 들려줄 때만 따로 준다 (D74).
  */
@@ -153,17 +156,89 @@ export function say(text: string, rate = 0.9, b64?: string | null, v = voice): P
   stopSpeaking()
   const key = PROMPT_KEY.get(text)
   const src = b64 ? `data:audio/mpeg;base64,${b64}` : key && FILES[`../assets/audio/${v === 'MALE' ? 'male/' : ''}${key}.mp3`]
-  if (!src) return speak(text, rate)
+  if (!src) return speakServer(text, rate)
   return play(src, rate).catch((e: unknown) =>
-    e instanceof DOMException && e.name === 'NotAllowedError' ? false : speak(text, rate),
+    e instanceof DOMException && e.name === 'NotAllowedError' ? false : speakDevice(text, rate),
   )
 }
 
+/** 화면 글 읽기 — say 와 같다(고른 목소리, 안 되면 기기 목소리). 화면들이 쓰던 이름이라 남겨 둔다 (D78). */
+export function speak(text: string, rate = 0.9): Promise<boolean> {
+  return say(text, rate)
+}
+
+// 서버 소리 (D78). stopSpeaking 마다 늘어 — 기다리는 사이 멈춘 읽기는 소리를 받아도 틀지 않는다
+let gen = 0
+const SPEECH_WAIT_MS = 4_000 // 한 묶음을 이만큼 기다려도 안 오면 기기 목소리로 (60자 합성 약 1.8초, tts.py 실측)
+const SPEECH_CHUNK = 60 // 긴 글은 문장을 이 글자 수 안팎으로 묶어 차례로 — 400자를 한 번에 만들면 9초를 기다린다
+const SPEECH_OFF_MS = 60_000 // 서버가 소리를 못 주면(mock·상한·장애) 이 동안은 묻지 않고 기기 목소리로
+let speechOffUntil = 0
+const speechCache = new Map<string, string>() // 목소리|글 → b64. 같은 안내를 다시 읽을 때 서버를 부르지 않는다
+
+function chunks(text: string): string[] {
+  const out: string[] = []
+  for (const s of text.trim().split(/(?<=[.!?。])\s+/)) {
+    const last = out.length - 1
+    if (last >= 0 && out[last].length + 1 + s.length <= SPEECH_CHUNK) out[last] += ` ${s}`
+    else out.push(s)
+  }
+  return out
+}
+
+function fetchSpeech(text: string): Promise<string | null> {
+  const key = `${voice}|${text}`
+  const hit = speechCache.get(key)
+  if (hit) return Promise.resolve(hit)
+  if (Date.now() < speechOffUntil) return Promise.resolve(null)
+  const ctl = new AbortController()
+  const timer = window.setTimeout(() => ctl.abort(), SPEECH_WAIT_MS)
+  return api<{ audio_b64: string | null }>('/api/elder/speech', { body: { text }, signal: ctl.signal })
+    .then((r) => {
+      if (!r.audio_b64) {
+        speechOffUntil = Date.now() + SPEECH_OFF_MS
+        return null
+      }
+      speechCache.set(key, r.audio_b64)
+      if (speechCache.size > 40) speechCache.delete(speechCache.keys().next().value!) // 오래된 것부터
+      return r.audio_b64
+    })
+    .catch((e: unknown) => {
+      // 기기 연결 전(401)·글이 너무 김(422)은 이 글만 기기 목소리로. 시간 초과·망·서버 오류는 잠시 묻지 않는다
+      if (!(e instanceof ApiError && e.status >= 400 && e.status < 500)) speechOffUntil = Date.now() + SPEECH_OFF_MS
+      return null
+    })
+    .finally(() => window.clearTimeout(timer))
+}
+
+/** 서버가 고른 목소리로 묶음마다 받아 차례로 튼다 — 트는 동안 다음 묶음을 받아 둔다. 못 받으면 남은 글은 기기 목소리. */
+async function speakServer(text: string, rate: number): Promise<boolean> {
+  const my = gen
+  if (!text.trim()) return true
+  const parts = chunks(text)
+  let next = fetchSpeech(parts[0])
+  for (let i = 0; i < parts.length; i++) {
+    const b64 = await next
+    if (my !== gen) return true // 기다리는 사이 멈췄다(다음 화면·다른 읽기) — 틀지 않는다
+    if (!b64) return speakDevice(parts.slice(i).join(' '), rate)
+    if (i + 1 < parts.length) next = fetchSpeech(parts[i + 1])
+    try {
+      const heard = await play(`data:audio/mpeg;base64,${b64}`, rate)
+      if (my !== gen) return true // 우리가 멈췄다
+      if (!heard) return false // 전화벨·알람이 소리를 멈췄다
+    } catch (e: unknown) {
+      if (e instanceof DOMException && e.name === 'NotAllowedError') return false
+      return speakDevice(parts.slice(i).join(' '), rate)
+    }
+  }
+  return true
+}
+
 /**
- * 브라우저 TTS. 없으면 바로 resolve (자막만). 기기에 한국어 음성이 없어 onend/onerror 가 안 오면 글자 수 기준 시간 뒤 resolve.
+ * 브라우저 TTS(기기 목소리) — 서버 소리가 없을 때만. 없으면 바로 resolve (자막만).
+ * 기기에 한국어 음성이 없어 onend/onerror 가 안 오면 글자 수 기준 시간 뒤 resolve.
  * 사용자 터치 전이라 막히면 false — 크롬은 speak() 안에서 바로 error 'not-allowed' 를 보낸다 (D48).
  */
-export function speak(text: string, rate = 0.9): Promise<boolean> {
+function speakDevice(text: string, rate = 0.9): Promise<boolean> {
   return new Promise((resolve) => {
     if (!('speechSynthesis' in window)) return resolve(true)
     window.speechSynthesis.cancel()
@@ -182,8 +257,9 @@ export function speak(text: string, rate = 0.9): Promise<boolean> {
   })
 }
 
-/** 재생 중인 서버 음성과 브라우저 TTS 를 모두 멈춘다. */
+/** 재생 중인 서버 음성과 브라우저 TTS 를 모두 멈춘다. 서버 소리를 기다리던 읽기도 틀지 않게 된다 (D78). */
 export function stopSpeaking() {
+  gen++
   const a = current
   current = null // pause 이벤트보다 먼저 비운다: play() 가 '우리가 멈춤'으로 알아보게
   a?.pause()
