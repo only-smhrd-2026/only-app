@@ -24,6 +24,26 @@ def test_partial_settings(client):
     assert client.patch(path, json={"font_size": None}).json() == result
 
 
+def test_elder_name_and_honorific_settings(client, family):
+    owner, _, room_id, _ = family
+    path = f"/api/rooms/{room_id}/settings"
+    body = {"elder_name": "  가람  ", "elder_honorific": "  가람 할머니  "}
+    assert client.patch(path, json=body).status_code == 403
+    client.post("/api/auth/login", json={"email": owner["email"], "password": "test1234"})
+    result = client.patch(path, json=body)
+    assert result.status_code == 200
+    room = next(r for r in client.get("/api/rooms").json() if r["room_id"] == room_id)
+    assert (room["elder_name"], room["elder_honorific"]) == ("가람", "가람 할머니")
+    for invalid in (
+        {"elder_name": " "},
+        {"elder_honorific": " "},
+        {"elder_name": "가" * 11},
+        {"elder_honorific": "가" * 21},
+    ):
+        assert client.patch(path, json=invalid).status_code == 422
+    assert client.patch(path, json={"elder_name": None}).json()["elder_name"] == "가람"
+
+
 def test_elder_home_reflects_settings(client):
     ctx = setup_elder(client)
     response = client.patch(
