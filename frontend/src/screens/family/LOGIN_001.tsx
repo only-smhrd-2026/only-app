@@ -1,10 +1,11 @@
 /** LOGIN_001 — 가족 시작 화면과 이메일 로그인/가입. */
+import '../../components/FamilyFrame.css'
 import './LOGIN_001.css'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { UserOut } from '../../api/types'
-import loginPreview from '../../assets/login-preview.svg'
+import FamIcon from '../../components/FamIcon'
 import { useFetch } from '../../hooks/useFetch'
 import { clearUploadDraft } from '../../lib/uploadDraft'
 
@@ -26,6 +27,7 @@ export default function LOGIN_001() {
   // 오류는 난 단계와 함께 둔다. 뒤로 가기로 단계가 바뀌면 안 보인다.
   const [error, setError] = useState<{ screen: LoginScreen; text: string }>()
   const [busy, setBusy] = useState(false)
+  const [kakaoNotice, setKakaoNotice] = useState(false)
   const emailRef = useRef<HTMLInputElement>(null)
   const emailOpen = screen !== 'start'
   const signup = screen === 'signup'
@@ -39,6 +41,7 @@ export default function LOGIN_001() {
 
   function changeScreen(next: LoginScreen) {
     setError(undefined)
+    setKakaoNotice(false)
     setParams(next === 'start' ? {} : { mode: next })
   }
 
@@ -65,29 +68,44 @@ export default function LOGIN_001() {
   if (me.loading) return null
   if (me.data) return <Navigate to={after} replace />
   return (
-    <main className="login-screen">
+    <main className="fam login-screen">
       <div className={`login-shell${emailOpen ? ' login-shell--email' : ''}`}>
+        {after !== '/' && (
+          <div className="login-invite">
+            <FamIcon name="family" />
+            <span><b>가족방 초대를 받으셨어요</b><br />로그인하거나 가입한 뒤 초대를 확인해 주세요.</span>
+          </div>
+        )}
         <header className="login-brand">
+          <svg className="login-logo" viewBox="0 0 40 40" aria-hidden="true">
+            <g transform="rotate(-8 20 20)">
+              <rect x="6" y="9" width="28" height="22" rx="5" fill="currentColor" />
+              <circle cx="14.5" cy="16.5" r="3" fill="var(--surface)" />
+              <path d="M9 27l8-7 5 4.5 4-3 5 5.5z" fill="var(--surface)" />
+            </g>
+          </svg>
           <h1>하루한장</h1>
-          <p>가족 사진으로 매일 이야기 나눠요</p>
+          <p>가족 사진 한 장으로<br />매일 어르신께 말을 걸어요</p>
         </header>
         {!emailOpen ? (
-          <>
-            <div className="login-preview">
-              <img src={loginPreview} alt="" width={312} height={203} />
-            </div>
+          <section className="login-card login-start" aria-label="시작하기">
             <p className="login-intro">
-              <span>가족과 함께 추억을 나눠요<br />사진 한 장으로 매일 이야기해요</span>
+              사진 한 장으로 이어지는<br /><b>우리 가족의 하루</b>
             </p>
-            <button className="login-button login-start" type="button" onClick={() => changeScreen('login')}>
+            <button className="login-button" type="button" onClick={() => changeScreen('login')}>
               이메일로 시작하기
             </button>
+            <button className="login-button login-button--kakao" type="button" onClick={() => setKakaoNotice(true)}>
+              카카오로 시작하기 · 준비 중
+            </button>
+            {kakaoNotice && <p className="login-notice" role="status">카카오 로그인은 준비 중이에요. 이메일로 시작해 주세요.</p>}
             <p className="login-policy-note">
-              개인정보 처리방침 동의는<br />가입 화면에서 확인해 주세요
+              개인정보 처리방침 동의는 가입할 때 확인해요.<br />
+              <Link to="/policy">개인정보 처리방침 보기</Link>
             </p>
-          </>
+          </section>
         ) : (
-          <section className="login-email" aria-labelledby="login-form-title">
+          <section className="login-card login-email" aria-labelledby="login-form-title">
             <h2 id="login-form-title">{signup ? '가족 가입' : '가족 로그인'}</h2>
             <form className="login-form" onSubmit={submit} aria-busy={busy}>
               <label>이메일<input ref={emailRef} name="email" type="email" required autoComplete="email" /></label>
@@ -99,10 +117,13 @@ export default function LOGIN_001() {
               {signup && (
                 <>
                   <label>이름<input name="name" required maxLength={30} autoComplete="name" /></label>
-                  <label className="login-terms">
-                    <input name="terms" type="checkbox" required />
-                    <span>개인정보 처리방침에 동의해요</span>
-                  </label>
+                  <div className="login-terms-row">
+                    <label className="login-terms">
+                      <input name="terms" type="checkbox" required />
+                      <span>개인정보 처리방침에 동의해요</span>
+                    </label>
+                    <Link className="login-policy-link" to="/policy" aria-label="개인정보 처리방침 보기">보기</Link>
+                  </div>
                 </>
               )}
               {error?.screen === screen && <p className="login-error" role="alert">{error.text}</p>}
