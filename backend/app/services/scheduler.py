@@ -18,7 +18,7 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select
 
 from app.ai import classify
-from app.config import CLASSIFY_EVERY_MIN, NO_RECORD_DAYS, TZ, WEEKLY_HOUR, now_kst, today_kst
+from app.config import CLASSIFY_EVERY_MIN, DAILY_ALERT_HOUR, NO_RECORD_DAYS, TZ, WEEKLY_HOUR, now_kst, today_kst
 from app.db import SessionLocal
 from app.models import ELDER_SPOKE, DailyPick, Diary, FamilyRoom, Notification, TalkSession
 from app.routers.devices import notify_family
@@ -157,7 +157,15 @@ def classify_photos() -> None:
 
 def catch_up() -> None:
     """기동 시 놓친 작업 보정 (D9). 예: 지난 일요일 주간 요약이 없으면 지금 생성. TODO(천주웅)."""
-    log.info("catch_up: 아직 비어 있음")
+    jobs = [weekly_summaries]
+    if now_kst().hour >= DAILY_ALERT_HOUR:
+        jobs.extend([diary_reminders, no_record_alerts])
+    for job in jobs:
+        try:
+            job()
+        except Exception as exc:
+            log.warning("catch_up job=%s error=%s", job.__name__, type(exc).__name__)
+    log.info("catch_up jobs=%d", len(jobs))
 
 
 def start() -> None:
@@ -165,10 +173,16 @@ def start() -> None:
         select_daily_picks, CronTrigger(minute=0, timezone=TZ), id="select_daily_picks", replace_existing=True
     )
     scheduler.add_job(
-        diary_reminders, CronTrigger(hour=19, minute=0, timezone=TZ), id="diary_reminders", replace_existing=True
+        diary_reminders,
+        CronTrigger(hour=DAILY_ALERT_HOUR, minute=0, timezone=TZ),
+        id="diary_reminders",
+        replace_existing=True,
     )
     scheduler.add_job(
-        no_record_alerts, CronTrigger(hour=19, minute=0, timezone=TZ), id="no_record_alerts", replace_existing=True
+        no_record_alerts,
+        CronTrigger(hour=DAILY_ALERT_HOUR, minute=0, timezone=TZ),
+        id="no_record_alerts",
+        replace_existing=True,
     )
     scheduler.add_job(
         weekly_summaries,

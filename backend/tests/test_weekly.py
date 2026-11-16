@@ -223,6 +223,7 @@ def test_scheduler_repeated_and_closed_room(client, monkeypatch):
     room_id = make_room(client)["room_id"]
     closed = make_room(client)["room_id"]
     with SessionLocal() as db:
+        _talk(db, room_id, _at(10), texts=("기록",))
         db.get(FamilyRoom, closed).status = "CLOSED"
         db.commit()
     monkeypatch.setattr(scheduler, "now_kst", lambda: NOW)

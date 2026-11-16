@@ -11,6 +11,8 @@ from zoneinfo import ZoneInfo
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+DAILY_ALERT_HOUR = 19  # 하루 기록 알림 예약 시각 (KST)
+
 ROOT = Path(__file__).resolve().parents[2]  # only-app/
 TZ = ZoneInfo("Asia/Seoul")
 
