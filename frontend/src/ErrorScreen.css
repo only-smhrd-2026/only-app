@@ -1,0 +1,15 @@
+/* 오류·없는 주소 화면만의 배치. 글자·버튼·색은 기존 가족/어르신 규격을 쓴다. */
+.screen-safety {
+  min-height: 100dvh;
+  height: auto;
+  justify-content: center;
+}
+.screen-safety__content {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  text-align: center;
+}
+.fam.screen-safety { padding: 24px 0; }
+.screen-safety .fam-card { padding: 32px 24px; }
+.screen-safety__title { font-size: 22px; font-weight: 800; }

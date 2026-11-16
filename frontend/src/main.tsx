@@ -5,11 +5,14 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import './elder.css'
 import App from './App.tsx'
+import ErrorBoundary from './ErrorBoundary.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </BrowserRouter>
   </StrictMode>,
 )

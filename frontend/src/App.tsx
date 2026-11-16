@@ -8,6 +8,7 @@ import type { DeviceOut } from './api/types'
 import FamilyFrame, { SubFrame } from './components/FamilyFrame'
 import { useFetch } from './hooks/useFetch'
 import NotYet from './screens/NotYet'
+import NotFound from './screens/NotFound'
 import ELDER_ALBUM_001 from './screens/elder/ELDER_ALBUM_001'
 import ELDER_CONNECT_001 from './screens/elder/ELDER_CONNECT_001'
 import ELDER_DIARY_001 from './screens/elder/ELDER_DIARY_001'
@@ -110,7 +111,7 @@ export default function App() {
       <Route element={<SubFrame />}>{SCREENS.filter((s) => SUB_SCREENS.has(s.id)).map(route)}</Route>
       {SCREENS.filter((s) => !TAB_SCREENS.has(s.id) && !SUB_SCREENS.has(s.id)).map(route)}
       <Route path="/start" element={<Start />} />
-      <Route path="*" element={<NotYet id="404" title="없는 주소" />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }
