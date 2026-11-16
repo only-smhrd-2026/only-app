@@ -1,5 +1,5 @@
 /**
- * WEEKLY_001 — 주간 이야기 (FR-FD-007). 집계 숫자(이야기한 날·일기 쓴 날·기분 날씨 7칸)와
+ * WEEKLY_001 — 주간 이야기 (FR-FD-007). 집계 숫자(이야기한 날·일기 쓴 날·기분 얼굴 7칸)와
  * 주간 요약 AI 의 질문·답 카드(최대 4장, D62)·안부 한 줄. 점수처럼 보이게 쓰지 않는다(NFR-DE-003).
  */
 import { useEffect } from 'react'
@@ -65,7 +65,7 @@ export default function WEEKLY_001() {
             <p><b>이야기한 날 {data.memory_days}일</b> · 일기 쓴 날 {data.diary_days}일</p>
           </section>
           <section className="card weekly-card">
-            <h2>기분 날씨</h2>
+            <h2>기분</h2>
             <div className="weekly-week">
               {data.mood_trend.map((d) => (
                 <div className="weekly-day" key={d.date}>

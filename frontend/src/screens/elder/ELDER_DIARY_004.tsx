@@ -83,8 +83,10 @@ export default function ELDER_DIARY_004() {
         {open && (
           <>
             <div className="elder-who"><span>{day(open.posted_at)}</span></div>
-            {open.illustration_url && (
+            {open.illustration_url ? (
               <ElderPhoto src={open.illustration_url} alt={open.illustration_type === 'PHOTO' ? '일기 사진' : '그림일기 그림'} />
+            ) : (
+              <div className="elder-photo-box elder-mood-pic"><MoodIcon mood={open.mood} /></div>
             )}
             <button type="button" className="elder-paper" onClick={() => read(open)}>
               <span>{open.body}</span>

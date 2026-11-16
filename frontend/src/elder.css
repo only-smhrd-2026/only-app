@@ -239,6 +239,9 @@ html[data-font='XXL'] { --elder-font-size: 28px; --elder-font-size-s: 26px; --el
 /* 대화 화면: 남는 자리를 사진이 다 쓰고, 말풍선이 쌓이면 화면 높이의 36% 까지 줄어든다.
    36% = 가로 사진(4:3)이 화면 너비를 다 쓰는 높이라, 가로 사진은 대화 내내 같은 크기다 */
 .elder-photo-box--talk { flex: 1 1 0; min-height: 36dvh; }
+/* 사진·그림이 없는 일기: 그림 자리에 기분 얼굴 이모지를 크게 (D75) */
+.elder-mood-pic { display: flex; align-items: center; justify-content: center; background: var(--elder-soft); }
+.elder-mood-pic .elder-ic { width: 96px; height: 96px; }
 .elder-photo-box--whole:focus-visible { outline: 4px solid var(--elder-fg); outline-offset: 4px; }
 /* 크게 보기: 화면 가득, 어두운 바탕. 아무 데나 누르면 닫힌다 */
 .elder-zoom { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 12px; border: 0; outline: 0; background: #14141a; color: #ffffff; }

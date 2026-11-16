@@ -210,7 +210,7 @@ CREATE TABLE diaries (
     session_id UUID REFERENCES sessions(session_id),
     photo_id BIGINT REFERENCES photos(photo_id),
     body TEXT NOT NULL,
-    mood VARCHAR(6) NOT NULL CHECK (mood IN ('SUNNY', 'CLOUDY', 'RAINY', 'MOON')),
+    mood VARCHAR(6) NOT NULL CHECK (mood IN ('GOOD', 'SO_SO', 'UPSET', 'LONELY')),   -- D75 좋았어요·그저 그랬어요·속상했어요·쓸쓸했어요
     illustration_type VARCHAR(10) NOT NULL CHECK (illustration_type IN ('PHOTO', 'AI_DRAWING', 'NONE')),
     illustration_key VARCHAR(255),
     draw_spec JSONB,

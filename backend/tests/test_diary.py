@@ -19,7 +19,7 @@ from app.routers import diaries, sessions
 from tests.conftest import add_photos, connect_device, make_room, setup_elder, signup
 
 JPEG_SOI = b"\xff\xd8"
-MOODS = ["맑음", "구름", "비", "달"]
+MOODS = ["좋았어요", "그저 그랬어요", "속상했어요", "쓸쓸했어요"]
 
 
 def _family_and_elder(client) -> int:
@@ -27,7 +27,7 @@ def _family_and_elder(client) -> int:
     return setup_elder(client)["room_id"]
 
 
-def _talk(client, answers=("경로당에 다녀왔어요", "영자 씨랑요", "맑음"), photo_id=None) -> tuple[str, list[dict]]:
+def _talk(client, answers=("경로당에 다녀왔어요", "영자 씨랑요", "좋았어요"), photo_id=None) -> tuple[str, list[dict]]:
     body = {"session_id": str(uuid.uuid4()), "kind": "DIARY"} | ({"photo_id": photo_id} if photo_id else {})
     r = client.post("/api/elder/sessions", json=body)
     assert r.status_code == 201, r.text
@@ -62,8 +62,8 @@ def test_three_questions_then_post_once_and_family_sees_new(client, monkeypatch)
     assert "일기" in replies[3]["ai"]["text"]  # "들려주신 이야기로 일기를 써 볼게요"
 
     draft = _draft(client, sid).json()
-    assert draft["mood"] == "SUNNY" and "경로당" in draft["body"] and "맑음" not in draft["body"]
-    assert draft["illustration_type"] == "AI_DRAWING"  # mock LLM 은 사물을 모른다 → 기분 그림(D69, 개발은 자리표시)
+    assert draft["mood"] == "GOOD" and "경로당" in draft["body"] and "좋았어요" not in draft["body"]
+    assert draft["illustration_type"] == "NONE"  # mock LLM 은 사물을 모른다 → 그림 없이 기분 얼굴(D75)
     assert _draft(client, sid).json() == draft and len(calls) == 1  # 30분 안엔 같은 초안 (LLM·그림 다시 안 부름)
 
     diaries._drafts[uuid.UUID(sid)].made_at -= timedelta(minutes=DIARY_DRAFT_MIN + 1)
@@ -78,9 +78,8 @@ def test_three_questions_then_post_once_and_family_sees_new(client, monkeypatch)
     assert _post(client, sid).json()["diary_id"] == diary_id  # 같은 대화를 새 request_id 로
     assert _sent(room_id) == 1  # 가족 1명 → 알림 1건, 다시 눌러도 늘지 않음
     assert _draft(client, sid).json()["code"] == "DIARY_POSTED"  # 올린 뒤 다시 만들면 올린 그림을 덮어쓴다 → 금지
-    with SessionLocal() as db:  # 그릴 사물이 없던 일기는 '맑음' 기분 그림, 시드는 대화 번호로 (D69)
-        spec = db.scalar(select(Diary.draw_spec).where(Diary.diary_id == diary_id))
-        assert spec == {"objects": ["sun", "flower"], "seed": uuid.UUID(sid).int % 2**31}
+    with SessionLocal() as db:  # 그릴 사물이 없던 일기는 그림을 그리지 않는다 (D75)
+        assert db.scalar(select(Diary.draw_spec).where(Diary.diary_id == diary_id)) is None
 
     listed = client.get(f"/api/rooms/{room_id}/diaries").json()["diaries"]
     assert [d["diary_id"] for d in listed] == [diary_id]
@@ -155,8 +154,8 @@ def test_mood_question_keeps_four_chips_on_no_response_and_after_restart(client)
 
 def test_drawing_waits_then_attaches_and_only_room_members_see_it(client, monkeypatch):
     def fake_llm(name, data, schema):
-        if name == "diary_draft":  # 모델은 RAINY 라고 했지만 어르신이 '맑음' 칩을 골랐다 → 칩이 이긴다
-            return DiaryDraft(body="시장에서 호박을 샀다.", mood="RAINY", draw_objects=["호박", "장바구니"])
+        if name == "diary_draft":  # 모델은 UPSET 이라고 했지만 어르신이 '좋았어요' 칩을 골랐다 → 칩이 이긴다
+            return DiaryDraft(body="시장에서 호박을 샀다.", mood="UPSET", draw_objects=["호박", "장바구니"])
         if name == "diary_buddy":
             return CoachReply(text="오늘은 뭐 하셨어요?", suggestions=["시장", "집"], question_type="NONE")
         raise llm.LlmError(name)
@@ -166,7 +165,7 @@ def test_drawing_waits_then_attaches_and_only_room_members_see_it(client, monkey
     sid, replies = _talk(client)
     assert replies[0]["ai"]["text"] == "오늘은 뭐 하셨어요?" and replies[2]["ai"]["suggestions"] == MOODS
     draft = _draft(client, sid).json()
-    assert draft["mood"] == "SUNNY" and draft["illustration_type"] == "AI_DRAWING"
+    assert draft["mood"] == "GOOD" and draft["illustration_type"] == "AI_DRAWING"
     assert base64.b64decode(draft["illustration_b64"]).startswith(JPEG_SOI)  # mock 자리표시 그림
     url = f"/api/media/rooms/{room_id}/{sid}.jpg"
     assert client.get(url).status_code == 404  # 올리기 전 그림은 아무도 못 본다
@@ -185,7 +184,7 @@ def test_drawing_waits_then_attaches_and_only_room_members_see_it(client, monkey
 
 def test_drawing_failure_posts_text_only(client, monkeypatch):
     _family_and_elder(client)
-    picked = DiaryDraft(body="호박을 샀다.", mood="SUNNY", draw_objects=["호박"])
+    picked = DiaryDraft(body="호박을 샀다.", mood="GOOD", draw_objects=["호박"])
     monkeypatch.setattr(coach, "diary_draft", lambda ctx: picked)
 
     def broken(draw_spec, seed=0):
@@ -199,20 +198,21 @@ def test_drawing_failure_posts_text_only(client, monkeypatch):
     assert posted.status_code == 201 and posted.json()["illustration_url"] is None
 
 
-def test_mood_drawing_when_nothing_to_draw_and_seed_per_diary(client, monkeypatch):
-    """그릴 사물이 없으면 기분 그림. 시드는 모든 그림이 대화 번호로 — 같은 사물도 일기마다 다른 그림 (D69)."""
+def test_no_drawing_when_nothing_to_draw_and_seed_per_diary(client, monkeypatch):
+    """그릴 사물이 없으면 그리지 않는다(D75, 화면이 기분 얼굴). 시드는 대화 번호로 — 같은 사물도 다른 그림(D69)."""
     _family_and_elder(client)
     seen = []
     monkeypatch.setattr(image, "generate", lambda spec, seed=0: seen.append((spec["objects"], seed)) or JPEG_SOI)
-    sids = []
-    for objects in (["pumpkin"], []):
-        picked = DiaryDraft(body="장에 다녀왔다.", mood="RAINY", draw_objects=objects)
+    sids, kinds = [], []
+    for objects in (["pumpkin"], [], ["pumpkin"]):
+        picked = DiaryDraft(body="장에 다녀왔다.", mood="UPSET", draw_objects=objects)
         monkeypatch.setattr(coach, "diary_draft", lambda ctx, d=picked: d)
         sid, _ = _talk(client)
-        assert _draft(client, sid).json()["illustration_type"] == "AI_DRAWING"
+        kinds.append(_draft(client, sid).json()["illustration_type"])
         sids.append(sid)
     seeds = [uuid.UUID(s).int % 2**31 for s in sids]
-    assert seen == [(["pumpkin"], seeds[0]), (["umbrella", "raindrops"], seeds[1])] and seeds[0] != seeds[1]
+    assert kinds == ["AI_DRAWING", "NONE", "AI_DRAWING"]
+    assert seen == [(["pumpkin"], seeds[0]), (["pumpkin"], seeds[2])] and seeds[0] != seeds[2]
 
 
 def test_photo_diary_is_not_drawn_and_draw_spec_is_sql_null(client, monkeypatch):
@@ -251,12 +251,13 @@ def test_fallback_draft_drops_banned_words_and_reads_spoken_mood():
         {"speaker": "AI", "text": "누구랑 계셨어요?"},
         {"speaker": "ELDER", "text": "딸이랑 갔어"},
         {"speaker": "AI", "text": "오늘 기분은 어떠셨어요?"},
-        {"speaker": "ELDER", "text": "맑음이요."},
+        {"speaker": "ELDER", "text": "쓸쓸했어."},
     ]
     d = coach.diary_draft(coach.CoachContext("순자", "할머니", None, turns))  # conftest: LLM_PROVIDER=mock → 고정 경로
     assert not any(w in d.body for w in BANNED_WORDS) and "딸이랑" in d.body
-    assert d.mood == "SUNNY" and "맑음" not in d.body
-    assert [coach.mood_of(t) for t in ("비요", "달이에요", "비 와요", "좋았어")] == ["RAINY", "MOON", None, None]
+    assert d.mood == "LONELY" and "쓸쓸" not in d.body
+    said = ("좋았어", "그저그랬어요!", "속상했어요.", "안 좋았어요", "좋았어요 영자랑", "맑음")
+    assert [coach.mood_of(t) for t in said] == ["GOOD", "SO_SO", "UPSET", None, None, None]
 
 
 def test_mock_drawing_only_in_dev(monkeypatch):

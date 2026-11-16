@@ -104,7 +104,7 @@ function MoodCard({ week }: { week: MoodWeekOut }) {
               <i />
               이야기한 날
             </span>
-            <span>그림 = 일기 기분 날씨</span>
+            <span>얼굴 = 일기 기분</span>
             <span>
               <em />
               기운 없는 말씀이 있던 날

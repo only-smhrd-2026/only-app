@@ -235,7 +235,7 @@ def confirm_question(heard: str) -> CoachReply:
 
 
 # ---------------------------------------------------------------- 일기 동무 (FR-DI-003, D36)
-DIARY_MOODS = {"맑음": "SUNNY", "구름": "CLOUDY", "비": "RAINY", "달": "MOON"}
+DIARY_MOODS = {"좋았어요": "GOOD", "그저 그랬어요": "SO_SO", "속상했어요": "UPSET", "쓸쓸했어요": "LONELY"}  # D75
 DIARY_QUESTIONS = [  # 1·2번 질문의 고정 문장 (LLM 이 실패할 때·mock)
     CoachReply(text="오늘은 뭐 하셨어요?", suggestions=["집에 있었어요", "밖에 다녀왔어요"], question_type="NONE"),
     CoachReply(text="누구랑 계셨어요?", suggestions=["혼자요", "가족이랑요", "친구랑요"], question_type="NONE"),
@@ -244,7 +244,7 @@ DIARY_QUESTIONS = [  # 1·2번 질문의 고정 문장 (LLM 이 실패할 때·m
 DIARY_OLD_PHOTO_QUESTION = CoachReply(
     text="옛날 사진 같네요. 언제 찍으신 사진이에요?", suggestions=["젊을 때요", "잘 모르겠어요"], question_type="NONE"
 )
-# 3번(마지막)은 늘 기분 칩 4개 — 칩을 고르면 기분 날씨가 바로 정해진다.
+# 3번(마지막)은 늘 기분 칩 4개 — 칩을 고르면 일기의 기분이 바로 정해진다 (D75, 날씨에 빗대지 않는다).
 # 모델 출력용 상한(CoachReply 칩 ≤3)을 넘는 고정 문장이라 검사 없이 만든다(금지어 없음·물음표 1개).
 DIARY_MOOD_QUESTION = CoachReply.model_construct(
     text="오늘 기분은 어떠셨어요?", suggestions=list(DIARY_MOODS), question_type="NONE", choice_mode="CHIPS"
@@ -286,13 +286,19 @@ def diary_question(ctx: CoachContext, turn_no: int) -> CoachReply:
 
 
 def mood_of(text: str) -> str | None:
-    """기분 칩 글자 또는 말로 한 칩 이름('맑음이요', '비요.', '달이에요') → 기분 코드. 아니면 None."""
-    t = re.sub(r"[\s.,!?~]", "", text)
-    for tail in ("이에요", "이요", "요"):
-        if t.endswith(tail) and t[: -len(tail)] in DIARY_MOODS:
-            t = t[: -len(tail)]
-            break
-    return DIARY_MOODS.get(t)
+    """기분 칩 글자 또는 말로 한 칩 말('좋았어요', '그저 그랬어.', '쓸쓸했어') → 기분 코드. 아니면 None.
+
+    띄어쓰기·문장부호·끝의 '요'는 보지 않는다. 칩 말 그대로일 때만 —
+    '안 좋았어요'·'좋았어요 영자랑' 은 None(초안 AI 가 정한다).
+    """
+    return _MOOD_WORDS.get(_mood_key(text))
+
+
+def _mood_key(text: str) -> str:
+    return re.sub(r"[\s.,!?~]", "", text).removesuffix("요")
+
+
+_MOOD_WORDS = {_mood_key(label): code for label, code in DIARY_MOODS.items()}
 
 
 def diary_draft(ctx: CoachContext) -> DiaryDraft:
@@ -303,13 +309,13 @@ def diary_draft(ctx: CoachContext) -> DiaryDraft:
     try:
         draft = llm.call_json("diary_draft", data, DiaryDraft)
     except (llm.LlmError, NotImplementedError):
-        # LLM 이 없거나 실패: 어르신 말을 그대로 이어 붙인다(말씀에 없는 내용 없음). 사물을 모르니 기분 그림(D69).
+        # LLM 이 없거나 실패: 어르신 말을 그대로 이어 붙인다(말씀에 없는 내용 없음). 사물을 모르니 그림 없음(D75).
         # 본문은 화면에 보이고 소리로 읽히므로 금지어가 든 답은 뺀다 (NFR-DE-003, confirm_question 과 같은 규칙).
         said = " ".join(
             a.rstrip(" .") + "." for a in answers if not mood_of(a) and not any(w in a for w in BANNED_WORDS)
         )
         draft = DiaryDraft.model_construct(
-            body=said[:400] or "오늘 이야기를 나눴다.", mood=picked or "CLOUDY", draw_objects=[]
+            body=said[:400] or "오늘 이야기를 나눴다.", mood=picked or "SO_SO", draw_objects=[]
         )
     return draft.model_copy(update={"mood": picked}) if picked else draft
 

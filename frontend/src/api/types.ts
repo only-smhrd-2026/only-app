@@ -88,7 +88,7 @@ export type WeeklyOut = {
   recall_check: Record<string, unknown>
   mood_trend: { date: string; mood: Mood | null }[] // 7칸, 월 → 일
   talk_volume: { words: number; turns: number; avg_words: number }
-  // illustration_url = 가족 홈 일기 카드와 같은 사진·그림일기 주소. 그림 없는 일기·지운 일기는 null → 기분 날씨 그림
+  // illustration_url = 가족 홈 일기 카드와 같은 사진·그림일기 주소. 그림 없는 일기·지운 일기는 null → 기분 얼굴(MoodIcon)
   diaries: { diary_id: number; date: string; mood: Mood; illustration_url: string | null }[]
   notes: { lines: string[] } | null // 안부 한 줄 — 기운 없음·위급 대화가 있던 주 (D62)
 }
@@ -153,9 +153,9 @@ export type PhotoListOut = { photos: PhotoOut[] }
 export type PhotoBatchOut = { upload_batch_id: string; photos: PhotoOut[] }
 
 // ---- 일기 (backend/app/schemas/diaries.py, D36)
-export type Mood = 'SUNNY' | 'CLOUDY' | 'RAINY' | 'MOON'
-/** 기분 날씨 표시 이름 (일기 대화 마지막 칩과 같은 글자) */
-export const MOOD_LABEL: Record<Mood, string> = { SUNNY: '맑음', CLOUDY: '구름', RAINY: '비', MOON: '달' }
+export type Mood = 'GOOD' | 'SO_SO' | 'UPSET' | 'LONELY'
+/** 기분 표시 이름 (일기 대화 마지막 칩과 같은 글자, D75). 얼굴 이모지는 components/MoodIcon */
+export const MOOD_LABEL: Record<Mood, string> = { GOOD: '좋았어요', SO_SO: '그저 그랬어요', UPSET: '속상했어요', LONELY: '쓸쓸했어요' }
 
 // ---- 가족 홈 마음 카드 (backend/app/schemas/mood.py)
 export type MoodDayOut = { date: string; talked: boolean; diary_mood: Mood | null; low: boolean }

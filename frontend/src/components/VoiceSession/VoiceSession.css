@@ -137,7 +137,7 @@
   color: var(--elder-fg, #1f1b2e);
 }
 
-/* 추천 답변 2개 (일기 기분 날씨만 4개) */
+/* 추천 답변 2개 (일기 기분 칩만 4개) */
 .vs-chips {
   flex: none;
   display: grid;
