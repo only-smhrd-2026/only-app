@@ -27,7 +27,7 @@ from app.models import Photo
 from app.services import storage
 
 log = logging.getLogger("app.ai")
-PROMPT_VERSION = "v1"  # 프롬프트·분류 기준을 바꾸면 올린다 — model_version 에 어느 판으로 분류했는지 남는다
+PROMPT_VERSION = "v2"  # 프롬프트·분류 기준을 바꾸면 올린다 — model_version 에 어느 판으로 분류했는지 남는다
 
 
 def _small_jpeg(data: bytes) -> bytes:
