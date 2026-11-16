@@ -1,7 +1,7 @@
 /** HOME_002 — 일기 상세. 하위 화면 틀의 ←를 쓰고, 열람 기록은 이 화면을 열 때만 남긴다(D36). */
 import { useEffect, useRef, useState } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
-import { api } from '../../api/client'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { api, ApiError } from '../../api/client'
 import { MOOD_LABEL, type DiaryOut, type Reaction, type RoomOut, type UserOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
 import { Avatar } from '../../components/FamilyFrame'
@@ -23,6 +23,7 @@ const postedAt = (iso: string) =>
 const iga = (word: string) => ((word.charCodeAt(word.length - 1) - 0xac00) % 28 ? '이' : '가')
 
 function DiaryDetail({ diaryId }: { diaryId: string }) {
+  const nav = useNavigate()
   const diary = useFetch<DiaryOut>(`/api/diaries/${encodeURIComponent(diaryId)}`)
   const rooms = useFetch<RoomOut[]>('/api/rooms')
   const me = useFetch<UserOut>('/api/auth/me')
@@ -31,9 +32,40 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
   const [edit, setEdit] = useState<{ base: DiaryOut; data: DiaryOut } | null>(null)
   const [busy, setBusy] = useState(false)
   const [reactionError, setReactionError] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string>()
+  const deleteRequest = useRef(false)
+  const deleteSheet = useRef<HTMLDialogElement>(null)
+  const cancelDelete = useRef<HTMLButtonElement>(null)
   const d = edit?.base === diary.data ? edit?.data : diary.data
   const room = rooms.data?.find((r) => r.room_id === d?.room_id)
   const mine = d?.reactions.find((r) => r.by === 'FAMILY' && r.user_id === me.data?.user_id)?.kind
+
+  useEffect(() => {
+    if (deleteOpen) {
+      deleteSheet.current?.showModal()
+      cancelDelete.current?.focus()
+    } else {
+      deleteSheet.current?.close()
+    }
+  }, [deleteOpen])
+
+  async function removeDiary() {
+    if (!d?.is_mine || d.author_type !== 'FAMILY' || deleteRequest.current) return
+    deleteRequest.current = true
+    setDeleting(true)
+    setDeleteError(undefined)
+    try {
+      await api<void>(`/api/diaries/${d.diary_id}`, { method: 'DELETE' })
+      nav('/', { replace: true })
+    } catch (e) {
+      setDeleteError(e instanceof ApiError ? e.message : '일기를 지우지 못했어요. 다시 해 주세요.')
+    } finally {
+      deleteRequest.current = false
+      setDeleting(false)
+    }
+  }
 
   // 홈과 같은 API(D54). 응답 일기로 갱신하고 실패하면 기존 선택을 유지한다.
   async function react(kind: Reaction['kind']) {
@@ -180,6 +212,49 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
         <p className="diary-detail-note" role="alert">
           읽음 표시를 남기지 못했어요. 연결을 확인하고 일기를 다시 열어 주세요.
         </p>
+      )}
+      {!elder && d.is_mine && (
+        <>
+          <button
+            type="button"
+            className="fam-text-btn diary-detail-delete"
+            onClick={() => { setDeleteError(undefined); setDeleteOpen(true) }}
+          >
+            이 일기 지우기
+          </button>
+          <dialog
+            ref={deleteSheet}
+            className="fam-sheet diary-detail-delete-sheet"
+            aria-labelledby="diary-delete-title"
+            aria-describedby="diary-delete-description"
+            aria-busy={deleting}
+            onCancel={(e) => { e.preventDefault(); if (!deleteRequest.current) setDeleteOpen(false) }}
+          >
+            <span className="fam-grab" />
+            <h2 id="diary-delete-title">지울까요?</h2>
+            <p id="diary-delete-description">{room.elder_honorific} 가족 소식에서도 사라져요</p>
+            {deleteError && <p className="fam-error" role="alert">{deleteError}</p>}
+            <div className="diary-detail-delete-actions">
+              <button
+                ref={cancelDelete}
+                type="button"
+                className="fam-btn fam-btn--tonal"
+                disabled={deleting}
+                onClick={() => setDeleteOpen(false)}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className="fam-btn diary-detail-delete-confirm"
+                disabled={deleting}
+                onClick={removeDiary}
+              >
+                {deleting ? '지우는 중…' : '지우기'}
+              </button>
+            </div>
+          </dialog>
+        </>
       )}
     </main>
   )
