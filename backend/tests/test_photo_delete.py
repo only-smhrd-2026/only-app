@@ -20,13 +20,17 @@ def upload(client, room, source="FAMILY"):
     return result.json()["photos"][0]
 
 
-def test_delete_own_photo_expires_today_and_preserves_file(client):
+def test_delete_own_photo_expires_today_and_removes_files(client):
     signup(client)
     room = make_room(client)["room_id"]
     photo = upload(client, room)
     pid = photo["photo_id"]
     assert photo["is_mine"] is True
     with SessionLocal() as db:
+        stored = db.get(Photo, pid)
+        stored.thumb_key = stored.object_key.rsplit("/", 1)[0] + "/1.jpg"
+        thumb = stored.thumb_key
+        storage.put(thumb, b"thumbnail")
         db.add_all(
             [
                 DailyPick(room_id=room, photo_id=pid, pick_date=today_kst()),
@@ -41,10 +45,40 @@ def test_delete_own_photo_expires_today_and_preserves_file(client):
     assert next(r for r in client.get("/api/rooms").json() if r["room_id"] == room)["photo_count"] == before - 1
     with SessionLocal() as db:
         assert db.get(Photo, pid).status == "DELETED"
-        assert storage.get(db.get(Photo, pid).object_key) is not None
+        assert storage.get(db.get(Photo, pid).object_key) is None
+        assert storage.get(thumb) is None
         picks = db.scalars(select(DailyPick).where(DailyPick.room_id == room).order_by(DailyPick.pick_date)).all()
         assert [p.status for p in picks] == ["COMPLETED", "EXPIRED"]
     assert client.delete(f"/api/rooms/{room}/photos/{pid}").status_code == 404
+
+
+def test_storage_failure_keeps_204_and_attempts_thumbnail(client, monkeypatch, caplog):
+    signup(client)
+    room = make_room(client)["room_id"]
+    photo = upload(client, room)
+    pid = photo["photo_id"]
+    with SessionLocal() as db:
+        stored = db.get(Photo, pid)
+        key = stored.object_key
+        stored.thumb_key = key.rsplit("/", 1)[0] + "/1.jpg"
+        thumb = stored.thumb_key
+        storage.put(thumb, b"thumbnail")
+        db.commit()
+    real_delete = storage.delete
+
+    def fail_primary_only(target):
+        with SessionLocal() as db:
+            assert db.get(Photo, pid).status == "DELETED"  # DB 저장이 먼저 끝나 있어야 한다
+        if target == key:
+            raise RuntimeError("비밀 사진 설명과 저장소 키")
+        real_delete(target)
+
+    monkeypatch.setattr(storage, "delete", fail_primary_only)
+    assert client.delete(f"/api/rooms/{room}/photos/{pid}").status_code == 204
+    assert storage.get(thumb) is None
+    assert client.get(photo["url"]).status_code == 404
+    assert f"photo={pid}" in caplog.text and "error=RuntimeError" in caplog.text
+    assert "비밀 사진 설명과 저장소 키" not in caplog.text
 
 
 def test_photo_permissions_source_and_is_mine(client):

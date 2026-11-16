@@ -349,4 +349,10 @@ def delete_photo(room_id: int, photo_id: int, user: CurrentUser, db: DB):
         )
         .values(status="EXPIRED")
     )
+    keys = [key for key in dict.fromkeys((photo.object_key, photo.thumb_key)) if key]
     db.commit()
+    for key in keys:
+        try:
+            storage.delete(key)
+        except Exception as exc:
+            log.warning("photo delete photo=%s error=%s", photo_id, type(exc).__name__)

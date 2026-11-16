@@ -40,6 +40,9 @@ class _Local:
         p = self._path(key)
         return p.read_bytes() if p.is_file() else None
 
+    def delete(self, key: str) -> None:
+        self._path(key).unlink(missing_ok=True)
+
 
 class _R2:
     """Cloudflare R2 (S3 호환). R2_* 값이 .env 에 있어야 한다."""
@@ -65,6 +68,9 @@ class _R2:
         except self.client.exceptions.NoSuchKey:
             return None
 
+    def delete(self, key: str) -> None:
+        self.client.delete_object(Bucket=self.bucket, Key=key)
+
 
 _backend: _Local | _R2 | None = None
 
@@ -86,3 +92,9 @@ def get(key: str) -> bytes | None:
     if not valid_key(key):
         return None
     return _get_backend().get(key)
+
+
+def delete(key: str) -> None:
+    if not valid_key(key):
+        raise ValueError("잘못된 key")
+    _get_backend().delete(key)
