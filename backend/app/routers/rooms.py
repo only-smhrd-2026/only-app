@@ -222,3 +222,26 @@ def remove_member(room_id: int, user_id: int, user: CurrentUser, db: DB):
         member.removed_at = now_kst()
         db.commit()
     return OkOut()
+
+
+@router.post("/{room_id}/leave", response_model=OkOut)
+def leave_room(room_id: int, user: CurrentUser, db: DB):
+    require_member(room_id, user, db)
+    member = db.scalar(
+        select(RoomMember)
+        .where(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == user.user_id,
+            RoomMember.removed_at.is_(None),
+        )
+        .with_for_update()
+    )
+    if member is None:
+        raise ApiError(404, "ROOM_NOT_FOUND", "가족방을 찾을 수 없어요")
+    room = db.get(FamilyRoom, room_id)
+    if room.owner_user_id == user.user_id:
+        raise ApiError(400, "OWNER_CANNOT_LEAVE", "방장은 가족방을 나갈 수 없어요")
+    # removed_at은 내보낸 사람(D16) 전용. 나가기는 줄을 지워 초대 링크로 다시 들어올 수 있게 한다.
+    db.delete(member)
+    db.commit()
+    return OkOut()
