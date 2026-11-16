@@ -114,3 +114,10 @@ class RoomSettingsIn(BaseModel):
     tts_speed: Literal["0.80", "0.90", "1.00"] | None = None  # RoomOut과 같이 글자로 받는다 (D74)
     tts_voice: Literal["FEMALE", "MALE"] | None = None  # 어르신께 들려 드리는 목소리 (D74)
     device_input_mode: Literal["VOICE", "BUTTON"] | None = None
+    elder_name: str | None = Field(default=None, min_length=1, max_length=10)
+    elder_honorific: str | None = Field(default=None, min_length=1, max_length=20)
+
+    @field_validator("elder_name", "elder_honorific", mode="before")
+    @classmethod
+    def trim_elder_name(cls, value):
+        return value.strip() if isinstance(value, str) else value
