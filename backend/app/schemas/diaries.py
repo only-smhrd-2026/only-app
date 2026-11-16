@@ -61,6 +61,7 @@ class ReactionOut(BaseModel):
 
 
 class DiaryOut(BaseModel):
+    is_mine: bool = False
     diary_id: int
     room_id: int
     author_type: Literal["ELDER", "FAMILY"]

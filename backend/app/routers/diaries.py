@@ -218,6 +218,7 @@ def _rows(db, room: FamilyRoom, *cond, me: int | None = None, limit: int = 50) -
         key = photo_key if d.illustration_type == "PHOTO" else d.illustration_key
         out.append(
             DiaryOut(
+                is_mine=me is not None and d.author_user_id == me,
                 diary_id=d.diary_id,
                 room_id=d.room_id,
                 author_type=d.author_type,
@@ -437,6 +438,24 @@ def mark_read(diary_id: int, user: CurrentUser, db: DB):
         .where(Diary.diary_id == diary_id, ~Diary.family_read_by.contains([user.user_id]))
         .values(family_read_by=Diary.family_read_by.op("||")(func.jsonb_build_array(user.user_id)))
     )
+    db.commit()
+
+
+@router.delete("/diaries/{diary_id}", status_code=204)
+def delete_diary(diary_id: int, user: CurrentUser, db: DB):
+    diary = db.get(Diary, diary_id, with_for_update=True)
+    member = diary is not None and db.scalar(
+        select(RoomMember.member_id).where(
+            RoomMember.room_id == diary.room_id,
+            RoomMember.user_id == user.user_id,
+            RoomMember.removed_at.is_(None),
+        )
+    )
+    if not member or diary.status != "POSTED":
+        raise ApiError(404, "DIARY_NOT_FOUND", "일기를 찾을 수 없어요")
+    if diary.author_type != "FAMILY" or diary.author_user_id != user.user_id:
+        raise ApiError(403, "NOT_AUTHOR", "내가 쓴 일기만 지울 수 있어요")
+    diary.status = "DELETED"
     db.commit()
 
 

@@ -175,6 +175,7 @@ export type DraftOut = {
   audio_b64: string | null // 본문 + "이대로 올릴까요?" TTS. null 이면 speechSynthesis
 }
 export type DiaryOut = {
+  is_mine: boolean
   diary_id: number
   room_id: number
   author_type: 'ELDER' | 'FAMILY'
