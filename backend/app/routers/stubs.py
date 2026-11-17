@@ -1,8 +1,4 @@
-"""빈 API — 주소와 요청·응답 모양만 있다 (README 9절 "빈 API부터"). 전부 501 을 돌려준다.
-
-담당자가 채울 때 이 파일에서 자기 라우터를 떼어 별도 파일(photos.py, diaries.py …)로 옮기면 된다.
-응답 모델 필드는 테이블명세서·요구사항 기준 초안이며, 바꾸면 김승희(화면)를 리뷰어로.
-"""
+"""꼬마심심이 연동의 미구현 API (2순위, FR-API-001)."""
 
 from datetime import datetime
 from typing import Literal
@@ -18,30 +14,6 @@ def todo(owner: str):
     raise ApiError(501, "NOT_IMPLEMENTED", f"아직 구현 전입니다 (담당: {owner})")
 
 
-# ---------------------------------------------------------------- 사진 (천주웅, FR-ME-001/002/008/009)
-photos = APIRouter(prefix="/rooms/{room_id}/photos", tags=["photos (빈 API)"])
-
-
-# 사진 올리기(POST)·목록(GET)은 routers/photos.py 로 옮김 (박유승, BE-02)
-
-
-# ---------------------------------------------------------------- 일기 (천주웅, FR-DI-008, FR-FD-002/003)
-diaries = APIRouter(tags=["diaries (빈 API)"])
-
-
-# 가족 일기 올리기·어르신 일기 게시·가족방 일기 목록·가족 열람 기록(POST /diaries/{id}/read)은
-# routers/diaries.py 에 있다 (D36)
-
-
-# ---------------------------------------------------------------- 주간 (천주웅 배선 / 홍진성 AI, FR-FD-005~007)
-weekly = APIRouter(prefix="/rooms/{room_id}/weekly", tags=["weekly (빈 API)"])
-
-
-# ---------------------------------------------------------------- 알림 (천주웅, FR-NT-002~004)
-notifications = APIRouter(prefix="/notifications", tags=["notifications (빈 API)"])
-
-
-# ---------------------------------------------------------------- 꼬마심심이 연동 (2순위, FR-API-001)
 integration = APIRouter(prefix="/rooms/{room_id}/integration", tags=["integration (빈 API)"])
 
 
@@ -61,4 +33,4 @@ def set_integration(room_id: int, body: IntegrationIn, user: CurrentUser):
     todo("담당 미정")
 
 
-routers = [photos, diaries, weekly, notifications, integration]
+routers = [integration]
