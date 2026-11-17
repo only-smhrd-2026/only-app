@@ -16,9 +16,12 @@ EXCEPTIONS = {
     ("backend/app/ai/llm.py", "검증 실패: "),  # 내부 예외의 문자열 조각
 }
 TS_STRING = re.compile(r""""(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`""")
+# 마음 체크 6번 = PHQ-9 공식 한국어판 문구 그대로(D66). 검증된 설문은 바꾸면 타당성이 깨져서
+# NFR-DE-003 '실패' 금지의 예외로 둔다(11/17 사용자 결정 — 5주차 문서 고칠 목록)
 KNOWN_MOOD_TEXT = (
     "지난 2주 동안 스스로가 못났다거나 실패했다고 느끼거나, 자신이나 가족을 실망시켰다고 느낀 날이 얼마나 있었어요?"
 )
+EXCEPTIONS.add(("frontend/src/lib/moodCheck.ts", KNOWN_MOOD_TEXT))
 
 
 def python_strings(path):
@@ -108,8 +111,6 @@ def test_fixed_user_text_has_no_banned_words(path):
     for line, value in strings:
         if (relative, value) in EXCEPTIONS:
             continue
-        if relative == "frontend/src/lib/moodCheck.ts" and value == KNOWN_MOOD_TEXT:
-            continue  # 알려진 문장만 별도 strict xfail 검사에서 확인한다.
         words = [word for word in BANNED_WORDS if word in value]
         if elder and "실패" in value:
             words.append("실패")
@@ -118,10 +119,10 @@ def test_fixed_user_text_has_no_banned_words(path):
     assert not hits, "\n".join(hits)
 
 
-@pytest.mark.xfail(strict=True, reason="frontend/src/lib/moodCheck.ts:21 어르신 마음 체크에 '실패' 포함")
-def test_known_mood_prompt_has_no_failure_word():
+def test_mood_exception_is_still_the_official_sentence():
+    """예외는 공식 문구 그 문장 하나 — 문구가 바뀌면 예외도 다시 본다(낡은 예외가 다른 문장을 덮지 않게)."""
     path = ROOT / "frontend/src/lib/moodCheck.ts"
-    assert not any(value == KNOWN_MOOD_TEXT and "실패" in value for _, value in typescript_strings(path))
+    assert any(value == KNOWN_MOOD_TEXT for _, value in typescript_strings(path))
 
 
 def test_new_mood_violation_is_not_masked_by_known_sentence(monkeypatch):

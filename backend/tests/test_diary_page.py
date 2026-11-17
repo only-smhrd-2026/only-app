@@ -52,6 +52,7 @@ def test_cursor_must_be_posted_in_same_room(client):
         diary.room_id = room_id
         diary.status = "DELETED"
         db.commit()
-    assert client.get(f"/api/rooms/{room_id}/diaries?before={diary_id}").status_code == 404
+    # 같은 방의 지운 일기는 기준으로 쓴다 — 보는 사이 지워져도 다음 쪽이 끊기지 않게(다듬기 11/17)
+    assert client.get(f"/api/rooms/{room_id}/diaries?before={diary_id}").status_code == 200
     client.cookies.clear()
     assert client.get(f"/api/rooms/{room_id}/diaries").status_code == 401
