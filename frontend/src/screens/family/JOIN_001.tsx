@@ -79,7 +79,7 @@ export default function JOIN_001() {
     <main className="fam join-page">
       <header className="join-heading">
         <h1>가족방에 들어가기</h1>
-        <p>할머니께 내 소식을 어떻게 읽어 드릴지 정해요</p>
+        <p>어르신께 내 소식을 어떻게 읽어 드릴지 정해요</p>
       </header>
       {statusError && <p className="join-error" role="alert">{statusError}</p>}
       {canRetry && (
@@ -120,7 +120,7 @@ export default function JOIN_001() {
                   <input autoComplete="name" value={name ?? me.data.name} onChange={(e) => setName(e.target.value)} required maxLength={10} />
                 </label>
                 <fieldset className="join-relations">
-                  <legend>할머니와의 관계 <span className="join-required">필수</span></legend>
+                  <legend>어르신과의 관계 <span className="join-required">필수</span></legend>
                   <div className="join-chips">
                     {RELATIONS.map(([tag, label]) => (
                       <label className="join-chip" key={tag}>
@@ -131,7 +131,7 @@ export default function JOIN_001() {
                   </div>
                 </fieldset>
                 <label className="join-field">
-                  <span>할머니가 나를 부르는 말 <small>선택</small></span>
+                  <span>어르신이 나를 부르는 말 <small>선택</small></span>
                   <input value={nickname} onChange={(e) => setNickname(e.target.value)} maxLength={12} placeholder="예: 둘째 손주" aria-describedby="join-nickname-help" />
                   <small id="join-nickname-help">12자까지 쓸 수 있어요</small>
                 </label>
@@ -140,7 +140,7 @@ export default function JOIN_001() {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <path d="M4 9.5v5h3.2L12 18.5v-13L7.2 9.5zM15.5 9a4.2 4.2 0 0 1 0 6M18.3 6.3a8 8 0 0 1 0 11.4" />
                     </svg>
-                    할머니께 이렇게 읽어 드려요
+                    어르신께 이렇게 읽어 드려요
                   </h2>
                   <p aria-live="polite">“{sender}{subjectParticle(sender)} 사진 일기를 보냈어요. 읽어 드릴게요.”</p>
                 </section>
