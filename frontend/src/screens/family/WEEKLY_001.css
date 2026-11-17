@@ -4,7 +4,7 @@
 .weekly-nav { display:flex; align-items:center; gap:4px; margin:0 var(--gut); padding:6px; border-radius:var(--r); background:var(--surface); }
 .weekly-nav > div { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; line-height:1.35; text-align:center; }
 .weekly-nav b { font-size:16px; }
-.weekly-nav small { color:var(--text-2); font-size:13px; }
+.weekly-nav small { color:var(--text-2); font-size:15px; }
 .weekly-nav button:disabled { opacity:.25; }
 .weekly-prev .fam-ic { transform:rotate(180deg); }
 .weekly-screen button:focus-visible { outline:3px solid var(--primary); outline-offset:2px; }
@@ -12,9 +12,9 @@
 .weekly-stat b { font-weight:800; }
 .weekly-card { overflow:hidden; }
 .weekly-card-heading { padding:16px 16px 6px; font-size:16px; font-weight:800; letter-spacing:-.02em; }
-.weekly-card-heading small { margin-left:4px; color:var(--text-3); font-size:13px; font-weight:600; }
+.weekly-card-heading small { margin-left:4px; color:var(--text-3); font-size:15px; font-weight:600; }
 .weekly-week { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; padding:0 12px 14px; text-align:center; }
-.weekly-day { display:flex; flex-direction:column; align-items:center; gap:6px; padding:8px 0 9px; border-radius:12px; color:var(--text-2); font-size:12px; }
+.weekly-day { display:flex; flex-direction:column; align-items:center; gap:6px; padding:8px 0 9px; border-radius:12px; color:var(--text-2); font-size:15px; }
 .weekly-day b { font-weight:600; }
 .weekly-day .elder-ic, .weekly-no-mood { display:block; flex:none; width:22px; height:22px; }
 .weekly-no-mood { color:var(--text-3); line-height:22px; }
@@ -23,7 +23,7 @@
 .weekly-diary-picture { display:grid; place-items:center; width:76px; height:76px; overflow:hidden; border-radius:12px; background:var(--tint-2); }
 .weekly-diary-picture img { width:100%; height:100%; object-fit:contain; }
 .weekly-diary-picture .elder-ic { width:30px; height:30px; }
-.weekly-diary small { display:block; margin-top:5px; font-size:12px; }
+.weekly-diary small { display:block; margin-top:5px; font-size:15px; }
 
 /* D67: 안부 한 줄과 사진·날짜·Q·A는 기존 표시 방식을 유지한다. */
 .weekly-note { padding:16px; border:1px solid var(--primary); }
@@ -32,9 +32,9 @@
 .weekly-qa + .weekly-qa { border-top:1px solid var(--line); }
 .weekly-qa .weekly-thumb { flex:none; width:96px; height:72px; min-height:0; }
 .weekly-qa-text { display:flex; flex-direction:column; gap:4px; min-width:0; overflow-wrap:anywhere; }
-.weekly-qa-text small { color:var(--text-3); font-size:12.5px; }
-.weekly-q { color:var(--text-2); font-size:14px; }
+.weekly-qa-text small { color:var(--text-3); font-size:15px; }
+.weekly-q { color:var(--text-2); font-size:15px; }
 .weekly-a { font-weight:700; }
 .weekly-empty { display:flex; flex-direction:column; align-items:center; gap:8px; padding:26px 24px; color:var(--text-2); text-align:center; }
 .weekly-empty b { color:var(--text); font-size:16px; }
-.weekly-empty p { font-size:14px; }
+.weekly-empty p { font-size:15px; }
