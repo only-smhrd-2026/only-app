@@ -405,6 +405,13 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
   const mood = useFetch<MoodWeekOut>(`/api/rooms/${room.room_id}/mood-week`)
   // 이모지로 바뀐 일기. 다시 읽은 목록이 오면 버린다(서버가 이미 반영)
   const [edits, setEdits] = useState<{ base?: DiaryListOut; byId: Record<number, DiaryOut> }>({ byId: {} })
+  const [older, setOlder] = useState<{
+    base: DiaryListOut
+    diaries: DiaryOut[]
+    hasMore: boolean
+    busy: boolean
+    error?: string
+  }>()
 
   // 설치형 앱은 다시 열어도 화면이 새로 뜨지 않는다 → 앱으로 돌아올 때마다 다시 읽는다
   const reloadDiaries = diaries.reload
@@ -412,6 +419,7 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
   useEffect(() => {
     const onShow = () => {
       if (document.visibilityState !== 'visible') return
+      setOlder(undefined)
       reloadDiaries()
       reloadMood()
     }
@@ -426,7 +434,28 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
   const base = diaries.data
   const byId = edits.base === base ? edits.byId : {}
   const update = (d: DiaryOut) => setEdits({ base, byId: { ...byId, [d.diary_id]: d } })
-  const items = base.diaries.map((d) => byId[d.diary_id] ?? d)
+  const page = older?.base === base ? older : undefined
+  const items = [...base.diaries, ...(page?.diaries ?? [])].map((d) => byId[d.diary_id] ?? d)
+  const hasMore = page?.hasMore ?? base.has_more
+
+  async function loadMore() {
+    if (!hasMore || page?.busy || diaries.loading || items.length === 0) return
+    const pending = { base, diaries: page?.diaries ?? [], hasMore, busy: true }
+    setOlder(pending)
+    try {
+      const next = await api<DiaryListOut>(
+        `/api/rooms/${room.room_id}/diaries?before=${items[items.length - 1].diary_id}`,
+      )
+      // 복귀로 목록을 초기화한 뒤 도착한 이전 요청은 버린다.
+      setOlder((current) => current === pending
+        ? { base, diaries: [...pending.diaries, ...next.diaries], hasMore: next.has_more, busy: false }
+        : current)
+    } catch (e) {
+      setOlder((current) => current === pending
+        ? { ...pending, busy: false, error: e instanceof Error ? e.message : '지난 일기를 불러오지 못했어요. 다시 눌러 주세요.' }
+        : current)
+    }
+  }
   if (items.length === 0 && mood.data.talked_days === 0) return <StartHome room={room} reloadRooms={reloadRooms} />
 
   // 날짜별로 묶는다 (목록은 최신 순)
@@ -449,6 +478,18 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
           ))}
         </Fragment>
       ))}
+      {page?.error && <p className="fam-error" role="alert">{page.error}</p>}
+      {hasMore && items.length > 0 && (
+        <button
+          type="button"
+          className="fam-btn fam-btn--tonal fam-btn--block"
+          onClick={loadMore}
+          disabled={page?.busy || diaries.loading}
+          aria-busy={page?.busy ?? false}
+        >
+          {page?.busy ? '지난 일기 불러오는 중…' : '지난 일기 더 보기'}
+        </button>
+      )}
       {items.length === 0 && <Empty room={room} />}
     </div>
   )
