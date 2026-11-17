@@ -28,6 +28,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
   const rooms = useFetch<RoomOut[]>('/api/rooms')
   const me = useFetch<UserOut>('/api/auth/me')
   const readRequest = useRef<Promise<unknown> | null>(null)
+  const photoZoom = useRef<HTMLDialogElement>(null)
   const [readError, setReadError] = useState(false)
   const [edit, setEdit] = useState<{ base: DiaryOut; data: DiaryOut } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -157,12 +158,17 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
           </div>
         </header>
         {hasPicture ? (
-          <div className="diary-detail-photo">
+          <button
+            type="button"
+            className="diary-detail-photo"
+            aria-label={d.illustration_type === 'AI_DRAWING' ? '그림일기 그림 크게 보기' : '일기 사진 크게 보기'}
+            onClick={() => photoZoom.current?.showModal()}
+          >
             <img src={d.illustration_url!} alt={d.illustration_type === 'AI_DRAWING' ? '그림일기 그림' : '일기 사진'} />
             {d.illustration_type === 'AI_DRAWING' && (
               <span className="diary-detail-tag"><FamIcon name="sparkle" />그림일기</span>
             )}
-          </div>
+          </button>
         ) : (
           <div className="diary-detail-mood-pic" role="img" aria-label={`일기 기분 · ${MOOD_LABEL[d.mood]}`}>
             <MoodIcon mood={d.mood} />
@@ -208,6 +214,25 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
           </p>
         )}
       </article>
+      {hasPicture && (
+        <dialog
+          ref={photoZoom}
+          className="diary-detail-zoom"
+          aria-label={d.illustration_type === 'AI_DRAWING' ? '그림일기 그림 크게 보기' : '일기 사진 크게 보기'}
+          onClick={() => photoZoom.current?.close()}
+        >
+          <img src={d.illustration_url!} alt={d.illustration_type === 'AI_DRAWING' ? '그림일기 그림' : '일기 사진'} />
+          <a
+            className="diary-detail-save"
+            href={d.illustration_url!}
+            download={`하루한장_${new Date(d.posted_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })}.jpg`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            사진 저장
+          </a>
+          <p>화면을 누르면 닫혀요</p>
+        </dialog>
+      )}
       {readError && (
         <p className="diary-detail-note" role="alert">
           읽음 표시를 남기지 못했어요. 연결을 확인하고 일기를 다시 열어 주세요.
