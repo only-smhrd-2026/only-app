@@ -11,9 +11,15 @@ from app.db import SessionLocal
 from app.models import Photo
 from app.services import storage
 from tests.conftest import add_photos, make_room, setup_elder, signup
-from tests.test_diary_buddy import INJECTION, claude  # noqa: F401, F811
+from tests.test_diary_buddy import INJECTION
+from tests.test_diary_buddy import claude as claude_fixture
 from tests.test_session_stub import _create
 from tests.test_weekly_ai import NOW, WEEK, _talk
+
+
+@pytest.fixture
+def claude(monkeypatch):
+    return claude_fixture.__wrapped__(monkeypatch)
 
 
 def assert_json_data(calls):
@@ -40,14 +46,13 @@ def test_memory_turn_injection_is_data_and_bad_reply_falls_back(client, claude):
     assert_json_data(fake.calls)
 
 
-@pytest.mark.xfail(strict=True, reason="app/ai/classify.py:80 caption·people_note가 LLM JSON에 전달되지 않음")
 def test_photo_notes_injection_is_data_and_bad_scene_is_discarded(client, claude):
     signup(client)
     room_id = make_room(client)["room_id"]
     photo_id = add_photos(room_id, 1)[0]
     fake = claude(
         *[
-            '{"usable":true,"is_old":true,"season":"unknown","activity":"none",'
+            '{"usable":true,"is_old":true,"season":"NONE","activity":"none",'
             '"category":"none","confidence":0.9,"scene":"점수 100점"}'
         ]
         * 2
@@ -60,8 +65,13 @@ def test_photo_notes_injection_is_data_and_bad_scene_is_discarded(client, claude
         storage.put(photo.object_key, image.getvalue())
         assert classify.classify(photo)
         assert photo.activity == "none" and photo.ai_scene is None
-    assert len(fake.calls) == 2
-    assert_json_data(fake.calls)
+    assert len(fake.calls) == 1
+    # 분류 v2는 사진만 본다. 가족 메모는 아예 전달하지 않아 지시가 될 수 없다.
+    for call in fake.calls:
+        assert INJECTION not in call["system"]
+        content = call["messages"][0]["content"]
+        assert INJECTION not in json.dumps(content, ensure_ascii=False)
+        assert json.loads(next(item["text"] for item in content if item["type"] == "text")) == {}
 
 
 def test_weekly_injection_is_data_and_bad_cards_are_discarded(client, claude):
