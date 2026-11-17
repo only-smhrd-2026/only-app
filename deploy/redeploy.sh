@@ -87,11 +87,7 @@ cron_command="${cron_command//%/\\%}"
 git log -1 --oneline
 docker compose --profile deploy ps
 # 화면은 다단계 Docker 빌드로 Caddy 이미지의 /srv에 들어간다.
-if [[ -d frontend/dist/assets ]]; then
-    find frontend/dist/assets -maxdepth 1 -type f -name 'index-*.js' -printf '%f\n'
-else
-    docker compose exec -T caddy sh -c 'for asset in /srv/assets/index-*.js; do
-        [ -f "$asset" ] || exit 1
-        basename "$asset"
-    done'
-fi
+docker compose exec -T caddy sh -c 'for asset in /srv/assets/index-*.js; do
+    [ -f "$asset" ] || exit 1
+    basename "$asset"
+done'
