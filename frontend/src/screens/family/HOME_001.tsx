@@ -137,7 +137,17 @@ function MoodCard({ week }: { week: MoodWeekOut }) {
 /** '○월 ○째 주 이야기가 도착했어요' 띠 — 그 주를 주간 이야기 화면에서 열어 보기 전까지만 (목업 ②, lib/weeklySeen) */
 function WeeklyBanner({ room }: { room: RoomOut }) {
   const nav = useNavigate()
-  const { data } = useFetch<WeeklyOut>(`/api/rooms/${room.room_id}/weekly`) // 아직 없으면 404 → 띠 없음
+  const { data, reload } = useFetch<WeeklyOut>(`/api/rooms/${room.room_id}/weekly`) // 아직 없으면 404 → 띠 없음
+  // 설치형 앱으로 돌아오면 새 주간 이야기가 왔는지 다시 읽는다
+  useEffect(() => {
+    const onShow = () => {
+      if (document.visibilityState !== 'visible') return
+      reload()
+    }
+    document.addEventListener('visibilitychange', onShow)
+    return () => document.removeEventListener('visibilitychange', onShow)
+  }, [reload])
+
   if (!data || weeklySeen(room.room_id) === data.week_start) return null
   const d = day(data.week_start)
   const cards = data.qa_list.length
