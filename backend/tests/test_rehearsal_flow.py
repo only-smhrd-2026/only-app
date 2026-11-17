@@ -92,7 +92,7 @@ def test_rehearsal_flow(client):
     assert heard.status_code == 204
     after = client.get("/api/elder/family-news")
     assert after.status_code == 200
-    assert after.json()["diaries"] == [] and after.json()["hearts"] == []
+    assert after.json() == {"diaries": [], "hearts": []}
     notices = client.get("/api/notifications")
     assert notices.status_code == 200
     assert any(n["kind"] == "DIARY_POSTED" and n["room_id"] == room for n in notices.json()["notifications"])
