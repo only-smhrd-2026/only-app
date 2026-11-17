@@ -99,6 +99,7 @@ type Sheet =
   | { t: 'member'; m: MemberOut }
   | { t: 'kick'; m: MemberOut }
   | { t: 'unlink' }
+  | { t: 'leave' }
   | { t: 'set'; s: SetDef }
   | TextSheet
 
@@ -241,6 +242,26 @@ function RoomTab() {
       setError(msgOf(e))
     }
     setBusy(false)
+  }
+
+  /** [나가기] (방장 아닌 가족) — 성공하면 가족 홈을 새로 연다(가족방 목록을 처음부터 다시 읽게).
+   * 기억해 둔 가족방 번호(haru.fam.room)는 지우지 않는다 — 위 막대·알림이 목록에 없는 방이면 첫 가족방으로 간다 */
+  async function leave(r: RoomOut) {
+    if (busy) return
+    setBusy(true)
+    setError(undefined)
+    try {
+      await api(`/api/rooms/${r.room_id}/leave`, { method: 'POST' }) // 본문 없어도 method 를 적는다(D34)
+    } catch (e) {
+      // 404 = 이미 이 방 구성원이 아님(다른 기기에서 나감·그새 내보내짐) → 나간 것과 같다
+      if (!(e instanceof ApiError && e.status === 404)) {
+        setError(msgOf(e))
+        setBusy(false)
+        return
+      }
+    }
+    // replace — 뒤로 가기로 나간 방 화면('찾을 수 없어요')에 돌아오지 않게. busy 는 그대로 둬 새로 열리는 동안 다시 못 누름
+    window.location.replace('/')
   }
 
   /** [링크 만들고 보내기] — 폰 공유 창(카카오톡·문자), 없으면 복사, 둘 다 안 되면 판 안에 주소 (HOME_001 시작 3단계와 같은 방법) */
@@ -489,6 +510,13 @@ function RoomTab() {
         </p>
       </section>
 
+      {/* 방장은 나갈 수 없다(서버 OWNER_CANNOT_LEAVE) — 방장 아닌 가족에게만 */}
+      {!owner && (
+        <button type="button" className="fam-text-btn gr-danger gr-leave" onClick={() => open({ t: 'leave' })}>
+          이 가족방 나가기
+        </button>
+      )}
+
       {sheet && (
         <>
           <button type="button" className="fam-scrim" aria-label="닫기" onClick={close} />
@@ -675,6 +703,24 @@ function RoomTab() {
                 </div>
               </form>
             )}
+            {sheet.t === 'leave' && (
+              <>
+                <h2>
+                  {room.elder_name} {hon}네 가족방에서 나갈까요?
+                </h2>
+                <p className="gr-sheet-text">
+                  나가면 이 가족방 일기와 사진을 볼 수 없어요. 다시 들어오려면 초대 링크를 받아요. 내가 쓴 일기는 남아요.
+                </p>
+                <div className="gr-cta gr-cta-two">
+                  <button type="button" className="fam-btn fam-btn--tonal" onClick={close}>
+                    취소
+                  </button>
+                  <button type="button" className="fam-btn gr-btn-danger" disabled={busy} onClick={() => leave(room)}>
+                    {busy ? '나가는 중…' : '나가기'}
+                  </button>
+                </div>
+              </>
+            )}
             {sheet.t === 'unlink' && (
               <>
                 <h2>{hon} 폰 연결을 해제할까요?</h2>
@@ -719,6 +765,7 @@ function sheetLabel(s: Sheet, hon: string) {
   if (s.t === 'member') return `${s.m.name} 더 보기`
   if (s.t === 'kick') return `${s.m.name}님 내보내기`
   if (s.t === 'set') return s.s.name
+  if (s.t === 'leave') return '가족방 나가기'
   if (s.t === 'text') return s.k === 'nickname' ? `${s.m.name}님 호칭 고치기` : `${TEXTS[s.k].name} 고치기`
   return `${hon} 폰 연결 해제`
 }

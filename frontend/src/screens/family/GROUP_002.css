@@ -57,6 +57,7 @@
 .gr-cta-two { display:flex; gap:8px; }
 .gr-cta-two .fam-btn { flex:1; }
 .gr-btn-danger { background:var(--danger); color:#fff; }
+.gr-leave { align-self:center; min-height:44px; margin:4px 0 8px; } /* 맨 아래 [이 가족방 나가기] — 누르는 곳 44px */
 .gr-person { display:flex; align-items:center; gap:12px; padding:0 12px 10px; }
 .gr-person > div { display:flex; flex-direction:column; line-height:1.35; }
 .gr-person small { font-size:13px; color:var(--text-3); }
