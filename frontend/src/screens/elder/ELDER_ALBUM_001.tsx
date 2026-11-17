@@ -23,7 +23,14 @@ export default function ELDER_ALBUM_001() {
   // 응답을 못 받아 같은 사진을 다시 누르더라도 서버에서 대화를 중복으로 만들지 않는다.
   const sessionIds = useRef(new Map<number, string>())
 
-  useEffect(() => () => stopSpeaking(), []) // 떠나면 안내 소리를 멈춘다 — 다음 화면 첫 질문과 겹치지 않게
+  const message = loading ? undefined : error
+    ? error.code === 'DEVICE_REQUIRED' ? '가족이 보낸 연결 링크를 먼저 열어 주세요.' : error.message
+    : data ? data.photos.length ? '이야기할 사진을 눌러 주세요.' : '아직 사진이 없어요.' : undefined
+
+  useEffect(() => {
+    if (message) void speak(message, speed)
+    return () => stopSpeaking() // 떠나면 안내 소리를 멈춘다 — 다음 화면 첫 질문과 겹치지 않게
+  }, [message, speed])
 
   async function startMemory(photo: AlbumOut['photos'][number]) {
     if (starting.current) return
@@ -62,7 +69,7 @@ export default function ELDER_ALBUM_001() {
       ) : error ? (
         <>
           <p className="elder-text" role="alert">
-            {error.code === 'DEVICE_REQUIRED' ? '가족이 보낸 연결 링크를 먼저 열어 주세요.' : error.message}
+            {message}
           </p>
           {error.code !== 'DEVICE_REQUIRED' && <button className="elder-btn" onClick={reload}>다시 보기</button>}
         </>
@@ -70,12 +77,12 @@ export default function ELDER_ALBUM_001() {
         <>
           {data.photos.length > 0 && (
             <p className="elder-text" role="status">
-              {limitMessage ?? (busy ? '잠시만요…' : '이야기할 사진을 눌러 주세요.')}
+              {limitMessage ?? (busy ? '잠시만요…' : message)}
             </p>
           )}
           {startError && <p className="elder-text" role="alert">{startError}</p>}
           {data.photos.length === 0 ? (
-            <p className="elder-text">아직 사진이 없어요.</p>
+            <p className="elder-text">{message}</p>
           ) : (
             <div className="elder-album-grid" role="group" aria-label="사진 목록" aria-busy={busy}>
               {data.photos.map((photo, i) => (

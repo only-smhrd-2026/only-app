@@ -11,6 +11,7 @@ import ElderPhoto from '../../components/ElderPhoto'
 import { useLive, type ElderNavState } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
 import { speak, stopSpeaking } from '../../lib/audio'
+import './ELDER_FAMILY_001.css'
 
 const KIND_WORD = { HEART: '하트', SMILE: '웃음', CLAP: '박수' } as const
 const MAX_HEART_LINES = 4 // 한 화면(384×700)에 들어가는 줄 수
@@ -50,6 +51,51 @@ const heartIcon = (
     <path d="M12 20.5s-7.5-4.6-7.5-10.2a4.3 4.3 0 0 1 7.5-2.8 4.3 4.3 0 0 1 7.5 2.8c0 5.6-7.5 10.2-7.5 10.2z" />
   </svg>
 )
+
+/** 긴 가족 소식도 글자 크기를 유지하며 한 화면 안에서 쪽을 넘겨 읽는다. */
+function FamilyPaper({ body, saying, onRead }: { body: string; saying: boolean; onRead: () => void }) {
+  const text = useRef<HTMLSpanElement>(null)
+  const [page, setPage] = useState(0)
+  const [count, setCount] = useState(1)
+
+  useEffect(() => {
+    const element = text.current
+    if (!element) return
+    const measure = () => {
+      if (!element.clientWidth) return
+      const pages = Math.max(1, Math.round(element.scrollWidth / element.clientWidth))
+      setCount(pages)
+      setPage((current) => Math.min(current, pages - 1))
+    }
+    const size = new ResizeObserver(measure)
+    size.observe(element)
+    const font = new MutationObserver(measure)
+    font.observe(document.documentElement, { attributes: true, attributeFilter: ['data-font'] })
+    void document.fonts.ready.then(measure)
+    return () => {
+      size.disconnect()
+      font.disconnect()
+    }
+  }, [body])
+
+  return (
+    <div className="family-reading">
+      <button type="button" className={`elder-paper family-paper${saying ? ' elder-saying' : ''}`} onClick={onRead}>
+        <span className="family-paper-window">
+          <span ref={text} className="family-paper-pages" style={{ transform: `translateX(-${page * 100}%)` }}>{body}</span>
+        </span>
+        {speaker}
+      </button>
+      {count > 1 && (
+        <div className="family-pages" aria-label="가족 소식 글 넘기기">
+          <button type="button" className="elder-chip" disabled={page === 0} onClick={() => setPage((current) => current - 1)}>이전 글</button>
+          <span role="status" aria-label={`전체 ${count}쪽 중 ${page + 1}쪽`}>{page + 1} / {count}</span>
+          <button type="button" className="elder-chip" disabled={page === count - 1} onClick={() => setPage((current) => current + 1)}>다음 글</button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function ELDER_FAMILY_001() {
   const nav = useNavigate()
@@ -153,7 +199,7 @@ export default function ELDER_FAMILY_001() {
   }
 
   return (
-    <main className="elder elder--fit">
+    <main className="elder elder--fit elder-family">
       {loading ? (
         <p className="elder-text" role="status">잠시만요…</p>
       ) : error ? (
@@ -177,10 +223,7 @@ export default function ELDER_FAMILY_001() {
         <>
           <div className="elder-who"><span>{sender}</span><small>{index + 1} / {data!.diaries.length}</small></div>
           {diary.illustration_url && <ElderPhoto src={diary.illustration_url} alt="가족이 보낸 사진" />}
-          <button type="button" className={`elder-paper${saying ? ' elder-saying' : ''}`} onClick={() => replay(diary.body)}>
-            <span>{diary.body}</span>
-            {speaker}
-          </button>
+          <FamilyPaper key={diary.diary_id} body={diary.body} saying={saying} onRead={() => replay(diary.body)} />
           {readError && <p className="elder-text" role="alert">{readError}</p>}
           <div className="elder-two elder-bottom">
             <button type="button" className="elder-btn elder-btn--secondary elder-like" aria-pressed={isLiked} onClick={() => void toggleLike()}>
