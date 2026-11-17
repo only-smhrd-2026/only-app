@@ -26,6 +26,35 @@ export default function ELDER_CONNECT_001() {
   const [step, setStep] = useState<'invite' | 'permissions' | 'voice'>('invite')
   const [picked, setPicked] = useState<'FEMALE' | 'MALE'>()
   const connected = useRef(false)
+  const inviteGuidance = status?.valid
+    ? `하루한장. 가족 사진을 보며 이야기하고, 그림일기를 써서 가족과 나누는 앱이에요. ${status.elder_name} 님, 가족이 초대했어요. 아래 시작하기를 한 번 눌러 주세요. 연결한 뒤 크롬 메뉴에서 홈 화면에 추가를 누르면 다음부터 바로 열려요.`
+    : '이 링크는 더 쓸 수 없어요. 가족에게 새 링크를 받아 주세요.'
+  const guidance = error ?? {
+    invite: status ? inviteGuidance : undefined,
+    permissions: '안녕하세요, 저는 꼬마심심이예요. 마이크로 말씀을 들어요. 휴대폰에서 마이크 권한을 물으면 허용을 눌러 주세요. 허용하지 않아도 시작할 수 있어요.',
+    voice: undefined,
+  }[step]
+
+  useEffect(() => {
+    if (!guidance) return
+    let alive = true
+    const retry = () => {
+      window.removeEventListener('pointerup', retry)
+      window.removeEventListener('keydown', retry)
+      void speak(guidance)
+    }
+    void speak(guidance).then((heard) => {
+      if (heard || !alive) return
+      window.addEventListener('pointerup', retry, { once: true })
+      window.addEventListener('keydown', retry, { once: true })
+    })
+    return () => {
+      alive = false
+      window.removeEventListener('pointerup', retry)
+      window.removeEventListener('keydown', retry)
+      stopSpeaking()
+    }
+  }, [guidance])
 
   useEffect(() => {
     if (!token) return
@@ -62,7 +91,6 @@ export default function ELDER_CONNECT_001() {
       await api('/api/devices/me/permissions', { method: 'PATCH', body: { perm_mic } })
       setStep('voice')
       setBusy(false)
-      void say(PROMPT.voiceAsk, 0.9, null, 'FEMALE') // 고르기 전이라 기본(여자) 목소리로 묻는다 (D74)
     } catch (e) {
       fail(e)
     }
@@ -93,9 +121,14 @@ export default function ELDER_CONNECT_001() {
     // 서버 문장이 아닌 오류(응답이 중간에 끊김 등)는 영어라 그대로 보여 주거나 읽지 않는다
     const message = e instanceof ApiError ? e.message : '연결하지 못했어요. 다시 눌러 주세요.'
     setError(message)
-    void speak(message)
     setBusy(false)
   }
+
+  useEffect(() => {
+    if (step !== 'voice') return
+    void say(PROMPT.voiceAsk, 0.9, null, 'FEMALE') // 고르기 전이라 기본(여자) 목소리로 묻는다 (D74)
+    return () => stopSpeaking()
+  }, [step])
 
   return (
     <main className="elder elder--fit elder-connect">
