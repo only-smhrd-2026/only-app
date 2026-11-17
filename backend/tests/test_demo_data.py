@@ -28,6 +28,7 @@ def test_fill_preserves_existing_and_is_repeatable(client):
             "weekly_summaries": 1,
             "hearts": 1,
             "notifications": 3,
+            "story_facts": 1,
         }
         talks = db.scalars(select(TalkSession).where(TalkSession.room_id == room_id)).all()
         assert len({s.started_at.astimezone(TZ).date() for s in talks}) == 5
@@ -99,3 +100,22 @@ def test_cli_force_outputs_counts_without_personal_text(client, monkeypatch, cap
     demo_data.main()
     output = capsys.readouterr().out
     assert "sessions: 0" in output and "diaries: 0" in output and "notifications: 0" in output
+
+
+def test_demo_story_is_repeatable_and_available_next_day(client, monkeypatch):
+    from datetime import timedelta
+
+    from app.ai import story
+    from app.models import StoryFact
+
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    with SessionLocal() as db:
+        fill(db, room_id, NOW)
+        fill(db, room_id, NOW)
+        facts = db.scalars(select(StoryFact).where(StoryFact.room_id == room_id)).all()
+        assert len(facts) == 1
+        fact = facts[0]
+        assert fact.source_turn_no == 2 and fact.used_at is None
+        monkeypatch.setattr(story, "today_kst", lambda: (NOW + timedelta(days=1)).date())
+        assert story.pick(db, room_id).fact_id == fact.fact_id
