@@ -2,6 +2,14 @@
 # 화면(frontend/dist)은 Caddy 가 직접 서빙, /api/* 만 api 컨테이너로 넘김. 단일 오리진이라 CORS 없음.
 {$DOMAIN} {
 	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(self), microphone=(self), geolocation=()"
+		X-Frame-Options "DENY"
+		-Server
+	}
 
 	# 사진 업로드 배치(장당 10MB × 20장 + 여유)만 크게, 나머지 API 는 5MB (이미지 폭탄 1차 방어)
 	@upload path /api/rooms/*/photos
