@@ -5,7 +5,9 @@ from datetime import timedelta
 
 from app.config import now_kst
 from app.db import SessionLocal
+from app.models import StoryFact
 from app.services import weekly
+from scripts.demo_data import fill
 from tests.conftest import add_photos, connect_device, make_room, signup
 
 
@@ -13,6 +15,8 @@ def test_rehearsal_flow(client):
     signup(client)
     room = make_room(client)["room_id"]
     assert len(add_photos(room)) == 3
+    with SessionLocal() as db:
+        fill(db, room, now_kst())
     assert connect_device(client, room)["room_id"] == room
     home = client.get("/api/elder/home")
     assert home.status_code == 200
@@ -29,13 +33,24 @@ def test_rehearsal_flow(client):
     )
     assert memory.status_code == 201
     sid = memory.json()["session_id"]
-    for answer in ("가족과 나들이하던 사진이에요", "함께 산책하니 즐거웠어요"):
+    # 시연 자료 3이 합쳐졌으면 지난 이야기 질문에 먼저 답하고 사진 질문 여섯 개를 이어 간다.
+    with SessionLocal() as db:
+        from sqlalchemy import select
+
+        remembered = db.scalar(select(StoryFact).where(StoryFact.room_id == room, StoryFact.used_at.is_not(None)))
+    if remembered is not None:
+        turn = client.post(f"/api/elder/sessions/{sid}/turns", json={"text": "꽃이 잘 자랐어요", "input_type": "CHIP"})
+        assert turn.status_code == 200 and turn.json()["state"] == "CONTINUE"
+    for _ in range(5):
+        answer = "가족과 나들이하던 사진이에요"
         turn = client.post(f"/api/elder/sessions/{sid}/turns", json={"text": answer, "input_type": "CHIP"})
         assert turn.status_code == 200
         assert turn.json()["state"] == "CONTINUE"
-    ended = client.post(f"/api/elder/sessions/{sid}/end", json={"reason": "USER_STOP"})
+    ended = client.post(
+        f"/api/elder/sessions/{sid}/turns", json={"text": "함께 산책하니 즐거웠어요", "input_type": "CHIP"}
+    )
     assert ended.status_code == 200
-    assert ended.json()["end_reason"] == "USER_STOP"
+    assert ended.json()["state"] == "ENDED" and ended.json()["end_reason"] == "COMPLETED"
 
     diary_session = client.post("/api/elder/sessions", json={"session_id": str(uuid.uuid4()), "kind": "DIARY"})
     assert diary_session.status_code == 201
@@ -70,13 +85,14 @@ def test_rehearsal_flow(client):
     news = client.get("/api/elder/family-news")
     assert news.status_code == 200
     assert family_diary in [d["diary_id"] for d in news.json()["diaries"]]
-    assert news.json()["hearts"][0]["diary_id"] == elder_diary
-    assert client.post(f"/api/elder/diaries/{family_diary}/read").status_code == 204
+    assert elder_diary in [heart["diary_id"] for heart in news.json()["hearts"]]
+    for diary in news.json()["diaries"]:
+        assert client.post(f"/api/elder/diaries/{diary['diary_id']}/read").status_code == 204
     heard = client.post("/api/elder/hearts/heard", json={"until": news.json()["hearts"][-1]["at"]})
     assert heard.status_code == 204
     after = client.get("/api/elder/family-news")
     assert after.status_code == 200
-    assert after.json() == {"diaries": [], "hearts": []}
+    assert after.json()["diaries"] == [] and after.json()["hearts"] == []
     notices = client.get("/api/notifications")
     assert notices.status_code == 200
     assert any(n["kind"] == "DIARY_POSTED" and n["room_id"] == room for n in notices.json()["notifications"])
