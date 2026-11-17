@@ -13,6 +13,7 @@ import { useLive } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
 import { setVoice, speak, stopSpeaking } from '../../lib/audio'
 import { moodSnoozed, snoozeMood } from '../../lib/moodCheck'
+import { setElderFont } from '../../lib/elderFont'
 import { readPaused, resumePath } from '../../lib/pausedSession'
 import ELDER_MOOD_001 from './ELDER_MOOD_001'
 import ELDER_TODAY_001 from './ELDER_TODAY_001'
@@ -78,7 +79,7 @@ export default function ELDER_HOME_001() {
 
   useEffect(() => {
     if (!home) return
-    document.documentElement.dataset.font = home.settings.font_size
+    setElderFont(home.settings.font_size)
     setVoice(home.settings.tts_voice) // 고정 안내 mp3 도 가족방 목소리로 (D74)
   }, [home])
 

@@ -14,6 +14,7 @@
   object-fit: contain;
 }
 .elder-connect-invitation { font-weight: 700; }
+.elder-connect-note { font-size: var(--elder-font-size-long); } /* 마음 알림 안내 — 긴 글 크기(22) */
 .elder-connect-start {
   flex-shrink: 0;
 }

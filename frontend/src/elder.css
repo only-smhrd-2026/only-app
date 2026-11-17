@@ -171,8 +171,8 @@ html[data-font='XXL'] { --elder-font-size: 28px; --elder-font-size-s: 26px; --el
 .elder-hearts-line { display: block; }
 /* 마음 체크 (D66): 진행 점 8개 · 보기 4개(답 버튼 56px, 세로로 쌓기) · 초대 시트의 하트 */
 .elder-steps { flex: none; display: flex; justify-content: center; gap: 10px; padding-top: 4px; }
-.elder-steps i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--elder-fg); opacity: .45; }
-.elder-steps i.on { background: var(--elder-fg); opacity: 1; }
+.elder-steps i { width: 14px; height: 14px; border-radius: 50%; background: var(--elder-fg); opacity: .25; } /* 누를 수 없어 테두리 없이 채운 점만 (D51 ④) */
+.elder-steps i.on { opacity: 1; }
 .elder-answers { flex: none; display: grid; gap: 10px; margin-top: auto; }
 .elder-answers .elder-chip { border-radius: var(--elder-radius); border-color: var(--elder-fg); font-weight: 800; }
 .elder-mood-heart { flex: none; align-self: center; width: 44px; height: 44px; color: var(--elder-primary); fill: currentColor; }

@@ -6,7 +6,6 @@ import { useEffect } from 'react'
 import { say, stopSpeaking } from '../../lib/audio'
 import { MOOD_PROMPT } from '../../lib/moodCheck'
 import './ELDER_TODAY_001.css'
-import './ELDER_MOOD_001.css'
 
 type Props = { speed: number; onYes: () => void; onLater: () => void }
 
@@ -29,7 +28,7 @@ export default function ELDER_MOOD_001({ speed, onYes, onLater }: Props) {
 
   return (
     <div className="elder-today-overlay">
-      <section className="elder-today-sheet elder-mood-invite" role="dialog" aria-modal="true" aria-labelledby="elder-mood-title">
+      <section className="elder-today-sheet" role="dialog" aria-modal="true" aria-labelledby="elder-mood-title">
         <span className="elder-today-handle" aria-hidden="true" />
         <svg className="elder-mood-heart" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 20.5s-7.5-4.6-7.5-10.2a4.3 4.3 0 0 1 7.5-2.8 4.3 4.3 0 0 1 7.5 2.8c0 5.6-7.5 10.2-7.5 10.2z" />

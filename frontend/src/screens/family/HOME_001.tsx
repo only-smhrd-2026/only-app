@@ -128,6 +128,11 @@ function MoodCard({ week }: { week: MoodWeekOut }) {
           <p className="home-fine">
             진단이 아니에요. 대화와 일기에서 느껴진 분위기만 알려 드리고, 무슨 말씀을 하셨는지는 전하지 않아요.
           </p>
+          {/* 마음 알림 안내 (D55 — 처리방침 확정 11/17) */}
+          <p className="home-fine">
+            기운 없는 말씀이 잦거나 위급한 말씀을 하시면 가족 모두에게 전화 한 통 알림을 보내요 ·{' '}
+            <Link to="/policy#mood">자세히 ›</Link>
+          </p>
         </div>
       )}
     </section>

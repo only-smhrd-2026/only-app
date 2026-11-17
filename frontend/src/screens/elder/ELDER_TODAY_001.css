@@ -45,8 +45,6 @@
 .elder-today-sheet .elder-today-photo-wrap { flex: 1 1 36dvh; min-height: 96px; max-height: 36dvh; }
 .elder-today-cap { font-size: var(--elder-font-size-s); }
 
-.elder-today-sheet--photo { border: 0; }
-
 .elder-today-prompt {
   flex: none;
   min-height: 56px;

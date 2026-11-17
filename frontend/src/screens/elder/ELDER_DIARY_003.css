@@ -1,12 +1,12 @@
 /* 일기 확인·지난 일기의 긴 글은 쪽을 넘겨 읽는다. 한 쪽의 줄은 CSS 다단이 높이에 맞춰 나눈다. */
 .diary-reading {
-  flex: 1 1 0;
+  flex: 0 1 auto; /* 글 길이만큼만 — 남는 자리는 사진이 쓰고(D60), 넘치면 줄어들어 쪽 넘김 (11/17 다듬기) */
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: var(--elder-gap);
 }
-.diary-reading .diary-paper { flex: 1 1 0; overflow: hidden; }
+.diary-reading .diary-paper { flex: 0 1 auto; overflow: hidden; }
 .diary-paper > .diary-paper-window { display: block; }
 .diary-paper-pages {
   display: block;
@@ -31,7 +31,7 @@
 /* 사진 영역과 본문 영역이 자리를 나눠, 오류 안내가 추가돼도 결정 버튼은 화면에 남는다. */
 .diary-confirm > .elder-photo-box,
 .diary-confirm > .diary-drawing {
-  flex: 0 1 28dvh;
+  flex: 1 0 28dvh; /* 글이 짧으면 남는 자리를 다 쓰고, 길어도 28% 는 지킨다 (11/17 다듬기) */
   min-height: 88px;
 }
 .diary-confirm > .elder-mood-pic { border: 0; }

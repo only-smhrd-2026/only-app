@@ -6,9 +6,9 @@
 @font-face { font-family: Pretendard; font-weight: 800; font-display: swap; src: url('/fonts/Pretendard-ExtraBold.subset.woff2') format('woff2'); }
 
 .fam {
-  --bg:#f4f3f8; --surface:#ffffff; --text:#1f1b2e; --text-2:#5d5970; --text-3:#8f8ba1;
+  --bg:#f4f3f8; --surface:#ffffff; --text:#1f1b2e; --text-2:#5d5970; --text-3:#6c697a; /* 흰·바탕·연보라 모두 4.5:1 이상(WCAG AA, 11/17 — 전 #8f8ba1 은 3.0) */
   --line:#e7e3f1; --primary:#5b3fa8; --on-primary:#ffffff; --tint:#efeafb; --tint-2:#f8f6fd;
-  --ok:#2f7a4f; --danger:#e5484d; --r:20px; --gut:16px;
+  --ok:#2f7a4f; --danger:#c03c40; /* 4.5:1 이상 — 빨간 배지의 흰 글자도 5.3:1 (전 #e5484d 는 3.5) */ --r:20px; --gut:16px;
   --t1:#ece6fb; --t1e:#5b3fa8; --t2:#fde7ef; --t2e:#a8275f; --t3:#fff1cf; --t3e:#8a5a00; --t4:#e2f4e5; --t4e:#1f6b3a;
   --font: Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
   display:flex; flex-direction:column; height:100dvh; max-width:520px; margin:0 auto;
@@ -59,12 +59,12 @@
 .fam-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; height:50px; padding:0 18px; border:0; border-radius:14px; font-size:16px; font-weight:700; text-decoration:none; cursor:pointer; }
 .fam-btn--primary { background:var(--primary); color:var(--on-primary); }
 .fam-btn--tonal { background:var(--tint); color:var(--primary); }
-.fam-btn--sm { height:36px; padding:0 13px; border-radius:11px; font-size:14px; }
+.fam-btn--sm { height:44px; padding:0 14px; border-radius:12px; font-size:15px; } /* 누르는 곳 44px (11/17) */
 .fam-btn--block { display:flex; width:100%; }
 .fam-btn:disabled { opacity:.5; }
 .fam-btn .fam-ic { width:20px; height:20px; }
-.fam-text-btn { border:0; background:none; padding:10px; color:var(--primary); font-size:14.5px; font-weight:700; }
-.fam-error { margin:16px var(--gut); color:var(--danger); font-size:14px; }
+.fam-text-btn { min-height:44px; border:0; background:none; padding:10px; color:var(--primary); font-size:15px; font-weight:700; }
+.fam-error { margin:16px var(--gut); color:var(--danger); font-size:15px; }
 
 /* 어르신 바꾸기 판 — 아래에서 올라옴 */
 .fam-scrim { position:fixed; inset:0; z-index:5; border:0; padding:0; background:rgba(18,16,28,.42); animation:fam-fade .18s; }
