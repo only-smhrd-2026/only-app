@@ -129,6 +129,7 @@ def photo_out(p: Photo, user_id: int | None = None) -> PhotoOut:
         status=p.status,
         source=p.source,
         analyzed=analyzed,
+        usable=p.usable if analyzed else None,
         ai_activity=p.activity if analyzed else None,  # 분류 AI 가 본 것 그대로 (가족방 탭 '올린 사진', D73)
         ai_scene=p.ai_scene if analyzed else None,
         corrected_activity=p.corrected_activity,
