@@ -27,7 +27,7 @@ export default function ELDER_CONNECT_001() {
   const [picked, setPicked] = useState<'FEMALE' | 'MALE'>()
   const connected = useRef(false)
   const inviteGuidance = status?.valid
-    ? `하루한장. 가족 사진을 보며 이야기하고, 그림일기를 써서 가족과 나누는 앱이에요. ${status.elder_name} 님, 가족이 초대했어요. 아래 시작하기를 한 번 눌러 주세요. 연결한 뒤 크롬 메뉴에서 홈 화면에 추가를 누르면 다음부터 바로 열려요.`
+    ? `하루한장. 가족 사진을 보며 이야기하고, 그림일기를 써서 가족과 나누는 앱이에요. ${status.elder_name} 님, 가족이 초대했어요. 힘든 말씀을 하시면 가족에게 전화 드리라고 알려 드려요. 아래 시작하기를 한 번 눌러 주세요. 연결한 뒤 크롬 메뉴에서 홈 화면에 추가를 누르면 다음부터 바로 열려요.`
     : '이 링크는 더 쓸 수 없어요. 가족에게 새 링크를 받아 주세요.'
   const guidance = error ?? {
     invite: status ? inviteGuidance : undefined,
@@ -142,6 +142,8 @@ export default function ELDER_CONNECT_001() {
       {status?.valid && step === 'invite' && (
         <>
           <h2 className="elder-text elder-connect-invitation">{status.elder_name} 님,<br />가족이 초대했어요</h2>
+          {/* 마음 알림 안내 (D55 — 처리방침 확정 11/17) */}
+          <p className="elder-text elder-connect-note">힘든 말씀을 하시면 가족에게 전화 드리라고 알려 드려요.</p>
           <p className="elder-text">아래를 한 번 눌러 주세요</p>
         </>
       )}

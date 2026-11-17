@@ -326,7 +326,8 @@ def list_diaries(room_id: int, user: CurrentUser, db: DB, before: int | None = N
     conditions = []
     if before is not None:
         cursor = db.get(Diary, before)
-        if cursor is None or cursor.room_id != room_id or cursor.status != "POSTED":
+        # 지운 일기도 같은 방이면 기준으로는 쓴다 — 보는 사이 마지막 일기가 지워져도 다음 쪽이 끊기지 않게
+        if cursor is None or cursor.room_id != room_id:
             raise ApiError(404, "DIARY_NOT_FOUND", "일기를 찾을 수 없어요")
         conditions.append(
             or_(

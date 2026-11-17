@@ -46,7 +46,7 @@ export default function ELDER_TODAY_001({ home, busy, error, onTalk, onSkip }: P
 
   return (
     <div className="elder-today-overlay">
-      <section className="elder-today-sheet elder-today-sheet--photo" role="dialog" aria-modal="true" aria-labelledby="elder-today-title">
+      <section className="elder-today-sheet" role="dialog" aria-modal="true" aria-labelledby="elder-today-title">
         <span className="elder-today-handle" aria-hidden="true" />
         <h1 id="elder-today-title">오늘의 한 장이 왔어요</h1>
         <p className="elder-today-cap">가족이 올린 사진</p>

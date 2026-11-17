@@ -7,6 +7,9 @@ import './elder.css'
 import App from './App.tsx'
 import ErrorBoundary from './ErrorBoundary.tsx'
 import OfflineBar from './components/OfflineBar.tsx'
+import { restoreElderFont } from './lib/elderFont'
+
+restoreElderFont() // 어르신 하위 화면에서 새로고침해도 가족이 고른 글자 크기로 (lib/elderFont)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

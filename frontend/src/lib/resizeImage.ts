@@ -29,6 +29,9 @@ export async function resizeImage(file: File, maxEdge: number): Promise<File> {
     canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
     const context = canvas.getContext('2d')
     if (!context) throw new Error('사진을 줄이지 못했어요.')
+    // JPEG 는 투명을 못 담아 투명한 곳이 검게 된다(큰 PNG 캡처) — 흰 바탕을 먼저 깐다
+    context.fillStyle = '#fff'
+    context.fillRect(0, 0, canvas.width, canvas.height)
     context.drawImage(image, 0, 0, canvas.width, canvas.height)
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob((result) => {

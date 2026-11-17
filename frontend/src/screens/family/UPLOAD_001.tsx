@@ -128,7 +128,8 @@ export default function UPLOAD_001() {
     setBatchId(crypto.randomUUID()) // 위 onPick 과 같은 이유
   }
 
-  function next() {
+  /** 고른 사진을 화면 밖 칸(lib/uploadDraft)에 적는다 — [다음]과 '자세히 ›'(처리방침 갔다 ← 로 돌아와도 그대로) */
+  function saveDraft() {
     // 사진을 통째로 새로 골랐으면 앞 사진에 적은 한마디·사진 속 사람을 비운다 — 새 사진에 붙지 않게.
     // 앞 사진이 한 장이라도 남아 있으면(더하기·빼기만 함) 같은 묶음을 고친 것이라 적은 글을 둔다
     const sameSet = files.some((f) => uploadDraft.files.includes(f))
@@ -139,6 +140,10 @@ export default function UPLOAD_001() {
     }
     uploadDraft.files = files
     uploadDraft.batchId = batchId
+  }
+
+  function next() {
+    saveDraft()
     nav('/upload/target')
   }
 
@@ -205,7 +210,7 @@ export default function UPLOAD_001() {
         {/* 사진 국외 전송 안내 (D71) — 가족방이 있어 사진을 고를 수 있을 때만. 자세히는 처리방침의 '맡기는 곳' */}
         {!!rooms.data?.length && (
           <p className="up-hint">
-            사진은 AI가 살펴보도록 미국(Anthropic)으로 보내져요 · <Link to="/policy#vendors">자세히 ›</Link>
+            사진은 AI가 살펴보도록 미국(Anthropic)으로 보내져요 · <Link to="/policy#vendors" onClick={saveDraft}>자세히 ›</Link>
           </p>
         )}
         {preparing && (

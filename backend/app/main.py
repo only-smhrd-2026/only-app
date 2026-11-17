@@ -68,7 +68,8 @@ for r in (
 def health(db: DB):
     try:
         db.execute(text("SELECT 1"))
-    except Exception:
+    except Exception as e:
+        logging.getLogger("app.health").warning("health db error=%s", type(e).__name__)  # 예외 종류만 (D15)
         return JSONResponse(status_code=503, content={"ok": False, "db": False})
     return {"ok": True, "env": settings.APP_ENV, "time": now_kst().isoformat(), "db": True}
 

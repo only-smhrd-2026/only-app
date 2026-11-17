@@ -54,5 +54,9 @@ find "$backup_dir" -maxdepth 1 -type f \
 printf '백업 완료: %s\n' "$final"
 
 if [[ "${BACKUP_R2:-0}" == 1 ]]; then
-    docker compose exec -T api uv run python -m scripts.backup_to_r2 "${final##*/}" < "$final"
+    # 이미지에는 개발 꾸러미 없이 깔려 있어(uv sync --no-dev) uv run 은 새벽마다 그것을 받으려 한다 → 깔린 python 으로.
+    # R2 사본이 실패해도(R2 장애·키 오류) 서버 백업은 이미 끝났다 — 경고만 남기고 배포·cron 을 멈추지 않는다
+    if ! docker compose exec -T api python -m scripts.backup_to_r2 "${final##*/}" < "$final"; then
+        printf 'R2 사본 실패 — 서버 백업(%s)은 있어요\n' "$final" >&2
+    fi
 fi

@@ -10,7 +10,6 @@ if [[ "$(git branch --show-current)" != develop ]]; then
     printf 'develop 브랜치에서만 배포할 수 있어요.\n' >&2
     exit 1
 fi
-previous_commit="$(git rev-parse HEAD)"
 git pull --ff-only origin develop
 
 # 인자를 전부 검사한 뒤 적용한다. 중간의 잘못된 경로 때문에 일부만 적용되는 것을 막는다.
@@ -36,9 +35,9 @@ done
 
 docker compose --profile deploy up -d --build
 docker image prune -f
-if ! git diff --quiet "$previous_commit" HEAD -- Caddyfile; then
-    docker compose --profile deploy restart caddy
-fi
+# Caddyfile 은 파일로 마운트돼 caddy 가 새로 만들어지지 않으면 옛 내용을 쥐고 있다 → 매번 다시 읽게 한다(1초 안팎).
+# '바뀌었을 때만'이면 pull 뒤 다른 단계가 실패해 다시 돌릴 때 바뀐 Caddyfile 이 빠진다
+docker compose --profile deploy restart caddy
 
 deadline=$((SECONDS + 90))
 healthy=0
@@ -74,6 +73,10 @@ fi
 printf -v cron_repo '%q' "$repo_dir"
 printf -v cron_log '%q' "$HOME/only-backup.log"
 backup_command='bash db/backup.sh'
+# R2 사본을 한 번 켰으면 다음 배포에서 BACKUP_R2 를 빠뜨려도 조용히 꺼지지 않게 지금 cron 줄을 본다(끄려면 BACKUP_R2=0)
+if [[ -z "${BACKUP_R2:-}" ]] && { crontab -l 2>/dev/null || true; } | grep -q 'BACKUP_R2=1 bash db/backup.sh'; then
+    BACKUP_R2=1
+fi
 if [[ "${BACKUP_R2:-0}" == 1 ]]; then
     backup_command="BACKUP_R2=1 $backup_command"
 fi

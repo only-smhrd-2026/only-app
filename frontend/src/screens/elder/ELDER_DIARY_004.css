@@ -50,5 +50,5 @@
 }
 .elder-past-view[open] { display: flex; flex-direction: column; gap: var(--elder-gap); }
 .elder-past-view::backdrop { background: var(--elder-bg); }
-.elder-past-view > .elder-photo-box { flex: 0 1 28dvh; min-height: 88px; }
+.elder-past-view > .elder-photo-box { flex: 1 0 28dvh; min-height: 88px; } /* 글이 짧으면 남는 자리를 다 쓰고, 길어도 28% 는 지킨다 */
 .elder-past-view > .elder-mood-pic { border: 0; }
