@@ -1,0 +1,40 @@
+/* 일기 확인·지난 일기의 긴 글은 쪽을 넘겨 읽는다. 한 쪽의 줄은 CSS 다단이 높이에 맞춰 나눈다. */
+.diary-reading {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--elder-gap);
+}
+.diary-reading .diary-paper { flex: 1 1 0; overflow: hidden; }
+.diary-paper > .diary-paper-window { display: block; }
+.diary-paper-pages {
+  display: block;
+  width: 100%;
+  height: 100%;
+  column-count: 1;
+  column-gap: 0;
+  column-fill: auto;
+}
+.diary-pages {
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--elder-font-size-s);
+}
+.diary-pages > span { text-align: center; }
+.diary-pages button:disabled { color: var(--elder-off); border-color: var(--elder-off); cursor: default; }
+.diary-pages button:focus-visible { outline: 4px solid var(--elder-fg); outline-offset: 2px; }
+
+/* 사진 영역과 본문 영역이 자리를 나눠, 오류 안내가 추가돼도 결정 버튼은 화면에 남는다. */
+.diary-confirm > .elder-photo-box,
+.diary-confirm > .diary-drawing {
+  flex: 0 1 28dvh;
+  min-height: 88px;
+}
+.diary-confirm > .elder-mood-pic { border: 0; }
+.diary-drawing { display: flex; flex-direction: column; gap: 4px; }
+.diary-drawing > .elder-photo-box { flex: 1 1 0; min-height: 0; }
+.diary-drawing-label { flex: none; font-size: var(--elder-font-size-s); font-weight: 700; text-align: center; }
