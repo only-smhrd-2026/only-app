@@ -2,6 +2,7 @@
  * GROUP_004 — 올린 사진 (11/14 밤 새 화면, D73 — 목업 설계자료/목업_1115_가족 ⑦). 가족방 탭의 하위 화면(위 ←).
  * 가족이 올린 사진(FAMILY)마다 AI 가 본 활동 칩 → 누르면 'AI 가 본 것'(활동·보이는 모습) 판 → [활동 고치기] 판.
  * 고친 활동은 문제 고르기와 다음 대화의 사진 설명으로 쓴다(서버 PATCH …/correction, FR-ME-009). AI 가 본 것은 그대로 남는다.
+ * 'AI 가 본 것' 판의 [이 사진 지우기] — 내가 올린 사진이거나 방장일 때만(서버 DELETE …/photos/{id}, 같은 규칙).
  */
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
@@ -34,7 +35,8 @@ export default function GROUP_004() {
   const rooms = useFetch<RoomOut[]>('/api/rooms')
   const list = useFetch<PhotoListOut>(`/api/rooms/${roomId}/photos`)
   const [saved, setSaved] = useState<Record<number, PhotoOut>>({}) // 고친 뒤 서버가 돌려준 사진으로 덮어쓴다
-  const [open, setOpen] = useState<{ id: number; step: 'ai' | 'fix' }>()
+  const [gone, setGone] = useState<number[]>([]) // 지운 사진 — 목록을 다시 읽지 않고 화면에서만 뺀다(깜빡임 없음)
+  const [open, setOpen] = useState<{ id: number; step: 'ai' | 'fix' | 'del' }>()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [note, setNote] = useState<string>()
@@ -63,6 +65,27 @@ export default function GROUP_004() {
     setBusy(false)
   }
 
+  async function remove(p: PhotoOut) {
+    if (busy) return
+    setBusy(true)
+    setError(undefined)
+    try {
+      await api<void>(`/api/rooms/${roomId}/photos/${p.photo_id}`, { method: 'DELETE' })
+    } catch (e) {
+      // 사진이 없음 = 이미 지워짐(두 번 누름·다른 가족이 먼저 지움) → 지운 것으로 본다.
+      // 같은 404 라도 ROOM_NOT_FOUND(가족방에서 내보내짐)는 안 지워진 것이라 오류로 보여 준다
+      if (!(e instanceof ApiError && e.code === 'PHOTO_NOT_FOUND')) {
+        setError(e instanceof ApiError ? e.message : '지우지 못했어요. 다시 해 주세요')
+        setBusy(false)
+        return
+      }
+    }
+    setGone((g) => [...g, p.photo_id])
+    setOpen(undefined)
+    setNote('사진을 지웠어요')
+    setBusy(false)
+  }
+
   if (rooms.error?.status === 401 || list.error?.status === 401) return <Navigate to="/login" replace />
   const failed = rooms.error ?? list.error
   if (failed) {
@@ -88,10 +111,14 @@ export default function GROUP_004() {
 
   const hon = room.elder_honorific
   // 가족이 올린 사진만 — 어르신이 일기에 찍은 사진(ELDER_CAMERA)은 일기 대화 때 따로 분류한다
-  const photos = list.data.photos.filter((p) => p.source === 'FAMILY').map((p) => saved[p.photo_id] ?? p)
+  const photos = list.data.photos
+    .filter((p) => p.source === 'FAMILY' && !gone.includes(p.photo_id))
+    .map((p) => saved[p.photo_id] ?? p)
   const cur = open && photos.find((p) => p.photo_id === open.id)
   const curAct = cur && (cur.corrected_activity ?? cur.ai_activity ?? NONE)
   const close = () => (setOpen(undefined), setError(undefined))
+  // 지우기 확인 판의 [취소]·바깥 누르기 → 'AI 가 본 것' 판으로 돌아간다(사진을 다시 찾지 않게)
+  const back = () => (setOpen(open && { id: open.id, step: 'ai' }), setError(undefined))
 
   return (
     <main className="fam-stack gp">
@@ -167,6 +194,15 @@ export default function GROUP_004() {
             ) : (
               <p className="gp-fine">올린 뒤 10분 안에 끝나요. 끝나면 여기에서 AI 가 본 것을 볼 수 있어요.</p>
             )}
+            {(cur.is_mine || room.is_owner) && (
+              <button
+                type="button"
+                className="fam-text-btn gp-del"
+                onClick={() => (setError(undefined), setOpen({ id: cur.photo_id, step: 'del' }))}
+              >
+                이 사진 지우기
+              </button>
+            )}
           </div>
         </>
       )}
@@ -202,6 +238,30 @@ export default function GROUP_004() {
                 {error}
               </p>
             )}
+          </div>
+        </>
+      )}
+
+      {cur && open?.step === 'del' && (
+        <>
+          <button type="button" className="fam-scrim" aria-label="닫기" onClick={() => !busy && back()} />
+          <div className="fam-sheet" role="dialog" aria-label="사진을 지울까요?" aria-busy={busy}>
+            <span className="fam-grab" />
+            <h2>지울까요?</h2>
+            <p className="gp-sheet-text">{hon} 오늘의 한 장·사진첩에서도 사라져요</p>
+            {error && (
+              <p className="fam-error" role="alert">
+                {error}
+              </p>
+            )}
+            <div className="gp-two">
+              <button type="button" className="fam-btn fam-btn--tonal" disabled={busy} onClick={back}>
+                취소
+              </button>
+              <button type="button" className="fam-btn gp-del-ok" disabled={busy} onClick={() => remove(cur)}>
+                {busy ? '지우는 중…' : '지우기'}
+              </button>
+            </div>
           </div>
         </>
       )}

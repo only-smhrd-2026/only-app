@@ -24,6 +24,11 @@
 .fam .gp-fine { padding:0 12px 4px; color:var(--text-3); font-size:12.5px; line-height:1.55; }
 .gp-cta { padding:12px 8px 2px; }
 .fam .gp-sheet-text { margin:-4px 12px 8px; color:var(--text-2); font-size:14px; }
+/* 사진 지우기 — 빨간 글자 버튼 → 확인 판 [취소][지우기] (HOME_002 일기 지우기와 같은 모양) */
+.gp-del { display:block; margin:8px auto 0; min-height:44px; color:var(--danger); }
+.gp-two { display:flex; gap:10px; padding:4px 12px 0; }
+.gp-two .fam-btn { flex:1; min-height:48px; }
+.gp-del-ok { background:var(--danger); color:#fff; }
 .gp-opts { max-height:min(52dvh,380px); overflow-y:auto; overscroll-behavior:contain; }
 
 /* 고친 뒤 잠깐 뜨는 한 줄 */
