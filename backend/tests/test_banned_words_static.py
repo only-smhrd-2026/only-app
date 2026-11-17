@@ -57,35 +57,52 @@ def json_strings(value):
             yield from json_strings(child)
 
 
-def test_fixed_user_text_has_no_banned_words():
+def fixed_text_paths():
     frontend = ROOT / "frontend/src"
     paths = sorted((ROOT / "backend/app").rglob("*.py"))
     paths += sorted((frontend / "screens").rglob("*.tsx"))
     paths += sorted((frontend / "components").rglob("*.tsx"))
     paths += [frontend / "lib/audio.ts", frontend / "lib/moodCheck.ts", ROOT / "data/question_bank.json"]
-    hits = []
-    for path in paths:
-        relative = path.relative_to(ROOT).as_posix()
-        if path.suffix == ".py":
-            strings = python_strings(path)
-        elif path.suffix == ".json":
-            strings = json_strings(json.loads(path.read_text("utf-8")))
-        else:
-            strings = typescript_strings(path)
-        elder = (
-            "screens/elder/" in relative
-            or "components/VoiceSession/" in relative
-            or relative.endswith(("lib/audio.ts", "lib/moodCheck.ts"))
-            or relative.startswith("backend/app/ai/")
-            or relative in {"backend/app/routers/elder.py", "backend/app/routers/sessions.py"}
+    return paths
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        pytest.param(
+            path,
+            id=path.relative_to(ROOT).as_posix(),
+            marks=[
+                pytest.mark.xfail(strict=True, reason="frontend/src/lib/moodCheck.ts:21 어르신 마음 체크에 '실패' 포함")
+            ]
+            if path.name == "moodCheck.ts"
+            else [],
         )
-        for line, value in strings:
-            if (relative, value) in EXCEPTIONS:
-                continue
-            words = [word for word in BANNED_WORDS if word in value]
-            if elder and "실패" in value:
-                words.append("실패")
-            if words:
-                hits.append(f"{relative}:{line} ({', '.join(words)})")
-    if hits:
-        pytest.xfail("고정 문장 금지어 확인 필요\n" + "\n".join(hits))
+        for path in fixed_text_paths()
+    ],
+)
+def test_fixed_user_text_has_no_banned_words(path):
+    hits = []
+    relative = path.relative_to(ROOT).as_posix()
+    if path.suffix == ".py":
+        strings = python_strings(path)
+    elif path.suffix == ".json":
+        strings = json_strings(json.loads(path.read_text("utf-8")))
+    else:
+        strings = typescript_strings(path)
+    elder = (
+        "screens/elder/" in relative
+        or "components/VoiceSession/" in relative
+        or relative.endswith(("lib/audio.ts", "lib/moodCheck.ts"))
+        or relative.startswith("backend/app/ai/")
+        or relative in {"backend/app/routers/elder.py", "backend/app/routers/sessions.py"}
+    )
+    for line, value in strings:
+        if (relative, value) in EXCEPTIONS:
+            continue
+        words = [word for word in BANNED_WORDS if word in value]
+        if elder and "실패" in value:
+            words.append("실패")
+        if words:
+            hits.append(f"{relative}:{line} ({', '.join(words)})")
+    assert not hits, "\n".join(hits)
