@@ -54,6 +54,12 @@ export default function ELDER_HOME_001() {
   const preview = import.meta.env.DEV && new URLSearchParams(search).get('preview') === '1'
   const { data: serverHome, error, loading, reload } = useFetch<ElderHomeOut>(preview ? null : '/api/elder/home')
   const home = preview ? previewHome : serverHome
+  const homeError = error && !preview && (!serverHome || error.code === 'DEVICE_REQUIRED')
+    ? error.code === 'DEVICE_REQUIRED'
+      ? '가족이 보낸 연결 링크를 먼저 열어 주세요.'
+      : '연결이 잠깐 끊겼어요. 잠시 뒤에 다시 열어 볼게요.'
+    : ''
+  const speed = Number(home?.settings.tts_speed) || 0.9
   // 같은 pick 재시도는 같은 id, 날짜가 바뀌어 새 pick 이 오면 새 id 를 쓴다.
   const sessionIds = useRef(new Map<number, string>())
   const hiddenAt = useRef<number | null>(null) // 화면이 숨은 시각
@@ -135,6 +141,12 @@ export default function ELDER_HOME_001() {
   // 홈을 떠나면 읽던 오류 문장을 끊는다 — 다음 화면 소리 위로 이어지지 않게
   useEffect(() => () => stopSpeaking(), [])
 
+  useEffect(() => {
+    if (!homeError) return
+    void speak(homeError, speed)
+    return () => stopSpeaking()
+  }, [homeError, speed])
+
   async function startMemory() {
     if (!home?.today_pick || busy) return
     if (preview) {
@@ -214,14 +226,10 @@ export default function ELDER_HOME_001() {
   }
 
   // 읽은 홈이 있으면 다시 읽기에 실패해도 그대로 보여 준다(위에서 5초마다 다시 읽는 중). 연결이 풀린 기기만 안내로 바꾼다
-  if (error && !preview && (!serverHome || error.code === 'DEVICE_REQUIRED'))
+  if (homeError)
     return (
       <main className="elder">
-        <p className="elder-text">
-          {error.code === 'DEVICE_REQUIRED'
-            ? '가족이 보낸 연결 링크를 먼저 열어 주세요.'
-            : '연결이 잠깐 끊겼어요. 잠시 뒤에 다시 열어 볼게요.'}
-        </p>
+        <p className="elder-text" role="alert">{homeError}</p>
       </main>
     )
   if (!home) return loading ? <main className="elder"><p className="elder-text">잠시만요…</p></main> : null
