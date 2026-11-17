@@ -2,16 +2,16 @@
 
 import argparse
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.ai.weekly import summarize
-from app.config import TZ, now_kst, settings
+from app.config import STORY_KEEP_DAYS, TZ, now_kst, settings
 from app.db import SessionLocal
-from app.models import Diary, FamilyRoom, MoodCheck, Notification, TalkSession, WeeklySummary
+from app.models import Diary, FamilyRoom, MoodCheck, Notification, StoryFact, TalkSession, WeeklySummary
 from app.routers.devices import notify_family
 from app.services import weekly
 
@@ -23,6 +23,7 @@ def fill(db: Session, room_id: int, now: datetime) -> dict[str, int]:
         raise ValueError("가족방이 없거나 닫혀 있어 시연 자료를 넣지 않았어요")
     now = now.astimezone(TZ)
     counts = {"sessions": 0, "diaries": 0, "mood_checks": 0, "weekly_summaries": 0, "hearts": 0, "notifications": 0}
+    counts["story_facts"] = 0
 
     def key(kind, day):
         return uuid.uuid5(uuid.NAMESPACE_URL, f"haru-demo:{room_id}:{kind}:{day.isoformat()}")
@@ -65,6 +66,26 @@ def fill(db: Session, room_id: int, now: datetime) -> dict[str, int]:
             ).scalar_one_or_none()
             is not None
         )
+    yesterday = (now - timedelta(days=1)).date()
+    session_id = key("talk", yesterday)
+    exists = db.scalar(
+        select(StoryFact.fact_id)
+        .where(StoryFact.room_id == room_id, StoryFact.session_id == session_id, StoryFact.source_turn_no == 2)
+        .limit(1)
+    )
+    if exists is None:
+        db.add(
+            StoryFact(
+                room_id=room_id,
+                session_id=session_id,
+                source_turn_no=2,
+                fact_text="마당에서 가족과 꽃을 가꾸셨다고 해요",
+                kind="EVENT",
+                fact_date=yesterday,
+                expires_at=datetime.combine(yesterday + timedelta(days=STORY_KEEP_DAYS), time(0), tzinfo=TZ),
+            )
+        )
+        counts["story_facts"] = 1
     for offset, mood in enumerate(("GOOD", "SO_SO", "UPSET", "LONELY"), 1):
         at = (now - timedelta(days=offset)).replace(hour=18, minute=0, second=0, microsecond=0)
         inserted = (
