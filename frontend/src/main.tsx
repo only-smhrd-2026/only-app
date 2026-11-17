@@ -6,11 +6,13 @@ import './index.css'
 import './elder.css'
 import App from './App.tsx'
 import ErrorBoundary from './ErrorBoundary.tsx'
+import OfflineBar from './components/OfflineBar.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <ErrorBoundary>
+        <OfflineBar />
         <App />
       </ErrorBoundary>
     </BrowserRouter>
