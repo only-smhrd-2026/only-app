@@ -46,14 +46,21 @@ CASES = [
 ]
 
 
+def resource_routes(routes, prefix=""):
+    """FastAPI의 즉시 등록·지연 include_router 양쪽에서 숨긴 주소까지 읽는다."""
+    for route in routes:
+        if hasattr(route, "original_router"):
+            yield from resource_routes(route.original_router.routes, prefix + route.include_context.prefix)
+        elif any(
+            "{" + name + "}" in getattr(route, "path", "")
+            for name in ("room_id", "diary_id", "photo_id", "session_id", "notification_id")
+        ):
+            for method in route.methods:
+                yield method, (prefix + route.path).removeprefix("/api")
+
+
 def test_every_resource_route_has_an_isolation_case():
-    parameters = {"room_id", "diary_id", "photo_id", "session_id", "notification_id"}
-    routes = {
-        (method.upper(), path.removeprefix("/api"))
-        for path, operations in app.openapi()["paths"].items()
-        if any("{" + name + "}" in path for name in parameters)
-        for method in operations
-    }
+    routes = set(resource_routes(app.routes))
     assert routes == {(method, path) for method, path, _ in CASES}
 
 
