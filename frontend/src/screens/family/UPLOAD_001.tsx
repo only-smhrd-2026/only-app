@@ -8,16 +8,19 @@ import { Link, Navigate, useNavigate, useNavigationType } from 'react-router-dom
 import type { RoomOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
 import { useFetch } from '../../hooks/useFetch'
+import { fitPhoto, MAX_BYTES } from '../../lib/fitPhoto'
 import { uploadDraft } from '../../lib/uploadDraft'
 import './steps.css'
 import './UPLOAD_001.css'
 
-// 서버 config.py 의 UPLOAD_MAX_FILES·UPLOAD_MAX_BYTES 와 같게 (MAX_BYTES 는 가족 일기 FDIARY_001 도 같이 쓴다)
+// 서버 config.py 의 UPLOAD_MAX_FILES 와 같게 (용량·화소 상한은 lib/fitPhoto)
 const MAX_FILES = 20
-export const MAX_BYTES = 10 * 1024 * 1024
 
-/** 같은 사진인지 가리는 값 — 이름·크기·찍은(고친) 시각. 두 번 고르기를 막고, 격자의 이름표(key)로도 쓴다 */
-const fileKey = (f: File) => `${f.name}:${f.size}:${f.lastModified}`
+/** 줄인 사진 → 원본 사진의 fileKey. 줄이면 크기가 바뀌어도 같은 사진을 또 고른 것을 알아보게 */
+const originalKey = new WeakMap<File, string>()
+
+/** 같은 사진인지 가리는 값 — 이름·크기·찍은(고친) 시각(줄인 사진은 원본 것). 두 번 고르기를 막고, 격자의 이름표(key)로도 쓴다 */
+const fileKey = (f: File) => originalKey.get(f) ?? `${f.name}:${f.size}:${f.lastModified}`
 
 /**
  * 고른 사진 3열 격자 (이 화면만 쓴다. Thumb 는 UPLOAD_002·003·FDIARY 도 같이 쓴다).
@@ -59,8 +62,10 @@ export function Thumb({ file, alt }: { file: File; alt: string }) {
 
 /** 폰 사진 창을 여는 칸 — 보이지 않게 두고 감싼 label 전체를 누르면 열린다. HEIC 는 서버가 받지 않는다(D17).
  *  아이폰 Safari 는 이 accept 면 JPEG 로 바꿔 보낸다 */
-function FileInput({ onPick }: { onPick: (e: ChangeEvent<HTMLInputElement>) => void }) {
-  return <input className="up-file" type="file" multiple accept="image/jpeg,image/png" onChange={onPick} />
+function FileInput({ onPick, disabled }: { onPick: (e: ChangeEvent<HTMLInputElement>) => void; disabled: boolean }) {
+  return (
+    <input className="up-file" type="file" multiple accept="image/jpeg,image/png" onChange={onPick} disabled={disabled} />
+  )
 }
 
 export default function UPLOAD_001() {
@@ -74,9 +79,10 @@ export default function UPLOAD_001() {
   const [files, setFiles] = useState<File[]>(() => (fromBack ? uploadDraft.files : []))
   const [batchId, setBatchId] = useState(() => (fromBack ? uploadDraft.batchId : ''))
   const [error, setError] = useState('')
+  const [preparing, setPreparing] = useState(false) // 큰 사진 줄이는 중 — 그동안 고르기·[다음] 막기
 
   /** 고른 사진에 더한다([사진 고르기]·[더 고르기] 둘 다) */
-  function onPick(e: ChangeEvent<HTMLInputElement>) {
+  async function onPick(e: ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files ?? [])
     e.target.value = '' // 같은 사진을 다시 골라도 onChange 가 오게
     if (picked.length === 0) return // 고르다 취소 — 앞서 고른 것 그대로
@@ -93,10 +99,24 @@ export default function UPLOAD_001() {
     if (files.length + chosen.length > MAX_FILES) {
       return setError(`사진은 한 번에 ${MAX_FILES}장까지 올릴 수 있어요 (지금 ${files.length}장)`)
     }
-    const big = chosen.findIndex((f) => f.size > MAX_BYTES)
-    if (big >= 0) return setError(`방금 고른 ${big + 1}번째 사진이 ${MAX_BYTES / 1024 / 1024}MB보다 커요`)
+    // 한 장씩 — 20장을 한꺼번에 열면 폰 메모리가 모자랄 수 있다
     setError('')
-    setFiles([...files, ...chosen])
+    setPreparing(true)
+    const fitted: File[] = []
+    try {
+      for (const f of chosen) {
+        const fit = await fitPhoto(f)
+        originalKey.set(fit, fileKey(f)) // 줄인 사진도 원본 이름표로 — 같은 큰 사진을 또 고르면 위에서 걸러진다
+        fitted.push(fit)
+      }
+    } finally {
+      setPreparing(false)
+    }
+    // 줄여도 큰 사진(긴 변 2560 안인데 10MB 넘는 png 등)
+    const big = fitted.findIndex((f) => f.size > MAX_BYTES)
+    if (big >= 0) return setError(`방금 고른 ${big + 1}번째 사진이 ${MAX_BYTES / 1024 / 1024}MB보다 커요`)
+    // 준비하는 동안 × 로 뺀 사진이 있을 수 있어 그때의 목록에 더한다
+    setFiles((prev) => [...prev, ...fitted])
     // 사진 묶음이 바뀔 때마다(더하기·빼기) 새 요청 번호 (D17). 묶음이 달라졌는데 번호가 같으면 서버가 같은 묶음으로 보고
     // 저장을 건너뛸 수 있다. 다시 보내기는 UPLOAD_002 가 같은 번호로 → 서버가 두 번 저장하지 않음
     setBatchId(crypto.randomUUID())
@@ -154,13 +174,13 @@ export default function UPLOAD_001() {
         ) : files.length === 0 ? (
           <>
             <label className="up-picker">
-              <FileInput onPick={onPick} />
+              <FileInput onPick={onPick} disabled={preparing} />
               <span className="up-ring">
                 <FamIcon name="imagePlus" />
               </span>
               <b>사진 고르기</b>
               <small>
-                여러 장 고를 수 있어요 · 한 번에 {MAX_FILES}장, 한 장 {MAX_BYTES / 1024 / 1024}MB까지
+                여러 장 고를 수 있어요 · 한 번에 {MAX_FILES}장까지
               </small>
             </label>
             <p className="up-hint">올린 사진은 내일부터 '오늘의 한 장' 후보가 돼요</p>
@@ -173,7 +193,7 @@ export default function UPLOAD_001() {
               add={
                 files.length < MAX_FILES && (
                   <label className="up-add">
-                    <FileInput onPick={onPick} />
+                    <FileInput onPick={onPick} disabled={preparing} />
                     <FamIcon name="plus" />
                     더 고르기
                   </label>
@@ -181,6 +201,11 @@ export default function UPLOAD_001() {
               }
             />
           </div>
+        )}
+        {preparing && (
+          <p className="up-hint" role="status">
+            사진을 준비하는 중…
+          </p>
         )}
         {error && (
           <p className="fam-error up-error" role="alert">
@@ -192,7 +217,7 @@ export default function UPLOAD_001() {
       {/* 가족방 목록이 온 뒤에만 — 뒤로 돌아온 직후 목록을 못 불러왔으면 보낼 곳을 모른 채 넘어가지 않게 */}
       {files.length > 0 && !!rooms.data?.length && (
         <div className="st-cta">
-          <button type="button" className="fam-btn fam-btn--primary" onClick={next}>
+          <button type="button" className="fam-btn fam-btn--primary" onClick={next} disabled={preparing}>
             다음 · {files.length}장
           </button>
         </div>
