@@ -4,8 +4,11 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
+from sqlalchemy import text
+from starlette.responses import JSONResponse
 
 from app.config import now_kst, settings
+from app.deps import DB
 from app.errors import install_handlers
 from app.routers import (
     auth,
@@ -62,8 +65,12 @@ for r in (
 
 
 @api.get("/health", tags=["health"])
-def health():
-    return {"ok": True, "env": settings.APP_ENV, "time": now_kst().isoformat()}
+def health(db: DB):
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception:
+        return JSONResponse(status_code=503, content={"ok": False, "db": False})
+    return {"ok": True, "env": settings.APP_ENV, "time": now_kst().isoformat(), "db": True}
 
 
 app.include_router(api)
