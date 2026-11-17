@@ -29,6 +29,8 @@ export type RoomSettingsIn = {
   tts_speed?: '0.80' | '0.90' | '1.00' // D74 (전 0.70·0.85·1.00)
   tts_voice?: 'FEMALE' | 'MALE'
   device_input_mode?: 'VOICE' | 'BUTTON'
+  elder_name?: string // 1~10자
+  elder_honorific?: string // 부르는 말 1~20자 (빈 칸은 서버가 거절)
 }
 
 export type RelationTag = 'CHILD' | 'GRANDCHILD' | 'OTHER'
