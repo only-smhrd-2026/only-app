@@ -83,6 +83,7 @@ class DiaryOut(BaseModel):
 
 class DiaryListOut(BaseModel):
     diaries: list[DiaryOut]
+    has_more: bool = False
 
 
 class HeartOut(BaseModel):

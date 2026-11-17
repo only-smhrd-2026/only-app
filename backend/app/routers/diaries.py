@@ -58,6 +58,7 @@ from app.services import storage
 
 log = logging.getLogger("app.diaries")
 router = APIRouter(tags=["diaries"])
+DIARY_PAGE_SIZE = 50
 
 
 @dataclass
@@ -319,10 +320,22 @@ def post_family_diary(room_id: int, body: DiaryCreateIn, user: CurrentUser, db: 
 
 
 @router.get("/rooms/{room_id}/diaries", response_model=DiaryListOut)
-def list_diaries(room_id: int, user: CurrentUser, db: DB):
-    """가족 홈 일기 목록 최소판 (FR-FD-001) — 최근 50개. 페이지·어르신 칩·가족 일기 세부는 천주웅."""
+def list_diaries(room_id: int, user: CurrentUser, db: DB, before: int | None = None):
+    """가족 홈 일기를 게시 시각·번호 역순으로 50개씩 돌려준다 (FR-FD-001)."""
     require_member(room_id, user, db)
-    return DiaryListOut(diaries=_rows(db, db.get(FamilyRoom, room_id), me=user.user_id))
+    conditions = []
+    if before is not None:
+        cursor = db.get(Diary, before)
+        if cursor is None or cursor.room_id != room_id or cursor.status != "POSTED":
+            raise ApiError(404, "DIARY_NOT_FOUND", "일기를 찾을 수 없어요")
+        conditions.append(
+            or_(
+                Diary.posted_at < cursor.posted_at,
+                and_(Diary.posted_at == cursor.posted_at, Diary.diary_id < before),
+            )
+        )
+    rows = _rows(db, db.get(FamilyRoom, room_id), *conditions, me=user.user_id, limit=DIARY_PAGE_SIZE + 1)
+    return DiaryListOut(diaries=rows[:DIARY_PAGE_SIZE], has_more=len(rows) > DIARY_PAGE_SIZE)
 
 
 @router.get("/elder/diaries", response_model=DiaryListOut)

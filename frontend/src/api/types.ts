@@ -210,7 +210,7 @@ export type Reaction = {
   name: string | null
   at: string
 }
-export type DiaryListOut = { diaries: DiaryOut[] }
+export type DiaryListOut = { diaries: DiaryOut[]; has_more: boolean }
 // 어르신 가족 소식 GET /api/elder/family-news (D63): 안 들은 가족 일기 + 아직 못 들은 가족 이모지(첫 장 '하트가 왔어요', 받은 순서)
 // 첫 장을 읽어 드린 뒤 POST /api/elder/hearts/heard { until: 읽어 드린 마지막 하트의 at } → 204
 export type Heart = { diary_id: number; kind: 'HEART' | 'SMILE' | 'CLAP'; name: string | null; at: string }
