@@ -54,6 +54,32 @@ export default function UPLOAD_002() {
     return () => controller.abort()
   }, [])
 
+  // 보내는 동안만 화면이 안 꺼지게 — 꺼지면 보내기가 멈출 수 있다. 끝나거나(busy=false) 화면을 떠나면 놓는다.
+  // 다른 앱에 갔다 오면 브라우저가 잠금을 풀어서, 다시 보일 때 또 잡는다(VoiceSession 과 같은 방법).
+  // 지원 안 하는 폰·거절은 조용히 넘어간다
+  useEffect(() => {
+    if (!busy) return
+    let lock: WakeLockSentinel | undefined
+    let over = false
+    const grab = () => {
+      if (document.hidden || (lock && !lock.released)) return
+      navigator.wakeLock?.request('screen').then(
+        (l) => {
+          if (over) l.release().catch(() => {})
+          else lock = l
+        },
+        () => {},
+      )
+    }
+    grab()
+    document.addEventListener('visibilitychange', grab)
+    return () => {
+      over = true
+      document.removeEventListener('visibilitychange', grab)
+      lock?.release().catch(() => {})
+    }
+  }, [busy])
+
   const roomIds = rooms.data?.map((r) => r.room_id).join(',') ?? ''
   useEffect(() => {
     if (!roomIds) return
