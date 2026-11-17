@@ -36,6 +36,7 @@ def test_correct_repeat_and_change(client, context, monkeypatch):
     assert response.status_code == 200, response.text
     assert response.json()["photo_id"] == photo_id
     assert set(response.json()) == {
+        "usable",
         "is_mine",
         "photo_id",
         "url",
