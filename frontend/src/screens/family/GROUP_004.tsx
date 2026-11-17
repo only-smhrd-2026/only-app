@@ -23,8 +23,14 @@ const nameOf = (v: string) => (v === NONE ? '맞는 것 없음' : v)
 // 받침이 있으면 '과', 없으면 '와' — 할머니와 / 어머님과
 const wa = (w: string) => ((w.charCodeAt(w.length - 1) - 0xac00) % 28 ? '과' : '와')
 
-/** 사진 칸의 칩 — 가족이 고친 활동이 먼저, 분류 전이면 'AI 가 보는 중' */
+const OFF = '오늘의 한 장에는 안 나와요'
+// AI 가 '어르신과 이야기하기 어려운 사진'(글자 캡처·병원 등)으로 본 사진 — 오늘의 한 장에서 빠진다(services/picks.py).
+// 활동을 고쳐도 usable 은 그대로라 고친 사진에도 보여 준다. null(분류 전·이름표 없음)·true 는 평소대로
+const isOff = (p: PhotoOut) => p.analyzed && p.usable === false
+
+/** 사진 칸의 칩 — 안 나오는 사진이 먼저, 그다음 가족이 고친 활동, 분류 전이면 'AI 가 보는 중' */
 function chipOf(p: PhotoOut): [string, string] {
+  if (isOff(p)) return [OFF, ' off']
   if (p.corrected_activity) return [nameOf(p.corrected_activity), ' fixed']
   if (!p.analyzed) return ['AI 가 보는 중', ' wait']
   return [p.ai_activity && p.ai_activity !== NONE ? p.ai_activity : '활동 없음', '']
@@ -174,22 +180,33 @@ export default function GROUP_004() {
                 <div className="gp-chips">
                   <span className="gp-chip">활동 · {nameOf(curAct ?? NONE)}</span>
                   {cur.corrected_activity && <span className="gp-chip on">가족이 고침</span>}
+                  {isOff(cur) && <span className="gp-chip off">{OFF}</span>}
                 </div>
                 {cur.ai_scene && <p className="gp-line">{cur.ai_scene}</p>}
-                <p className="gp-fine">
-                  {hon}
-                  {wa(hon)} 이야기할 때 첫 질문과 생각 문제 거리로 써요. {hon}께는 사실처럼 말하지 않고 '~같아요'로만
-                  말해요.
-                </p>
-                <div className="gp-cta">
-                  <button
-                    type="button"
-                    className="fam-btn fam-btn--primary fam-btn--block"
-                    onClick={() => setOpen({ id: cur.photo_id, step: 'fix' })}
-                  >
-                    활동 고치기
-                  </button>
-                </div>
+                {isOff(cur) ? (
+                  // 오늘의 한 장에서 빠진 사진은 대화·생각 문제에 안 쓰여서 활동을 고쳐도 바뀌는 게 없다 → 고치기 버튼 없음
+                  <p className="gp-fine">
+                    AI 가 {hon}
+                    {wa(hon)} 이야기 나누기 어려운 사진으로 봐서 오늘의 한 장에는 고르지 않아요.
+                  </p>
+                ) : (
+                  <>
+                    <p className="gp-fine">
+                      {hon}
+                      {wa(hon)} 이야기할 때 첫 질문과 생각 문제 거리로 써요. {hon}께는 사실처럼 말하지 않고
+                      '~같아요'로만 말해요.
+                    </p>
+                    <div className="gp-cta">
+                      <button
+                        type="button"
+                        className="fam-btn fam-btn--primary fam-btn--block"
+                        onClick={() => setOpen({ id: cur.photo_id, step: 'fix' })}
+                      >
+                        활동 고치기
+                      </button>
+                    </div>
+                  </>
+                )}
               </>
             ) : (
               <p className="gp-fine">올린 뒤 10분 안에 끝나요. 끝나면 여기에서 AI 가 본 것을 볼 수 있어요.</p>
