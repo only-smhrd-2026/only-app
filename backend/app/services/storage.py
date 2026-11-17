@@ -71,6 +71,13 @@ class _R2:
     def delete(self, key: str) -> None:
         self.client.delete_object(Bucket=self.bucket, Key=key)
 
+    def list(self, prefix: str):
+        """페이지를 끝까지 읽어 (키, 업로드 시각)을 돌려준다."""
+        pages = self.client.get_paginator("list_objects_v2").paginate(Bucket=self.bucket, Prefix=prefix)
+        for page in pages:
+            for item in page.get("Contents", []):
+                yield item["Key"], item["LastModified"]
+
 
 _backend: _Local | _R2 | None = None
 
