@@ -16,6 +16,9 @@ EXCEPTIONS = {
     ("backend/app/ai/llm.py", "검증 실패: "),  # 내부 예외의 문자열 조각
 }
 TS_STRING = re.compile(r""""(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`""")
+KNOWN_MOOD_TEXT = (
+    "지난 2주 동안 스스로가 못났다거나 실패했다고 느끼거나, 자신이나 가족을 실망시켰다고 느낀 날이 얼마나 있었어요?"
+)
 
 
 def python_strings(path):
@@ -72,11 +75,6 @@ def fixed_text_paths():
         pytest.param(
             path,
             id=path.relative_to(ROOT).as_posix(),
-            marks=[
-                pytest.mark.xfail(strict=True, reason="frontend/src/lib/moodCheck.ts:21 어르신 마음 체크에 '실패' 포함")
-            ]
-            if path.name == "moodCheck.ts"
-            else [],
         )
         for path in fixed_text_paths()
     ],
@@ -95,14 +93,38 @@ def test_fixed_user_text_has_no_banned_words(path):
         or "components/VoiceSession/" in relative
         or relative.endswith(("lib/audio.ts", "lib/moodCheck.ts"))
         or relative.startswith("backend/app/ai/")
-        or relative in {"backend/app/routers/elder.py", "backend/app/routers/sessions.py"}
+        or relative
+        in {
+            "backend/app/routers/elder.py",
+            "backend/app/routers/sessions.py",
+            "backend/app/routers/diaries.py",
+            "backend/app/routers/mood.py",
+            "backend/app/routers/stt.py",
+            "backend/app/routers/devices.py",
+            "backend/app/deps.py",
+            "backend/app/errors.py",
+        }
     )
     for line, value in strings:
         if (relative, value) in EXCEPTIONS:
             continue
+        if relative == "frontend/src/lib/moodCheck.ts" and value == KNOWN_MOOD_TEXT:
+            continue  # 알려진 문장만 별도 strict xfail 검사에서 확인한다.
         words = [word for word in BANNED_WORDS if word in value]
         if elder and "실패" in value:
             words.append("실패")
         if words:
             hits.append(f"{relative}:{line} ({', '.join(words)})")
     assert not hits, "\n".join(hits)
+
+
+@pytest.mark.xfail(strict=True, reason="frontend/src/lib/moodCheck.ts:21 어르신 마음 체크에 '실패' 포함")
+def test_known_mood_prompt_has_no_failure_word():
+    path = ROOT / "frontend/src/lib/moodCheck.ts"
+    assert not any(value == KNOWN_MOOD_TEXT and "실패" in value for _, value in typescript_strings(path))
+
+
+def test_new_mood_violation_is_not_masked_by_known_sentence(monkeypatch):
+    monkeypatch.setitem(globals(), "typescript_strings", lambda path: iter([(21, KNOWN_MOOD_TEXT), (22, "점수")]))
+    with pytest.raises(AssertionError, match="점수"):
+        test_fixed_user_text_has_no_banned_words(ROOT / "frontend/src/lib/moodCheck.ts")
