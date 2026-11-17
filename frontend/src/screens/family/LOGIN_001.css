@@ -21,7 +21,7 @@
   border-radius: 14px;
   background: var(--tint);
   color: var(--primary);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.45;
 }
 
@@ -54,15 +54,16 @@
 
 .login-screen .login-button--secondary { background: var(--tint); color: var(--primary); }
 .login-screen .login-button--kakao { background: var(--bg); color: var(--text-2); }
-.login-screen .login-policy-note { padding-top: 4px; color: var(--text-2); font-size: 12.5px; line-height: 1.65; text-align: center; }
+.login-screen .login-policy-note a { display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; }
+.login-screen .login-policy-note { padding-top: 4px; color: var(--text-2); font-size: 15px; line-height: 1.65; text-align: center; }
 .login-screen a { color: var(--primary); text-underline-offset: 3px; }
-.login-screen .login-notice { padding: 12px; border-radius: 12px; background: var(--tint-2); color: var(--primary); font-size: 14px; }
+.login-screen .login-notice { padding: 12px; border-radius: 12px; background: var(--tint-2); color: var(--primary); font-size: 15px; }
 .login-screen .login-shell--email .login-brand { margin-top: 0; }
 .login-screen .login-email { margin-top: auto; }
 .login-screen .login-email h2 { margin-bottom: 20px; font-size: 20px; font-weight: 800; letter-spacing: -.03em; }
 .login-screen .login-form, .login-screen .login-form label { display: grid; min-width: 0; }
 .login-screen .login-form { gap: 14px; }
-.login-screen .login-form label { gap: 6px; font-size: 14px; color: var(--text-2); }
+.login-screen .login-form label { gap: 6px; font-size: 15px; color: var(--text-2); }
 .login-screen .login-form input:not([type='checkbox']) {
   width: 100%;
   min-width: 0;
@@ -78,9 +79,9 @@
 .login-screen .login-terms-row { display: flex; align-items: center; gap: 8px; }
 .login-screen .login-form .login-terms { display: flex; align-items: center; gap: 8px; min-height: 44px; }
 .login-screen .login-terms input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--primary); }
-.login-screen .login-policy-link { display: inline-flex; align-items: center; flex: none; min-height: 44px; padding: 0 4px; font-size: 14px; }
-.login-screen .login-error { color: #b00020; font-size: 14px; overflow-wrap: anywhere; }
-.login-screen .login-back { display: block; min-height: 44px; margin: 12px auto 0; padding: 8px 12px; border: 0; background: transparent; color: var(--text-2); font-size: 14px; cursor: pointer; }
+.login-screen .login-policy-link { display: inline-flex; align-items: center; flex: none; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 4px; font-size: 15px; }
+.login-screen .login-error { color: #b00020; font-size: 15px; overflow-wrap: anywhere; }
+.login-screen .login-back { display: block; min-height: 44px; margin: 12px auto 0; padding: 8px 12px; border: 0; background: transparent; color: var(--text-2); font-size: 15px; cursor: pointer; }
 .login-screen button:disabled { opacity: .5; cursor: default; }
 .login-screen :is(button, input, a):focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
 

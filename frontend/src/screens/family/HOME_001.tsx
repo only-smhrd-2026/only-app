@@ -243,7 +243,7 @@ function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserO
                   onClick={() => react(kind)}
                   disabled={busy}
                   aria-pressed={on}
-                  aria-label={n ? `${label} ${n}개` : label}
+                  aria-label={n ? `${label} ${n} 개` : label}
                 >
                   {emoji}
                   {n > 0 && <span>{n}</span>}
@@ -318,7 +318,7 @@ function StartHome({ room, reloadRooms }: { room: RoomOut; reloadRooms: () => vo
   const connected = room.device_connected
   const step2 = connected ? 'done' : photos < 3 ? 'lock' : 'now'
   return (
-    <div className="fam-stack">
+    <main className="fam-stack">
       <section className="fam-card home-start">
         <h2>하루한장을 시작해 볼까요?</h2>
         <p className="home-lead">
@@ -381,14 +381,14 @@ function StartHome({ room, reloadRooms }: { room: RoomOut; reloadRooms: () => vo
         </ol>
       </section>
       <Empty room={room} />
-    </div>
+    </main>
   )
 }
 
 function NoRoom() {
   const nav = useNavigate()
   return (
-    <div className="fam-stack">
+    <main className="fam-stack">
       <section className="fam-card home-start">
         <h2>하루한장을 시작해 볼까요?</h2>
         <p className="home-lead">어르신 한 분마다 가족방을 하나 만들어요. 가족에게 초대 링크를 받았다면 그 링크를 열어 주세요.</p>
@@ -396,7 +396,7 @@ function NoRoom() {
           가족방 만들기
         </button>
       </section>
-    </div>
+    </main>
   )
 }
 
@@ -467,7 +467,7 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
     else groups.push([label, [d]])
   }
   return (
-    <div className="fam-stack">
+    <main className="fam-stack">
       <MoodCard week={mood.data} />
       <WeeklyBanner room={room} />
       {groups.map(([label, ds]) => (
@@ -491,7 +491,7 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
         </button>
       )}
       {items.length === 0 && <Empty room={room} />}
-    </div>
+    </main>
   )
 }
 
