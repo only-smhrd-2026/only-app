@@ -21,9 +21,11 @@ export default function ELDER_TODAY_001({ home, busy, error, onTalk, onSkip }: P
   useEffect(() => {
     if (!photo) return
     let alive = true
-    const retryAfterGesture = () => {
+    const retryAfterGesture = (event: Event) => {
       window.removeEventListener('pointerup', retryAfterGesture)
       window.removeEventListener('keydown', retryAfterGesture)
+      // 안내 버튼은 click에서 읽으므로 첫 터치 재시도와 겹치지 않게 한다.
+      if (event.target instanceof Element && event.target.closest('.elder-today-prompt')) return
       void speak(prompt, speed)
     }
     // 자동 읽기가 막혔을 때만(speak 가 false) 첫 터치·키에 다시 읽는다. 고른 목소리는 서버 소리라 받아서 틀어 본 뒤에 안다 (D78).
@@ -44,12 +46,14 @@ export default function ELDER_TODAY_001({ home, busy, error, onTalk, onSkip }: P
 
   return (
     <div className="elder-today-overlay">
-      <section className="elder-today-sheet" role="dialog" aria-modal="true" aria-labelledby="elder-today-title">
+      <section className="elder-today-sheet elder-today-sheet--photo" role="dialog" aria-modal="true" aria-labelledby="elder-today-title">
         <span className="elder-today-handle" aria-hidden="true" />
         <h1 id="elder-today-title">오늘의 한 장이 왔어요</h1>
         <p className="elder-today-cap">가족이 올린 사진</p>
         <ElderPhoto className="elder-today-photo-wrap" src={photo.photo_url} alt="가족이 올린 오늘의 사진" />
-        <p className="elder-today-prompt">{prompt}</p>
+        <button type="button" className="elder-today-prompt" onClick={() => void speak(prompt, speed)} disabled={busy} aria-label={`${prompt} 다시 듣기`}>
+          {prompt}
+        </button>
         {error && <p className="elder-text" role="alert">{error}</p>}
         <div className="elder-two">
           <button className="elder-btn" onClick={onTalk} disabled={busy} autoFocus>

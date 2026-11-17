@@ -44,3 +44,20 @@
    부품(ElderPhoto)이 붙이는 elder-photo-box--grow 보다 앞서게 클래스 두 개로 적는다 */
 .elder-today-sheet .elder-today-photo-wrap { flex: 1 1 36dvh; min-height: 96px; max-height: 36dvh; }
 .elder-today-cap { font-size: var(--elder-font-size-s); }
+
+.elder-today-sheet--photo { border: 0; }
+
+.elder-today-prompt {
+  flex: none;
+  min-height: 56px;
+  padding: 8px;
+  border: var(--elder-edge-w) solid var(--elder-ai-e);
+  border-radius: var(--elder-radius);
+  background: var(--elder-card);
+  color: var(--elder-fg);
+  font: inherit;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.elder-today-prompt:disabled { cursor: default; }
