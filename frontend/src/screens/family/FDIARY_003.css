@@ -1,19 +1,20 @@
 /* FDIARY_003 오늘 한 장 3/3 — 목업 설계자료/목업_1115_가족 ④ .draft-top·.tb·.chip·.readout 값 그대로.
-   글 칸·글자 수·칩은 FDIARY_002.css(.fd2-*), 진행 막대·아래 버튼은 steps.css */
+   글 칸·글자 수·칩은 FDIARY_002.css(.fd2-*), 진행 막대·아래 버튼은 steps.css.
+   글자 15px 이상(가족 화면 규격, 11/17 — 목업의 12.5~14.5px 를 올림) */
 .fd3-top { display:flex; align-items:center; gap:10px; }
 .fd3-thumb { flex:none; width:56px; height:56px; border-radius:10px; overflow:hidden; background:#eceaf2; }
 .fd3-thumb img { display:block; width:100%; height:100%; object-fit:cover; }
-.fd3-chip { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px; border-radius:999px; background:var(--tint-2); font-size:13.5px; font-weight:600; color:var(--text-2); }
+.fd3-chip { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px; border-radius:999px; background:var(--tint-2); font-size:15px; font-weight:600; color:var(--text-2); }
 .fd3-chip .elder-ic { width:17px; height:17px; }
 .fd3-draft { font-size:16.5px; line-height:1.7; }
 .fd3-draft:disabled { background:var(--tint-2); color:var(--text-2); }
 
 /* 이렇게 읽어 드려요 — 보낼 분마다 첫 문장 */
 .fd3-readout { display:flex; flex-direction:column; gap:8px; padding:14px; border-radius:14px; background:var(--tint-2); }
-.fam .fd3-readout-h { font-size:13.5px; font-weight:800; color:var(--primary); }
-.fd3-readout ul { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px; font-size:14.5px; line-height:1.5; }
-.fd3-readout li b { display:block; font-size:12.5px; font-weight:700; color:var(--text-3); }
-.fd3-readout li small { display:block; margin-top:2px; font-size:12.5px; font-weight:700; }
+.fam .fd3-readout-h { font-size:15px; font-weight:800; color:var(--primary); }
+.fd3-readout ul { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px; font-size:15px; line-height:1.5; }
+.fd3-readout li b { display:block; font-size:15px; font-weight:700; color:var(--text-3); }
+.fd3-readout li small { display:block; margin-top:2px; font-size:15px; font-weight:700; }
 .fd3-ok { color:var(--ok); }
 .fd3-fail { color:var(--danger); }
-.fam .fd3-fine { font-size:12.5px; line-height:1.55; color:var(--text-3); }
+.fam .fd3-fine { font-size:15px; line-height:1.55; color:var(--text-3); }

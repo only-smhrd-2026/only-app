@@ -1,4 +1,5 @@
-/* FDIARY_001 오늘 한 장 1/3 — 목업 설계자료/목업_1115_가족 ④ .picker·.one-photo 값 그대로. 진행 막대·아래 버튼은 steps.css */
+/* FDIARY_001 오늘 한 장 1/3 — 목업 설계자료/목업_1115_가족 ④ .picker·.one-photo 값 그대로. 진행 막대·아래 버튼은 steps.css.
+   설명 글자 15px·누르는 곳 44px 이상(가족 화면 규격, 11/17 — 목업의 13~14px 를 올림) */
 
 /* 사진 창을 여는 칸 — 진짜 input 은 보이지 않게 두고(키보드로는 닿게) label 전체를 누르면 열린다 */
 .fd-file { position:absolute; width:1px; height:1px; opacity:0; overflow:hidden; }
@@ -8,13 +9,13 @@
 .fd-ring { width:60px; height:60px; border-radius:20px; display:grid; place-items:center; background:var(--tint); color:var(--primary); margin-bottom:6px; }
 .fd-ring .fam-ic { width:28px; height:28px; }
 .fd-picker b { font-size:17px; }
-.fd-picker small { font-size:13.5px; color:var(--text-2); }
+.fd-picker small { font-size:15px; color:var(--text-2); }
 
 /* 고른 사진 크게 + [다른 사진] — 자르지 않고 4:3 칸 안에 다 보이게 */
 .fd-photo { position:relative; margin:0 var(--gut); border-radius:var(--r); overflow:hidden; aspect-ratio:4/3; background:#eceaf2; }
 .fd-photo img { display:block; width:100%; height:100%; object-fit:contain; }
-.fd-again { position:absolute; right:10px; bottom:10px; display:flex; align-items:center; gap:5px; height:34px; padding:0 12px; border-radius:999px; background:rgba(31,27,46,.62); color:#fff; font-size:13px; font-weight:700; cursor:pointer; }
+.fd-again { position:absolute; right:10px; bottom:10px; display:flex; align-items:center; gap:5px; min-height:44px; padding:0 14px; border-radius:999px; background:rgba(31,27,46,.62); color:#fff; font-size:15px; font-weight:700; cursor:pointer; }
 .fd-again .fam-ic { width:16px; height:16px; }
 
-.fam .fd-hint { margin:0 var(--gut); color:var(--text-2); font-size:14px; text-align:center; }
+.fam .fd-hint { margin:0 var(--gut); color:var(--text-2); font-size:15px; text-align:center; }
 .fd-hint a { color:var(--primary); font-weight:700; }
