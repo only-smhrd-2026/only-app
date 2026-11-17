@@ -30,6 +30,7 @@ import HOME_002 from './screens/family/HOME_002'
 import JOIN_001 from './screens/family/JOIN_001'
 import LOGIN_001 from './screens/family/LOGIN_001'
 import NOTI_001 from './screens/family/NOTI_001'
+import POLICY_001 from './screens/family/POLICY_001'
 import UPLOAD_001 from './screens/family/UPLOAD_001'
 import UPLOAD_002 from './screens/family/UPLOAD_002'
 import UPLOAD_003 from './screens/family/UPLOAD_003'
@@ -70,6 +71,8 @@ export const SCREENS: ScreenDef[] = [
   { id: 'FDIARY_003', path: '/fdiary/confirm', title: '가족 일기 확인', Screen: FDIARY_003 },
   { id: 'WEEKLY_001', path: '/weekly/:roomId', title: '주간 이야기', Screen: WEEKLY_001 },
   { id: 'NOTI_001', path: '/notifications', title: '알림', Screen: NOTI_001 },
+  // 11/17 새 화면 — 로그인 전에도 열려야 해서 TAB·SUB 어디에도 넣지 않는다(틀 밖, 화면이 스스로 ← 를 그린다)
+  { id: 'POLICY_001', path: '/policy', title: '약관·개인정보 처리방침', Screen: POLICY_001 },
 ]
 
 /**

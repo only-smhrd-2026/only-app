@@ -202,6 +202,12 @@ export default function UPLOAD_001() {
             />
           </div>
         )}
+        {/* 사진 국외 전송 안내 (D71) — 가족방이 있어 사진을 고를 수 있을 때만. 자세히는 처리방침의 '맡기는 곳' */}
+        {!!rooms.data?.length && (
+          <p className="up-hint">
+            사진은 AI가 살펴보도록 미국(Anthropic)으로 보내져요 · <Link to="/policy#vendors">자세히 ›</Link>
+          </p>
+        )}
         {preparing && (
           <p className="up-hint" role="status">
             사진을 준비하는 중…

@@ -1,0 +1,28 @@
+/* POLICY_001 약관·개인정보 처리방침 — 틀 밖 화면이라 창 전체가 스크롤된다(LOGIN_001 과 같음). 위 ← 막대만 붙어 있다.
+   글자 15px 이상(가족 화면 규격, 11/17) */
+.fam.pol { height:auto; min-height:100vh; min-height:100dvh; }
+.pol-bar { position:sticky; top:0; z-index:2; }
+.pol-body { display:flex; flex-direction:column; gap:24px; padding:4px var(--gut) calc(32px + env(safe-area-inset-bottom,0px)); }
+.pol-body h1 { font-size:24px; font-weight:800; letter-spacing:-.04em; }
+.pol-body section { display:flex; flex-direction:column; gap:10px; scroll-margin-top:calc(64px + env(safe-area-inset-top,0px)); } /* #vendors 로 내릴 때 위 막대(56px + 노치 공간)에 가리지 않게 */
+.pol-body h2 { font-size:18px; font-weight:800; letter-spacing:-.03em; }
+.fam .pol-body p { color:var(--text-2); line-height:1.65; }
+
+/* 표 대신 줄마다 카드 */
+.pol-cards, .pol-list { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px; }
+.pol-cards li { padding:14px 16px; border-radius:16px; background:var(--surface); }
+.pol-cards b { display:block; margin-bottom:6px; font-size:16px; }
+.pol-cards dl, .pol-keep { margin:0; display:flex; flex-direction:column; gap:6px; }
+.pol-cards dl div { display:flex; flex-direction:column; }
+.pol-cards dt { color:var(--text-2); font-weight:700; }
+.pol-cards dd, .pol-keep dd { margin:0; line-height:1.55; }
+
+/* 얼마나 두는지 — 왼쪽 정보, 오른쪽 기간 */
+.pol-keep { padding:6px 16px; border-radius:16px; background:var(--surface); gap:0; }
+.pol-keep div { display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-top:1px solid var(--line); }
+.pol-keep div:first-child { border-top:0; }
+.pol-keep dt { font-weight:700; }
+.pol-keep dd { text-align:right; color:var(--text-2); }
+
+.pol-list li { position:relative; padding-left:14px; color:var(--text-2); line-height:1.65; }
+.pol-list li::before { content:''; position:absolute; left:2px; top:.75em; width:5px; height:5px; border-radius:50%; background:var(--primary); }
