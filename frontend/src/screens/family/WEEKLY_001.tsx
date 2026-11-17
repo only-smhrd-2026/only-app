@@ -42,6 +42,16 @@ function DiaryThumb({ diary }: { diary: WeeklyOut['diaries'][number] }) {
 function WeeklyWeek({ roomId, weekStart, onWeek }: { roomId: number; weekStart: string | null; onWeek: (week: string) => void }) {
   const path = '/api/rooms/' + roomId + '/weekly' + (weekStart ? '?week_start=' + encodeURIComponent(weekStart) : '')
   const { data, error, reload } = useFetch<WeeklyOut>(path)
+  // 설치형 앱으로 돌아오면 지금 보고 있는 주간 이야기를 다시 읽는다
+  useEffect(() => {
+    const onShow = () => {
+      if (document.visibilityState !== 'visible') return
+      reload()
+    }
+    document.addEventListener('visibilitychange', onShow)
+    return () => document.removeEventListener('visibilitychange', onShow)
+  }, [reload])
+
   // 가장 최근 주를 봤을 때만 적는다. 지난 주로 덮어 쓰면 가족 홈의 도착 띠가 다시 뜬다 (D70).
   useEffect(() => {
     if (data && data.next_week_start === null) markWeeklySeen(roomId, data.week_start)
