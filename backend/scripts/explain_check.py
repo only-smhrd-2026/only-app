@@ -315,9 +315,9 @@ def queries(conn: Connection, now: datetime) -> tuple[list[Query], dict]:
     return checks, params
 
 
-def measure(conn: Connection, query: Query, params: dict) -> tuple[float, bool, str]:
+def measure(conn: Connection, query: Query, params: dict) -> tuple[float, str, str]:
     times = []
-    scans, indexes = False, set()
+    scans, indexes = set(), set()
     for attempt in range(4):
         plan = conn.execute(text("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + query.sql), params).scalar_one()[0]
         if attempt:
@@ -325,11 +325,13 @@ def measure(conn: Connection, query: Query, params: dict) -> tuple[float, bool, 
         pending = [plan["Plan"]]
         while pending:
             node = pending.pop()
-            scans |= node["Node Type"] == "Seq Scan"
+            if node["Node Type"] == "Seq Scan":
+                scans.add(node.get("Relation Name", "관계 이름 없음"))
             if "Index Name" in node:
                 indexes.add(node["Index Name"])
             pending.extend(node.get("Plans", []))
-    return median(times), scans, ", ".join(sorted(indexes)) or "없음"
+    seq_scan = f"있음 ({', '.join(sorted(scans))})" if scans else "없음"
+    return median(times), seq_scan, ", ".join(sorted(indexes)) or "없음"
 
 
 def report(conn: Connection, now: datetime) -> None:
@@ -350,7 +352,7 @@ def report(conn: Connection, now: datetime) -> None:
     print("| 조회 | 걸린 ms | Seq Scan | 쓴 인덱스 |")
     print("|---|---:|---|---|")
     for name, milliseconds, seq_scan, indexes in rows:
-        print(f"| {name} | {milliseconds:.3f} | {'있음' if seq_scan else '없음'} | {indexes} |")
+        print(f"| {name} | {milliseconds:.3f} | {seq_scan} | {indexes} |")
 
 
 def main() -> int:
