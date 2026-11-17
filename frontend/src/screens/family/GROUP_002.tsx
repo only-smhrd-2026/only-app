@@ -24,8 +24,9 @@ import { useFetch } from '../../hooks/useFetch'
 import { PROMPT, say, stopSpeaking } from '../../lib/audio'
 import './GROUP_002.css'
 
-// ── 할머니 화면 설정 (목업 ⑥ 설정 판, D74). 일기 시간·호칭은 넣지 않음(11/13 결정 — 호칭 고치기는 ⑬)
-type SetKey = Exclude<keyof RoomSettingsIn, 'diary_time'>
+// ── 할머니 화면 설정 (목업 ⑥ 설정 판, D74). 일기 시간은 넣지 않음(11/13 결정). 이름·부르는 말은 아래 TEXTS(글로 고치기)
+type ElderKey = 'elder_name' | 'elder_honorific'
+type SetKey = Exclude<keyof RoomSettingsIn, 'diary_time' | ElderKey>
 type SetDef = { key: SetKey; name: string; help: (hon: string) => string; opts: [value: string, label: string, px?: number][] }
 
 const hourLabel = (h: number) => (h === 0 ? '밤 12시' : h < 12 ? `오전 ${h}시` : h === 12 ? '낮 12시' : `오후 ${h - 12}시`)
@@ -83,14 +84,23 @@ function curOf(r: RoomOut, k: SetKey) {
 }
 const labelOf = (s: SetDef, v: string) => s.opts.find((o) => o[0] === v)?.[1] ?? v
 
+// ── 글로 고치는 칸 (FR-AD-003·007) — 구성원 호칭(비우면 호칭 없음)·어르신 이름·부르는 말. 글자 수는 서버 schemas/rooms.py 와 같게
+const TEXTS: Record<'nickname' | ElderKey, { name: string; max: number; help: (hon: string) => string }> = {
+  nickname: { name: '호칭', max: 12, help: (hon) => `${hon}께서 이분을 부르는 말이에요 (예: 큰딸) · 비우면 이름으로 불러요` },
+  elder_name: { name: '어르신 이름', max: 10, help: () => '위 막대와 가족 홈에 보이는 이름이에요' },
+  elder_honorific: { name: '부르는 말', max: 20, help: () => 'AI 와 가족 화면이 어르신을 부르는 말이에요 (예: 할머니)' },
+}
+
 const RELATION: Record<RelationTag, string> = { CHILD: '자녀', GRANDCHILD: '손주', OTHER: '기타' }
 
+type TextSheet = { t: 'text'; k: 'nickname'; m: MemberOut } | { t: 'text'; k: ElderKey }
 type Sheet =
   | { t: 'invite'; kind: InviteKind }
   | { t: 'member'; m: MemberOut }
   | { t: 'kick'; m: MemberOut }
   | { t: 'unlink' }
   | { t: 'set'; s: SetDef }
+  | TextSheet
 
 // 받침이 있으면 '과', 없으면 '와' — 할머니와 / 어머님과 (GROUP_004 와 같은 식)
 // 끝 글자가 한글이 아니면(예: 할머니2) '와' — 계산이 음수가 돼 '과'로 잘못 고르지 않게
@@ -131,9 +141,9 @@ function RoomTab() {
   // 이 탭을 열 때마다 새로 읽는다 — 갤럭시를 연결하고 돌아오면 '연결됐어요', 사진을 올리고 오면 사진 수가 바뀐다
   const rooms = useFetch<RoomOut[]>('/api/rooms')
   // 설정을 바꾸면 서버가 돌려준 RoomOut 의 설정 칸으로 덮어쓴다 — 설정은 이 화면에서만 바뀌어 다시 읽지 않아도 된다
-  const [setPatch, setSetPatch] = useState<Partial<RoomOut>>({})
+  const [settingsPatch, setSettingsPatch] = useState<Partial<RoomOut>>({})
   const found = rooms.data?.find((r) => String(r.room_id) === roomId)
-  const room = found && { ...found, ...setPatch }
+  const room = found && { ...found, ...settingsPatch }
   const members = useFetch<MemberOut[]>(room ? `/api/rooms/${roomId}/members` : null)
   // 링크 목록은 방장만 부를 수 있다 — 방장이 아니면 부르지 않는다
   const invites = useFetch<InviteOut[]>(room?.is_owner ? `/api/rooms/${roomId}/invites` : null)
@@ -143,6 +153,7 @@ function RoomTab() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [note, setNote] = useState<string>()
+  const [text, setText] = useState('') // 글로 고치기 판의 입력 칸
 
   useEffect(() => {
     if (!note) return
@@ -152,6 +163,8 @@ function RoomTab() {
 
   const open = (s: Sheet) => (setError(undefined), setSheet(s))
   const close = () => (setSheet(undefined), setError(undefined))
+  /** 글로 고치기 판 — 지금 값을 넣어 둔 채 연다 */
+  const openText = (s: TextSheet, value: string) => (setText(value), open(s))
 
   /** 서버에 바꾸기를 보내고 → 다시 읽고 → 판을 닫고 → 한 줄 알림. 두 번 눌러도 한 번만 (busy) */
   async function change(path: string, done: string, after: () => void) {
@@ -190,11 +203,40 @@ function RoomTab() {
     setError(undefined)
     try {
       const out = await api<RoomOut>(`/api/rooms/${r.room_id}/settings`, { method: 'PATCH', body: { [s.key]: value } })
-      setSetPatch((p) => ({ ...p, [s.key]: out[s.key] }))
+      setSettingsPatch((p) => ({ ...p, [s.key]: out[s.key] }))
       reloadRooms() // 가족 홈 '매일 오전 9시에…' 문장도 새 값으로
       setSheet(undefined)
       setNote(`바꿨어요 · ${s.name} ${labelOf(s, value)}`)
       hello()
+    } catch (e) {
+      setError(msgOf(e))
+    }
+    setBusy(false)
+  }
+
+  /** 글로 고치기 [저장] — 호칭은 구성원 PATCH(비우면 null = 호칭 없음), 어르신 이름·부르는 말은 설정 PATCH */
+  async function saveText(r: RoomOut, s: TextSheet) {
+    if (busy) return
+    const value = text.trim()
+    const before = s.k === 'nickname' ? (s.m.nickname ?? '') : r[s.k]
+    if (value === before) return close() // 같은 값 — 보내지 않고 판만 닫는다(saveSetting 과 같음)
+    setBusy(true)
+    setError(undefined)
+    try {
+      if (s.k === 'nickname') {
+        await api<MemberOut>(`/api/rooms/${r.room_id}/members/${s.m.user_id}`, {
+          method: 'PATCH',
+          body: { nickname: value || null },
+        })
+        members.reload() // 목록을 다시 읽어 그 줄에 새 호칭
+      } else {
+        const out = await api<RoomOut>(`/api/rooms/${r.room_id}/settings`, { method: 'PATCH', body: { [s.k]: value } })
+        setSettingsPatch((p) => ({ ...p, [s.k]: out[s.k] }))
+        reloadRooms() // 위 막대·가족 홈 문장도 새 이름으로
+      }
+      setSheet(undefined)
+      const who = s.k === 'nickname' ? `${s.m.name}님 ` : ''
+      setNote(value ? `바꿨어요 · ${who}${TEXTS[s.k].name} ${value}` : `${who}호칭을 지웠어요`)
     } catch (e) {
       setError(msgOf(e))
     }
@@ -369,19 +411,17 @@ function RoomTab() {
                     {m.is_owner ? ' · 방장' : ''}
                   </small>
                 </div>
-                {m.user_id === me?.user_id ? (
-                  <i className="gr-me">나</i>
-                ) : (
-                  owner && (
-                    <button
-                      type="button"
-                      className="fam-icon-btn gr-more"
-                      onClick={() => open({ t: 'member', m })}
-                      aria-label={`${m.name} 더 보기`}
-                    >
-                      ⋮
-                    </button>
-                  )
+                {m.user_id === me?.user_id && <i className="gr-me">나</i>}
+                {/* 방장은 자기 줄에도 ⋮ — 자기 호칭도 고칠 수 있게(판에서 내보내기는 숨김) */}
+                {owner && (
+                  <button
+                    type="button"
+                    className="fam-icon-btn gr-more"
+                    onClick={() => open({ t: 'member', m })}
+                    aria-label={`${m.name} 더 보기`}
+                  >
+                    ⋮
+                  </button>
                 )}
               </div>
             ))}
@@ -417,6 +457,19 @@ function RoomTab() {
       <section className="fam-card">
         <h2 className="gr-h">{hon} 화면 설정</h2>
         <div className="gr-set-list">
+          {(['elder_name', 'elder_honorific'] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              className="gr-row gr-set"
+              disabled={!owner}
+              onClick={() => openText({ t: 'text', k }, room[k])}
+            >
+              <span>{TEXTS[k].name}</span>
+              <b>{room[k]}</b>
+              {owner && <FamIcon name="chevRight" className="gr-chev" />}
+            </button>
+          ))}
           {SETS.map((s) => (
             <button
               key={s.key}
@@ -513,12 +566,27 @@ function RoomTab() {
                     <small>{RELATION[sheet.m.relation_tag]}</small>
                   </div>
                 </div>
-                <button type="button" className="fam-opt gr-opt-danger" onClick={() => open({ t: 'kick', m: sheet.m })}>
+                <button
+                  type="button"
+                  className="fam-opt"
+                  onClick={() => openText({ t: 'text', k: 'nickname', m: sheet.m }, sheet.m.nickname ?? '')}
+                >
                   <span>
-                    <b>가족방에서 내보내기</b>
-                    <small>내보내면 되돌릴 수 없어요</small>
+                    <b>호칭 고치기</b>
+                    <small>
+                      {hon}께서 부르는 말 · 지금 {sheet.m.nickname ?? '없음'}
+                    </small>
                   </span>
                 </button>
+                {/* 방장(=내 줄)은 내보낼 수 없다 — 서버도 CANNOT_REMOVE_OWNER 로 거절 */}
+                {!sheet.m.is_owner && (
+                  <button type="button" className="fam-opt gr-opt-danger" onClick={() => open({ t: 'kick', m: sheet.m })}>
+                    <span>
+                      <b>가족방에서 내보내기</b>
+                      <small>내보내면 되돌릴 수 없어요</small>
+                    </span>
+                  </button>
+                )}
               </>
             )}
             {sheet.t === 'kick' && (
@@ -579,6 +647,34 @@ function RoomTab() {
                 </div>
               </>
             )}
+            {sheet.t === 'text' && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  void saveText(room, sheet)
+                }}
+              >
+                <h2>{sheet.k === 'nickname' ? `${sheet.m.name}님 호칭` : TEXTS[sheet.k].name}</h2>
+                <p className="gr-sheet-text">{TEXTS[sheet.k].help(hon)}</p>
+                <input
+                  className="gr-input"
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  maxLength={TEXTS[sheet.k].max}
+                  aria-label={TEXTS[sheet.k].name}
+                  placeholder={`${TEXTS[sheet.k].max}자까지`}
+                />
+                <div className="gr-cta">
+                  <button
+                    type="submit"
+                    className="fam-btn fam-btn--primary fam-btn--block"
+                    disabled={busy || (sheet.k !== 'nickname' && !text.trim())} // 이름·부르는 말은 빈 칸 안 됨(서버 1자 이상)
+                  >
+                    {busy ? '저장하는 중…' : '저장'}
+                  </button>
+                </div>
+              </form>
+            )}
             {sheet.t === 'unlink' && (
               <>
                 <h2>{hon} 폰 연결을 해제할까요?</h2>
@@ -623,5 +719,6 @@ function sheetLabel(s: Sheet, hon: string) {
   if (s.t === 'member') return `${s.m.name} 더 보기`
   if (s.t === 'kick') return `${s.m.name}님 내보내기`
   if (s.t === 'set') return s.s.name
+  if (s.t === 'text') return s.k === 'nickname' ? `${s.m.name}님 호칭 고치기` : `${TEXTS[s.k].name} 고치기`
   return `${hon} 폰 연결 해제`
 }

@@ -2,8 +2,15 @@
 # 배포:  docker compose --profile deploy up -d → caddy(80/443, https 자동) → api(8000) → db  컨테이너 3개 (D7)
 # 값은 .env 에서 읽음 (.env.example 참고). 시간대는 전부 Asia/Seoul (D12).
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
+    logging: *default-logging
     image: postgres:16
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-only}
@@ -23,6 +30,7 @@ services:
     restart: unless-stopped
 
   api:
+    logging: *default-logging
     profiles: [deploy]
     build:
       context: .
@@ -41,6 +49,7 @@ services:
     restart: unless-stopped
 
   caddy:
+    logging: *default-logging
     profiles: [deploy]
     build:
       context: ./frontend

@@ -49,6 +49,10 @@
 .gr-warn .fam-ic { flex:none; width:16px; height:16px; }
 .gr-to-upload { display:block; margin:-6px 4px 6px; }
 .fam .gr-url { margin:0 12px 12px; padding:10px 12px; border-radius:12px; background:var(--tint-2); color:var(--text-2); font-size:13px; line-height:1.5; word-break:break-all; user-select:all; }
+/* 글로 고치기 판의 입력 칸 — 가족방 만들기(GROUP_001 .newroom-field > input)와 같은 모양 */
+.gr-input { display:block; width:calc(100% - 24px); min-width:0; margin:0 12px 12px; border:1px solid var(--line); border-radius:14px; background:var(--surface); padding:12px 14px; font-size:16px; line-height:1.55; color:var(--text); }
+.gr-input:focus { outline:2px solid var(--primary); outline-offset:1px; }
+.gr-input::placeholder { color:var(--text-3); }
 .gr-cta { padding:6px 8px 2px; }
 .gr-cta-two { display:flex; gap:8px; }
 .gr-cta-two .fam-btn { flex:1; }
