@@ -1,11 +1,14 @@
 /* GROUP_002 가족방 탭 — 목업 설계자료/목업_1115_가족 ⑥ 값 그대로(카드 ① 회색 바탕 + 흰 카드).
-   색 변수·카드·버튼·아래 판은 components/FamilyFrame.css. .fam p 의 margin 0 보다 세게 하려고 p 는 .fam 을 앞에 붙인다 */
+   색 변수·카드·버튼·아래 판은 components/FamilyFrame.css. .fam p 의 margin 0 보다 세게 하려고 p 는 .fam 을 앞에 붙인다.
+   가족 화면 규격(11/17, 글자 15px·누르는 곳 44px) — 이 파일 클래스만 올렸다(목업 12.5~14px → 15px). '나' 표시는 이름표라 그대로.
+   공통 클래스(fam-btn--sm·fam-text-btn·fam-opt small)는 FamilyFrame.css 담당이라 여기서 안 고친다 */
 .gr-head { padding:2px var(--gut) 4px; }
 .gr-head h1 { font-size:25px; font-weight:800; letter-spacing:-.04em; }
-.fam .gr-head p { margin-top:2px; color:var(--text-2); font-size:14px; }
+.fam .gr-head p { margin-top:2px; color:var(--text-2); font-size:15px; }
 .gr-h { padding:16px 16px 6px; font-size:16px; font-weight:800; letter-spacing:-.02em; }
 .gr-h-row { display:flex; align-items:center; justify-content:space-between; padding-right:12px; }
 .gr-danger { color:var(--danger); }
+.fam-text-btn.gr-danger { min-height:44px; font-size:15px; } /* 링크 [폐기]·[연결 해제]·[나가기] — 누르는 곳 44px */
 
 /* 할머니 폰 */
 .gr-dev { display:flex; align-items:center; gap:12px; padding:4px 12px 16px 16px; }
@@ -13,14 +16,14 @@
 .gr-dev-ic.on { background:var(--t4); color:var(--t4e); }
 .gr-dev > div { flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.4; }
 .gr-dev b { font-size:15.5px; }
-.gr-dev small { font-size:13px; color:var(--text-2); }
+.gr-dev small { font-size:15px; color:var(--text-2); }
 
 /* 올린 사진 n장 › */
 .gr-row { display:flex; align-items:center; gap:8px; min-height:54px; padding:0 12px 0 16px; color:var(--text); text-decoration:none; font-size:15px; }
 .gr-row span { flex:1; }
 .gr-row b { font-weight:600; color:var(--text-2); }
 .gr-chev { width:18px; height:18px; color:var(--text-3); }
-.fam .gr-note { padding:4px 16px 16px; font-size:12.5px; line-height:1.55; color:var(--text-3); }
+.fam .gr-note { padding:4px 16px 16px; font-size:15px; line-height:1.55; color:var(--text-3); }
 
 /* 할머니 화면 설정 — 줄 버튼 (방장이 아니면 눌리지 않고 보기만) */
 .gr-set { width:100%; border:0; background:none; text-align:left; font-family:var(--font); cursor:pointer; }
@@ -34,21 +37,21 @@
 .gr-member { display:flex; align-items:center; gap:12px; min-height:52px; }
 .gr-member > div { flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.35; }
 .gr-member b { font-size:15px; }
-.gr-member small { font-size:12.5px; color:var(--text-3); }
+.gr-member small { font-size:15px; color:var(--text-3); }
 .gr-me { margin-right:12px; padding:1px 7px; border-radius:999px; background:#f0eef5; color:var(--text-2); font-size:11px; font-style:normal; font-weight:800; letter-spacing:0; }
 .gr-more { font-size:22px; font-weight:800; line-height:1; color:var(--text-2); }
-.gr-link { display:flex; align-items:center; gap:8px; margin:0 16px 14px; padding:4px 4px 4px 12px; border-radius:12px; background:var(--tint-2); font-size:13.5px; color:var(--text-2); }
+.gr-link { display:flex; align-items:center; gap:8px; margin:0 16px 14px; padding:4px 4px 4px 12px; border-radius:12px; background:var(--tint-2); font-size:15px; color:var(--text-2); }
 .gr-link span { flex:1; }
 
 /* 아래 판 */
 .gr-chips { display:flex; flex-wrap:wrap; gap:8px; padding:0 12px 12px; }
-.gr-chip { display:inline-flex; align-items:center; height:36px; padding:0 14px; border:0; border-radius:999px; background:var(--tint-2); color:var(--text-2); font-size:14px; font-weight:600; }
+.gr-chip { display:inline-flex; align-items:center; height:44px; padding:0 14px; border:0; border-radius:999px; background:var(--tint-2); color:var(--text-2); font-size:15px; font-weight:600; }
 .gr-chip.on { background:var(--tint); color:var(--primary); font-weight:800; }
-.fam .gr-sheet-text { margin:0 12px 14px; font-size:14px; line-height:1.5; color:var(--text-2); }
-.fam .gr-warn { display:flex; align-items:center; gap:6px; margin:0 12px 12px; padding:10px 12px; border-radius:12px; background:#fdecee; color:#b4232a; font-size:13.5px; }
+.fam .gr-sheet-text { margin:0 12px 14px; font-size:15px; line-height:1.5; color:var(--text-2); }
+.fam .gr-warn { display:flex; align-items:center; gap:6px; margin:0 12px 12px; padding:10px 12px; border-radius:12px; background:#fdecee; color:#b4232a; font-size:15px; }
 .gr-warn .fam-ic { flex:none; width:16px; height:16px; }
 .gr-to-upload { display:block; margin:-6px 4px 6px; }
-.fam .gr-url { margin:0 12px 12px; padding:10px 12px; border-radius:12px; background:var(--tint-2); color:var(--text-2); font-size:13px; line-height:1.5; word-break:break-all; user-select:all; }
+.fam .gr-url { margin:0 12px 12px; padding:10px 12px; border-radius:12px; background:var(--tint-2); color:var(--text-2); font-size:15px; line-height:1.5; word-break:break-all; user-select:all; }
 /* 글로 고치기 판의 입력 칸 — 가족방 만들기(GROUP_001 .newroom-field > input)와 같은 모양 */
 .gr-input { display:block; width:calc(100% - 24px); min-width:0; margin:0 12px 12px; border:1px solid var(--line); border-radius:14px; background:var(--surface); padding:12px 14px; font-size:16px; line-height:1.55; color:var(--text); }
 .gr-input:focus { outline:2px solid var(--primary); outline-offset:1px; }
@@ -57,11 +60,11 @@
 .gr-cta-two { display:flex; gap:8px; }
 .gr-cta-two .fam-btn { flex:1; }
 .gr-btn-danger { background:var(--danger); color:#fff; }
-.gr-leave { align-self:center; min-height:44px; margin:4px 0 8px; } /* 맨 아래 [이 가족방 나가기] — 누르는 곳 44px */
+.gr-leave { align-self:center; margin:4px 0 8px; } /* 맨 아래 [이 가족방 나가기] — 44px 는 위 .gr-danger 규칙 */
 .gr-person { display:flex; align-items:center; gap:12px; padding:0 12px 10px; }
 .gr-person > div { display:flex; flex-direction:column; line-height:1.35; }
-.gr-person small { font-size:13px; color:var(--text-3); }
+.gr-person small { font-size:15px; color:var(--text-3); }
 .gr-opt-danger b { color:var(--danger); }
 
 /* 바꾼 뒤 잠깐 뜨는 한 줄 (GROUP_004 와 같은 모양). 탭 화면이라 아래 탭(약 66px) 위로 띄운다 */
-.gr-snack { position:fixed; left:50%; bottom:calc(80px + env(safe-area-inset-bottom,0px)); z-index:7; transform:translateX(-50%); width:max-content; max-width:calc(100% - 32px); padding:12px 16px; border-radius:14px; background:#1f1b2e; color:#fff; font-size:14px; line-height:1.4; animation:fam-fade .18s; }
+.gr-snack { position:fixed; left:50%; bottom:calc(80px + env(safe-area-inset-bottom,0px)); z-index:7; transform:translateX(-50%); width:max-content; max-width:calc(100% - 32px); padding:12px 16px; border-radius:14px; background:#1f1b2e; color:#fff; font-size:15px; line-height:1.4; animation:fam-fade .18s; }
