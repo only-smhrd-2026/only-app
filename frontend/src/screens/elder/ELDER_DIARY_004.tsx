@@ -11,6 +11,7 @@ import MoodIcon from '../../components/MoodIcon'
 import type { ElderNavState } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
 import { speak, stopSpeaking } from '../../lib/audio'
+import { DiaryPaper } from './ELDER_DIARY_003'
 import './ELDER_DIARY_004.css'
 
 const GUIDE = '지난 일기예요. 보고 싶은 일기를 눌러 주세요.'
@@ -24,13 +25,15 @@ export default function ELDER_DIARY_004() {
   const [open, setOpen] = useState<DiaryOut>()
   const view = useRef<HTMLDialogElement>(null)
   const count = data?.diaries.length
+  const errorMessage = error?.code === 'DEVICE_REQUIRED' ? '가족이 보낸 연결 링크를 먼저 열어 주세요.' : error?.message
 
   // 안내는 소리로도. 떠나면 멈춘다
   useEffect(() => {
-    if (count === undefined) return
-    void speak(count ? GUIDE : EMPTY, speed)
+    const message = errorMessage ?? (count === undefined ? undefined : count ? GUIDE : EMPTY)
+    if (!message) return
+    void speak(message, speed)
     return () => stopSpeaking()
-  }, [count, speed])
+  }, [count, errorMessage, speed])
 
   const read = (d: DiaryOut) => void speak(`${day(d.posted_at)} 일기예요. ${d.body} 그날 기분은 ${MOOD_LABEL[d.mood]}.`, speed)
 
@@ -48,7 +51,7 @@ export default function ELDER_DIARY_004() {
       ) : error ? (
         <>
           <p className="elder-text" role="alert">
-            {error.code === 'DEVICE_REQUIRED' ? '가족이 보낸 연결 링크를 먼저 열어 주세요.' : error.message}
+            {errorMessage}
           </p>
           {error.code !== 'DEVICE_REQUIRED' && <button className="elder-btn" onClick={reload}>다시 보기</button>}
         </>
@@ -88,13 +91,7 @@ export default function ELDER_DIARY_004() {
             ) : (
               <div className="elder-photo-box elder-mood-pic"><MoodIcon mood={open.mood} /></div>
             )}
-            <button type="button" className="elder-paper" onClick={() => read(open)}>
-              <span>{open.body}</span>
-              <svg className="elder-spk" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M4 9.5v5h3.2L12 18.5v-13L7.2 9.5z" />
-                <path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.3 6.3a8 8 0 0 1 0 11.4" />
-              </svg>
-            </button>
+            <DiaryPaper key={open.diary_id} body={open.body} onRead={() => read(open)} />
             <div className="elder-mood"><MoodIcon mood={open.mood} />그날 기분 · {MOOD_LABEL[open.mood]}</div>
             <button type="button" className="elder-btn elder-btn--secondary elder-bottom" onClick={() => view.current?.close()}>닫기</button>
           </>

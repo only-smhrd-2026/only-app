@@ -12,6 +12,55 @@ import ElderPhoto from '../../components/ElderPhoto'
 import MoodIcon from '../../components/MoodIcon'
 import { useLive, type ElderNavState } from '../../hooks/useElderSession'
 import { playBase64, say, speak, stopSpeaking } from '../../lib/audio'
+import './ELDER_DIARY_003.css'
+
+// 긴 일기는 글자 크기를 유지하고 가로 쪽으로 나눈다. 지난 일기 상세도 같은 읽기 영역을 쓴다.
+export function DiaryPaper({ body, onRead, saying = false }: { body: string; onRead: () => void; saying?: boolean }) {
+  const text = useRef<HTMLSpanElement>(null)
+  const [page, setPage] = useState(0)
+  const [count, setCount] = useState(1)
+
+  useEffect(() => {
+    const element = text.current
+    if (!element) return
+    const measure = () => {
+      if (!element.clientWidth) return
+      const pages = Math.max(1, Math.round(element.scrollWidth / element.clientWidth))
+      setCount(pages)
+      setPage((current) => Math.min(current, pages - 1))
+    }
+    const size = new ResizeObserver(measure)
+    size.observe(element)
+    const font = new MutationObserver(measure)
+    font.observe(document.documentElement, { attributes: true, attributeFilter: ['data-font'] })
+    void document.fonts.ready.then(measure)
+    return () => {
+      size.disconnect()
+      font.disconnect()
+    }
+  }, [body])
+
+  return (
+    <div className="diary-reading">
+      <button type="button" className={`elder-paper diary-paper${saying ? ' elder-saying' : ''}`} onClick={onRead}>
+        <span className="diary-paper-window">
+          <span ref={text} className="diary-paper-pages" style={{ transform: `translateX(-${page * 100}%)` }}>{body}</span>
+        </span>
+        <svg className="elder-spk" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M4 9.5v5h3.2L12 18.5v-13L7.2 9.5z" />
+          <path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.3 6.3a8 8 0 0 1 0 11.4" />
+        </svg>
+      </button>
+      {count > 1 && (
+        <div className="diary-pages" aria-label="일기 글 넘기기">
+          <button type="button" className="elder-chip" disabled={page === 0} onClick={() => setPage((current) => current - 1)}>이전 글</button>
+          <span role="status" aria-label={`전체 ${count}쪽 중 ${page + 1}쪽`}>{page + 1} / {count}</span>
+          <button type="button" className="elder-chip" disabled={page === count - 1} onClick={() => setPage((current) => current + 1)}>다음 글</button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // 초안 = LLM(시도당 15초 × 최대 2번) + 그림(제공자 상한 20초) + TTS. 넘으면 [다시 해 보기] (서버는 같은 초안을 준다)
 const DRAFT_MS = 60_000
@@ -182,18 +231,14 @@ export default function ELDER_DIARY_003() {
     )
 
   return (
-    <main className="elder elder--fit">
+    <main className="elder elder--fit diary-confirm">
       {draft.illustration_type === 'PHOTO' && draft.illustration_url && (
         <ElderPhoto src={draft.illustration_url} alt="오늘 찍은 사진" />
       )}
       {draft.illustration_type === 'AI_DRAWING' && draft.illustration_b64 && (
-        <div className="elder-photo-box elder-photo-box--grow">
-          <img
-            style={{ objectFit: 'contain' }}
-            src={`data:image/jpeg;base64,${draft.illustration_b64}`}
-            alt="그림일기 그림"
-          />
-          <span className="elder-tag">그림일기 · AI 그림</span>
+        <div className="diary-drawing">
+          <ElderPhoto src={`data:image/jpeg;base64,${draft.illustration_b64}`} alt="그림일기 그림" />
+          <span className="diary-drawing-label">그림일기 · AI 그림</span>
         </div>
       )}
       {draft.illustration_type === 'NONE' && (
@@ -201,13 +246,7 @@ export default function ELDER_DIARY_003() {
           <MoodIcon mood={draft.mood} />
         </div>
       )}
-      <button type="button" className={`elder-paper${saying ? ' elder-saying' : ''}`} onClick={readDraft}>
-        <span>{draft.body}</span>
-        <svg className="elder-spk" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M4 9.5v5h3.2L12 18.5v-13L7.2 9.5z" />
-          <path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.3 6.3a8 8 0 0 1 0 11.4" />
-        </svg>
-      </button>
+      <DiaryPaper key={draft.body} body={draft.body} onRead={readDraft} saying={saying} />
       <div className="elder-mood">
         <MoodIcon mood={draft.mood} />
         오늘 기분 · {MOOD_LABEL[draft.mood]}

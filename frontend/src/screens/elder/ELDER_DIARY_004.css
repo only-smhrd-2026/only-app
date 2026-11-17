@@ -12,7 +12,7 @@
   background: var(--elder-card);
   color: var(--elder-fg);
   font: inherit;
-  font-size: var(--elder-font-size-s);
+  font-size: var(--elder-font-size);
   font-weight: 800;
   line-height: 1.3;
   text-align: left;
@@ -31,9 +31,9 @@
   background: var(--elder-soft);
   color: var(--elder-primary);
 }
-.elder-past-thumb > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.elder-past-thumb > img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .elder-past-thumb .elder-ic { width: 44px; height: 44px; }
-.elder-past-card small { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 0.85em; font-weight: 600; }
+.elder-past-card small { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: var(--elder-font-size-long); font-weight: 600; }
 
 /* 일기 한 편 크게 보기 — 화면 가득, 스크롤 없이 한 화면. [닫기]나 폰의 뒤로 키로 닫힌다 */
 .elder-past-view {
@@ -50,3 +50,5 @@
 }
 .elder-past-view[open] { display: flex; flex-direction: column; gap: var(--elder-gap); }
 .elder-past-view::backdrop { background: var(--elder-bg); }
+.elder-past-view > .elder-photo-box { flex: 0 1 28dvh; min-height: 88px; }
+.elder-past-view > .elder-mood-pic { border: 0; }
