@@ -1,20 +1,39 @@
 """슬픔·거부·무응답 뒤에는 문제 기록 없이 끝낸다 (시나리오 3, FR-AI-005)."""
 
 import uuid
+from datetime import time, timedelta
+from decimal import Decimal
 
 import pytest
+from sqlalchemy import select
 
 from app.ai import llm
 from app.ai.schemas import CoachTurn
+from app.config import now_kst
 from app.db import SessionLocal
-from app.models import TalkSession
-from tests.conftest import setup_elder
+from app.models import FamilyRoom, Photo, TalkSession
+from tests.conftest import connect_device, make_room, signup
+from tests.test_photos import _jpeg
 from tests.test_session_stub import _create
 
 
 @pytest.mark.parametrize("case,reason", [("sad", "COMPLETED"), ("stop", "USER_STOP"), ("quiet", "NO_RESPONSE")])
 def test_hard_day_ends_without_quiz(client, question_bank, monkeypatch, case, reason):
-    ctx = setup_elder(client)
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    upload = client.post(
+        f"/api/rooms/{room_id}/photos", files=[("files", (f"p{i}.jpg", _jpeg(), "image/jpeg")) for i in range(3)]
+    )
+    assert upload.status_code == 201
+    with SessionLocal() as db:
+        for photo in db.scalars(select(Photo).where(Photo.room_id == room_id)):
+            photo.uploaded_at = now_kst() - timedelta(days=1)
+            photo.activity, photo.category = "모내기", "농기구"
+            photo.analyzed_at, photo.confidence = now_kst(), Decimal("0.90")
+        db.get(FamilyRoom, room_id).memory_time = time(0)
+        db.commit()
+    connect_device(client, room_id)
+    ctx = {"pick": client.get("/api/elder/home").json()["today_pick"]}
     sid = _create(client, ctx)["session_id"]
     real = llm.call_json
 
