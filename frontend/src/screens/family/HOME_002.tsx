@@ -191,7 +191,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
                   onClick={() => react(kind)}
                   disabled={busy}
                   aria-pressed={on}
-                  aria-label={n ? `${label} ${n}개` : label}
+                  aria-label={n ? `${label} ${n} 개` : label}
                 >
                   <span aria-hidden="true">{emoji}</span>
                   {n > 0 && <span>{n}</span>}

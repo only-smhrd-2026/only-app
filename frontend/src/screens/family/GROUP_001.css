@@ -12,16 +12,16 @@
 .newroom-screen { display:flex; flex-direction:column; height:100%; min-height:0; color:var(--text); }
 .newroom-heading { flex:none; padding:2px var(--gut) 16px; }
 .newroom-heading h1 { font-size:25px; font-weight:800; letter-spacing:-.04em; }
-.newroom-heading p { margin-top:2px; color:var(--text-2); font-size:14px; }
+.newroom-heading p { margin-top:2px; color:var(--text-2); font-size:15px; }
 .newroom-form { display:flex; flex:1; flex-direction:column; gap:20px; min-height:0; }
 .newroom-fields { display:flex; flex:0 1 auto; flex-direction:column; gap:16px; min-width:0; min-height:0; margin:0 var(--gut); padding:16px; border:0; border-radius:var(--r); background:var(--surface); overflow-y:auto; overscroll-behavior:contain; }
 .newroom-fields > .newroom-field { flex:none; }
 .newroom-field { display:flex; flex-direction:column; gap:9px; min-width:0; }
-.newroom-field > label, .newroom-choice > legend { font-size:14.5px; font-weight:800; }
+.newroom-field > label, .newroom-choice > legend { font-size:15px; font-weight:800; }
 .newroom-choice { margin:0; padding:0; border:0; }
 .newroom-choice > legend { padding:0; margin-bottom:9px; }
 .newroom-chips { display:flex; flex-wrap:wrap; gap:8px; }
-.newroom-chip { position:relative; display:inline-flex; align-items:center; min-height:38px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:var(--surface); color:var(--text); font-size:14.5px; font-weight:600; cursor:pointer; }
+.newroom-chip { position:relative; display:inline-flex; align-items:center; min-height:44px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:var(--surface); color:var(--text); font-size:15px; font-weight:600; cursor:pointer; }
 .newroom-chip:has(input:checked) { background:var(--tint); border-color:var(--primary); color:var(--primary); font-weight:800; }
 .newroom-chip:has(input:focus-visible) { outline:2px solid var(--primary); outline-offset:3px; }
 .newroom-chip input { position:absolute; opacity:0; width:1px; height:1px; margin:0; padding:0; border:0; }
@@ -29,10 +29,10 @@
 .newroom-field > input:focus { outline:2px solid var(--primary); outline-offset:1px; }
 .newroom-field > input[aria-invalid="true"] { border-color:var(--danger); }
 .newroom-field > input::placeholder { color:var(--text-3); }
-.newroom-field > .newroom-nickname-label { margin-top:3px; font-size:13px; font-weight:600; color:var(--text-2); }
+.newroom-field > .newroom-nickname-label { margin-top:3px; font-size:15px; font-weight:600; color:var(--text-2); }
 .newroom-nickname-label small { font-size:inherit; }
-.newroom-fine { color:var(--text-2); font-size:12.5px; line-height:1.55; overflow-wrap:anywhere; }
-.newroom-error { color:var(--danger); font-size:14px; overflow-wrap:anywhere; }
+.newroom-fine { color:var(--text-2); font-size:15px; line-height:1.55; overflow-wrap:anywhere; }
+.newroom-error { color:var(--danger); font-size:15px; overflow-wrap:anywhere; }
 .newroom-footer { display:flex; flex:none; flex-direction:column; gap:10px; margin-top:auto; padding:10px var(--gut) calc(12px + env(safe-area-inset-bottom,0px)); border-top:1px solid var(--line); background:var(--surface); }
 .newroom-footer button { flex:none; }
 .newroom-fields:disabled .newroom-chip { cursor:default; opacity:.6; }
