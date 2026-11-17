@@ -52,3 +52,7 @@ find "$backup_dir" -maxdepth 1 -type f \
     -name 'only_app_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9]_*.sql.gz' \
     -mmin +10080 -delete
 printf '백업 완료: %s\n' "$final"
+
+if [[ "${BACKUP_R2:-0}" == 1 ]]; then
+    docker compose exec -T api uv run python -m scripts.backup_to_r2 "${final##*/}" < "$final"
+fi
