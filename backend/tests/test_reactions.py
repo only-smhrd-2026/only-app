@@ -166,7 +166,7 @@ def test_reactions_ride_on_every_diary_list(client):
 def test_unheard_hearts_in_family_news_and_home_count(client):
     room_id = setup_elder(client)["room_id"]
     diary_id = _diary(room_id)
-    assert _news(client) == {"diaries": [], "hearts": []}
+    assert _news(client) == {"diaries": [], "hearts": [], "has_more": False}
     assert _home_count(client) == 0
     at = _react(client, diary_id, "HEART").json()["reactions"][0]["at"]
     assert _news(client)["hearts"] == [{"diary_id": diary_id, "kind": "HEART", "name": "테스터", "at": at}]
