@@ -4,7 +4,7 @@
  * 아직 시작 전(일기도 대화도 없음)이면 '시작 3단계'. 실시간 반영은 없다 — 홈을 열 때·앱으로 돌아올 때 읽는다(D36).
  * 회상 대화 내용은 여기 없다(주간 이야기로만, R18).
  */
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import {
@@ -23,6 +23,7 @@ import { Avatar } from '../../components/FamilyFrame'
 import MoodIcon from '../../components/MoodIcon'
 import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
+import { getInstallState, promptInstall, subscribeInstallPrompt } from '../../lib/installPrompt'
 import { weeklySeen } from '../../lib/weeklySeen'
 import './HOME_001.css'
 
@@ -65,6 +66,59 @@ function dayLabel(d: Date) {
 function hourLabel(hhmmss: string) {
   const h = Number(hhmmss.slice(0, 2))
   return h === 0 ? '밤 12시' : h < 12 ? `오전 ${h}시` : h === 12 ? '낮 12시' : `오후 ${h - 12}시`
+}
+
+const INSTALL_LATER_KEY = 'haru.fam.install-later'
+
+/** 가족 폰 설치 안내 — 설치 가능한 크롬과 아이폰에서만 보여 준다. */
+function InstallCard() {
+  const state = useSyncExternalStore(subscribeInstallPrompt, getInstallState)
+  const [later, setLater] = useState(() => {
+    try {
+      return localStorage.getItem(INSTALL_LATER_KEY) !== null
+    } catch {
+      return false
+    }
+  })
+  const [busy, setBusy] = useState(false)
+  const iphone = /iPhone/i.test(navigator.userAgent)
+
+  function dismiss() {
+    try {
+      localStorage.setItem(INSTALL_LATER_KEY, '1')
+    } catch {
+      /* 저장을 막은 폰에서도 지금 열린 안내는 닫는다. */
+    }
+    setLater(true)
+  }
+
+  async function install() {
+    if (busy) return
+    setBusy(true)
+    try {
+      await promptInstall()
+    } catch {
+      /* 브라우저가 창을 열지 못하면 기본 설치 메뉴로도 설치할 수 있다. */
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (later || state === 'installed' || (state !== 'available' && !iphone)) return null
+  return (
+    <section className="fam-card home-install" aria-label="앱 설치 안내">
+      <p>폰 홈 화면에 하루한장 아이콘을 만들면 앱처럼 바로 열려요</p>
+      {state !== 'available' && <p className="home-install-guide">아래 공유 버튼 → 홈 화면에 추가</p>}
+      <div className="home-install-actions">
+        {state === 'available' && (
+          <button type="button" className="fam-btn fam-btn--primary fam-btn--sm" onClick={install} disabled={busy}>
+            앱으로 설치
+          </button>
+        )}
+        <button type="button" className="fam-text-btn" onClick={dismiss}>다음에</button>
+      </div>
+    </section>
+  )
 }
 
 /** 마음 카드 (D55 ④, 목업 ②) — 한 줄 요약 + 누르면 7일 칸·마음 체크 결과. 진단 말·점수는 쓰지 않는다(NFR-DE-003) */
@@ -324,6 +378,7 @@ function StartHome({ room, reloadRooms }: { room: RoomOut; reloadRooms: () => vo
   const step2 = connected ? 'done' : photos < 3 ? 'lock' : 'now'
   return (
     <main className="fam-stack">
+      <InstallCard />
       <section className="fam-card home-start">
         <h2>하루한장을 시작해 볼까요?</h2>
         <p className="home-lead">
@@ -473,6 +528,7 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
   }
   return (
     <main className="fam-stack">
+      <InstallCard />
       <MoodCard week={mood.data} />
       <WeeklyBanner room={room} />
       {groups.map(([label, ds]) => (

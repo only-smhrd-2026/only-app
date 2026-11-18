@@ -23,6 +23,8 @@ createRoot(document.getElementById('root')!).render(
 )
 
 // PWA: 홈 화면 설치용 서비스 워커 (public/sw.js). API 는 캐시하지 않는다.
+import './lib/installPrompt'
+
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {})
 }

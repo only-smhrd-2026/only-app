@@ -2,6 +2,13 @@
    색 변수·카드·버튼·얼굴 동그라미는 components/FamilyFrame.css (그쪽 .fam h3·.fam p 의 margin 0 보다 세게 두 겹으로 쓴 곳이 있다) */
 .fam-stack .home-day-h { margin:6px var(--gut) -4px; color:var(--text-3); font-size:15px; font-weight:700; }
 
+/* 가족 폰 홈 화면 설치 안내 — 공통 카드·버튼 규격을 그대로 쓴다. */
+.home-install { padding:14px 16px; font-size:15px; line-height:1.55; }
+.home-install > p:first-child { font-weight:600; }
+.home-install .home-install-guide { margin-top:8px; color:var(--text-2); }
+.home-install-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:10px; }
+.home-install-actions > button { min-width:44px; min-height:44px; }
+
 /* 마음 카드 — 한 줄 요약, 누르면 펼침 (11/14 사용자) */
 .home-mood { padding:12px 8px 12px 16px; }
 .home-mood-row { display:flex; align-items:center; gap:8px; }
