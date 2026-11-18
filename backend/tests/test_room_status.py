@@ -21,4 +21,4 @@ def test_room_list_shows_photos_members_and_device(client):
     assert client.patch("/api/devices/me/permissions", json={"perm_mic": False}).status_code == 200
     assert client.get("/api/rooms").json()[0]["device_perm_mic"] is False
     notices = client.get("/api/notifications").json()["notifications"]
-    assert any(n["kind"] == "PERMISSION_OFF" and n["link"] == "GROUP_002" for n in notices)
+    assert any(n["kind"] == "PERMISSION_OFF" and n["link_screen"] == "GROUP_002" for n in notices)
