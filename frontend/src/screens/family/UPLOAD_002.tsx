@@ -61,15 +61,34 @@ export default function UPLOAD_002() {
     if (!busy) return
     let lock: WakeLockSentinel | undefined
     let over = false
+    // 요청했는데 아직 답이 안 옴 — 이때 또 요청하면(다른 앱 갔다 바로 오기) 잠금이 둘 생기고 하나는 안 풀린다
+    let asking = false
+    // 요청 중이라 건너뛴 적이 있음 — 그 요청이 숨은 사이 거절·풀릴 수 있어서, 답이 오면 한 번만 다시 잡는다
+    // (늘 다시 잡으면 계속 거절하는 폰에서 요청이 끝없이 되풀이된다)
+    let missed = false
     const grab = () => {
-      if (document.hidden || (lock && !lock.released)) return
-      navigator.wakeLock?.request('screen').then(
-        (l) => {
-          if (over) l.release().catch(() => {})
-          else lock = l
-        },
-        () => {},
-      )
+      if (document.hidden || (lock && !lock.released) || !navigator.wakeLock) return
+      if (asking) {
+        missed = true
+        return
+      }
+      asking = true
+      navigator.wakeLock
+        .request('screen')
+        .then(
+          (l) => {
+            if (over) l.release().catch(() => {})
+            else lock = l
+          },
+          () => {},
+        )
+        .finally(() => {
+          asking = false // 답이 오거나 실패하면 내려놓기
+          if (missed && !over) {
+            missed = false
+            grab()
+          }
+        })
     }
     grab()
     document.addEventListener('visibilitychange', grab)
