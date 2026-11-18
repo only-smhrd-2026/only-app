@@ -52,3 +52,6 @@ def test_personal_text_does_not_reach_logs(client, caplog, flow):
         assert client.post("/api/elder/mood-check", json={"answers": answers}).status_code == 200
         assert str(answers) not in caplog.text
     assert SECRET not in caplog.text
+    assert all(
+        f"/api/rooms/{room}/" not in record.getMessage() for record in caplog.records if record.name == "app.req"
+    )

@@ -2,8 +2,9 @@
 
 import logging
 from contextlib import asynccontextmanager
+from time import perf_counter
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request
 from sqlalchemy import text
 from starlette.responses import JSONResponse
 
@@ -42,6 +43,28 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="하루한장 API", version="0.1.0", lifespan=lifespan)
 install_handlers(app)
+
+
+@app.middleware("http")
+async def log_request_timing(request: Request, call_next):
+    if request.url.path == "/api/health":
+        return await call_next(request)
+    started = perf_counter()
+    response = await call_next(request)
+    route = getattr(request.scope.get("route"), "path", "-")
+    # FastAPI can expose the original router path before applying the API prefix.
+    prefix = f"{api.prefix}/"
+    if route != "-" and request.url.path.startswith(prefix) and not route.startswith(prefix):
+        route = api.prefix + route
+    logging.getLogger("app.req").info(
+        "req method=%s route=%s status=%s ms=%d",
+        request.method,
+        route,
+        response.status_code,
+        (perf_counter() - started) * 1000,
+    )
+    return response
+
 
 api = APIRouter(prefix="/api")
 for r in (
