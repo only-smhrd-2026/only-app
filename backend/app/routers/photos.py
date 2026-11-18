@@ -339,7 +339,6 @@ def delete_photo(room_id: int, photo_id: int, user: CurrentUser, db: DB):
     room = db.get(FamilyRoom, room_id)
     if photo.uploaded_by != user.user_id and room.owner_user_id != user.user_id:
         raise ApiError(403, "NOT_UPLOADER", "올린 사람이나 방장만 사진을 지울 수 있어요")
-    photo.status = "DELETED"
     db.execute(
         update(DailyPick)
         .where(
@@ -350,6 +349,15 @@ def delete_photo(room_id: int, photo_id: int, user: CurrentUser, db: DB):
         )
         .values(status="EXPIRED")
     )
+    commit_photo_deletion(db, photo)
+
+
+def commit_photo_deletion(db: DB, photo: Photo) -> None:
+    photo.status = "DELETED"
+    photo.caption = None
+    photo.people_note = None
+    photo.ai_scene = None
+    photo_id = photo.photo_id
     keys = [key for key in dict.fromkeys((photo.object_key, photo.thumb_key)) if key]
     db.commit()
     for key in keys:
