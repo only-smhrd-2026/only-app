@@ -16,14 +16,20 @@ keep="${2:-}"
 test_db=only_app_restore_test
 [[ -f "$backup_file" ]] || { printf '백업 파일을 찾을 수 없어요.\n' >&2; exit 1; }
 gzip -t -- "$backup_file"
-blocked_commands='^[[:space:]]*\\(connect|c|!)([[:space:]]|$)|CREATE[[:space:]]+DATABASE|DROP[[:space:]]+DATABASE|ALTER[[:space:]]+(DATABASE|SYSTEM)|PROGRAM[[:space:]]'
+# psql 메타 명령(\c·\!·\g |…·\o |… 등)은 아래 풀어 넣기에서 \restrict 로 통째로 막는다(11/18 다듬기).
+# 여기서는 SQL 만 본다 — COPY 자료 줄(가족·어르신이 쓴 글)은 빼고, /* */ 주석을 지운 뒤 다른 DB·서버를 건드리는 문장을 찾는다
+# (자료 줄을 보면 'TV program' 같은 글에도 멈췄다).
+blocked_sql='(CREATE|DROP|ALTER)[[:space:]]+DATABASE|ALTER[[:space:]]+SYSTEM|PROGRAM'
 # grep 은 끝까지 읽어 pipefail 에서 gzip 의 SIGPIPE 를 피한다.
-if gzip -dc -- "$backup_file" | grep -Ei -- "$blocked_commands" > /dev/null; then
+if gzip -dc -- "$backup_file" | awk '
+    copying { if ($0 == "\\.") copying = 0; next }
+    /^COPY .* FROM stdin;$/ { copying = 1; next }
+    { gsub(/\/\*([^*]|\*+[^*\/])*\*+\//, " "); print }' | grep -Ei -- "$blocked_sql" > /dev/null; then
     printf '이 백업에는 다른 DB 를 건드리는 줄이 있어 되살리지 않았어요\n' >&2
     exit 1
 else
     scan_status=("${PIPESTATUS[@]}")
-    if [[ "${scan_status[0]}" -ne 0 || "${scan_status[1]}" -ne 1 ]]; then
+    if [[ "${scan_status[0]}" -ne 0 || "${scan_status[1]}" -ne 0 || "${scan_status[2]}" -ne 1 ]]; then
         printf '백업 내용을 검사할 수 없어 되살리지 않았어요\n' >&2
         exit 1
     fi
@@ -58,7 +64,13 @@ trap 'exit 143' TERM
 docker compose exec -T db sh -c 'dropdb --if-exists -U "$POSTGRES_USER" only_app_restore_test'
 docker compose exec -T db sh -c 'createdb -U "$POSTGRES_USER" only_app_restore_test'
 created=1
-gunzip -c -- "$backup_file" | docker compose exec -T db sh -c \
+# 맨 앞에 이 스크립트만 아는 난수 키로 \restrict — 그 뒤로 psql 은 백업 안의 모든 \ 명령을 거부하고 멈춘다(ON_ERROR_STOP).
+# pg_dump 가 넣은 \restrict·\unrestrict 줄은 빼고 우리 키로 다시 건다
+restrict_key="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+{
+    printf '\\restrict %s\n' "$restrict_key"
+    gunzip -c -- "$backup_file" | grep -Ev '^\\(un)?restrict([[:space:]]|$)'
+} | docker compose exec -T db sh -c \
     'psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" only_app_restore_test' > /dev/null
 
 counts() {

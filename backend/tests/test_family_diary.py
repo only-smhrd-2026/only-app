@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import func, select
 
 from app.db import SessionLocal
-from app.models import Diary, FamilyRoom
+from app.models import Diary, FamilyRoom, RoomMember
 from tests.conftest import add_photos, make_room, setup_elder, signup
 
 
@@ -83,16 +83,28 @@ def test_bad_body_and_mood(client):
     assert _post(client, room_id, mood="HAPPY").status_code == 422
 
 
-def test_photo_must_be_this_room(client):
+def test_photo_must_be_my_family_diary_photo_in_this_room(client):
+    """이 방에서 내가 올린 가족 일기 사진만 붙는다 — 남의 방·추억 사진·다른 가족 사진은 없는 것처럼 (11/18 다듬기)."""
+    from tests.test_photo_delete import upload
+
     signup(client)
     room_id, other_id = make_room(client)["room_id"], make_room(client)["room_id"]
-    mine, other = add_photos(room_id, 1)[0], add_photos(other_id, 1)[0]
+    mine = upload(client, room_id, "FAMILY_DIARY")["photo_id"]
+    other_room = upload(client, other_id, "FAMILY_DIARY")["photo_id"]
+    memory = add_photos(room_id, 1)[0]  # 추억 사진(FAMILY)
     ok = _post(client, room_id, photo_id=mine)
     assert ok.status_code == 201, ok.text
     assert ok.json()["illustration_type"] == "PHOTO"
-    bad = _post(client, room_id, photo_id=other)
-    assert bad.status_code == 404
-    assert bad.json()["code"] == "PHOTO_NOT_FOUND"
+    for bad_id in (other_room, memory):
+        bad = _post(client, room_id, photo_id=bad_id)
+        assert bad.status_code == 404 and bad.json()["code"] == "PHOTO_NOT_FOUND"
+    # 같은 방의 다른 가족은 내 가족 일기 사진 번호로 일기를 못 쓴다 → 그 일기를 지워 내 사진을 지우는 길도 없다
+    other = signup(client)
+    with SessionLocal() as db:
+        db.add(RoomMember(room_id=room_id, user_id=other["user_id"], relation_tag="CHILD"))
+        db.commit()
+    stolen = _post(client, room_id, photo_id=mine)
+    assert stolen.status_code == 404 and stolen.json()["code"] == "PHOTO_NOT_FOUND"
 
 
 def test_unknown_session_id_is_ignored(client):

@@ -7,6 +7,7 @@ import { api, ApiError } from '../../api/client'
 import type { UserOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
 import { useFetch } from '../../hooks/useFetch'
+import { clearFamilyDiaryDraft } from '../../lib/familyDiaryDraft'
 import { clearUploadDraft } from '../../lib/uploadDraft'
 
 type LoginScreen = 'start' | 'login' | 'signup'
@@ -64,6 +65,7 @@ export default function LOGIN_001() {
     try {
       await api(signup ? '/api/auth/signup' : '/api/auth/login', { body })
       clearUploadDraft() // 같은 창에서 앞 계정이 고르다 만 사진을 지운다 (뒤로 가기로 거슬러 가면 보이고 보낼 수 있었다)
+      clearFamilyDiaryDraft() // 쓰다 만 가족 일기 글도 같은 이유
       nav(after, { replace: true })
     } catch (err) {
       setError({ screen, text: (err as ApiError).message })
@@ -119,7 +121,7 @@ export default function LOGIN_001() {
                 <label htmlFor="login-password">비밀번호</label>
                 <div className="login-password-control">
                   {/* 로그인↔가입을 바꾸면 이메일은 두고 비밀번호만 비운다(key 로 새로 만든다). */}
-                  <input id="login-password" key={screen} name="password" type={showPassword ? 'text' : 'password'} required minLength={8} autoComplete={signup ? 'new-password' : 'current-password'} />
+                  <input id="login-password" key={screen} name="password" type={showPassword ? 'text' : 'password'} required minLength={8} autoComplete={signup ? 'new-password' : 'current-password'} autoCapitalize="none" autoCorrect="off" spellCheck={false} />
                   <button
                     className="login-password-toggle"
                     type="button"
@@ -159,7 +161,7 @@ export default function LOGIN_001() {
             {!signup && (
               <details className="login-password-help">
                 <summary>비밀번호를 잊었어요</summary>
-                <p>비밀번호는 찾을 수 없어요(메일을 보내지 않는 서비스예요). 새 이메일로 가입한 뒤 방장에게 초대 링크를 다시 받아 주세요. 로그인한 상태라면 가족방 탭 맨 아래에서 비밀번호를 바꿀 수 있어요.</p>
+                <p>비밀번호는 찾을 수 없어요(메일을 보내지 않는 서비스예요). 새 이메일로 가입한 뒤 방장에게 초대 링크를 다시 받아 주세요.</p>
               </details>
             )}
             <button className="login-back" type="button" disabled={busy} onClick={() => changeScreen('start')}>
