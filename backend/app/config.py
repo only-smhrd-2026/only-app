@@ -81,6 +81,8 @@ JPEG_MAX_SCANS = 300  # JPEG 스캔(FF DA) 수. 보통 1~10개, 움직이는 사
 PHOTO_MAX_SIDE = 2560  # 저장 사진 긴 변(px). 넘으면 비율 그대로 줄여 저장 (D17)
 UPLOAD_LOCK_WAIT_SEC = 60  # 사진 변환은 서버 전체에서 한 번에 한 요청. 이만큼 기다려도 차례가 안 오면 503 (D17)
 LOGIN_RATE_PER_MIN = 10
+LOGIN_FAIL_PER_EMAIL = 10
+LOGIN_FAIL_WINDOW_SEC = 900
 STT_RATE_PER_MIN = 20  # 같은 IP 의 /api/stt 분당 상한. 대화 한 번(5분)에 많아야 16번 부른다 (D46)
 # 어르신 화면이 읽는 글(팝업·안내·가족 소식·지난 일기)을 고른 목소리로 (D78). 화면이 60자 안팎 묶음으로 나눠 보낸다
 SPEECH_MAX_CHARS = 200  # 한 번에 받는 글자 수 — 200자 합성 약 5초(tts.py 실측). 넘으면 422 → 화면이 기기 목소리로

@@ -12,8 +12,11 @@ from app.schemas.common import OkOut
 from app.security import (
     SESSION_COOKIE,
     clear_cookie,
+    clear_login_failures,
     hash_password,
+    login_account_blocked,
     login_allowed,
+    record_login_failure,
     set_session_cookie,
     verify_password,
 )
@@ -43,12 +46,17 @@ def signup(body: SignupIn, response: Response, db: DB):
 @router.post("/login", response_model=AuthOut)
 def login(body: LoginIn, request: Request, response: Response, db: DB):
     ip = request.client.host if request.client else "unknown"
-    if not login_allowed(ip):
+    email = body.email.lower()
+    if not login_allowed(ip) or login_account_blocked(email):
         raise ApiError(429, "TOO_MANY_ATTEMPTS", "잠시 후 다시 시도해 주세요")
-    user = db.scalar(select(User).where(User.email == body.email.lower(), User.status == "ACTIVE"))
+    user = db.scalar(select(User).where(User.email == email, User.status == "ACTIVE"))
     # 실패 문구는 어느 경우든 같게 (계정 존재 여부 노출 방지, D20)
     if not user or not verify_password(body.password, user.password_hash):
+        record_login_failure(email)
         raise ApiError(401, "LOGIN_FAILED", "이메일 또는 비밀번호가 올바르지 않습니다")
+    if login_account_blocked(email):
+        raise ApiError(429, "TOO_MANY_ATTEMPTS", "잠시 후 다시 시도해 주세요")
+    clear_login_failures(email)
     user.last_login_at = now_kst()
     db.commit()
     set_session_cookie(response, user.user_id)
@@ -67,12 +75,18 @@ def change_password(body: PasswordChangeIn, request: Request, response: Response
     if not login_allowed(ip):
         raise ApiError(429, "TOO_MANY_ATTEMPTS", "잠시 후 다시 시도해 주세요")
     user = db.get(User, user.user_id, populate_existing=True, with_for_update=True)
+    if user.email and login_account_blocked(user.email):
+        raise ApiError(429, "TOO_MANY_ATTEMPTS", "잠시 후 다시 시도해 주세요")
     if not verify_password(body.current_password, user.password_hash):
+        if user.email:
+            record_login_failure(user.email)
         raise ApiError(400, "WRONG_PASSWORD", "지금 비밀번호가 맞지 않아요")
     if body.new_password == body.current_password:
         raise ApiError(400, "SAME_PASSWORD", "지금과 다른 비밀번호를 써 주세요")
     user.password_hash = hash_password(body.new_password)
     db.commit()
+    if user.email:
+        clear_login_failures(user.email)
     set_session_cookie(response, user.user_id)
     return OkOut()
 
