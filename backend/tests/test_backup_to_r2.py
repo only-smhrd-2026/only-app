@@ -1,7 +1,7 @@
 """백업 사진 주소 차단·로컬 건너뛰기·R2 보관 기간과 페이지 처리."""
 
 import sys
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -66,3 +66,24 @@ def test_r2_list_reads_every_page():
     backend.bucket = "test"
     backend.client = SimpleNamespace(get_paginator=lambda operation: Paginator())
     assert list(backend.list("backups/")) == [("backups/one", now), ("backups/two", now)]
+
+
+def test_list_prints_backups_oldest_first_in_kst(monkeypatch, capsys):
+    recent = datetime(2026, 11, 17, 3, 0, tzinfo=UTC)
+    old = "only_app_20261116_1200_old.sql.gz"
+    backend = SimpleNamespace(
+        list=lambda prefix: [
+            (f"{prefix}{NAME}", recent),
+            (f"{prefix}{old}", recent - timedelta(days=1)),
+            (f"{prefix}unrelated.txt", recent),
+        ]
+    )
+    monkeypatch.setattr(backup_to_r2, "_R2", lambda: backend)
+    monkeypatch.setattr(backup_to_r2.settings, "STORAGE", "r2")
+    monkeypatch.setattr(sys, "argv", ["backup_to_r2", "--list"])
+    backup_to_r2.main()
+    assert capsys.readouterr().out.splitlines() == [
+        f"{old}\t2026-11-16 12:00:00 KST",
+        f"{NAME}\t2026-11-17 12:00:00 KST",
+        "전체 2개",
+    ]
