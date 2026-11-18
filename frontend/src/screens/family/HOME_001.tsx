@@ -252,7 +252,7 @@ function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserO
   const text = <span className="home-clamp">{d.body}</span>
   return (
     <article className="fam-card home-post">
-      <Link className="home-post-link" to={`/diaries/${d.diary_id}`}>
+      <Link className="home-post-link" to={`/diaries/${d.diary_id}`} state={{ familyDiaryOrder: true }}>
         <header className="home-post-h">
           <Avatar name={elder ? room.elder_name : name} />
           <div className="home-post-who">
@@ -487,19 +487,28 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
     return () => document.removeEventListener('visibilitychange', onShow)
   }, [reloadDiaries, reloadMood])
 
-  const error = diaries.error ?? mood.error
-  if (error) return <p className="fam-error">{error.message}</p>
-  if (!diaries.data || !mood.data) return null
-
   const base = diaries.data
   const byId = edits.base === base ? edits.byId : {}
   const update = (d: DiaryOut) => setEdits({ base, byId: { ...byId, [d.diary_id]: d } })
   const page = older?.base === base ? older : undefined
-  const items = [...base.diaries, ...(page?.diaries ?? [])].map((d) => byId[d.diary_id] ?? d)
-  const hasMore = page?.hasMore ?? base.has_more
+  const items = [...(base?.diaries ?? []), ...(page?.diaries ?? [])].map((d) => byId[d.diary_id] ?? d)
+  const hasMore = page?.hasMore ?? base?.has_more ?? false
+  const error = diaries.error ?? mood.error
+  const diaryOrder = JSON.stringify(!error && mood.data ? items.map((d) => d.diary_id) : [])
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('haru.fam.diary-order', diaryOrder)
+    } catch {
+      /* 저장을 막은 폰에서도 홈 목록은 그대로 보여 준다. */
+    }
+  }, [diaryOrder])
+
+  if (error) return <p className="fam-error">{error.message}</p>
+  if (!base || !mood.data) return null
 
   async function loadMore() {
-    if (!hasMore || page?.busy || diaries.loading || items.length === 0) return
+    if (!base || !hasMore || page?.busy || diaries.loading || items.length === 0) return
     const pending = { base, diaries: page?.diaries ?? [], hasMore, busy: true }
     setOlder(pending)
     try {

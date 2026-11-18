@@ -34,6 +34,10 @@
 .diary-detail-heard .fam-ic { width:17px; height:17px; }
 .diary-detail-heard.not { color:var(--text-3); font-weight:500; }
 .diary-detail-note { padding:8px 18px; color:var(--text-2); font-size:15px; }
+.diary-detail-nav { display:flex; flex-wrap:wrap; gap:10px; }
+.diary-detail-nav .fam-btn { flex:1; min-width:0; min-height:44px; font-size:15px; }
+.diary-detail-nav .diary-detail-past { margin-left:auto; }
+.diary-detail-nav .fam-btn:focus-visible { outline:2px solid var(--primary); outline-offset:3px; }
 .diary-detail-state { display:flex; flex-direction:column; align-items:center; gap:20px; padding:32px 16px; text-align:center; }
 .diary-detail-state h1 { font-size:20px; }
 .diary-detail-delete { align-self:center; color:var(--danger); min-height:44px; }
