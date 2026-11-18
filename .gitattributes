@@ -3,4 +3,5 @@
 * text=auto
 db/backup.sh text eol=lf
 db/restore.sh text eol=lf
+deploy/check.sh text eol=lf
 deploy/redeploy.sh text eol=lf
