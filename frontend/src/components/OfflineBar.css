@@ -13,7 +13,6 @@
   text-align: center;
   word-break: keep-all;
   overflow-wrap: anywhere;
-  pointer-events: none;
 }
 
 .offline-bar--elder {
