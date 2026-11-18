@@ -9,6 +9,8 @@ const listeners = new Set<() => void>()
 const notify = () => listeners.forEach((listener) => listener())
 
 window.addEventListener('beforeinstallprompt', (event) => {
+  // 어르신 화면은 크롬이 스스로 띄우는 설치 띠를 그대로 둔다 — 가족 홈 카드는 가족 화면에서만 (11/18 다듬기)
+  if (location.pathname.startsWith('/elder')) return
   event.preventDefault()
   pending = event as InstallPromptEvent
   notify()

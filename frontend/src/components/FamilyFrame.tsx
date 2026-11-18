@@ -10,6 +10,7 @@ import { api } from '../api/client'
 import type { NotificationListOut, RoomOut, UserOut } from '../api/types'
 import type { FamilyCtx } from '../hooks/useFamily'
 import { useFetch } from '../hooks/useFetch'
+import { clearFamilyDiaryDraft } from '../lib/familyDiaryDraft'
 import { clearUploadDraft } from '../lib/uploadDraft'
 import FamIcon, { type FamIconName } from './FamIcon'
 import './FamilyFrame.css'
@@ -117,6 +118,7 @@ export default function FamilyFrame() {
   async function logout() {
     await api('/api/auth/logout', { method: 'POST' }).catch(() => {})
     clearUploadDraft() // 고르다 만 사진을 다음 사람에게 남기지 않는다
+    clearFamilyDiaryDraft() // 쓰다 만 가족 일기 글도
     nav('/login', { replace: true })
   }
 

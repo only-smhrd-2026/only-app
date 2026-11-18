@@ -92,8 +92,11 @@ export default function ELDER_DIARY_001() {
 
   function choosePhoto(from: From) {
     if (busy || resizing) return
-    if (pendingPhoto.current) void start(true) // 끊겼던 사진은 같은 사진·번호로 다시
-    else (from === 'photo' ? photoInput : pickInput).current?.click()
+    // 끊겼던 사진은 같은 상자를 다시 누를 때만 같은 사진·번호로 다시 — 다른 상자면 그 사진은 버리고 새로 찍기·고르기
+    // ponytail: 올리기는 됐는데 대화 열기만 끊긴 사진은 서버에 한 장 남는다(어르신 일기에는 안 붙음)
+    if (pendingPhoto.current?.from === from) return void start(true)
+    pendingPhoto.current = undefined
+    ;(from === 'photo' ? photoInput : pickInput).current?.click()
   }
 
   async function onPhoto(e: ChangeEvent<HTMLInputElement>, from: From) {
