@@ -162,7 +162,7 @@ export type PhotoOut = {
   ai_scene: string | null // 보이는 모습 한 줄
   corrected_activity: string | null // 가족이 고친 활동('none' = 맞는 것 없음) — 있으면 이것이 먼저
 }
-export type PhotoListOut = { photos: PhotoOut[] }
+export type PhotoListOut = { photos: PhotoOut[]; has_more: boolean }
 export type PhotoBatchOut = { upload_batch_id: string; photos: PhotoOut[] }
 
 // ---- 일기 (backend/app/schemas/diaries.py, D36)
