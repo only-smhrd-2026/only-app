@@ -8,8 +8,10 @@ from __future__ import annotations
 import hashlib
 import secrets
 import time
-from collections import Counter, defaultdict, deque
+from collections import Counter, OrderedDict, defaultdict, deque
 from datetime import date
+from threading import Lock
+from time import monotonic
 
 import bcrypt
 import jwt
@@ -18,6 +20,8 @@ from fastapi import Response
 from app.config import (
     DEVICE_COOKIE_DAYS,
     FAMILY_AI_RATE_PER_MIN,
+    LOGIN_FAIL_PER_EMAIL,
+    LOGIN_FAIL_WINDOW_SEC,
     LOGIN_RATE_PER_MIN,
     SESSION_COOKIE_DAYS,
     SPEECH_RATE_PER_MIN,
@@ -92,6 +96,8 @@ def clear_cookie(response: Response, name: str) -> None:
 
 # ponytail: 프로세스 메모리 카운터 (uvicorn --workers 1 전제, D9). 재시작하면 초기화되지만 무방 (D20).
 _login_hits: dict[str, deque[float]] = defaultdict(deque)
+_account_failures: OrderedDict[str, deque[float]] = OrderedDict()
+_account_failure_lock = Lock()
 _stt_hits: dict[str, deque[float]] = defaultdict(deque)
 _family_ai_hits: dict[int, deque[float]] = defaultdict(deque)
 _speech_hits: dict[int, deque[float]] = defaultdict(deque)
@@ -109,6 +115,38 @@ def _allowed(hits: deque[float], per_min: int) -> bool:
 
 def login_allowed(ip: str) -> bool:
     return _allowed(_login_hits[ip], LOGIN_RATE_PER_MIN)
+
+
+def _expire_account_failures(now: float) -> None:
+    cutoff = now - LOGIN_FAIL_WINDOW_SEC
+    while _account_failures and next(iter(_account_failures.values()))[-1] <= cutoff:
+        _account_failures.popitem(last=False)
+
+
+def login_account_blocked(email: str) -> bool:
+    with _account_failure_lock:
+        now = monotonic()
+        _expire_account_failures(now)
+        return len(_account_failures.get(email.lower(), ())) >= LOGIN_FAIL_PER_EMAIL
+
+
+def record_login_failure(email: str) -> None:
+    email = email.lower()
+    with _account_failure_lock:
+        now = monotonic()
+        _expire_account_failures(now)
+        failures = _account_failures.setdefault(email, deque())
+        if len(failures) >= LOGIN_FAIL_PER_EMAIL:
+            return
+        while failures and now - failures[0] >= LOGIN_FAIL_WINDOW_SEC:
+            failures.popleft()
+        failures.append(now)
+        _account_failures.move_to_end(email)
+
+
+def clear_login_failures(email: str) -> None:
+    with _account_failure_lock:
+        _account_failures.pop(email.lower(), None)
 
 
 def stt_allowed(ip: str) -> bool:

@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
-from collections import defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
 from datetime import timedelta
 from pathlib import Path
 
@@ -51,6 +51,7 @@ def isolate_login_rate(monkeypatch):
     from app import security
 
     monkeypatch.setattr(security, "_login_hits", defaultdict(deque))
+    monkeypatch.setattr(security, "_account_failures", OrderedDict())
 
 
 @pytest.fixture(scope="session", autouse=True)
