@@ -9,6 +9,7 @@ def test_room_list_shows_photos_members_and_device(client):
     got = client.get("/api/rooms").json()[0]
     assert (got["photo_count"], got["member_count"], got["device_connected"]) == (0, 1, False)
     assert got["device_last_seen_at"] is None
+    assert all(got[f"device_perm_{kind}"] is None for kind in ("mic", "camera", "notification"))
 
     add_photos(room["room_id"])
     connect_device(client, room["room_id"])
@@ -16,3 +17,8 @@ def test_room_list_shows_photos_members_and_device(client):
     got = client.get("/api/rooms").json()[0]
     assert (got["photo_count"], got["device_connected"]) == (3, True)
     assert got["device_last_seen_at"] is not None
+    assert client.patch("/api/devices/me/permissions", json={"perm_mic": True}).status_code == 200
+    assert client.patch("/api/devices/me/permissions", json={"perm_mic": False}).status_code == 200
+    assert client.get("/api/rooms").json()[0]["device_perm_mic"] is False
+    notices = client.get("/api/notifications").json()["notifications"]
+    assert any(n["kind"] == "PERMISSION_OFF" and n["link"] == "GROUP_002" for n in notices)

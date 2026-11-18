@@ -55,6 +55,8 @@ def room_out(room: FamilyRoom, user_id: int, db: Session) -> RoomOut:
         )
     )
     out.device_connected = room.device_token_hash is not None
+    if not out.device_connected:
+        out.device_perm_mic = out.device_perm_camera = out.device_perm_notification = None
     return out
 
 

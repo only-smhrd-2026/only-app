@@ -19,6 +19,9 @@ export type RoomOut = {
   photo_count: number
   member_count: number
   device_connected: boolean
+  device_perm_mic: boolean | null
+  device_perm_camera: boolean | null
+  device_perm_notification: boolean | null
   device_last_seen_at: string | null // 어르신 폰이 마지막으로 서버에 온 때 (5분마다 갱신)
 }
 /** PATCH /api/rooms/{room_id}/settings (방장만). 보낸 칸만 바뀐다. 추억 시간은 정각만, 말 속도는 글자로 */

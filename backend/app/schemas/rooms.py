@@ -33,6 +33,10 @@ class RoomOut(BaseModel):
     photo_count: int = 0
     member_count: int = 0
     device_connected: bool = False  # 어르신 폰이 연결돼 있는지
+    # 어르신 폰이 알려 준 권한. 폰이 연결 안 됐으면 None.
+    device_perm_mic: bool | None = None
+    device_perm_camera: bool | None = None
+    device_perm_notification: bool | None = None
     device_last_seen_at: datetime | None = None  # 그 폰이 마지막으로 서버에 온 때 (5분마다 갱신, deps.py)
 
 
