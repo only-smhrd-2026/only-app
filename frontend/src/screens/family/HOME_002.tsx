@@ -1,6 +1,6 @@
 /** HOME_002 — 일기 상세. 하위 화면 틀의 ←를 쓰고, 열람 기록은 이 화면을 열 때만 남긴다(D36). */
 import { useEffect, useRef, useState } from 'react'
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import { MOOD_LABEL, type DiaryOut, type Reaction, type RoomOut, type UserOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
@@ -24,6 +24,17 @@ const iga = (word: string) => ((word.charCodeAt(word.length - 1) - 0xac00) % 28 
 
 function DiaryDetail({ diaryId }: { diaryId: string }) {
   const nav = useNavigate()
+  const location = useLocation()
+  const [diaryOrder] = useState<number[]>(() => {
+    // 알림·직접 주소로 연 일기는 예전 홈 목록이 남아 있어도 넘기지 않는다.
+    if (location.state?.familyDiaryOrder !== true) return []
+    try {
+      const order: unknown = JSON.parse(sessionStorage.getItem('haru.fam.diary-order') ?? 'null')
+      return Array.isArray(order) && order.every((id) => Number.isSafeInteger(id) && id > 0) ? order : []
+    } catch {
+      return []
+    }
+  })
   const diary = useFetch<DiaryOut>(`/api/diaries/${encodeURIComponent(diaryId)}`)
   const rooms = useFetch<RoomOut[]>('/api/rooms')
   const me = useFetch<UserOut>('/api/auth/me')
@@ -142,6 +153,13 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
   const name = elder ? `${room.elder_name} ${room.elder_honorific}` : (d.author_name ?? '가족')
   const hasPicture = d.illustration_type !== 'NONE' && !!d.illustration_url
   const liked = d.reactions.some((r) => r.by === 'ELDER' && r.kind === 'LIKE')
+  const index = diaryOrder.indexOf(d.diary_id)
+  const recent = index > 0 ? diaryOrder[index - 1] : undefined
+  const past = index >= 0 ? diaryOrder[index + 1] : undefined
+
+  function openDiary(id: number) {
+    nav(`/diaries/${id}`, { replace: true, state: { familyDiaryOrder: true } })
+  }
 
   return (
     <main className="fam-stack diary-detail">
@@ -214,6 +232,20 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
           </p>
         )}
       </article>
+      {(recent !== undefined || past !== undefined) && (
+        <nav className="diary-detail-nav" aria-label="일기 넘기기">
+          {recent !== undefined && (
+            <button type="button" className="fam-btn fam-btn--tonal" onClick={() => openDiary(recent)}>
+              ← 최근 일기
+            </button>
+          )}
+          {past !== undefined && (
+            <button type="button" className="fam-btn fam-btn--tonal diary-detail-past" onClick={() => openDiary(past)}>
+              지난 일기 →
+            </button>
+          )}
+        </nav>
+      )}
       {hasPicture && (
         <dialog
           ref={photoZoom}
