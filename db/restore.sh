@@ -21,9 +21,12 @@ blocked_commands='^[[:space:]]*\\(connect|c|!)([[:space:]]|$)|CREATE[[:space:]]+
 if gzip -dc -- "$backup_file" | grep -Ei -- "$blocked_commands" > /dev/null; then
     printf '이 백업에는 다른 DB 를 건드리는 줄이 있어 되살리지 않았어요\n' >&2
     exit 1
-elif [[ "$?" -ne 1 ]]; then
-    printf '백업 내용을 검사할 수 없어 되살리지 않았어요\n' >&2
-    exit 1
+else
+    scan_status=("${PIPESTATUS[@]}")
+    if [[ "${scan_status[0]}" -ne 0 || "${scan_status[1]}" -ne 1 ]]; then
+        printf '백업 내용을 검사할 수 없어 되살리지 않았어요\n' >&2
+        exit 1
+    fi
 fi
 backup_file="$(cd -- "$(dirname -- "$backup_file")" && pwd -P)/$(basename -- "$backup_file")"
 repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
