@@ -20,10 +20,11 @@ TZ = ZoneInfo("Asia/Seoul")
 DEV_JWT_SECRET = "dev-only-jwt-secret-change-me-before-deploy-0000"
 
 # 상한값은 설정 테이블 대신 상수 (D8)
-MAX_TURNS = 6  # 회상 AI 질문 수: 회상 3 → 문제 1 → 회상 2 (D52 ⑦, 11/12 전 8). DB CHECK 0~8 은 그대로
+# 회상 AI 질문 수(어제 이야기 질문 포함): 사진 2 → 문제 1 → 사진 1 (D79, 11/18 전 6·11/12 전 8). DB CHECK 0~8
+MAX_TURNS = 4
 DIARY_TURNS = 3  # 일기 대화 질문 수: 뭐 하셨어요 → 누구랑 → 기분은 (FR-DI-003)
 DIARY_DRAFT_MIN = 30  # 일기 초안 유지 시간 (FR-DI-004)
-QUIZ_TURN = 4  # 회상 3턴(어떠세요 → 누구랑 → 그때 이야기) 뒤 4번째 AI 질문이 문제 은행 문제 (FR-AI-001·002, D42)
+QUIZ_TURN = MAX_TURNS - 1  # 끝에서 두 번째 AI 질문이 생각 문제 — 어제 이야기 질문도 세는 순번 (FR-AI-002, D42·D79)
 QUIZ_PER_DAY = 2  # 가족방 하루 문제 상한 (FR-AI-002 '하루 1~2문제'). 세션당은 1개
 QUIZ_REPEAT_DAYS = 14  # 최근 14일에 쓴 활동·주제·문제는 빼고 고른다 (D39)
 QUIZ_ROTATE_DAYS = 90  # 같은 칸 안에서는 이 기간에 안 낸 문제 → 가장 오래전에 낸 문제 순으로 고른다 (D72)

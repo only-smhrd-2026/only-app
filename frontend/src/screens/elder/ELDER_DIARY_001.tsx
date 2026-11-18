@@ -1,9 +1,10 @@
 /**
- * ELDER_DIARY_001 — 일기 시작. 사진을 찍거나 그냥 이야기로 대화를 연다 (D51·D53, FR-DI-001).
- * 아래 [지난 일기]는 내가 올린 일기 목록(ELDER_DIARY_004)으로 간다 (D60).
+ * ELDER_DIARY_001 — 일기 시작. 홈처럼 큰 상자 4개: [사진 찍기] [사진 고르기](폰 사진첩) [그냥 이야기] [지난 일기]
+ * (D51·D53·D79, FR-DI-001). 고른 사진도 찍은 사진과 같은 길로 올린다(1280px — 옛 사진이면 그때 이야기, FR-DI-002).
+ * [지난 일기]는 내가 올린 일기 목록(ELDER_DIARY_004)으로 간다 (D60).
  * 업로드 응답이 끊겨도 같은 사진·요청 번호로 재시도해 사진이 중복 저장되지 않게 한다.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { PhotoOut, SessionOut } from '../../api/types'
@@ -11,7 +12,8 @@ import { useLive, type ElderNavState } from '../../hooks/useElderSession'
 import { speak, stopSpeaking } from '../../lib/audio'
 import { resizeImage } from '../../lib/resizeImage'
 
-const ASK = '오늘은 뭐 하셨어요? 사진을 찍으실래요, 그냥 이야기하실래요?'
+const ASK = '오늘은 뭐 하셨어요? 사진으로 할까요, 그냥 이야기할까요?'
+type From = 'photo' | 'pick' // 사진 찍기 / 사진 고르기
 
 export default function ELDER_DIARY_001() {
   const nav = useNavigate()
@@ -22,11 +24,12 @@ export default function ELDER_DIARY_001() {
   const [sessionId] = useState(() => crypto.randomUUID())
   const [busy, setBusy] = useState(false)
   const [resizing, setResizing] = useState(false)
-  const [starting, setStarting] = useState<'photo' | 'talk'>()
+  const [starting, setStarting] = useState<From | 'talk'>()
   const photoInput = useRef<HTMLInputElement>(null)
-  // 사진 찍기는 대화 번호를 따로 쓴다 — [그냥 이야기]의 응답만 끊겨 서버에 사진 없는 대화가 이미 있으면,
+  const pickInput = useRef<HTMLInputElement>(null)
+  // 사진 대화는 대화 번호를 따로 쓴다 — [그냥 이야기]의 응답만 끊겨 서버에 사진 없는 대화가 이미 있으면,
   // 같은 번호로는 서버가 그 대화를 돌려줘 사진이 일기에 안 붙는다
-  const pendingPhoto = useRef<{ file: File; batchId: string; sessionId: string } | undefined>(undefined)
+  const pendingPhoto = useRef<{ file: File; batchId: string; sessionId: string; from: From } | undefined>(undefined)
   const [error, setError] = useState<string>()
   const speed = Number(home?.settings.tts_speed) || 0.9
   const [saying, setSaying] = useState(false)
@@ -52,7 +55,7 @@ export default function ELDER_DIARY_001() {
     const pending = withPhoto ? pendingPhoto.current : undefined
     if (withPhoto && !pending) return
     setBusy(true)
-    setStarting(withPhoto ? 'photo' : 'talk')
+    setStarting(pending?.from ?? 'talk')
     setError(undefined)
     const id = pending?.sessionId ?? sessionId
     try {
@@ -87,10 +90,30 @@ export default function ELDER_DIARY_001() {
     }
   }
 
-  function takePhoto() {
+  function choosePhoto(from: From) {
     if (busy || resizing) return
-    if (pendingPhoto.current) void start(true)
-    else photoInput.current?.click()
+    if (pendingPhoto.current) void start(true) // 끊겼던 사진은 같은 사진·번호로 다시
+    else (from === 'photo' ? photoInput : pickInput).current?.click()
+  }
+
+  async function onPhoto(e: ChangeEvent<HTMLInputElement>, from: From) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || busy || resizing || !live.current) return
+    setResizing(true)
+    setStarting(from)
+    setError(undefined)
+    let photo = file
+    try {
+      photo = await resizeImage(file, 1280)
+    } catch {
+      // 읽지 못하는 형식 등으로 축소가 실패해도 원본 사진으로 업로드를 시도한다.
+    } finally {
+      if (live.current) setResizing(false)
+    }
+    if (!live.current) return
+    pendingPhoto.current = { file: photo, batchId: crypto.randomUUID(), sessionId: crypto.randomUUID(), from }
+    void start(true)
   }
 
   return (
@@ -105,30 +128,11 @@ export default function ELDER_DIARY_001() {
           <path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.3 6.3a8 8 0 0 1 0 11.4" />
         </svg>
       </button>
-      <input
-        type="file" accept="image/*" capture="environment" hidden ref={photoInput}
-        onChange={async (e) => {
-          const file = e.target.files?.[0]
-          e.target.value = ''
-          if (!file || busy || resizing || !live.current) return
-          setResizing(true)
-          setStarting('photo')
-          setError(undefined)
-          let photo = file
-          try {
-            photo = await resizeImage(file, 1280)
-          } catch {
-            // 읽지 못하는 형식 등으로 축소가 실패해도 원본 사진으로 업로드를 시도한다.
-          } finally {
-            if (live.current) setResizing(false)
-          }
-          if (!live.current) return
-          pendingPhoto.current = { file: photo, batchId: crypto.randomUUID(), sessionId: crypto.randomUUID() }
-          void start(true)
-        }}
-      />
-      <div className="elder-tiles elder-tiles--rows">
-        <button type="button" className="elder-tile elder-tile--2 elder-tile--wide" onClick={takePhoto} disabled={busy || resizing}>
+      {/* capture 있음 = 바로 카메라 · 없음 = 폰 사진첩(갤러리)에서 고르기 */}
+      <input type="file" accept="image/*" capture="environment" hidden ref={photoInput} onChange={(e) => void onPhoto(e, 'photo')} />
+      <input type="file" accept="image/*" hidden ref={pickInput} onChange={(e) => void onPhoto(e, 'pick')} />
+      <div className="elder-tiles">
+        <button type="button" className="elder-tile elder-tile--2" onClick={() => choosePhoto('photo')} disabled={busy || resizing}>
           <svg
             className="elder-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
@@ -138,7 +142,18 @@ export default function ELDER_DIARY_001() {
           </svg>
           <span>{(busy || resizing) && starting === 'photo' ? '잠시만요…' : '사진 찍기'}</span>
         </button>
-        <button type="button" className="elder-tile elder-tile--4 elder-tile--wide" onClick={() => void start()} disabled={busy || resizing}>
+        <button type="button" className="elder-tile elder-tile--1" onClick={() => choosePhoto('pick')} disabled={busy || resizing}>
+          <svg
+            className="elder-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+          >
+            <rect x="3" y="5" width="18" height="14" rx="2.5" />
+            <circle cx="8.5" cy="10" r="1.6" />
+            <path d="M21 16l-5-5-7.5 8" />
+          </svg>
+          <span>{(busy || resizing) && starting === 'pick' ? '잠시만요…' : '사진 고르기'}</span>
+        </button>
+        <button type="button" className="elder-tile elder-tile--4" onClick={() => void start()} disabled={busy || resizing}>
           <svg
             className="elder-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
@@ -148,7 +163,7 @@ export default function ELDER_DIARY_001() {
           <span>{busy && starting === 'talk' ? '잠시만요…' : '그냥 이야기'}</span>
         </button>
         <button
-          type="button" className="elder-tile elder-tile--3 elder-tile--wide"
+          type="button" className="elder-tile elder-tile--3"
           onClick={() => nav('/elder/diaries', { state: { home } })} disabled={busy || resizing}
         >
           <svg
