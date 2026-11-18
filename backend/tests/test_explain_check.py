@@ -4,6 +4,7 @@ import sys
 
 import pytest
 
+from app.config import settings
 from scripts import explain_check
 
 
@@ -25,3 +26,12 @@ def test_admin_connection_targets_postgres_and_rejects_test_database(monkeypatch
         with pytest.raises(ValueError):
             explain_check.admin_engine(url)
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize("target", ["db.example/only_app", "localhost/only_app?host=db.example"])
+def test_remote_host_is_rejected_before_database_access(monkeypatch, capsys, target):
+    monkeypatch.setattr(sys, "argv", ["explain_check"])
+    monkeypatch.setattr(settings, "DATABASE_URL", f"postgresql+psycopg://{target}")
+    monkeypatch.setattr(explain_check, "admin_engine", lambda url: pytest.fail("원격 DB에 연결하면 안 됩니다"))
+    assert explain_check.main() == 1
+    assert "내 PC DB" in capsys.readouterr().out
