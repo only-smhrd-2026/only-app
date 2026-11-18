@@ -32,9 +32,8 @@ printf '현재 커밋: %s\n' "$previous"
 bash db/backup.sh
 git reset --hard "$target"
 docker compose --profile deploy up -d --build
-if ! git diff --quiet "$previous" "$target" -- Caddyfile; then
-    docker compose --profile deploy restart caddy
-fi
+# Caddyfile은 마운트된 파일이다. 같은 커밋으로 재시도해도 다시 읽게 한다.
+docker compose --profile deploy restart caddy
 
 deadline=$((SECONDS + 90))
 healthy=0
