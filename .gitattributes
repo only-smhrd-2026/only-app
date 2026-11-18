@@ -4,3 +4,4 @@
 db/backup.sh text eol=lf
 db/restore.sh text eol=lf
 deploy/redeploy.sh text eol=lf
+deploy/rollback.sh text eol=lf
