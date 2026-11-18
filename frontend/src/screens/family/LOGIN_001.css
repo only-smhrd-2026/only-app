@@ -77,13 +77,42 @@
   line-height: 1.55;
 }
 .login-screen .login-terms-row { display: flex; align-items: center; gap: 8px; }
+.login-screen .login-password-field { display: grid; min-width: 0; gap: 6px; }
+.login-screen .login-password-control { position: relative; }
+.login-screen .login-form .login-password-control input { padding-right: 80px; }
+.login-screen .login-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  min-width: 64px;
+  min-height: 44px;
+  padding: 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--primary);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.login-screen .login-password-help { margin-top: 12px; font-size: 15px; }
+.login-screen .login-password-help summary {
+  min-height: 44px;
+  padding: 10px 0;
+  color: var(--primary);
+  font-weight: 600;
+  line-height: 24px;
+  cursor: pointer;
+}
+.login-screen .login-password-help p { padding: 12px; border-radius: 12px; background: var(--tint-2); color: var(--text-2); line-height: 1.65; }
 .login-screen .login-form .login-terms { display: flex; align-items: center; gap: 8px; min-height: 44px; }
 .login-screen .login-terms input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--primary); }
 .login-screen .login-policy-link { display: inline-flex; align-items: center; flex: none; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 4px; font-size: 15px; }
 .login-screen .login-error { color: #b00020; font-size: 15px; overflow-wrap: anywhere; }
 .login-screen .login-back { display: block; min-height: 44px; margin: 12px auto 0; padding: 8px 12px; border: 0; background: transparent; color: var(--text-2); font-size: 15px; cursor: pointer; }
 .login-screen button:disabled { opacity: .5; cursor: default; }
-.login-screen :is(button, input, a):focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
+.login-screen :is(button, input, a, summary):focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
 
 @media (max-width: 359px) {
   .login-screen .login-shell { padding-right: 16px; padding-left: 16px; }
