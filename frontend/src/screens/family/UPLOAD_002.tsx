@@ -11,7 +11,15 @@ import { api, ApiError } from '../../api/client'
 import type { MemberOut, PhotoBatchOut, RoomOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
 import { useFetch } from '../../hooks/useFetch'
-import { clearUploadDraft, PHOTO_PROBLEMS, uploadDraft, uploadResult, type UploadRoomResult } from '../../lib/uploadDraft'
+import {
+  clearUploadDraft,
+  forgetUploadText,
+  PHOTO_PROBLEMS,
+  saveUploadText,
+  uploadDraft,
+  uploadResult,
+  type UploadRoomResult,
+} from '../../lib/uploadDraft'
 import { Thumb } from './UPLOAD_001'
 import './steps.css'
 import './FDIARY_002.css'
@@ -116,7 +124,8 @@ export default function UPLOAD_002() {
     uploadDraft.caption = caption
     uploadDraft.peopleNote = peopleNote
     uploadDraft.peopleIds = peopleIds
-  }, [caption, peopleNote, peopleIds])
+    if (!retry) saveUploadText() // 글 칸은 새로고침해도 남게. 다시 보내기(한 방이라도 보냄)는 남기지 않는다(lib 주석)
+  }, [caption, peopleNote, peopleIds, retry])
 
   if (draft.files.length === 0) return <Navigate to="/upload" replace /> // 새로고침 등으로 고른 사진이 없음
   if (rooms.error?.status === 401) return <Navigate to="/login" replace />
@@ -207,6 +216,7 @@ export default function UPLOAD_002() {
       try {
         const r = await api<PhotoBatchOut>(`/api/rooms/${room.room_id}/photos`, { form, signal })
         next[room.room_id] = { room_id: room.room_id, name, ok: true, text: `${name}께 ${r.photos.length}장 보냈어요`, why: '', photos: r.photos }
+        forgetUploadText() // 새로고침 뒤 같은 글로 이 방에 또 보내지 않게
       } catch (e) {
         // 화면을 떠났다 — 남은 가족방에는 보내지 않는다. 고른 사진(uploadDraft)은 그대로 둔다
         if (signal?.aborted) return
