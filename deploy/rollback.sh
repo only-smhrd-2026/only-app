@@ -23,6 +23,11 @@ if ! target="$(git rev-parse --verify --end-of-options "$1^{commit}")" ||
     printf 'origin/develop에 포함된 커밋을 지정해 주세요.\n' >&2
     exit 1
 fi
+# 되돌리기는 지금 배포보다 앞(옛) 커밋으로만 — 새 커밋은 마이그레이션이 필요할 수 있어 redeploy.sh 로 (11/18 다듬기)
+if ! git merge-base --is-ancestor "$target" HEAD; then
+    printf '지금 배포보다 앞선 커밋만 지정할 수 있어요. 새 버전으로는 bash deploy/redeploy.sh 를 써요.\n' >&2
+    exit 1
+fi
 if ! git diff --quiet HEAD --; then
     printf '저장소의 변경사항을 정리한 뒤 되돌려 주세요.\n' >&2
     exit 1

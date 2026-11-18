@@ -368,6 +368,8 @@ def commit_photo_deletion(db: DB, photo: Photo) -> None:
     photo.caption = None
     photo.people_note = None
     photo.ai_scene = None
+    photo.corrected_activity = None  # 가족이 고친 활동도 가족이 쓴 글 — 처리방침 '지우면 서버에서도 글을 지움'
+    photo.corrected_at = None
     photo_id = photo.photo_id
     keys = [key for key in dict.fromkeys((photo.object_key, photo.thumb_key)) if key]
     db.commit()

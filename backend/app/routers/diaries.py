@@ -294,7 +294,14 @@ def post_family_diary(room_id: int, body: DiaryCreateIn, user: CurrentUser, db: 
         raise ApiError(422, "VALIDATION", "일기 내용을 적어 주세요")
     if body.photo_id is not None:
         photo = db.get(Photo, body.photo_id)
-        if photo is None or photo.room_id != room_id or photo.status != "ACTIVE":  # 남의 가족방 사진은 못 붙인다
+        # 이 방에서 내가 올린 가족 일기 사진만 붙인다 — 남의 방 사진·추억 사진·남이 올린 사진은 없는 것처럼 (11/18)
+        if (
+            photo is None
+            or photo.room_id != room_id
+            or photo.status != "ACTIVE"
+            or photo.source != "FAMILY_DIARY"
+            or photo.uploaded_by != user.user_id
+        ):
             raise ApiError(404, "PHOTO_NOT_FOUND", "사진을 찾을 수 없어요")
     # session_id 는 저장하지 않는다(어르신 대화용 칸). illustration_type 은 요청 값을 믿지 않고 서버가 정한다
     db.execute(
@@ -475,7 +482,20 @@ def delete_diary(diary_id: int, user: CurrentUser, db: DB):
     diary.reactions = []
     if diary.photo_id is not None:
         photo = db.get(Photo, diary.photo_id, with_for_update=True)
-        if photo is not None and photo.room_id == diary.room_id and photo.source == "FAMILY_DIARY":
+        # 내가 올린 가족 일기 사진이고 다른 게시 일기가 안 쓸 때만 같이 지운다 — 남의 사진 번호를 붙인 일기를 지워
+        # 그 사람 사진을 지우는 길을 막는다(11/18 다듬기. 올릴 때도 post_family_diary 가 막음)
+        shared = db.scalar(
+            select(Diary.diary_id).where(
+                Diary.photo_id == diary.photo_id, Diary.diary_id != diary.diary_id, Diary.status == "POSTED"
+            )
+        )
+        if (
+            photo is not None
+            and photo.room_id == diary.room_id
+            and photo.source == "FAMILY_DIARY"
+            and photo.uploaded_by == user.user_id
+            and shared is None
+        ):
             commit_photo_deletion(db, photo)
             return
     db.commit()
