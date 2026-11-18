@@ -2,6 +2,7 @@
 # 시험 복원: bash db/restore.sh 백업파일.sql.gz [--keep]
 # 실제 복구는 서버를 멈추고 빈 DB를 만든 뒤 백업을 풀어 넣는다.
 # 이 스크립트의 복원·삭제 대상은 only_app_restore_test로 고정한다.
+# 다른 DB나 서버 설정을 건드리는 명령이 포함된 백업은 중단한다.
 set -euo pipefail
 export TZ=KST-9
 umask 077
@@ -15,6 +16,15 @@ keep="${2:-}"
 test_db=only_app_restore_test
 [[ -f "$backup_file" ]] || { printf '백업 파일을 찾을 수 없어요.\n' >&2; exit 1; }
 gzip -t -- "$backup_file"
+blocked_commands='^[[:space:]]*\\(connect|c|!)([[:space:]]|$)|CREATE[[:space:]]+DATABASE|DROP[[:space:]]+DATABASE|ALTER[[:space:]]+(DATABASE|SYSTEM)|PROGRAM[[:space:]]'
+# grep 은 끝까지 읽어 pipefail 에서 gzip 의 SIGPIPE 를 피한다.
+if gzip -dc -- "$backup_file" | grep -Ei -- "$blocked_commands" > /dev/null; then
+    printf '이 백업에는 다른 DB 를 건드리는 줄이 있어 되살리지 않았어요\n' >&2
+    exit 1
+elif [[ "$?" -ne 1 ]]; then
+    printf '백업 내용을 검사할 수 없어 되살리지 않았어요\n' >&2
+    exit 1
+fi
 backup_file="$(cd -- "$(dirname -- "$backup_file")" && pwd -P)/$(basename -- "$backup_file")"
 repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd -- "$repo_dir"
