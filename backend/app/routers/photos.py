@@ -11,7 +11,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 from PIL import ExifTags, Image, ImageOps
-from sqlalchemy import select, update
+from sqlalchemy import and_, or_, select, update
 from starlette.datastructures import FormData, UploadFile  # fastapi.UploadFile 은 자식이라 isinstance 안 맞음
 from starlette.exceptions import HTTPException
 from starlette.requests import ClientDisconnect
@@ -293,22 +293,33 @@ def upload_photos(room_id: int, user: CurrentUser, db: DB, form: Annotated[FormD
 
 
 @router.get("", response_model=PhotoListOut)
-def list_photos(room_id: int, user: CurrentUser, db: DB):
+def list_photos(room_id: int, user: CurrentUser, db: DB, before: int | None = None):
     """가족 화면에 올린 사진 목록, 최신 먼저 (FR-ME-004)."""
     require_member(room_id, user, db)  # 로그인 안 함 401, 남의 가족방 404
     # 지운 사진·그림일기 사진(FAMILY_DIARY)은 뺀다.
     # 어르신 사진첩(elder.py album)은 여기서 어르신이 찍은 사진(ELDER_CAMERA)도 뺀다 (D60)
-    photos = db.scalars(
-        select(Photo)
-        .where(
-            Photo.room_id == room_id,
-            Photo.status == "ACTIVE",
-            Photo.source.in_(["FAMILY", "ELDER_CAMERA"]),
+    query = select(Photo).where(
+        Photo.room_id == room_id,
+        Photo.status == "ACTIVE",
+        Photo.source.in_(["FAMILY", "ELDER_CAMERA"]),
+    )
+    if before is not None:
+        cursor = db.scalar(query.where(Photo.photo_id == before))
+        if cursor is None:
+            raise ApiError(404, "PHOTO_NOT_FOUND", "사진을 찾을 수 없어요")
+        query = query.where(
+            or_(
+                Photo.uploaded_at < cursor.uploaded_at,
+                and_(Photo.uploaded_at == cursor.uploaded_at, Photo.photo_id < before),
+            )
         )
-        .order_by(Photo.uploaded_at.desc(), Photo.photo_id.desc())
-        .limit(PHOTO_LIST_LIMIT)  # 어르신 사진첩 album 과 같은 상수
+    photos = db.scalars(
+        query.order_by(Photo.uploaded_at.desc(), Photo.photo_id.desc()).limit(PHOTO_LIST_LIMIT + 1)
     ).all()
-    return PhotoListOut(photos=[photo_out(p, user.user_id) for p in photos])
+    return PhotoListOut(
+        photos=[photo_out(p, user.user_id) for p in photos[:PHOTO_LIST_LIMIT]],
+        has_more=len(photos) > PHOTO_LIST_LIMIT,
+    )
 
 
 @router.patch("/{photo_id}/correction", response_model=PhotoOut)

@@ -29,6 +29,7 @@ class PhotoBatchOut(BaseModel):
 
 
 class PhotoListOut(BaseModel):
+    has_more: bool = False
     photos: list[PhotoOut]
 
 
