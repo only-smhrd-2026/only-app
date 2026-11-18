@@ -12,7 +12,7 @@ from sqlalchemy import select
 from app.ai import coach, llm, story
 from app.ai import weekly as weekly_ai
 from app.ai.schemas import CoachTurn, StoryFactItem, StoryFactItems
-from app.config import MAX_TURNS, TZ, now_kst, today_kst
+from app.config import MAX_TURNS, QUIZ_TURN, TZ, now_kst, today_kst
 from app.db import SessionLocal
 from app.models import StoryFact, TalkSession, WeeklySummary
 from app.services import weekly
@@ -240,14 +240,14 @@ def test_first_memory_talk_starts_with_story(client, monkeypatch, question_bank)
     assert _turns(sid)[0]["fact_id"] == fact_id
     with SessionLocal() as db:
         assert db.get(StoryFact, fact_id).used_at is not None
-    for _ in range(MAX_TURNS + 1):  # 어제 이야기 1 + 사진 질문 6
+    for _ in range(MAX_TURNS):  # 어제 이야기 질문도 MAX_TURNS 안에 든다 (D79)
         out = _say(client, sid)
     assert out["state"] == "ENDED" and out["end_reason"] == "COMPLETED"
-    # 사진 대화는 평소와 같다 — 1번부터 6번, 문제는 4번째 사진 질문, 그다음 마무리
-    photo = [(n, MAX_TURNS, n == 4, False) for n in range(1, MAX_TURNS + 1)]
-    assert seen == [*photo, (MAX_TURNS, MAX_TURNS, False, True)]
+    # 코치는 사진 질문 번호 1~(MAX_TURNS-1)로 본다. 문제는 끝에서 두 번째(QUIZ_TURN — 어제 이야기도 세는 순번)
+    photo = [(n, MAX_TURNS - 1, n == QUIZ_TURN - 1, False) for n in range(1, MAX_TURNS)]
+    assert seen == [*photo, (MAX_TURNS - 1, MAX_TURNS - 1, False, True)]
     with SessionLocal() as db:
-        assert db.get(TalkSession, uuid.UUID(sid)).turn_count == MAX_TURNS + 1
+        assert db.get(TalkSession, uuid.UUID(sid)).turn_count == MAX_TURNS
     again = _start(client, pick_id)  # 같은 날 다시 연 회상 대화는 묻지 않는다 (하루 한 번)
     assert "fact_id" not in _turns(again["session_id"])[0]
 

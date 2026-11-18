@@ -3,7 +3,7 @@
 import uuid
 from datetime import timedelta
 
-from app.config import now_kst
+from app.config import MAX_TURNS, now_kst
 from app.db import SessionLocal
 from app.models import StoryFact
 from app.services import weekly
@@ -33,16 +33,15 @@ def test_rehearsal_flow(client):
     )
     assert memory.status_code == 201
     sid = memory.json()["session_id"]
-    # 시연 자료 3이 합쳐졌으면 지난 이야기 질문에 먼저 답하고 사진 질문 여섯 개를 이어 간다.
+    # 시연 자료 3이 합쳐졌으면 첫 질문이 지난 이야기다.
     with SessionLocal() as db:
         from sqlalchemy import select
 
         remembered = db.scalar(select(StoryFact).where(StoryFact.room_id == room, StoryFact.used_at.is_not(None)))
-    if remembered is not None:
-        turn = client.post(f"/api/elder/sessions/{sid}/turns", json={"text": "꽃이 잘 자랐어요", "input_type": "CHIP"})
-        assert turn.status_code == 200 and turn.json()["state"] == "CONTINUE"
-    for _ in range(5):
-        answer = "가족과 나들이하던 사진이에요"
+    # 지난 이야기 질문도 회상 질문 수(MAX_TURNS) 안에 든다 (D79) — 마지막 답 하나 전까지는 CONTINUE
+    answers = ["꽃이 잘 자랐어요"] if remembered is not None else []
+    answers += ["가족과 나들이하던 사진이에요"] * (MAX_TURNS - 1 - len(answers))
+    for answer in answers:
         turn = client.post(f"/api/elder/sessions/{sid}/turns", json={"text": answer, "input_type": "CHIP"})
         assert turn.status_code == 200
         assert turn.json()["state"] == "CONTINUE"

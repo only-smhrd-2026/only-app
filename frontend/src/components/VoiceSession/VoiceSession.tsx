@@ -118,7 +118,7 @@ type Props = {
   inputMode: 'VOICE' | 'BUTTON'
   onEnded: (result: SessionOut) => void
   endAction?: { label: string; onClick: () => void } // 끝난 뒤 아래 단추 (회상 '다 들었어요')
-  maxTurns?: number // 회상 6 (서버 MAX_TURNS), 일기 3 (서버 DIARY_TURNS). 진행 숫자는 11/12 뺐다 — 받기만 함
+  maxTurns?: number // 회상 4 (서버 MAX_TURNS, D79), 일기 3 (서버 DIARY_TURNS). 진행 숫자는 11/12 뺐다 — 받기만 함
 }
 
 export default function VoiceSession({ sessionId, initial, history, speed, inputMode, onEnded, endAction }: Props) {
