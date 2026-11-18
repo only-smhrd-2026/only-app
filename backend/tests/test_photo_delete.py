@@ -1,4 +1,4 @@
-"""사진 삭제 권한·미진행 선택 만료·원본 보존을 확인한다."""
+"""사진 삭제 권한·미진행 선택 만료·내용 삭제를 확인한다."""
 
 from datetime import timedelta
 
@@ -28,6 +28,9 @@ def test_delete_own_photo_expires_today_and_removes_files(client):
     assert photo["is_mine"] is True
     with SessionLocal() as db:
         stored = db.get(Photo, pid)
+        stored.caption = "사진 설명"
+        stored.people_note = "가족"
+        stored.ai_scene = "산책"
         stored.thumb_key = stored.object_key.rsplit("/", 1)[0] + "/1.jpg"
         thumb = stored.thumb_key
         storage.put(thumb, b"thumbnail")
@@ -44,8 +47,10 @@ def test_delete_own_photo_expires_today_and_removes_files(client):
     assert client.get(photo["url"]).status_code == 404
     assert next(r for r in client.get("/api/rooms").json() if r["room_id"] == room)["photo_count"] == before - 1
     with SessionLocal() as db:
-        assert db.get(Photo, pid).status == "DELETED"
-        assert storage.get(db.get(Photo, pid).object_key) is None
+        stored = db.get(Photo, pid)
+        assert stored.status == "DELETED"
+        assert (stored.caption, stored.people_note, stored.ai_scene) == (None, None, None)
+        assert storage.get(stored.object_key) is None
         assert storage.get(thumb) is None
         picks = db.scalars(select(DailyPick).where(DailyPick.room_id == room).order_by(DailyPick.pick_date)).all()
         assert [p.status for p in picks] == ["COMPLETED", "EXPIRED"]

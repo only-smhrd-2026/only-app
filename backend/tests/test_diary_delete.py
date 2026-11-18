@@ -1,10 +1,12 @@
-"""가족 일기 삭제는 작성자만 가능하고 기존 파일은 보존한다."""
+"""가족 일기 삭제 권한과 본문·첨부 삭제를 확인한다."""
 
 from app.db import SessionLocal
-from app.models import Diary, RoomMember
+from app.models import Diary, Photo, RoomMember
+from app.services import storage
 from tests.conftest import setup_elder, signup
 from tests.test_family_diary import _post
 from tests.test_family_news import _diary
+from tests.test_photo_delete import upload
 
 
 def test_delete_own_diary_hides_from_family_and_elder(client):
@@ -19,7 +21,31 @@ def test_delete_own_diary_hides_from_family_and_elder(client):
     assert diary["diary_id"] not in [d["diary_id"] for d in client.get(f"/api/rooms/{room}/diaries").json()["diaries"]]
     assert diary["diary_id"] not in [d["diary_id"] for d in client.get("/api/elder/family-news").json()["diaries"]]
     with SessionLocal() as db:
-        assert db.get(Diary, diary["diary_id"]).status == "DELETED"
+        stored = db.get(Diary, diary["diary_id"])
+        assert stored.status == "DELETED"
+        assert stored.body == ""
+        assert stored.reactions == []
+
+
+def test_delete_diary_removes_attached_photo(client):
+    room = setup_elder(client)["room_id"]
+    photo = upload(client, room, "FAMILY_DIARY")
+    photo_id = photo["photo_id"]
+    diary = _post(client, room, photo_id=photo_id)
+    assert diary.status_code == 201, diary.text
+    with SessionLocal() as db:
+        stored = db.get(Photo, photo_id)
+        key = stored.object_key
+        thumb = key.rsplit("/", 1)[0] + "/1.jpg"
+        stored.thumb_key = thumb
+        storage.put(thumb, b"thumbnail")
+        db.commit()
+    assert client.delete(f"/api/diaries/{diary.json()['diary_id']}").status_code == 204
+    with SessionLocal() as db:
+        assert db.get(Photo, photo_id).status == "DELETED"
+    assert storage.get(key) is None
+    assert storage.get(thumb) is None
+    assert client.get(photo["url"]).status_code == 404
 
 
 def test_delete_permissions_and_is_mine(client):

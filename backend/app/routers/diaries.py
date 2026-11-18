@@ -41,6 +41,7 @@ from app.deps import DB, CurrentDevice, CurrentUser, require_member
 from app.errors import ApiError
 from app.models import Diary, FamilyRoom, Photo, RoomMember, User
 from app.routers.devices import notify_family
+from app.routers.photos import commit_photo_deletion
 from app.routers.sessions import DIARY_SAVED, _tts_failed, coach_context, load_session
 from app.schemas.diaries import (
     DiaryCreateIn,
@@ -470,6 +471,13 @@ def delete_diary(diary_id: int, user: CurrentUser, db: DB):
     if diary.author_type != "FAMILY" or diary.author_user_id != user.user_id:
         raise ApiError(403, "NOT_AUTHOR", "내가 쓴 일기만 지울 수 있어요")
     diary.status = "DELETED"
+    diary.body = ""
+    diary.reactions = []
+    if diary.photo_id is not None:
+        photo = db.get(Photo, diary.photo_id, with_for_update=True)
+        if photo is not None and photo.room_id == diary.room_id and photo.source == "FAMILY_DIARY":
+            commit_photo_deletion(db, photo)
+            return
     db.commit()
 
 
