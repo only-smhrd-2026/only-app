@@ -11,7 +11,7 @@ import { MOOD_LABEL, type FamilyAskOut, type FamilyDraftOut, type Mood, type Use
 import FamIcon from '../../components/FamIcon'
 import MoodIcon from '../../components/MoodIcon'
 import { useFetch } from '../../hooks/useFetch'
-import { familyDiaryDraft as d } from '../../lib/familyDiaryDraft'
+import { familyDiaryDraft as d, saveFamilyDiaryText } from '../../lib/familyDiaryDraft'
 import { Thumb } from './UPLOAD_001'
 import './steps.css'
 import './FDIARY_002.css'
@@ -89,6 +89,7 @@ export default function FDIARY_002() {
       if (signal?.aborted) return
       setQuestion(out.question)
       d.question = out.question
+      saveFamilyDiaryText()
       setBusy(null)
     } catch (e) {
       fail(e, signal)
@@ -142,7 +143,7 @@ export default function FDIARY_002() {
               maxLength={MAX}
               value={text}
               placeholder="예: 엄마 생각하며 꽃 사진을 찍었어요"
-              onChange={(e) => (setText(e.target.value), (d.text = e.target.value))}
+              onChange={(e) => (setText(e.target.value), (d.text = e.target.value), saveFamilyDiaryText())}
             />
             <span className="fd2-count">
               {text.length}/{MAX}
@@ -173,7 +174,7 @@ export default function FDIARY_002() {
                   value={answer}
                   aria-label="일기 동무 질문에 대한 답"
                   placeholder="답 (안 적어도 돼요)"
-                  onChange={(e) => (setAnswer(e.target.value), (d.answer = e.target.value))}
+                  onChange={(e) => (setAnswer(e.target.value), (d.answer = e.target.value), saveFamilyDiaryText())}
                 />
                 <span className="fd2-count">
                   {answer.length}/{MAX}

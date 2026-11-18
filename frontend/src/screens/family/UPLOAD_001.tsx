@@ -131,9 +131,10 @@ export default function UPLOAD_001() {
   /** 고른 사진을 화면 밖 칸(lib/uploadDraft)에 적는다 — [다음]과 '자세히 ›'(처리방침 갔다 ← 로 돌아와도 그대로) */
   function saveDraft() {
     // 사진을 통째로 새로 골랐으면 앞 사진에 적은 한마디·사진 속 사람을 비운다 — 새 사진에 붙지 않게.
-    // 앞 사진이 한 장이라도 남아 있으면(더하기·빼기만 함) 같은 묶음을 고친 것이라 적은 글을 둔다
+    // 앞 사진이 한 장이라도 남아 있으면(더하기·빼기만 함) 같은 묶음을 고친 것이라 적은 글을 둔다.
+    // 앞 사진이 없으면(처음·새로고침 뒤) 비우지 않는다 — 새로고침 전에 쓰던 한마디(lib/uploadDraft 가 되살림)가 남게
     const sameSet = files.some((f) => uploadDraft.files.includes(f))
-    if (uploadDraft.batchId !== batchId && !sameSet) {
+    if (uploadDraft.files.length > 0 && uploadDraft.batchId !== batchId && !sameSet) {
       uploadDraft.caption = ''
       uploadDraft.peopleNote = ''
       uploadDraft.peopleIds = []

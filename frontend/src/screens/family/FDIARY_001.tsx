@@ -7,7 +7,12 @@ import { useState, type ChangeEvent } from 'react'
 import { Link, useNavigate, useNavigationType } from 'react-router-dom'
 import FamIcon from '../../components/FamIcon'
 import { useFamily } from '../../hooks/useFamily'
-import { clearFamilyDiaryDraft, familyDiaryDraft } from '../../lib/familyDiaryDraft'
+import {
+  clearFamilyDiaryDraft,
+  familyDiaryDraft,
+  restoreFamilyDiaryText,
+  saveFamilyDiaryText,
+} from '../../lib/familyDiaryDraft'
 import { fitPhoto, MAX_BYTES } from '../../lib/fitPhoto' // 상한 넘는 사진 줄이기·10MB(서버와 같은 값)
 import { Thumb } from './UPLOAD_001' // 미리보기 그림
 import './steps.css'
@@ -54,10 +59,12 @@ export default function FDIARY_001() {
     if (!room || !me) return
     // 새로 시작했으면(탭으로 들어옴·다른 계정) 앞서 쓰다 만 한마디·질문·초안을 비운다. 뒤로 돌아온 것이면 그대로 두고 사진만 바꾼다
     if (!resume) clearFamilyDiaryDraft()
+    restoreFamilyDiaryText(me.user_id) // 페이지를 새로 연 뒤 첫 [다음]만 — 같은 사람이 쓰던 글을 되살린다
     familyDiaryDraft.userId = me.user_id
     familyDiaryDraft.photo = withPhoto ? photo : null
     familyDiaryDraft.room = room
     familyDiaryDraft.rooms = rooms
+    saveFamilyDiaryText()
     nav('/fdiary/write')
   }
 

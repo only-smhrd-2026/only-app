@@ -10,7 +10,7 @@ import { api, ApiError } from '../../api/client'
 import { MOOD_LABEL, type DiaryOut, type PhotoBatchOut, type RoomOut, type UserOut } from '../../api/types'
 import MoodIcon from '../../components/MoodIcon'
 import { useFetch } from '../../hooks/useFetch'
-import { clearFamilyDiaryDraft, familyDiaryDraft as d } from '../../lib/familyDiaryDraft'
+import { clearFamilyDiaryDraft, familyDiaryDraft as d, forgetFamilyDiaryText } from '../../lib/familyDiaryDraft'
 import { PHOTO_PROBLEMS } from '../../lib/uploadDraft'
 import { Thumb } from './UPLOAD_001'
 import './steps.css'
@@ -143,6 +143,7 @@ export default function FDIARY_003() {
           signal,
         })
         d.done.push(room.room_id) // 화면을 떠나도 남게 일기 칸에 바로 적는다
+        forgetFamilyDiaryText() // 새로고침 뒤 같은 글로 이 방에 또 보내지 않게 (lib 주석)
         next[room.room_id] = { ok: true }
       } catch (e) {
         if (signal?.aborted) return // 화면을 떠났다 — 남은 방에는 보내지 않는다

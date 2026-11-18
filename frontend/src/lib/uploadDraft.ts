@@ -1,6 +1,7 @@
 /**
  * 사진 올리기 UPLOAD_001 → UPLOAD_002 가 고른 사진·요청 번호(D17)·한마디·사진 속 사람을 주고받는 곳.
- * 메모리에만 있어 새로고침하면 비워짐.
+ * 메모리에 있고, 글 칸(caption·peopleNote)만 sessionStorage 에도 둔다 — 폰이 화면을 새로 열어도 같은 창이면 한마디가 남게.
+ * 사진·요청 번호·고른 사람 칩은 남기지 않는다(새로고침하면 사진을 다시 고른다).
  */
 import type { PhotoOut } from '../api/types'
 
@@ -11,6 +12,39 @@ export const uploadDraft: { files: File[]; batchId: string; caption: string; peo
   caption: '',
   peopleNote: '',
   peopleIds: [],
+}
+
+const KEY = 'haru.fam.upload-draft'
+
+// 페이지를 열 때 남긴 글을 되살린다. 계정이 바뀌면 clearUploadDraft 가 지우므로(로그인·로그아웃) 따로 사람을 보지 않는다.
+// 추억 올리기 화면(/upload…)에 있다가 새로 열렸을 때만 — 다른 화면에서 열렸으면 쓰다 그만둔 글이라 버린다
+// (안 버리면 나중에 고른 다른 사진에 옛 한마디·사진 속 사람이 붙는다)
+try {
+  if (!location.pathname.startsWith('/upload')) sessionStorage.removeItem(KEY)
+  const saved = JSON.parse(sessionStorage.getItem(KEY) ?? 'null') as { caption?: string; peopleNote?: string } | null
+  uploadDraft.caption = saved?.caption ?? ''
+  uploadDraft.peopleNote = saved?.peopleNote ?? ''
+} catch {
+  // 사생활 보호 모드·망가진 값 — 빈 칸으로 시작
+}
+
+/** 남긴 글만 지운다(메모리는 그대로). UPLOAD_002 에서 한 방이라도 올라가면 부른다 — 새로고침 뒤 같은 글로
+ *  이미 받은 방에 또 보내지 않게 (FDIARY 의 forgetFamilyDiaryText 와 같은 이유) */
+export function forgetUploadText() {
+  try {
+    sessionStorage.removeItem(KEY)
+  } catch {
+    // 사생활 보호 모드 — 남긴 것도 없다
+  }
+}
+
+/** 한마디·사진 속 사람이 바뀔 때마다 부른다 (UPLOAD_002) */
+export function saveUploadText() {
+  try {
+    sessionStorage.setItem(KEY, JSON.stringify({ caption: uploadDraft.caption, peopleNote: uploadDraft.peopleNote }))
+  } catch {
+    // 사생활 보호 모드 — 메모리에만 남는다
+  }
 }
 
 /** 사진 자체가 문제일 때 서버가 주는 코드 (routers/photos.py) — 어느 가족방에 보내도 같은 답이라 남은 방에는 보내지 않는다.
@@ -31,4 +65,5 @@ export function clearUploadDraft() {
   uploadDraft.peopleIds = []
   uploadResult.batchId = ''
   uploadResult.rooms = []
+  forgetUploadText()
 }

@@ -1,6 +1,8 @@
 /**
  * 가족 일기(오늘 한 장) FDIARY_001 → 002 → 003 이 나눠 쓰는 칸 (lib/uploadDraft.ts 와 같은 방법).
- * 메모리에만 있어 새로고침하면 비워진다. 서버에는 003 [게시하기] 때 한 번에 보낸다.
+ * 메모리에 있고, 글 칸(text·question·answer)과 userId 만 sessionStorage 에도 둔다 — 다른 앱에 갔다 오면 폰이
+ * 화면을 새로 열 때가 있어서(특히 아이폰). 같은 창 안에서만 남고, 사진·기분·초안은 남기지 않는다.
+ * 서버에는 003 [게시하기] 때 한 번에 보낸다.
  */
 import type { Mood, RoomOut } from '../api/types'
 
@@ -29,7 +31,60 @@ const empty = () => ({
 
 export const familyDiaryDraft = empty()
 
-/** 다 쓰고 게시했을 때, 그리고 새로 쓰기 시작할 때 비운다 — 앞 일기·앞 계정의 글이 남지 않게 */
+const KEY = 'haru.fam.diary-draft'
+type SavedText = { userId: number | null; text: string; question: string; answer: string }
+
+// 페이지를 열 때 한 번 읽어 둔 글 — 1단계 첫 [다음]이 한 번만 되살린다(restoreFamilyDiaryText).
+// 가족 일기 화면(/fdiary…)에 있다가 새로 열렸을 때만 — 다른 화면에서 열렸으면 쓰다 그만둔 글이라 버린다
+// (안 버리면 나중에 탭으로 새로 쓸 때 옛 글이 붙는다)
+let saved: SavedText | null = (() => {
+  try {
+    if (!location.pathname.startsWith('/fdiary')) {
+      sessionStorage.removeItem(KEY)
+      return null
+    }
+    const raw = sessionStorage.getItem(KEY)
+    return raw ? (JSON.parse(raw) as SavedText) : null
+  } catch {
+    return null // 사생활 보호 모드·망가진 값 — 남긴 글 없이 시작
+  }
+})()
+
+/** 글 칸이 바뀔 때마다 부른다 (FDIARY_001 [다음] · FDIARY_002 한마디·질문·답) */
+export function saveFamilyDiaryText() {
+  const { userId, text, question, answer, done } = familyDiaryDraft
+  if (done.length > 0) return // 한 방이라도 올라갔으면 남기지 않는다 — 아래 forgetFamilyDiaryText
+  try {
+    sessionStorage.setItem(KEY, JSON.stringify({ userId, text, question, answer } satisfies SavedText))
+  } catch {
+    // 사생활 보호 모드 — 메모리에만 남는다
+  }
+}
+
+/** 페이지를 새로 연 뒤 첫 [다음] — 같은 사람이 쓰던 글이면 되살린다. 다른 계정이면 버린다 */
+export function restoreFamilyDiaryText(userId: number) {
+  const s = saved
+  saved = null
+  if (s?.userId !== userId) return
+  familyDiaryDraft.text = s.text ?? ''
+  familyDiaryDraft.question = s.question ?? ''
+  familyDiaryDraft.answer = s.answer ?? ''
+}
+
+/**
+ * 남긴 글만 지운다(메모리는 그대로). FDIARY_003 에서 한 방이라도 올라가면 부른다 — 새로고침 뒤 '보낸 방' 표시(sent·done)는
+ * 사라지는데 글만 돌아오면, 다시 게시할 때 이미 받은 방에 같은 일기가 또 간다
+ */
+export function forgetFamilyDiaryText() {
+  try {
+    sessionStorage.removeItem(KEY)
+  } catch {
+    // 사생활 보호 모드 — 남긴 것도 없다
+  }
+}
+
+/** 다 쓰고 게시했을 때, 그리고 새로 쓰기 시작할 때 비운다(남긴 글도) — 앞 일기·앞 계정의 글이 남지 않게 */
 export function clearFamilyDiaryDraft() {
   Object.assign(familyDiaryDraft, empty())
+  forgetFamilyDiaryText()
 }
