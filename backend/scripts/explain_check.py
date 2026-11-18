@@ -367,6 +367,10 @@ def main() -> int:
     if settings.APP_ENV == "deploy":
         print("배포 서버에서는 인덱스 점검을 실행할 수 없어요")
         return 1
+    url = make_url(settings.DATABASE_URL)
+    if url.host not in {"localhost", "127.0.0.1", "::1"} or {"host", "hostaddr", "service"} & url.query.keys():
+        print("내 PC DB 에서만 인덱스 점검을 할 수 있어요")
+        return 1
     admin = admin_engine(settings.DATABASE_URL)
     engine = None
     created = False
