@@ -93,3 +93,16 @@ def test_unhandled_error_returns_500_json_without_reraise(client, monkeypatch):
     monkeypatch.setattr(app.main, "now_kst", boom)
     r = client.get("/api/health")
     assert r.status_code == 500 and r.json() == {"detail": "서버 오류", "code": "INTERNAL"}
+
+
+def test_login_unknown_email_still_checks_a_password(monkeypatch):
+    """없는 이메일도 bcrypt 비교를 한 번 한다 — 걸린 시간으로 가입 여부가 드러나지 않게 (D20, 11/18 다듬기)."""
+    import bcrypt
+
+    from app import security
+
+    calls = []
+    real = bcrypt.checkpw
+    monkeypatch.setattr(security.bcrypt, "checkpw", lambda p, h: calls.append(h) or real(p, h))
+    assert security.verify_password("whatever-1234", None) is False
+    assert calls == [security._DUMMY_HASH]

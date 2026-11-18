@@ -10,7 +10,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # PR 은 PR 마다(새 push 면 앞 실행 취소), develop push 는 커밋마다 — 여러 PR 을 잇달아 합쳐도 기다리던 검사가 안 취소되게
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

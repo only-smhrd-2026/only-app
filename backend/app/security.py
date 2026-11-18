@@ -40,9 +40,16 @@ def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=10)).decode()
 
 
+# 계정이 없을 때도 같은 시간이 걸리게 비교할 가짜 해시(rounds 10 — hash_password 와 같음). 어떤 비밀번호와도 안 맞는다
+_DUMMY_HASH = b"$2b$10$1wUmGUypDP/Y5i9CgKOYmuqy/P/FW3b3KMyFS0KZgV0G0kFIndwqe"
+
+
 def verify_password(password: str, password_hash: str | None) -> bool:
     # bcrypt 5 는 72바이트 초과 입력에 ValueError → 500 대신 로그인 실패로
-    if not password_hash or len(password.encode()) > 72:
+    if len(password.encode()) > 72:
+        return False
+    if not password_hash:  # 없는 계정도 bcrypt 를 한 번 — 걸린 시간으로 가입 여부가 드러나지 않게 (D20, 11/18 다듬기)
+        bcrypt.checkpw(password.encode(), _DUMMY_HASH)
         return False
     return bcrypt.checkpw(password.encode(), password_hash.encode())
 

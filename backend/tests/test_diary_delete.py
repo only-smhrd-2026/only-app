@@ -66,3 +66,20 @@ def test_delete_permissions_and_is_mine(client):
     assert flags == {own: False, elder: False, second: True}
     client.cookies.clear()
     assert client.delete(f"/api/diaries/{second}").status_code == 401
+
+
+def test_delete_diary_keeps_photo_it_does_not_own(client):
+    """남이 올린 가족 일기 사진이 붙은 일기를 지워도 그 사진은 남는다 (11/18 다듬기 — 지우기 쪽 안전망)."""
+    room = setup_elder(client)["room_id"]
+    photo_id = upload(client, room, "FAMILY_DIARY")["photo_id"]  # 방장이 올린 사진
+    other = signup(client)  # 이제부터 다른 가족으로 부른다
+    with SessionLocal() as db:
+        db.add(RoomMember(room_id=room, user_id=other["user_id"], relation_tag="CHILD"))
+        db.commit()
+    diary_id = _post(client, room).json()["diary_id"]
+    with SessionLocal() as db:  # 올릴 때 검사(post_family_diary)가 생기기 전에 붙은 일기를 흉내
+        db.get(Diary, diary_id).photo_id = photo_id
+        db.commit()
+    assert client.delete(f"/api/diaries/{diary_id}").status_code == 204
+    with SessionLocal() as db:
+        assert db.get(Photo, photo_id).status == "ACTIVE"

@@ -51,7 +51,8 @@ def login(body: LoginIn, request: Request, response: Response, db: DB):
         raise ApiError(429, "TOO_MANY_ATTEMPTS", "잠시 후 다시 시도해 주세요")
     user = db.scalar(select(User).where(User.email == email, User.status == "ACTIVE"))
     # 실패 문구는 어느 경우든 같게 (계정 존재 여부 노출 방지, D20)
-    if not user or not verify_password(body.password, user.password_hash):
+    # 계정이 없어도 비밀번호 비교(가짜 해시)를 한 번 — 걸린 시간도 같게 (security.verify_password)
+    if not verify_password(body.password, user.password_hash if user else None) or not user:
         record_login_failure(email)
         raise ApiError(401, "LOGIN_FAILED", "이메일 또는 비밀번호가 올바르지 않습니다")
     if login_account_blocked(email):
