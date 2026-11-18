@@ -7,7 +7,7 @@ from app.config import now_kst
 from app.deps import DB, CurrentUser
 from app.errors import ApiError
 from app.models import User
-from app.schemas.auth import AuthOut, LoginIn, SignupIn, UserOut
+from app.schemas.auth import AuthOut, LoginIn, PasswordChangeIn, SignupIn, UserOut
 from app.schemas.common import OkOut
 from app.security import (
     SESSION_COOKIE,
@@ -58,6 +58,22 @@ def login(body: LoginIn, request: Request, response: Response, db: DB):
 @router.post("/logout", response_model=OkOut)
 def logout(response: Response):
     clear_cookie(response, SESSION_COOKIE)
+    return OkOut()
+
+
+@router.post("/password", response_model=OkOut)
+def change_password(body: PasswordChangeIn, request: Request, response: Response, user: CurrentUser, db: DB):
+    ip = request.client.host if request.client else "unknown"
+    if not login_allowed(ip):
+        raise ApiError(429, "TOO_MANY_ATTEMPTS", "잠시 후 다시 시도해 주세요")
+    user = db.get(User, user.user_id, populate_existing=True, with_for_update=True)
+    if not verify_password(body.current_password, user.password_hash):
+        raise ApiError(400, "WRONG_PASSWORD", "지금 비밀번호가 맞지 않아요")
+    if body.new_password == body.current_password:
+        raise ApiError(400, "SAME_PASSWORD", "지금과 다른 비밀번호를 써 주세요")
+    user.password_hash = hash_password(body.new_password)
+    db.commit()
+    set_session_cookie(response, user.user_id)
     return OkOut()
 
 

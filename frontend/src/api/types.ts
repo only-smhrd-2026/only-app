@@ -1,6 +1,7 @@
 /** 서버 응답 타입 — backend/app/schemas/*.py 의 거울. 서버 모양이 바뀌면 여기도 같이 (PR 리뷰어 김승희). */
 
 export type UserOut = { user_id: number; email: string | null; name: string; login_type: string; created_at: string }
+export type PasswordChangeIn = { current_password: string; new_password: string }
 
 export type RoomOut = {
   room_id: number
