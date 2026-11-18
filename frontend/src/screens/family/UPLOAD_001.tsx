@@ -7,9 +7,10 @@ import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'r
 import { Link, Navigate, useNavigate, useNavigationType } from 'react-router-dom'
 import type { RoomOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
+import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
 import { fitPhoto, MAX_BYTES } from '../../lib/fitPhoto'
-import { uploadDraft } from '../../lib/uploadDraft'
+import { restoreUploadText, uploadDraft } from '../../lib/uploadDraft'
 import './steps.css'
 import './UPLOAD_001.css'
 
@@ -72,6 +73,7 @@ export default function UPLOAD_001() {
   const nav = useNavigate()
   // 로그인·가족방 0개는 사진을 고르기 전에 알린다 (보낼 가족방 고르기는 UPLOAD_002)
   const rooms = useFetch<RoomOut[]>('/api/rooms')
+  const { me } = useFamily()
   // 다음 화면에서 뒤로 가기로 돌아올 때(POP)만 고른 사진과 번호를 되살린다.
   // 링크·버튼으로 들어오면 빈 상태 — 같은 창에서 로그아웃 뒤 다른 계정이 들어와도 앞 사람이 고른 사진이 남지 않게(재현함).
   // ponytail: 다른 계정이 브라우저 뒤로 가기로 여기까지 거슬러 오면 남을 수 있음. 막으려면 로그아웃 때 uploadDraft 비우기(HOME_001)
@@ -144,6 +146,15 @@ export default function UPLOAD_001() {
   }
 
   function next() {
+    const userId = me?.user_id
+    if (userId !== undefined && uploadDraft.userId !== userId) {
+      // 같은 창에서 계정이 바뀌었으면(다른 탭에서 로그인 등) 앞 사람이 쓰던 글을 비운다
+      uploadDraft.caption = ''
+      uploadDraft.peopleNote = ''
+      uploadDraft.peopleIds = []
+      uploadDraft.userId = userId
+    }
+    if (userId !== undefined) restoreUploadText(userId) // 새로고침 전에 같은 사람이 쓰던 한마디만 (lib/uploadDraft)
     saveDraft()
     nav('/upload/target')
   }

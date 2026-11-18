@@ -82,6 +82,13 @@ function InstallCard() {
   })
   const [busy, setBusy] = useState(false)
   const iphone = /iPhone/i.test(navigator.userAgent)
+  // 아이폰 안내는 브라우저마다 다르다 — 카톡·네이버 같은 앱 안 브라우저는 '홈 화면에 추가'가 없고(초대 링크가 카톡으로 와서 흔함),
+  // 아이폰 크롬·파이어폭스는 공유 버튼이 주소창 오른쪽에 있다
+  const guide = /KAKAOTALK|NAVER|Line\/|Instagram|FBAN|FBAV/i.test(navigator.userAgent)
+    ? 'Safari 로 열어 주세요(⋯ → 다른 브라우저로 열기) → 아래 공유 버튼 → 홈 화면에 추가'
+    : /CriOS|FxiOS|EdgiOS/.test(navigator.userAgent)
+      ? '주소창 오른쪽 공유 버튼 → 홈 화면에 추가'
+      : '아래 공유 버튼 → 홈 화면에 추가'
 
   function dismiss() {
     try {
@@ -108,7 +115,7 @@ function InstallCard() {
   return (
     <section className="fam-card home-install" aria-label="앱 설치 안내">
       <p>폰 홈 화면에 하루한장 아이콘을 만들면 앱처럼 바로 열려요</p>
-      {state !== 'available' && <p className="home-install-guide">아래 공유 버튼 → 홈 화면에 추가</p>}
+      {state !== 'available' && <p className="home-install-guide">{guide}</p>}
       <div className="home-install-actions">
         {state === 'available' && (
           <button type="button" className="fam-btn fam-btn--primary fam-btn--sm" onClick={install} disabled={busy}>
