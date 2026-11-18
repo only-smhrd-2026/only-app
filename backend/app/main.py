@@ -52,6 +52,10 @@ async def log_request_timing(request: Request, call_next):
     started = perf_counter()
     response = await call_next(request)
     route = getattr(request.scope.get("route"), "path", "-")
+    # FastAPI can expose the original router path before applying the API prefix.
+    prefix = f"{api.prefix}/"
+    if route != "-" and request.url.path.startswith(prefix) and not route.startswith(prefix):
+        route = api.prefix + route
     logging.getLogger("app.req").info(
         "req method=%s route=%s status=%s ms=%d",
         request.method,
