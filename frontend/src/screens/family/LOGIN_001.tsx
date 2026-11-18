@@ -28,6 +28,12 @@ export default function LOGIN_001() {
   const [error, setError] = useState<{ screen: LoginScreen; text: string }>()
   const [busy, setBusy] = useState(false)
   const [kakaoNotice, setKakaoNotice] = useState(false)
+  const [passwordVisibility, setPasswordVisibility] = useState({ screen, shown: false })
+  const showPassword = passwordVisibility.screen === screen && passwordVisibility.shown
+  // 주소의 단계가 바뀌면(폰 뒤로 가기 포함) 이전 단계의 보기 상태를 버린다.
+  if (passwordVisibility.screen !== screen) {
+    setPasswordVisibility({ screen, shown: false })
+  }
   const emailRef = useRef<HTMLInputElement>(null)
   const emailOpen = screen !== 'start'
   const signup = screen === 'signup'
@@ -109,11 +115,22 @@ export default function LOGIN_001() {
             <h2 id="login-form-title">{signup ? '가족 가입' : '가족 로그인'}</h2>
             <form className="login-form" onSubmit={submit} aria-busy={busy}>
               <label>이메일<input ref={emailRef} name="email" type="email" required autoComplete="email" /></label>
-              <label>
-                비밀번호
-                {/* 로그인↔가입을 바꾸면 이메일은 두고 비밀번호만 비운다(key 로 새로 만든다). */}
-                <input key={screen} name="password" type="password" required minLength={8} autoComplete={signup ? 'new-password' : 'current-password'} />
-              </label>
+              <div className="login-password-field">
+                <label htmlFor="login-password">비밀번호</label>
+                <div className="login-password-control">
+                  {/* 로그인↔가입을 바꾸면 이메일은 두고 비밀번호만 비운다(key 로 새로 만든다). */}
+                  <input id="login-password" key={screen} name="password" type={showPassword ? 'text' : 'password'} required minLength={8} autoComplete={signup ? 'new-password' : 'current-password'} />
+                  <button
+                    className="login-password-toggle"
+                    type="button"
+                    aria-controls="login-password"
+                    aria-pressed={showPassword}
+                    onClick={() => setPasswordVisibility({ screen, shown: !showPassword })}
+                  >
+                    {showPassword ? '숨기기' : '보기'}
+                  </button>
+                </div>
+              </div>
               {signup && (
                 <>
                   <label>이름<input name="name" required maxLength={30} autoComplete="name" /></label>
@@ -139,6 +156,12 @@ export default function LOGIN_001() {
                 {signup ? '이미 계정이 있어요' : '처음이에요 (가입)'}
               </button>
             </form>
+            {!signup && (
+              <details className="login-password-help">
+                <summary>비밀번호를 잊었어요</summary>
+                <p>비밀번호는 찾을 수 없어요(메일을 보내지 않는 서비스예요). 새 이메일로 가입한 뒤 방장에게 초대 링크를 다시 받아 주세요. 로그인한 상태라면 가족방 탭 맨 아래에서 비밀번호를 바꿀 수 있어요.</p>
+              </details>
+            )}
             <button className="login-back" type="button" disabled={busy} onClick={() => changeScreen('start')}>
               처음 화면으로
             </button>
