@@ -74,9 +74,11 @@ ENDING_SIGNALS = (
     "STOP",
     "BODY",
 )  # 이 신호면 그 턴 말은 마무리 — 호출자가 대화를 끝낸다. LOW 는 이어 감 (D55)
-# 위급 표현 뒤 마무리 (D55, 11/13 사용자: 상담 번호 안내 없이 마무리만). 모델이 지어내지 않게 코드 문장
+# 위급 표현 뒤 마무리 (D55 → D94, 11/19 사용자): 가족에게 알린 것을 숨기지 않고, 어르신이 스스로 할 수 있는 일(전화)을
+# 권한다. '편히 쉬세요'는 어르신을 혼자 두고 끝내는 말이라 뺐다. 상담 번호는 넣지 않는다(D82).
+# 모델이 지어내지 않게 코드 문장
 RISK_CLOSING = CoachReply(
-    text="많이 힘드셨겠어요. 이야기해 주셔서 고마워요. 오늘은 여기까지 하고 편히 쉬세요.",
+    text="많이 힘드셨겠어요. 이야기해 주셔서 고마워요. 가족에게 알렸어요. 가족에게 전화 한 통 해 보세요.",
     suggestions=[],
     question_type="CLOSING",
     choice_mode="TWO_BUTTONS",
@@ -91,6 +93,9 @@ BODY_CLOSING = CoachReply(
     choice_mode="TWO_BUTTONS",
 )
 URGENT_CLOSINGS = {"RISK": RISK_CLOSING, "BODY": BODY_CLOSING}  # 위급 마무리는 모델이 지어내지 않게 코드 문장
+# AI 가 답을 못 만든 턴의 signal — 어르신 말을 읽지 못했다는 뜻이라 '읽었고 신호 없음(NONE)'과 다르다.
+# 호출자(routers/sessions._ask)는 NONE 처럼 이어 가되, 돌봄 일지에 '괜찮다고 하셨어요'로 적지 않는다 (11/19)
+UNREAD = "UNREAD"
 WEEKDAYS = "월화수목금토일"
 
 
@@ -198,7 +203,7 @@ def confirm_answer(text: str) -> str | None:
 def next_question(
     ctx: CoachContext, turn_no: int, quiz: QuizPlan | None = None, max_turns: int = MAX_TURNS
 ) -> tuple[CoachReply, str, bool]:
-    """turn_no 번째 AI 말, signal(NONE|LOW|SAD|RISK|STOP), private.
+    """turn_no 번째 AI 말, signal(NONE|LOW|SAD|RISK|STOP), private. AI 가 실패하면 고정 질문과 UNREAD.
 
     quiz(생각 문제 계획)가 있으면 맞장구 + 모델이 쓴 그 유형 문제, 검사에 걸리면 맞장구 + 문제 은행 원문 (D72).
 
@@ -208,7 +213,7 @@ def next_question(
     try:
         out = llm.call_json("memory_coach", _memory_data(ctx, turn_no, quiz=quiz, max_turns=max_turns), CoachTurn)
     except (llm.LlmError, NotImplementedError):
-        return (_quiz_reply(quiz.fallback, "", []) if quiz else FALLBACK_QUESTION), "NONE", False
+        return (_quiz_reply(quiz.fallback, "", []) if quiz else FALLBACK_QUESTION), UNREAD, False
     if out.signal != "NONE" and not any(t["speaker"] == "ELDER" for t in ctx.turns):  # 어르신 말 전의 신호 → 무시
         return FALLBACK_QUESTION, "NONE", False
     if out.signal in URGENT_CLOSINGS:  # 위급(마음·몸)은 문제 넘기기로 보지 않는다
@@ -232,7 +237,7 @@ def closing(ctx: CoachContext, turn_no: int, max_turns: int = MAX_TURNS) -> tupl
     try:
         out = llm.call_json("memory_coach", _memory_data(ctx, turn_no, closing=True, max_turns=max_turns), CoachTurn)
     except (llm.LlmError, NotImplementedError):
-        return FALLBACK_CLOSING, "NONE", False
+        return FALLBACK_CLOSING, UNREAD, False
     if out.signal in URGENT_CLOSINGS:
         return URGENT_CLOSINGS[out.signal], out.signal, out.private
     return _closing_reply(out.text), out.signal, out.private

@@ -1,6 +1,21 @@
 """가족 가입 → 가족방 → 기기 링크 → 어르신 홈 → 사진까지 이어지는지 (초석 C·F 완료 기준)."""
 
+from app.config import LOGIN_RATE_PER_MIN
 from tests.conftest import add_photos, make_room, signup
+
+
+def test_signup_is_rate_limited_per_ip(client):
+    """같은 주소에서 계정을 찍어 내지 못하게 — 분당 상한을 넘으면 429 (11/19). 로그인 시도 칸과는 따로 센다."""
+    codes = [
+        client.post(
+            "/api/auth/signup",
+            json={"email": f"many{i}@test.local", "password": "test1234", "name": "테스터", "terms_agreed": True},
+        ).status_code
+        for i in range(LOGIN_RATE_PER_MIN + 1)
+    ]
+    assert codes == [201] * LOGIN_RATE_PER_MIN + [429]
+    bad = client.post("/api/auth/login", json={"email": "many0@test.local", "password": "wrong-pass"})
+    assert bad.status_code == 401  # 가입이 막혀도 로그인 칸은 그대로
 
 
 def test_family_to_elder_flow(client):

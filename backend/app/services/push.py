@@ -36,8 +36,11 @@ from app.models import PushSubscription
 
 log = logging.getLogger("app.push")
 
-# 가족 알림 중 푸시로도 보내는 것 (FR-NT-003 일기·주간 이야기 + 11/19 마음 알림 2종). 나머지는 알림 목록에만
-FAMILY_KINDS = ("DIARY_POSTED", "WEEKLY_READY", "MOOD_URGENT", "MOOD_LOW_2D")
+# 가족 알림 중 푸시로도 보내는 것 (FR-NT-003 일기·주간 이야기 + 11/19 마음 알림 2종·이틀째 기록 없음).
+# 나머지는 알림 목록에만
+FAMILY_KINDS = ("DIARY_POSTED", "WEEKLY_READY", "MOOD_URGENT", "MOOD_LOW_2D", "NO_RECORD_2D")
+# '이틀째 기록 없음'은 알림 제목에 어르신 이름이 들어 있다 — 폰(잠금 화면)에는 이름 없는 이 제목으로 보낸다 (D94)
+NO_RECORD_TITLE = "이틀째 기록이 없어요. 전화 한 통 드려 보세요"
 # 푸시에는 어떤 알림이든 제목만 싣는다 — 마음 알림의 body 에는 어르신 이름과 '많이 힘드심·몸이 불편'이 들어 있어
 # 잠금 화면을 보는 남에게 그대로 보인다 (11/19 보안 점검). 누구 이야기인지는 눌러서 앱 안 긴급 카드·알림 목록에서 본다
 # 어르신 시간 알림 (FR-NT-002): 종류 → (폰에 뜨는 문장, 누르면 열리는 주소)
@@ -198,7 +201,7 @@ def queue_family(
         return
     urgent = kind == "MOOD_URGENT"
     payload = {
-        "title": title,
+        "title": NO_RECORD_TITLE if kind == "NO_RECORD_2D" else title,
         "url": _FAMILY_URL.get(link or "", "/start").format(room_id=room_id),
         "tag": f"{kind}-{room_id}",
     }

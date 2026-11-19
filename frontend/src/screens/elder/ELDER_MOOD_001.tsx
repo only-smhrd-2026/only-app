@@ -35,7 +35,7 @@ export default function ELDER_MOOD_001({ speed, onYes, onLater }: Props) {
         </svg>
         <h1 id="elder-mood-title">요즘 마음이 어떠세요?</h1>
         <p>여덟 가지만 여쭤볼게요.<br />2~3분이면 돼요.</p>
-        <p className="elder-today-cap">답하신 내용은 가족에게 “요즘 어떠신지” 한 줄로만 알려요.</p>
+        <p className="elder-today-cap">잠·입맛처럼 불편하신 점은 가족에게 쉬운 말로 알려요.</p>
         <div className="elder-two">
           <button className="elder-btn" onClick={onYes} autoFocus>할게요</button>
           <button className="elder-btn elder-btn--secondary" onClick={onLater}>다음에</button>

@@ -19,7 +19,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from app.ai.schemas import BANNED_WORDS, TAXONOMY
-from app.config import CLASSIFY_PER_DAY, LLM_PER_DAY, ROOT, WEEKLY_CARDS_MAX, settings
+from app.config import CLASSIFY_PER_DAY, LLM_FAMILY_PER_DAY, LLM_PER_DAY, ROOT, WEEKLY_CARDS_MAX, settings
 from app.security import daily_allowed
 
 log = logging.getLogger("app.ai")
@@ -29,6 +29,7 @@ PROMPTS_DIR = ROOT / "backend" / "app" / "ai" / "prompts"
 # 고정 문장으로라도 대화가 이어진다(D14). 일기 초안은 확인 화면이 기다리므로 15초 × 최대 2번 (D36).
 # 가족 일기 질문(D58)·어제 이야기 첫 질문(D77)도 화면에서 바로 기다린다
 TURN_PROMPTS = {"memory_coach", "diary_buddy", "family_buddy", "story_question"}
+FAMILY_PROMPTS = {"family_buddy", "family_draft"}  # 가족이 부르는 것 — 하루 몫을 따로 센다 (LLM_FAMILY_PER_DAY)
 TURN_TIMEOUT_SEC = 6.0
 OTHER_TIMEOUT_SEC = 15.0
 
@@ -77,6 +78,10 @@ def call_json(
         if provider == "mock":
             out = _mock(prompt_name, data, schema)
         elif provider == "anthropic":
+            # 가족 일기 동무는 하루 몫의 절반까지만 — 가입한 누구나 부를 수 있어도 어르신 대화 몫은 남는다 (11/19)
+            if prompt_name in FAMILY_PROMPTS and not daily_allowed("llm_family", LLM_FAMILY_PER_DAY):
+                log.warning("llm family share prompt=%s", prompt_name)
+                raise LlmError("가족 몫 상한")
             if not daily_allowed(kind, cap):
                 log.warning("llm daily cap prompt=%s", prompt_name)
                 raise LlmError("하루 상한")  # 호출자가 고정 문장으로 이어 간다 (D14·D46)

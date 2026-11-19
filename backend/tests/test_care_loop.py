@@ -190,6 +190,24 @@ def test_ai_failure_keeps_the_care_question_for_later(client, monkeypatch):
     assert day["did"] == "오늘 첫인사로 잠 안부를 여쭐게요."
 
 
+def test_ai_failure_on_the_answer_is_not_written_down_as_fine(client, monkeypatch):
+    """안부에 하신 답을 AI 가 읽지 못한 턴(실패)은 '괜찮다고 하셨어요'로 적지 않는다 — 가족이 잘못 안심하지 않게."""
+    ctx = setup_elder(client)
+    _talk(ctx["room_id"], 1)
+    sid = _start(client, ctx)  # 첫 질문(잠 안부)은 AI 가 정상으로 만든다
+    assert _row(ctx["room_id"]).asked_at is not None
+
+    def boom(name, data, schema):
+        raise llm.LlmError("시간 초과")
+
+    monkeypatch.setattr(llm, "call_json", boom)
+    out = _say(client, sid, "아직도 통 못 자")
+    # 대화는 고정 질문으로 이어 간다. 돌봄 일지의 '답'은 빈 채로 둔다
+    assert out["state"] == "CONTINUE" and out["ai"]["text"] == coach.FALLBACK_QUESTION.text
+    assert _row(ctx["room_id"]).reaction is None
+    assert client.get(f"/api/rooms/{ctx['room_id']}/care").json()["days"][0]["reaction"] is None
+
+
 def test_private_talk_is_not_used(client):
     ctx = setup_elder(client)
     _talk(ctx["room_id"], 1, private=True)

@@ -26,8 +26,14 @@ def _out(room: FamilyRoom) -> DeviceOut:
     )
 
 
-def notify_family(db, room_id: int, kind: str, title: str, body: str | None = None, link: str | None = None):
-    """가족 구성원 모두에게 앱 내 알림 1건씩. 일기·주간 이야기·위급 알림은 폰 푸시로도 (services/push.py)."""
+def notify_family(
+    db, room_id: int, kind: str, title: str, body: str | None = None, link: str | None = None, *, to_phone: bool = True
+):
+    """가족 구성원 모두에게 앱 내 알림 1건씩. 일기·주간 이야기·위급 알림은 폰 푸시로도 (services/push.py).
+
+    to_phone=False 면 알림 목록에만 남긴다 — 날마다 되풀이되는 알림이 폰을 날마다 울리지 않게
+    (scheduler.no_record_alerts).
+    """
     uids = db.scalars(
         select(RoomMember.user_id).where(RoomMember.room_id == room_id, RoomMember.removed_at.is_(None))
     ).all()
@@ -43,7 +49,8 @@ def notify_family(db, room_id: int, kind: str, title: str, body: str | None = No
                 link_screen=link,
             )
         )
-    push.queue_family(db, uids, room_id, kind, title, body, link)
+    if to_phone:
+        push.queue_family(db, uids, room_id, kind, title, body, link)
 
 
 @router.post("/connect", response_model=DeviceOut)

@@ -9,7 +9,7 @@ import os
 import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 import httpx
 import jwt
@@ -361,12 +361,15 @@ def test_family_push_only_for_diary_weekly_and_urgent(client, outbox):
         "WEEKLY_READY": "WEEKLY_001",
         "MOOD_URGENT": "HOME_001",
         "MOOD_LOW_2D": "HOME_001",
+        "NO_RECORD_2D": "HOME_001",  # 이틀째 기록 없음도 폰으로 (11/19)
     }
-    others = ["DEVICE_CONNECTED", "NO_RECORD_2D", "PERMISSION_OFF", "SESSION_ERROR_3X", "TTS_ERROR", "PICK_SKIPPED_2X"]
+    others = ["DEVICE_CONNECTED", "PERMISSION_OFF", "SESSION_ERROR_3X", "TTS_ERROR", "PICK_SKIPPED_2X"]
     for kind in [*links, *others]:
         _notify(room_id, kind, f"제목 {kind}", body=SECRET, link=links.get(kind, "HOME_001"))
     got = {phone.open(r)["tag"].split("-")[0]: (phone.open(r), r.headers) for r in outbox.sent}
-    assert len(outbox.sent) == 4 and set(got) == set(links)
+    assert len(outbox.sent) == 5 and set(got) == set(links)
+    # '이틀째 기록 없음'은 알림 제목에 어르신 이름이 들어 있어, 폰(잠금 화면)에는 이름 없는 제목으로 간다
+    assert got["NO_RECORD_2D"][0]["title"] == push.NO_RECORD_TITLE
     # '전화 한 통 드려 보세요'(기운 없는 날·마음 체크)도 제목만, 급하게 전하지는 않는다 (11/19)
     low, low_headers = got["MOOD_LOW_2D"]
     assert "body" not in low and low_headers["urgency"] == "normal"
@@ -383,6 +386,23 @@ def test_family_push_only_for_diary_weekly_and_urgent(client, outbox):
     assert weekly == {"title": "제목 WEEKLY_READY", "url": f"/weekly/{room_id}", "tag": f"WEEKLY_READY-{room_id}"}
     urgent, headers = got["MOOD_URGENT"]  # 위급 알림도 제목만(이름·상태는 잠금 화면에 안 보이게), 급하게
     assert "body" not in urgent and urgent["url"] == f"/?room={room_id}" and headers["urgency"] == "high"
+
+
+def test_no_record_push_rings_once_per_quiet_stretch(client, outbox, monkeypatch):
+    """이틀째 기록 없음: 알림 목록에는 날마다 남기되 폰은 조용해진 첫날만 울린다 — 날마다 울리면 알림을 꺼 버린다."""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    phone = _family_phone(client)
+    now = _at(monkeypatch, 19)
+    with SessionLocal() as db:
+        room = db.get(FamilyRoom, room_id)
+        room.device_token_hash, room.device_connected_at = "0" * 64, now - timedelta(days=3)
+        db.commit()
+    scheduler.no_record_alerts()
+    assert [phone.open(r)["title"] for r in outbox.sent] == [push.NO_RECORD_TITLE]
+    monkeypatch.setattr(scheduler, "now_kst", lambda: now + timedelta(days=1))
+    scheduler.no_record_alerts()
+    assert len(outbox.sent) == 1 and len(_reminders(room_id, "NO_RECORD_2D")) == 2
 
 
 def test_unknown_link_opens_the_app_start(client, outbox):

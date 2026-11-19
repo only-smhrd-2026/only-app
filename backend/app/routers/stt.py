@@ -5,9 +5,10 @@ import logging
 from fastapi import APIRouter, File, Form, Request, UploadFile
 
 from app.ai import stt
-from app.config import STT_MAX_BYTES, STT_MAX_CHARS, STT_PER_DAY, settings
-from app.deps import DB, CurrentActor
+from app.config import STT_FAMILY_PER_DAY, STT_MAX_BYTES, STT_MAX_CHARS, STT_PER_DAY, settings
+from app.deps import DB, CurrentActor, has_device
 from app.errors import ApiError
+from app.models import User
 from app.schemas.elder import SttOut
 from app.security import daily_allowed, stt_allowed
 
@@ -32,6 +33,15 @@ def transcribe(
     if not data:
         raise ApiError(422, "AUDIO_EMPTY", "녹음이 비어 있어요")
     # 서버 전체 하루 상한은 유료 호출만 센다(mock 은 안 셈). 아래 try 안에서 던지면 503 으로 바뀌므로 그 앞에서 (D46)
+    # 가족 쿠키만 있는 요청(가족 화면은 음성 인식을 부르지 않는다)은 하루 몫의 절반까지만 — 가입한 누구나 부를 수
+    # 있어도 어르신 기기 몫은 늘 남는다 (11/19). 어르신 폰에 가족 쿠키가 같이 있으면 어르신 기기로 센다
+    if (
+        settings.STT_PROVIDER != "mock"
+        and isinstance(actor, User)
+        and not has_device(request, db)
+        and not daily_allowed("stt_family", STT_FAMILY_PER_DAY)
+    ):
+        raise ApiError(429, "STT_DAILY_LIMIT", "오늘은 말로 답하기를 다 썼어요. 버튼을 눌러 답해 주세요.")
     if settings.STT_PROVIDER != "mock" and not daily_allowed("stt", STT_PER_DAY):
         raise ApiError(429, "STT_DAILY_LIMIT", "오늘은 말로 답하기를 다 썼어요. 버튼을 눌러 답해 주세요.")
     db.close()  # 인증 확인에 쓴 DB 연결(CurrentActor 와 같은 세션)을 STT(최대 8초) 동안 쥐지 않게 돌려준다

@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 
 from app.ai import coach, llm
 from app.ai.schemas import CoachTurn, DiaryTurn
+from app.config import STT_FAIL_LOCK
 from app.db import SessionLocal
 from app.models import Diary, Notification, TalkSession, UrgentAlert
 from tests.conftest import setup_elder
@@ -57,6 +58,17 @@ def test_unsure_voice_with_body_words_gets_the_119_button(client):
     out = _unsure(client, _start(client, ctx), "방금 넘어져서 못 일어나겠어")
     assert (out["state"], out["urgent"]) == ("ENDED", "BODY")
     assert _alert_kinds(ctx["room_id"]) == ["BODY"]
+
+
+def test_locked_voice_with_risk_words_is_still_urgent(client):
+    """잘 못 들은 말이 쌓여 말하기가 잠긴 뒤에 온 음성이라도, 위급 낱말이 있으면 버리지 않는다 (11/19)."""
+    ctx = setup_elder(client)
+    sid = _start(client, ctx)
+    for _ in range(STT_FAIL_LOCK):
+        _unsure(client, sid, "어 그게 뭐더라")
+    out = _unsure(client, sid, "요즘은 정말 죽고 싶어요")
+    assert (out["state"], out["ai"]["text"]) == ("ENDED", coach.RISK_CLOSING.text)
+    assert _count(ctx["room_id"], "MOOD_URGENT") == 1 and _alert_kinds(ctx["room_id"]) == ["MOOD"]
 
 
 def test_unsure_voice_without_urgent_words_is_still_confirmed(client):
