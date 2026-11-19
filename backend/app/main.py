@@ -20,6 +20,7 @@ from app.routers import (
     family_diary,
     integration,
     invites,
+    kakao,
     media,
     mood,
     notifications,
@@ -72,6 +73,7 @@ api = APIRouter(prefix="/api")
 for r in (
     auth.router,
     account.router,
+    kakao.router,
     rooms.router,
     invites.router,
     devices.router,

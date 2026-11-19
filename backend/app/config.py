@@ -102,6 +102,8 @@ CLASSIFY_SYNC_SEC = 4.0  # 어르신 카메라 사진을 일기 대화 열 때 �
 CLASSIFY_IMAGE_SIDE = 1024  # 분류에 보내는 사진 긴 변(px). 저장본(2560)보다 작게 — 토큰·보내는 시간을 줄인다
 SESSION_COOKIE_DAYS = 7
 DEVICE_COOKIE_DAYS = 365
+KAKAO_STEP_MIN = 10  # 카카오 로그인 중간 쿠키(state·가입 대기) 수명(분) — 카카오 화면에서 머무는 시간
+KAKAO_TIMEOUT_SEC = 5.0  # 카카오 서버(토큰·회원번호) 응답을 기다리는 시간. 넘으면 로그인 화면으로 돌려보낸다
 MOOD_WEEK_DAYS = 7  # 가족 홈 마음 카드가 보여 주는 날수
 MOOD_CHECK_EVERY_DAYS = 14  # 마음 체크 초대 간격 — 마지막 마음 체크 뒤 이 날수가 지나면 다시 권함, D56
 MOOD_CHECK_QUESTIONS = 8  # PHQ-9에서 9번을 뺀 8문항, D56. mood_checks.answers와 같게
@@ -135,6 +137,11 @@ class Settings(BaseSettings):
     STORAGE: str = "local"  # local | r2
     UPLOAD_DIR: str = str(ROOT / "uploads")
     DOMAIN: str = ""
+
+    # 카카오 로그인 (FR-AD-001 2순위). REST 키나 돌아올 주소가 비면 카카오 로그인 전체가 꺼진다(routers/kakao.py)
+    KAKAO_REST_KEY: str = ""
+    KAKAO_CLIENT_SECRET: str = ""  # 카카오 콘솔에서 'Client Secret' 을 켰을 때만
+    KAKAO_REDIRECT_URI: str = ""  # 예 https://<도메인>/api/auth/kakao/callback — 요청의 Host 를 믿지 않고 이 값만 쓴다
 
     # 이름만 예약 (키를 받으면 .env 에 채움)
     R2_ACCOUNT_ID: str = ""

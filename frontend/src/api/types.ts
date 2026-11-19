@@ -4,6 +4,9 @@ export type UserOut = { user_id: number; email: string | null; name: string; log
 export type PasswordChangeIn = { current_password: string; new_password: string }
 /** POST /api/auth/withdraw — 회원 탈퇴. transfers = 내가 방장인 가족방마다 1칸: 방장을 넘길 가족, 혼자인 방은 null(가족방을 지움) */
 export type WithdrawIn = { password: string; transfers: { room_id: number; new_owner_user_id: number | null }[] }
+// ---- 카카오 로그인 (backend/app/schemas/kakao.py)
+export type ProvidersOut = { kakao: boolean } // GET /api/auth/providers — 서버에 카카오 키가 없으면 false('준비 중')
+export type KakaoPendingOut = { nickname: string } // GET /api/auth/kakao/signup — 처음 온 카카오 회원의 이름 칸에 미리 넣는다(없으면 '')
 
 export type RoomOut = {
   room_id: number
