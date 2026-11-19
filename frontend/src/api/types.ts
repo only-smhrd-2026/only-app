@@ -112,6 +112,13 @@ export type WeeklyOut = {
   // illustration_url = 가족 홈 일기 카드와 같은 사진·그림일기 주소. 그림 없는 일기·지운 일기는 null → 기분 얼굴(MoodIcon)
   diaries: { diary_id: number; date: string; mood: Mood; illustration_url: string | null }[]
   notes: { lines: string[] } | null // 안부 한 줄 — 기운 없음·위급 대화가 있던 주 (D62)
+  // '이번 주 달라진 점' (11/18 멘토링) — 그 주를 앞 주들과 견준 변화와 그 주 알림 이력. 문장은 서버가 만든다.
+  // tone: calm 평소 · watch 살펴볼 것. 견줄 자료가 모자란 줄은 오지 않는다(다 없으면 [])
+  changes: {
+    kind: 'TALK_DAYS' | 'TALK_LENGTH' | 'MOOD' | 'CHECK' | 'CARE' | 'ALERT'
+    text: string
+    tone: 'calm' | 'watch'
+  }[]
 }
 
 export type AiOut = {

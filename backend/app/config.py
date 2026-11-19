@@ -57,6 +57,13 @@ WEEKLY_CARDS_MAX = 4  # 주간 이야기의 질문·답 카드 수 (D62)
 WEEKLY_PAIRS_MAX = 60  # 주간 요약 AI 에 주는 질문·답 쌍 수. 넘으면 긴 답부터 고른다
 WEEKLY_STT_MIN = 0.7  # 음성 인식 신뢰도가 이보다 낮은 답은 가족에게 전하지 않는다 (FR-FD-006)
 INTEGRATION_TREND_WEEKS = 4  # 꼬마심심이 연동 요약의 대화량 추이가 담는 주 수 — 그 주까지 최근 4주 (FR-API-002)
+# 주간 이야기 '이번 주 달라진 점' (11/18 멘토링) — services/weekly.changes 가 그 주를 앞 주들과 견줄 때 쓴다
+WEEKLY_BASE_WEEKS = 4  # 바로 앞 이만큼의 주를 '평소'로 본다
+WEEKLY_BASE_MIN_WEEKS = 2  # 앞 주가 이보다 적으면 견주지 않는다 (처음 몇 주는 평소를 모른다)
+WEEKLY_DAYS_GAP = 2  # 이야기한 날이 평소보다 이만큼 이상 다르면 '줄었다·늘었다'
+WEEKLY_TALK_SHORT = 0.7  # 한마디 길이가 평소의 이 비율보다 짧으면 '짧아졌어요'
+WEEKLY_TALK_LONG = 1.3  # 한마디 길이가 평소의 이 비율보다 길면 '길어졌어요'
+WEEKLY_MOOD_LOW_DAYS = 2  # 속상했어요·쓸쓸했어요를 고르신 날이 한 주에 이만큼이면 살펴볼 것으로 알린다
 STORY_HOUR = 4  # 새벽 이 시각에 어제 대화에서 이야기 기억을 뽑는다 — 가족방마다 AI 1번 (FR-AI-007, D77)
 STORY_FACTS_MAX = 3  # 하루치 대화에서 뽑는 기억 수 상한
 STORY_LOOKBACK_DAYS = 7  # 이어 물을 기억을 찾는 날수 — 이 안에서 가장 최근 대화한 날의 기억 하나 (FR-AI-008, D77)
