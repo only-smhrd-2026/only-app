@@ -14,9 +14,8 @@ from app.security import (
     clear_cookie,
     clear_login_failures,
     hash_password,
-    login_account_blocked,
     login_allowed,
-    record_login_failure,
+    reserve_login_attempt,
     set_session_cookie,
     verify_password,
 )
@@ -47,17 +46,15 @@ def signup(body: SignupIn, response: Response, db: DB):
 def login(body: LoginIn, request: Request, response: Response, db: DB):
     ip = request.client.host if request.client else "unknown"
     email = body.email.lower()
-    if not login_allowed(ip) or login_account_blocked(email):
+    # 이메일별 시도 칸을 비교 전에 먼저 잡는다 — 동시에 온 요청도 상한까지만 비교에 들어간다 (11/19 다듬기)
+    if not login_allowed(ip) or not reserve_login_attempt(email):
         raise ApiError(429, "TOO_MANY_ATTEMPTS", "잠시 후 다시 시도해 주세요")
     user = db.scalar(select(User).where(User.email == email, User.status == "ACTIVE"))
     # 실패 문구는 어느 경우든 같게 (계정 존재 여부 노출 방지, D20)
     # 계정이 없어도 비밀번호 비교(가짜 해시)를 한 번 — 걸린 시간도 같게 (security.verify_password)
     if not verify_password(body.password, user.password_hash if user else None) or not user:
-        record_login_failure(email)
-        raise ApiError(401, "LOGIN_FAILED", "이메일 또는 비밀번호가 올바르지 않습니다")
-    if login_account_blocked(email):
-        raise ApiError(429, "TOO_MANY_ATTEMPTS", "잠시 후 다시 시도해 주세요")
-    clear_login_failures(email)
+        raise ApiError(401, "LOGIN_FAILED", "이메일 또는 비밀번호가 올바르지 않습니다")  # 잡은 칸이 실패로 남는다
+    clear_login_failures(email)  # 맞았으니 이번에 잡은 칸까지 지운다
     user.last_login_at = now_kst()
     db.commit()
     set_session_cookie(response, user.user_id)
@@ -76,18 +73,16 @@ def change_password(body: PasswordChangeIn, request: Request, response: Response
     if not login_allowed(ip):
         raise ApiError(429, "TOO_MANY_ATTEMPTS", "잠시 후 다시 시도해 주세요")
     user = db.get(User, user.user_id, populate_existing=True, with_for_update=True)
-    if user.email and login_account_blocked(user.email):
+    if user.email and not reserve_login_attempt(user.email):  # 로그인과 같은 셈 — 비교 전에 칸을 먼저 잡는다
         raise ApiError(429, "TOO_MANY_ATTEMPTS", "잠시 후 다시 시도해 주세요")
     if not verify_password(body.current_password, user.password_hash):
-        if user.email:
-            record_login_failure(user.email)
         raise ApiError(400, "WRONG_PASSWORD", "지금 비밀번호가 맞지 않아요")
+    if user.email:
+        clear_login_failures(user.email)  # 지금 비밀번호가 맞았으니 잡은 칸을 지운다 (아래에서 거절돼도 실패가 아니다)
     if body.new_password == body.current_password:
         raise ApiError(400, "SAME_PASSWORD", "지금과 다른 비밀번호를 써 주세요")
     user.password_hash = hash_password(body.new_password)
     db.commit()
-    if user.email:
-        clear_login_failures(user.email)
     set_session_cookie(response, user.user_id)
     return OkOut()
 

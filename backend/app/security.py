@@ -130,25 +130,25 @@ def _expire_account_failures(now: float) -> None:
         _account_failures.popitem(last=False)
 
 
-def login_account_blocked(email: str) -> bool:
-    with _account_failure_lock:
-        now = monotonic()
-        _expire_account_failures(now)
-        return len(_account_failures.get(email.lower(), ())) >= LOGIN_FAIL_PER_EMAIL
+def reserve_login_attempt(email: str) -> bool:
+    """비밀번호를 비교하기 전에 이 이메일의 시도 칸을 하나 잡는다. 이미 상한이면 잡지 않고 False(막힘).
 
-
-def record_login_failure(email: str) -> None:
+    '막혔는지 확인'과 '기록'이 한 잠금 안이라, 같은 이메일로 동시에 온 요청도 상한까지만 비교에 들어간다
+    (둘을 따로 하면 느린 bcrypt 비교 동안 전부 확인을 통과한다). 비교가 맞으면 부른 쪽이 clear_login_failures 로
+    지우고, 틀리면 잡은 칸이 그대로 실패 1번으로 남는다.
+    """
     email = email.lower()
     with _account_failure_lock:
         now = monotonic()
         _expire_account_failures(now)
         failures = _account_failures.setdefault(email, deque())
         if len(failures) >= LOGIN_FAIL_PER_EMAIL:
-            return
+            return False
         while failures and now - failures[0] >= LOGIN_FAIL_WINDOW_SEC:
             failures.popleft()
         failures.append(now)
         _account_failures.move_to_end(email)
+        return True
 
 
 def clear_login_failures(email: str) -> None:
