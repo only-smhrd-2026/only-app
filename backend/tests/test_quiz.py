@@ -151,8 +151,9 @@ def test_llm_failure_still_asks_bank_question(monkeypatch):
 
     monkeypatch.setattr(llm, "call_json", boom)
     reply, signal, _ = coach.next_question(CTX, QUIZ_TURN, plan())
-    assert reply.text == Q_OPEN.prompt_text and reply.question_type == "KNOWHOW" and signal == "NONE"
-    assert coach.next_question(CTX, 2) == (coach.FALLBACK_QUESTION, "NONE", False)
+    # 실패한 턴의 signal 은 UNREAD — 어르신 말을 읽지 못했다는 뜻이라 '신호 없음(NONE)'과 구분한다 (11/19)
+    assert reply.text == Q_OPEN.prompt_text and reply.question_type == "KNOWHOW" and signal == coach.UNREAD
+    assert coach.next_question(CTX, 2) == (coach.FALLBACK_QUESTION, coach.UNREAD, False)
 
 
 def test_next_type_rotates_least_recent_first():

@@ -51,6 +51,7 @@ def isolate_login_rate(monkeypatch):
     from app import security
 
     monkeypatch.setattr(security, "_login_hits", defaultdict(deque))
+    monkeypatch.setattr(security, "_signup_hits", defaultdict(deque))  # 가입 횟수도 (11/19)
     monkeypatch.setattr(security, "_account_failures", OrderedDict())
 
 

@@ -66,6 +66,11 @@ def current_actor(request: Request, db: DB) -> User | FamilyRoom:
     return actor
 
 
+def has_device(request: Request, db: Session) -> bool:
+    """이 브라우저가 연결된 어르신 기기인가 — 가족 쿠키가 같이 있어도(어르신 폰에서 가족이 로그인한 적 있음) True."""
+    return _device_from_cookie(request, db) is not None
+
+
 def require_member(room_id: int, user: User, db: Session) -> RoomMember:
     member = db.scalar(
         select(RoomMember).where(

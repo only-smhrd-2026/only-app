@@ -207,9 +207,14 @@ def _ask(
         reply, signal, private = coach.next_question(ctx, turn_no - off, picked, _max_turns(session) - off)
         # 출제 기록: 은행 원문이면 그 code, AI 가 쓴 생각 문제면 GEN-유형 (D72). 마무리로 바뀐 턴은 기록 없음
         code = quiz.record_code(picked, reply.text) if picked and signal not in coach.ENDING_SIGNALS else None
+    # AI 가 실패한 턴은 어르신 말을 읽지 못한 것(coach.UNREAD) — 아래부터는 신호 없음(NONE)으로 이어 간다
+    read = signal != coach.UNREAD
+    if not read:
+        signal = "NONE"
     last = _last_ai_turn(session)
-    # 오늘의 안부에 하신 답이면 AI 가 본 신호를 돌봄 일지에 반응으로 적는다 (11/19 돌봄 루프)
-    if last and last.get("care") and session.turns[-1].get("reply_to_turn_no") == last["turn_no"]:
+    # 오늘의 안부에 하신 답이면 AI 가 본 신호를 돌봄 일지에 반응으로 적는다 (11/19 돌봄 루프).
+    # 읽지 못한 답은 적지 않는다 — '괜찮다고 하셨어요'로 남아 가족이 잘못 안심하지 않게
+    if read and last and last.get("care") and session.turns[-1].get("reply_to_turn_no") == last["turn_no"]:
         care.react(db, session.room_id, signal)
     if signal == "DENY":  # '그런 말 안 했어' — 바로 앞 질문이 어제 이야기일 때만 그 기억을 끈다 (FR-AI-008, D77)
         if last and last.get("fact_id"):
@@ -659,6 +664,8 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
     if not text:
         raise ApiError(422, "TEXT_REQUIRED", "말씀 내용이 비어 있어요")
     if body.input_type == "VOICE" and _locked(session.session_id):
+        if _urgent_words(text):  # 말하기가 잠긴 뒤에 온 음성이라도 위급한 말은 버리지 않는다 (11/19)
+            return _urgent_close(db, session, room, body, text)
         raise ApiError(409, "INPUT_LOCKED", "지금은 버튼으로만 답할 수 있어요")
     if _unconfirmed(body) and _urgent_words(text):
         # 잘 못 들은 말이어도 위급 낱말이 있으면 되묻지 않고 바로 위급으로 본다 (11/19 S2). 되물으면 AI 가 그 말을

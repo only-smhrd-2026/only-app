@@ -103,6 +103,7 @@ def clear_cookie(response: Response, name: str) -> None:
 
 # ponytail: 프로세스 메모리 카운터 (uvicorn --workers 1 전제, D9). 재시작하면 초기화되지만 무방 (D20).
 _login_hits: dict[str, deque[float]] = defaultdict(deque)
+_signup_hits: dict[str, deque[float]] = defaultdict(deque)
 _account_failures: OrderedDict[str, deque[float]] = OrderedDict()
 _account_failure_lock = Lock()
 _stt_hits: dict[str, deque[float]] = defaultdict(deque)
@@ -122,6 +123,11 @@ def _allowed(hits: deque[float], per_min: int) -> bool:
 
 def login_allowed(ip: str) -> bool:
     return _allowed(_login_hits[ip], LOGIN_RATE_PER_MIN)
+
+
+def signup_allowed(ip: str) -> bool:
+    """가입은 같은 IP 에서 분당 상한까지만(로그인 시도 칸과 따로 센다) — 계정을 찍어 내지 못하게 (11/19)."""
+    return _allowed(_signup_hits[ip], LOGIN_RATE_PER_MIN)
 
 
 def _expire_account_failures(now: float) -> None:

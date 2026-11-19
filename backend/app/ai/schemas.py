@@ -22,7 +22,7 @@ TAXONOMY: dict = json.loads((ROOT / "data" / "taxonomy.json").read_text("utf-8")
 
 
 def has_risk_words(text: str) -> bool:
-    t = re.sub(r"\s+", "", text)
+    t = re.sub(r"\W", "", text)  # 띄어쓰기와 문장부호 — 음성 인식이 "죽고, 싶어"처럼 쉼표·말줄임표를 넣는다 (11/19)
     return any(w in t for w in RISK_WORDS)
 
 
@@ -31,7 +31,7 @@ BODY_WORDS: list[str] = json.loads((ROOT / "data" / "body_words.json").read_text
 
 
 def has_body_words(text: str) -> bool:
-    t = re.sub(r"\s+", "", text)
+    t = re.sub(r"\W", "", text)  # has_risk_words 와 같게 — 띄어쓰기와 문장부호를 뺀 뒤 견준다
     return any(w in t for w in BODY_WORDS)
 
 

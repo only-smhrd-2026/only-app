@@ -24,7 +24,16 @@ from websockets.protocol import State
 from app import security
 from app.ai import llm, stt, tts
 from app.ai.schemas import CoachTurn
-from app.config import LLM_PER_DAY, STT_MAX_CHARS, STT_PER_DAY, TTS_PER_DAY, settings, today_kst
+from app.config import (
+    LLM_FAMILY_PER_DAY,
+    LLM_PER_DAY,
+    STT_FAMILY_PER_DAY,
+    STT_MAX_CHARS,
+    STT_PER_DAY,
+    TTS_PER_DAY,
+    settings,
+    today_kst,
+)
 from app.db import SessionLocal, engine
 from app.models import Notification
 from tests.conftest import setup_elder, signup
@@ -86,6 +95,31 @@ def test_stt_daily_cap(client, monkeypatch):
     monkeypatch.setitem(security._daily_hits, ("stt", today_kst()), STT_PER_DAY)
     r = client.post("/api/stt", files=AUDIO)
     assert r.status_code == 429 and r.json()["code"] == "STT_DAILY_LIMIT"
+
+
+def test_family_share_of_stt_leaves_room_for_elders(client, monkeypatch):
+    """가족 쿠키만 있는 요청은 음성 인식 하루 몫의 절반까지만 — 어르신 기기 몫은 늘 남는다 (11/19)."""
+    setup_elder(client)  # 가족 쿠키 + 어르신 기기 쿠키가 같이 있는 브라우저 = 어르신 폰
+    monkeypatch.setattr(settings, "STT_PROVIDER", "rtzr")
+    monkeypatch.setattr(stt, "transcribe", lambda *a, **k: ("네", 0.9))
+    monkeypatch.setitem(security._daily_hits, ("stt_family", today_kst()), STT_FAMILY_PER_DAY)
+    assert client.post("/api/stt", files=AUDIO).status_code == 200  # 어르신 기기는 가족 몫이 차도 그대로
+    client.cookies.delete(security.DEVICE_COOKIE)  # 가족 쿠키만 남김 (화면은 부르지 않는다 — 주소를 직접 부른 것)
+    r = client.post("/api/stt", files=AUDIO)
+    assert r.status_code == 429 and r.json()["code"] == "STT_DAILY_LIMIT"
+    assert security._daily_hits[("stt", today_kst())] == 1  # 막힌 요청은 전체 몫도 쓰지 않는다
+
+
+def test_family_share_of_llm_leaves_room_for_elders(monkeypatch):
+    """가족 일기 동무는 Claude 하루 몫의 절반까지만 — 넘으면 LlmError(고정 질문·쓴 말 그대로), 어르신 대화는 그대로."""
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "anthropic")
+    called = []
+    monkeypatch.setattr(llm, "_anthropic", lambda name, *a: called.append(name) or ("ok", 0))
+    monkeypatch.setitem(security._daily_hits, ("llm_family", today_kst()), LLM_FAMILY_PER_DAY)
+    for name in ("family_buddy", "family_draft"):
+        with pytest.raises(llm.LlmError):
+            llm.call_json(name, {}, CoachTurn)
+    assert llm.call_json("memory_coach", {}, CoachTurn) == "ok" and called == ["memory_coach"]
 
 
 def test_tts_llm_daily_cap(monkeypatch):

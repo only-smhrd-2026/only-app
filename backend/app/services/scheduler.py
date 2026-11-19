@@ -178,6 +178,18 @@ def no_record_alerts() -> None:
             )
             .order_by(FamilyRoom.room_id)
         ).all()
+        # 조용한 날이 이어지면 알림 목록에는 날마다 남기되 폰은 첫날만 울린다 — 날마다 울리면 가족이 알림을 꺼 버리고,
+        # 그러면 위급 알림도 못 받는다 (11/19).
+        # ponytail: 첫날 알림을 놓치면 폰은 다시 안 울린다(알림 목록·가족 홈에는 남는다). 며칠마다 다시 울리려면 여기서
+        repeated = set(
+            db.scalars(
+                select(Notification.room_id).where(
+                    Notification.kind == "NO_RECORD_2D",
+                    Notification.sent_at >= day_start - timedelta(days=1),
+                    Notification.sent_at < day_start,
+                )
+            )
+        )
         for room in rooms:
             notify_family(
                 db,
@@ -186,6 +198,7 @@ def no_record_alerts() -> None:
                 f"{room.elder_name} 님이 이틀째 기록이 없어요",
                 body="전화 한 통 드려 보세요",
                 link="HOME_001",
+                to_phone=room.room_id not in repeated,
             )
         db.commit()
     log.info("job no_record_alerts rooms=%d", len(rooms))

@@ -17,6 +17,7 @@ from app.security import (
     login_allowed,
     reserve_login_attempt,
     set_session_cookie,
+    signup_allowed,
     verify_password,
 )
 
@@ -24,7 +25,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/signup", response_model=AuthOut, status_code=201)
-def signup(body: SignupIn, response: Response, db: DB):
+def signup(body: SignupIn, request: Request, response: Response, db: DB):
+    # 같은 주소에서 계정을 찍어 내지 못하게 (11/19) — 가입은 누구나 되고 가족 쪽 AI·음성 몫은 계정마다 쓸 수 있다
+    if not signup_allowed(request.client.host if request.client else "unknown"):
+        raise ApiError(429, "TOO_MANY_ATTEMPTS", "잠시 후 다시 시도해 주세요")
     email = body.email.lower()
     if db.scalar(select(User).where(User.email == email)):
         raise ApiError(409, "EMAIL_TAKEN", "이미 가입된 이메일입니다")
