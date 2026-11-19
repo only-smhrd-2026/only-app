@@ -228,6 +228,7 @@ CREATE TABLE diaries (
 --   by(ELDER|FAMILY), user_id(FAMILY 만), at(누른 시각, turns 의 created_at 과 같은 ISO 문자열),
 --   heard_at(FAMILY 칸만 — 어르신이 가족 소식 첫 장에서 들은 시각, 같은 ISO 문자열. 없으면 아직 못 들으심, D63),
 --   kind: LIKE = 어르신 [좋아요] (가족 일기에) | HEART·SMILE·CLAP = 가족 이모지 (어르신 일기에)
+--         REPLY = 가족 한마디 (어르신 일기에, 11/19) — text(한 줄 1~40자) 키가 더 있다. 이모지 칸과 따로 한 사람 1칸, 글을 바꾸면 새 칸
 CREATE INDEX ix_diaries_room_posted ON diaries(room_id, posted_at DESC);
 CREATE INDEX ix_diaries_room_author_posted ON diaries(room_id, author_type, posted_at);   -- S14
 

@@ -35,6 +35,8 @@ CASES = [
     ("GET", "/diaries/{diary_id}", None),
     ("POST", "/diaries/{diary_id}/read", None),
     ("POST", "/diaries/{diary_id}/reaction", {"kind": "HEART", "on": True}),
+    ("POST", "/diaries/{diary_id}/reply", {"text": "보고 싶어요"}),
+    ("DELETE", "/diaries/{diary_id}/reply", None),
     ("DELETE", "/diaries/{diary_id}", None),
     ("POST", "/elder/diaries/{diary_id}/read", None),
     ("POST", "/elder/diaries/{diary_id}/like", {"on": True}),
