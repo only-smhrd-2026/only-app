@@ -99,7 +99,8 @@ export type WeeklyOut = {
   next_week_start: string | null // 다음 주 이야기가 있으면 그 주 월요일 — ›
   memory_days: number // 회상 대화에서 말씀하신 날 수 (0~7)
   diary_days: number // 일기 쓴 날 수 (0~7)
-  qa_list: WeeklyCard[] // 주간 요약 AI 의 카드 최대 4장. 아직 안 붙었거나 실패하면 []
+  // 사진 바로잡기 카드(최대 2장, FR-ME-009 — answer 가 "이 사진은 …래요.") + 주간 요약 AI 의 카드 최대 4장. 없으면 []
+  qa_list: WeeklyCard[]
   recall_check: Record<string, unknown>
   mood_trend: { date: string; mood: Mood | null }[] // 7칸, 월 → 일
   talk_volume: { words: number; turns: number; avg_words: number }
@@ -165,6 +166,7 @@ export type PhotoOut = {
   ai_activity: string | null // data/taxonomy.json 의 활동 글자 또는 'none'
   ai_scene: string | null // 보이는 모습 한 줄
   corrected_activity: string | null // 가족이 고친 활동('none' = 맞는 것 없음) — 있으면 이것이 먼저
+  elder_note: string | null // 어르신이 대화에서 이 사진을 바로잡아 주신 내용 한 문장 (FR-ME-009)
 }
 export type PhotoListOut = { photos: PhotoOut[]; has_more: boolean }
 export type PhotoBatchOut = { upload_batch_id: string; photos: PhotoOut[] }

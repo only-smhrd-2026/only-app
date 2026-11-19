@@ -174,7 +174,8 @@ class StoryFactItem(BaseModel):
     """
 
     ref: str  # 입력 pairs 의 ref — 근거가 된 어르신 답
-    kind: Literal["PLAN", "EVENT"]  # PLAN 앞으로 하실 일·약속, EVENT 요즘 하신 일
+    # PLAN 앞으로 하실 일·약속, EVENT 요즘 하신 일, CORRECTION 사진 내용을 바로잡아 주신 답 (FR-ME-009)
+    kind: Literal["PLAN", "EVENT", "CORRECTION"]
     fact: str  # 그 답을 전하는 한 문장
     quote: str  # 그 답 원문에서 글자 그대로 옮긴 구절
 

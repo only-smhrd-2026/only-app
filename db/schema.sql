@@ -117,6 +117,8 @@ CREATE TABLE photos (
     model_version VARCHAR(30),
     analyzed_at TIMESTAMPTZ,                                       -- NULL = 아직 분류 전
     ai_scene VARCHAR(100),                                         -- 분류 AI 가 본 '보이는 모습' 한 줄, 대화 재료 (D71)
+    elder_note VARCHAR(100),                                       -- 어르신이 대화에서 바로잡아 주신 내용 한 문장 (FR-ME-009)
+    elder_noted_at TIMESTAMPTZ,
     CONSTRAINT uq_photos_room_id_object_key UNIQUE (room_id, object_key)   -- S10 업로드 멱등
 );
 CREATE INDEX ix_photos_room_status ON photos(room_id, status);

@@ -141,6 +141,9 @@ class Photo(Base):
     model_version: Mapped[str | None] = mapped_column(String(30))
     analyzed_at: Mapped[datetime | None] = mapped_column(TS)  # None = 아직 분류 전
     ai_scene: Mapped[str | None] = mapped_column(String(100))  # 분류 AI 가 본 '보이는 모습' 한 줄 — 대화 재료 (D71)
+    # 어르신이 대화에서 이 사진을 바로잡아 주신 내용 한 문장 (FR-ME-009). 있으면 대화는 ai_scene 대신 이것을 따른다
+    elder_note: Mapped[str | None] = mapped_column(String(100))
+    elder_noted_at: Mapped[datetime | None] = mapped_column(TS)
 
 
 class DailyPick(Base):

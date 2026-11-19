@@ -8,6 +8,10 @@
 - 고르기(pick): 최근 STORY_LOOKBACK_DAYS 일 안에서 기억이 있는 가장 최근 날의, 아직 안 물은 기억 하나.
   할 일(PLAN) 먼저. 가족방마다 하루 한 번만 묻고, 물은 기억(used_at)은 다시 묻지 않는다.
 - '그런 말 안 했어'(deny): 그 기억을 끈다(is_active=false). 주간 이야기 카드에서도 그 답을 뺀다 (ai/weekly.summarize).
+- 사진 바로잡기(CORRECTION, FR-ME-009): "김장이 아니라 고사리야"처럼 사진 내용을 바로잡아 주신 답은 같은 AI 호출에서
+  따로 뽑아 그 사진에 적는다(photos.elder_note) — 다음 대화는 AI 가 본 모습 대신 그 말을 따르고, 그 사진에는 활동
+  문제를 다시 내지 않는다(corrected_activity 'none'). 안부로 이어 묻지 않는다(pick 은 PLAN·EVENT 만).
+  주간 이야기에는 정정 문장 카드로 나간다 (ai/weekly.summarize).
 - 로그에 어르신 말을 남기지 않는다 (D15) — 개수만.
 """
 
@@ -25,11 +29,13 @@ from app.ai import llm
 from app.ai.schemas import BANNED_WORDS, StoryFactItem, StoryFactItems
 from app.ai.weekly import QUOTE_MIN, _squeeze, pairs_of
 from app.config import STORY_FACTS_MAX, STORY_KEEP_DAYS, STORY_LOOKBACK_DAYS, TZ, now_kst, today_kst
-from app.models import ELDER_SPOKE, StoryFact, TalkSession
+from app.models import ELDER_SPOKE, Photo, StoryFact, TalkSession
 
 log = logging.getLogger("app.ai")
 
 FACT_MAX = 60  # 기억 한 문장 글자 수 (story_facts.fact_text 칸은 200)
+CORRECTIONS_MAX = 2  # 하루치 대화에서 뽑는 사진 바로잡기 수 — 안부 기억(STORY_FACTS_MAX)과 따로 센다 (FR-ME-009)
+ASK_KINDS = ("PLAN", "EVENT")  # 다음 날 안부로 이어 묻는 기억. CORRECTION 은 묻지 않는다
 
 
 def _start(day: date) -> datetime:
@@ -55,10 +61,13 @@ def check(items: list[StoryFactItem], pairs: list[dict[str, Any]]) -> list[tuple
             or not 0 < len(fact) <= FACT_MAX
             or not fact.rstrip(" .!~").endswith("요")  # 전하는 말투
             or any(word in fact for word in BANNED_WORDS)
+            or (item.kind == "CORRECTION" and not pair.get("photo_id"))  # 바로잡을 사진이 없는 대화
         ):
             continue
         passed[item.ref] = (pair, item, fact)
-    return list(passed.values())[:STORY_FACTS_MAX]
+    kept = list(passed.values())
+    asks = [k for k in kept if k[1].kind in ASK_KINDS][:STORY_FACTS_MAX]
+    return asks + [k for k in kept if k[1].kind == "CORRECTION"][:CORRECTIONS_MAX]
 
 
 def extract(db: Session, room_id: int, day: date) -> int:
@@ -105,9 +114,26 @@ def extract(db: Session, room_id: int, day: date) -> int:
         )
         for pair, item, fact in kept
     )
+    for pair, item, fact in kept:
+        if item.kind == "CORRECTION":
+            _note_photo(db, room_id, pair["photo_id"], fact)
     db.commit()
     log.info("story extract room=%s pairs=%d made=%d kept=%d", room_id, len(pairs), len(out.facts), len(kept))
     return len(kept)
+
+
+def _note_photo(db: Session, room_id: int, photo_id: int, fact: str) -> None:
+    """어르신이 바로잡아 주신 내용을 그 사진에 적는다 (FR-ME-009). 지운 사진·다른 방 사진이면 아무것도 하지 않는다.
+
+    ponytail: 무엇을 바로잡으셨든(장소·사람이어도) 그 사진의 활동 문제를 끈다 — 틀린 활동으로 문제를 내는 것보다
+    주제·계절 문제로 물러나는 쪽이 낫다. 가족이 '올린 사진'에서 활동을 다시 고르면 그 값이 쓰인다(routers/photos.py).
+    """
+    photo = db.get(Photo, photo_id)
+    if photo is None or photo.room_id != room_id or photo.status != "ACTIVE":
+        return
+    photo.elder_note = fact
+    photo.elder_noted_at = photo.corrected_at = now_kst()
+    photo.corrected_activity = "none"  # quiz.photo_tags: 'none' 이면 AI 가 붙인 활동으로 되돌아가지 않는다
 
 
 def run(db: Session, day: date) -> tuple[int, int]:
@@ -145,6 +171,7 @@ def pick(db: Session, room_id: int) -> StoryFact | None:
         select(func.max(StoryFact.fact_date)).where(
             StoryFact.room_id == room_id,
             StoryFact.is_active.is_(True),
+            StoryFact.kind.in_(ASK_KINDS),
             StoryFact.fact_date >= today - timedelta(days=STORY_LOOKBACK_DAYS),
             StoryFact.fact_date < today,
         )
@@ -157,6 +184,7 @@ def pick(db: Session, room_id: int) -> StoryFact | None:
             StoryFact.room_id == room_id,
             StoryFact.fact_date == latest,
             StoryFact.is_active.is_(True),
+            StoryFact.kind.in_(ASK_KINDS),
             StoryFact.used_at.is_(None),
         )
         .order_by(case((StoryFact.kind == "PLAN", 0), else_=1), StoryFact.fact_id)

@@ -21,6 +21,7 @@ class PhotoOut(BaseModel):
     ai_activity: str | None = None  # 분류 AI 가 본 활동(data/taxonomy.json 의 글자 또는 'none')
     ai_scene: str | None = None  # 분류 AI 가 본 '보이는 모습' 한 줄
     corrected_activity: str | None = None  # 가족이 고친 활동('none' = 맞는 것 없음) — 있으면 AI 활동보다 먼저
+    elder_note: str | None = None  # 어르신이 대화에서 이 사진을 바로잡아 주신 내용 한 문장 (FR-ME-009)
 
 
 class PhotoBatchOut(BaseModel):

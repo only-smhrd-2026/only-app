@@ -106,6 +106,8 @@ def coach_context(db, room: FamilyRoom, session: TalkSession) -> coach.CoachCont
                 "taken_at": photo.taken_at.isoformat() if photo.taken_at else None,
                 # 가족이 '올린 사진'에서 고른 활동 (D73). 'none'(맞는 것 없음)은 넘기지 않는다
                 "activity": photo.corrected_activity if photo.corrected_activity not in (None, "none") else None,
+                # 지난 대화에서 어르신이 이 사진을 바로잡아 주신 내용 (FR-ME-009) — 가족 설명·AI 짐작보다 먼저 따른다
+                "elder_note": photo.elder_note,
             }
             if photo
             else None
@@ -128,8 +130,9 @@ def coach_context(db, room: FamilyRoom, session: TalkSession) -> coach.CoachCont
             and photo.confidence is not None
             and float(photo.confidence) >= OLD_PHOTO_CONF_MIN
         ),
-        # 분류 AI 가 본 '보이는 모습' 한 줄 (D71) — 대화에 못 쓰는 사진(usable=false)이면 넘기지 않는다
-        scene=photo.ai_scene if photo and photo.usable is not False else None,
+        # 분류 AI 가 본 '보이는 모습' 한 줄 (D71) — 대화에 못 쓰는 사진(usable=false)이면 넘기지 않는다.
+        # 어르신이 바로잡아 주신 사진도 넘기지 않는다 — 틀렸다고 하신 짐작을 다시 꺼내지 않게 (FR-ME-009)
+        scene=photo.ai_scene if photo and photo.usable is not False and not photo.elder_note else None,
     )
 
 
