@@ -124,10 +124,14 @@ class CoachTurn(BaseModel):
 
 
 class DiaryTurn(CoachReply):
-    """일기 대화 한 턴. 한 문장 질문 + 어르신이 버튼으로 고를 짧은 답 2개(빈칸을 빼고 6자 이내)."""
+    """일기 대화 한 턴. 한 문장 질문 + 어르신이 버튼으로 고를 짧은 답 2개(빈칸을 빼고 6자 이내)
+    + 어르신 직전 답으로 본 상태(signal)."""
 
     # diary_buddy 의 모델 출력 (docstring 이 스키마 description 으로 모델에게 간다).
     # 화면에 보이는 답은 회상과 같은 상한 (D52 ④)
+    # 어르신 직전 답에서 본 상태 (11/19 S3): LOW 기운 없는 말(기록하고 이어 감), RISK 목숨을 해치는 이야기,
+    # BODY 지금 몸이 위급하다는 말 — RISK·BODY 는 코드 문장으로 마무리하고 일기로 남기지 않는다
+    signal: Literal["NONE", "LOW", "RISK", "BODY"] = "NONE"
 
     @field_validator("suggestions")
     @classmethod

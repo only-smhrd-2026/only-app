@@ -191,6 +191,11 @@ def _ask(
     if session.kind == "DIARY":
         if end is None:
             reply = coach.diary_question(ctx, turn_no)
+            # 일기 동무 AI 가 직전 답에서 본 신호 (11/19 S3) — 2번째 질문을 만들 때만 온다(1번은 어르신 말 전,
+            # 3번 기분 질문과 고정 문장에는 없다). 위급이면 회상 대화와 같은 코드 문장으로 마무리
+            if any(t["speaker"] == "ELDER" for t in ctx.turns):
+                signal = getattr(reply, "signal", "NONE")
+            reply = coach.URGENT_CLOSINGS.get(signal, reply)
         else:  # "일기를 써 볼게요"는 일기를 쓸 때만. 무응답으로 끝나면 저장하지 않으니 다른 인사
             reply = coach.DIARY_CLOSING if end in DIARY_SAVED else coach.DIARY_STOP
     elif end:
@@ -553,6 +558,20 @@ def get_session(session_id: uuid.UUID, device: CurrentDevice, db: DB):
     )
 
 
+def _urgent_words(text: str) -> bool:
+    return has_risk_words(text) or has_body_words(text)
+
+
+def _urgent_close(db, session: TalkSession, room: FamilyRoom, body: TurnIn, text: str) -> SessionOut:
+    """확인을 거치지 않은 저신뢰 음성에 위급 낱말이 있을 때 — 그 말을 낮은 신뢰도 그대로 남기고 위급으로 마무리 (S2).
+
+    낮은 신뢰도 답은 주간 이야기·이야기 기억에 쓰이지 않는다(WEEKLY_STT_MIN).
+    """
+    _pending.pop(session.session_id, None)
+    _save_elder(db, session, body, text)
+    return _risk_close(db, session, room) if has_risk_words(text) else _body_close(db, session, room)
+
+
 def _unconfirmed(body: TurnIn) -> bool:
     """저신뢰 음성인데 어르신이 아직 '맞아요' 하지 않은 답 — 저장하지 않는다 (D5)."""
     return (
@@ -603,6 +622,8 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
 
     if _expired(session):  # 5분 상한 (D8). 방금 한 답은 저장한 뒤 마무리
         text = (body.text or "").strip()
+        if text and body.event is None and _unconfirmed(body) and _urgent_words(text):
+            return _urgent_close(db, session, room, body, text)  # 잘 못 들은 말 속 위급 낱말 — 버리지 않는다 (S2)
         if text and body.event is None and not _unconfirmed(body):
             body, text, said_no = _confirmed(session, body, text)  # 확인 질문 뒤 '맞아요'면 맡긴 문장을
             if not said_no:
@@ -639,6 +660,11 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
         raise ApiError(422, "TEXT_REQUIRED", "말씀 내용이 비어 있어요")
     if body.input_type == "VOICE" and _locked(session.session_id):
         raise ApiError(409, "INPUT_LOCKED", "지금은 버튼으로만 답할 수 있어요")
+    if _unconfirmed(body) and _urgent_words(text):
+        # 잘 못 들은 말이어도 위급 낱말이 있으면 되묻지 않고 바로 위급으로 본다 (11/19 S2). 되물으면 AI 가 그 말을
+        # 되읽게 되고("제가 '죽고 싶어' 라고 들었어요"), '맞아요'가 없으면 알림 없이 사라진다.
+        # 잘못 들은 말로 알림이 가는 쪽이, 진짜 위급을 놓치는 쪽보다 낫다
+        return _urgent_close(db, session, room, body, text)
     if _unconfirmed(body):  # 저신뢰: 저장하지 않고 문장을 맡겨 둔 채 확인 질문만 (D5, D52 ③)
         _low_conf[session.session_id] += 1
         _pending[session.session_id] = (text, body.stt_confidence)
@@ -663,7 +689,8 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
         return _out(db, session, room, reply, "ENDED", "COMPLETED")
     reply, signal = _ask(db, session, ctx, turn_no=session.turn_count + 1)
     if signal in coach.ENDING_SIGNALS:  # 슬픔·위급·그만 (FR-AI-005, D55): 마무리 인사로 끝낸다. 질문 수는 그대로
-        reason = "USER_STOP" if signal == "STOP" else "COMPLETED"
+        # 일기 대화가 위급으로 끝나면 일기로 남기지 않는다(USER_STOP) — 위급한 말이 그대로 일기가 되지 않게
+        reason = "USER_STOP" if signal == "STOP" or session.kind == "DIARY" else "COMPLETED"
         _finish(db, session, reason)
         db.commit()
         return _out(db, session, room, reply, "ENDED", reason)

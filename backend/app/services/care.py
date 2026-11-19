@@ -89,6 +89,7 @@ CHECK_SAY = {
     "MOOD": "마음이 가라앉는 날이 많으셨군요. 다음에 이야기할 때 또 여쭐게요.",
 }
 CHECK_SAY_TAIL = " 말씀해 주셔서 고마워요."
+CHECK_HARD_TAIL = " 가족에게도 요즘 힘드시다고 알릴게요. 말씀해 주셔서 고마워요."
 
 
 def _start(day: date) -> datetime:
@@ -101,10 +102,16 @@ def check_topics(answers: list[int]) -> list[str]:
     return [CHECK_TOPICS[i] for _, i in sorted(high)]
 
 
-def check_say(answers: list[int]) -> str | None:
-    """마음 체크 끝 인사. 높게 답한 문항이 없으면 None — 화면이 평소 인사를 한다."""
+def check_say(answers: list[int], hard: bool = False) -> str | None:
+    """마음 체크 끝 인사. 높게 답한 문항이 없으면 None — 화면이 평소 인사를 한다.
+
+    hard = '많이 힘드신 것 같아요' 단계 — 가족에게도 알린다는 말을 덧붙인다 (그때 가족 알림 1건, routers/mood.py).
+    """
     topics = check_topics(answers)
-    return CHECK_SAY[topics[0]] + CHECK_SAY_TAIL if topics else None
+    if not topics and not hard:
+        return None
+    head = CHECK_SAY[topics[0]] if topics else "요즘 힘든 날이 많으셨군요."
+    return head + (CHECK_HARD_TAIL if hard else CHECK_SAY_TAIL)
 
 
 def talk_topic(said: str) -> str:
