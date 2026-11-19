@@ -26,3 +26,4 @@
 
 .pol-list li { position:relative; padding-left:14px; color:var(--text-2); line-height:1.65; }
 .pol-list li::before { content:''; position:absolute; left:2px; top:.75em; width:5px; height:5px; border-radius:50%; background:var(--primary); }
+.pol-link { display:flex; align-items:center; min-height:44px; width:max-content; color:var(--primary); font-weight:700; } /* 회원 탈퇴로 — 누르는 곳 44px */
