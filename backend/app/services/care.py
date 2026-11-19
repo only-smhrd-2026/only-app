@@ -296,7 +296,9 @@ def pick(db: Session, room_id: int) -> CareDay | None:
 
 
 def fact(row: CareDay) -> str:
-    return FACTS[(row.source, row.topic)]
+    """첫인사 AI 에 주는 '들은 말' — 어디서 들었는지('마음 체크에서'·'일기에')는 뗀다.
+    붙여 주면 "어제 일기에 쓸쓸하다고 쓰셨다고 하셨죠"처럼 말이 겹친다 (11/19 실호출 평가)."""
+    return FACTS[(row.source, row.topic)].removeprefix("마음 체크에서 ").removeprefix("일기에 ")
 
 
 def react(db: Session, room_id: int, signal: str) -> None:

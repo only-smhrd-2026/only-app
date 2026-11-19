@@ -10,7 +10,7 @@ import math
 import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.config import FAMILY_DRAFT_MAX, ROOT
 
@@ -75,6 +75,17 @@ def check_model_chips(v: list[str]) -> list[str]:
     return out
 
 
+def _urgent_text(data):
+    """위급 신호(RISK·BODY)면 모델이 쓴 말을 버린다 — 마무리는 코드 문장이라 쓰이지 않는다.
+
+    위급한 말에는 모델이 길게 답해 글자 수 검사에 걸리고, 그러면 한 번 더 부르느라 가장 급한 순간에 몇 초가 늦는다
+    (11/19 실호출 평가: 위급 5번 중 2번이 다시 부름).
+    """
+    if isinstance(data, dict) and data.get("signal") in ("RISK", "BODY"):
+        return {**data, "text": "네.", "suggestions": []}
+    return data
+
+
 class CoachReply(BaseModel):
     """회상·일기 코치 한 턴 응답. 한 문장 질문 + 추천 답변 2~3개."""
 
@@ -112,6 +123,11 @@ class CoachTurn(BaseModel):
     signal: Literal["NONE", "LOW", "SAD", "RISK", "STOP", "DENY", "BODY"] = "NONE"
     private: bool = False  # '애들한테 말하지 마' → 그 대화는 기운 없는 날에서 뺀다. 위급만 예외 (D55 ③)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _urgent(cls, data):
+        return _urgent_text(data)
+
     @field_validator("text")
     @classmethod
     def _text_rules(cls, v: str) -> str:
@@ -132,6 +148,11 @@ class DiaryTurn(CoachReply):
     # 어르신 직전 답에서 본 상태 (11/19 S3): LOW 기운 없는 말(기록하고 이어 감), RISK 목숨을 해치는 이야기,
     # BODY 지금 몸이 위급하다는 말 — RISK·BODY 는 코드 문장으로 마무리하고 일기로 남기지 않는다
     signal: Literal["NONE", "LOW", "RISK", "BODY"] = "NONE"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _urgent(cls, data):
+        return _urgent_text(data)
 
     @field_validator("suggestions")
     @classmethod

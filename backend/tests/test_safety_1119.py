@@ -5,10 +5,12 @@
 
 import uuid
 
+import pytest
+from pydantic import ValidationError
 from sqlalchemy import func, select
 
 from app.ai import coach, llm
-from app.ai.schemas import DiaryTurn
+from app.ai.schemas import CoachTurn, DiaryTurn
 from app.db import SessionLocal
 from app.models import Diary, Notification, TalkSession, UrgentAlert
 from tests.conftest import setup_elder
@@ -136,3 +138,14 @@ def test_down_mood_check_is_quiet_and_hard_without_named_item(client):
     hard = client.post("/api/elder/mood-check", json={"answers": [1, 1, 1, 1, 0, 3, 3, 3]}).json()
     assert hard["say"].startswith("요즘 힘든 날이 많으셨군요.")  # 안부로 삼는 문항이 없어도 인사는 한다
     assert _count(ctx2["room_id"], "MOOD_LOW_2D") == 1
+
+
+# ---------------------------------------------------------------- 위급 신호의 모델 말은 검사하지 않는다
+def test_urgent_signal_text_is_not_validated_so_no_second_call():
+    long_text = (
+        "할머니, 지금 가슴이 조이고 식은땀이 나신다니 많이 놀라셨겠어요. 괜찮으세요? 바로 도움을 청해 주세요?" * 2
+    )
+    for schema in (CoachTurn, DiaryTurn):
+        assert schema.model_validate({"text": long_text, "suggestions": ["너무 긴 추천 답변이에요"], "signal": "BODY"})
+        with pytest.raises(ValidationError):  # 평소 신호면 길이·물음표 규칙 그대로
+            schema.model_validate({"text": long_text, "suggestions": [], "signal": "NONE"})
