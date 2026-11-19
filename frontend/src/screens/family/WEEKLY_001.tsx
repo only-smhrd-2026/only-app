@@ -1,6 +1,9 @@
-/** WEEKLY_001 — 주간 이야기 (FR-FD-007, 목업 ⑤). 질문·답 카드와 안부 한 줄은 D62·D67을 따른다. */
-import { useEffect, useState } from 'react'
-import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+/**
+ * WEEKLY_001 — 주간 이야기 (FR-FD-007, 목업 ⑤). 질문·답 카드와 안부 한 줄은 D62·D67을 따른다.
+ * '달라진 점' 카드는 서버가 만든 문장(changes)을 그대로 보인다. 그 주 일기 목록은 여기 없다 — 가족 홈에서 본다 (11/18 멘토링).
+ */
+import { useEffect } from 'react'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { MOOD_LABEL, type WeeklyOut } from '../../api/types'
 import ElderPhoto from '../../components/ElderPhoto'
 import FamIcon from '../../components/FamIcon'
@@ -20,22 +23,6 @@ export default function WEEKLY_001() {
   return (
     <WeeklyWeek key={`${roomId}:${weekStart ?? 'latest'}`} roomId={Number(roomId)} weekStart={weekStart}
       onWeek={(week) => setParams({ week_start: week })} />
-  )
-}
-
-function DiaryThumb({ diary }: { diary: WeeklyOut['diaries'][number] }) {
-  const nav = useNavigate()
-  const [failed, setFailed] = useState(false)
-  return (
-    <button type="button" className="weekly-diary" onClick={() => nav('/diaries/' + diary.diary_id)}
-      aria-label={`${day(diary.date, { month: 'long', day: 'numeric', weekday: 'short' })} 일기, ${MOOD_LABEL[diary.mood]}`}>
-      <span className="weekly-diary-picture">
-        {diary.illustration_url && !failed
-          ? <img src={diary.illustration_url} alt="" onError={() => setFailed(true)} />
-          : <MoodIcon mood={diary.mood} />}
-      </span>
-      <small>{day(diary.date, { day: 'numeric', weekday: 'short' })}</small>
-    </button>
   )
 }
 
@@ -91,6 +78,20 @@ function WeeklyWeek({ roomId, weekStart, onWeek }: { roomId: number; weekStart: 
   const latest = data.next_week_start === null
   const period = latest ? '이번 주' : '그 주'
   const weekLabel = `${start.getMonth() + 1}월 ${['첫째', '둘째', '셋째', '넷째', '다섯째'][Math.floor((start.getDate() - 1) / 7)]} 주`
+  // 달라진 점 — 살펴볼 줄은 색만이 아니라 '살펴보기' 낱말로도 알린다. 이야기가 없던 주에도 보인다(줄어든 것이 신호다).
+  const changed = data.changes.length > 0 && (
+    <section className="fam-card weekly-card">
+      <h2 className="weekly-card-heading">{period} 달라진 점</h2>
+      <ul className="weekly-changes">
+        {data.changes.map((c) => (
+          <li key={c.text} className={c.tone === 'watch' ? 'watch' : undefined}>
+            {c.tone === 'watch' && <b>살펴보기</b>}
+            {c.text}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
 
   return (
     <main className="fam-stack weekly-screen">
@@ -107,12 +108,16 @@ function WeeklyWeek({ roomId, weekStart, onWeek }: { roomId: number; weekStart: 
         <section key={line} className="fam-card weekly-note"><p>{line}</p></section>
       ))}
       {empty ? (
-        <section className="fam-card weekly-empty"><p>이 주에는 이야기와 일기가 없었어요.</p></section>
+        <>
+          <section className="fam-card weekly-empty"><p>이 주에는 이야기와 일기가 없었어요.</p></section>
+          {changed}
+        </>
       ) : (
         <>
           <section className="fam-card weekly-stat">
             <p><b>이야기한 날 {data.memory_days}일</b> · 일기 쓴 날 {data.diary_days}일</p>
           </section>
+          {changed}
           <section className="fam-card weekly-card">
             <h2 className="weekly-card-heading">기분</h2>
             <div className="weekly-week">
@@ -125,14 +130,6 @@ function WeeklyWeek({ roomId, weekStart, onWeek }: { roomId: number; weekStart: 
               ))}
             </div>
           </section>
-          {data.diaries.length > 0 && (
-            <section className="fam-card weekly-card">
-              <h2 className="weekly-card-heading">{period} 일기 <small>{data.diaries.length}편</small></h2>
-              <div className="weekly-diaries">
-                {data.diaries.map((diary) => <DiaryThumb key={diary.diary_id} diary={diary} />)}
-              </div>
-            </section>
-          )}
           {/* 요약이 실패했거나 전할 답이 없던 주는 질문·답 카드를 그리지 않는다 (D62). */}
           {data.qa_list.length > 0 && (
             <section className="fam-card weekly-card">
