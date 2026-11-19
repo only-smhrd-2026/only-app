@@ -302,6 +302,8 @@ class PushSubscription(Base):
     p256dh: Mapped[str] = mapped_column(String(200))  # 브라우저 공개 키 (base64url)
     auth: Mapped[str] = mapped_column(String(50))  # 브라우저 인증 비밀 (base64url)
     created_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)  # 마지막으로 등록한 때
+
+
 class UrgentAlert(Base):
     """위급 알림 (D55 마음 위급 + 11/19 몸 위급). 대화에서 감지한 위급 1건마다 한 줄 — 가족 홈 긴급 카드."""
 

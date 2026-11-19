@@ -184,18 +184,23 @@ export default function ACCOUNT_001() {
         ))}
 
         <section className="fam-card acc-card">
-          <label className="acc-label" htmlFor="acc-password">지금 비밀번호</label>
-          <input
-            id="acc-password"
-            className="acc-input"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            maxLength={64}
-            autoComplete="current-password"
-            disabled={busy}
-            required
-          />
+          {/* 카카오로 가입한 회원은 비밀번호가 없다 — 칸 없이 아래 확인 판으로만 (11/19) */}
+          {me.data?.login_type !== 'KAKAO' && (
+            <>
+              <label className="acc-label" htmlFor="acc-password">지금 비밀번호</label>
+              <input
+                id="acc-password"
+                className="acc-input"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                maxLength={64}
+                autoComplete="current-password"
+                disabled={busy}
+                required
+              />
+            </>
+          )}
           {error && <p className="fam-error" role="alert">{error}</p>}
           <button className="fam-btn fam-btn--block acc-danger" disabled={busy}>
             탈퇴하기

@@ -10,6 +10,7 @@ from app.config import LOGIN_FAIL_PER_EMAIL, LOGIN_RATE_PER_MIN, now_kst, today_
 from app.db import SessionLocal
 from app.models import (
     Base,
+    CareDay,
     DailyPick,
     Diary,
     FamilyRoom,
@@ -17,9 +18,11 @@ from app.models import (
     MoodCheck,
     Notification,
     Photo,
+    PushSubscription,
     RoomMember,
     StoryFact,
     TalkSession,
+    UrgentAlert,
     User,
     WeeklySummary,
 )
@@ -87,6 +90,15 @@ def _fill_room(room_id, user_id) -> list[str]:
         pick.completed_session_id = memory.session_id
         drawing = f"rooms/{room_id}/{posted.session_id}.jpg"
         draft_drawing = f"rooms/{room_id}/{unposted.session_id}.jpg"  # 올리지 않은 초안의 그림 — 줄은 없고 파일만 있다
+        # 11/19 에 생긴 표 3개 — 위급 알림(대화·확인한 가족을 가리킨다)·돌봄 일지·어르신 기기의 푸시 구독
+        endpoint = f"https://fcm.googleapis.com/fcm/send/room-{room_id}"
+        db.add_all(
+            [
+                UrgentAlert(room_id=room_id, session_id=memory.session_id, kind="MOOD", acked_by=user_id),
+                CareDay(room_id=room_id, care_date=yesterday, level="WATCH"),
+                PushSubscription(room_id=room_id, endpoint=endpoint, p256dh="p", auth="a"),
+            ]
+        )
         diary = {"room_id": room_id, "body": "오늘 공원을 걸었어요.", "mood": "GOOD"}
         db.add_all(
             [
@@ -346,3 +358,20 @@ def test_storage_failure_does_not_undo_withdraw(client, monkeypatch, caplog):
 
 def test_withdraw_requires_login(client):
     assert _withdraw(client).status_code == 401
+
+
+def test_kakao_member_withdraws_without_password_and_push_subscription_goes(client):
+    """카카오로 가입한 회원은 비밀번호가 없다 — 비밀번호 없이 탈퇴하고, 그 사람 폰의 푸시 구독도 지운다 (11/19 통합)."""
+    me = signup(client)
+    with SessionLocal() as db:
+        user = db.get(User, me["user_id"])
+        user.login_type, user.kakao_id, user.email, user.password_hash = "KAKAO", "4242", None, None
+        endpoint = "https://fcm.googleapis.com/fcm/send/kakao-member"
+        db.add(PushSubscription(user_id=user.user_id, endpoint=endpoint, p256dh="p", auth="a"))
+        db.commit()
+    assert client.post("/api/auth/withdraw", json={"transfers": []}).status_code == 200
+    with SessionLocal() as db:
+        user = db.get(User, me["user_id"])
+        assert (user.status, user.kakao_id) == ("WITHDRAWN", None)
+        assert db.scalar(select(func.count()).select_from(PushSubscription)) == 0
+    assert client.get("/api/auth/me").status_code == 401

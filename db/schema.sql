@@ -303,6 +303,8 @@ CREATE TABLE push_subscriptions (
     auth VARCHAR(50) NOT NULL,                                     -- 브라우저 인증 비밀 (base64url)
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),                 -- 마지막으로 등록한 때
     CONSTRAINT ck_push_subscriptions_owner CHECK ((room_id IS NULL) <> (user_id IS NULL))
+);
+
 -- 15. 위급 알림 (D55 마음 위급 + 11/19 몸 위급). 대화에서 감지한 위급 1건마다 한 줄 — 가족 홈 긴급 카드
 CREATE TABLE urgent_alerts (
     alert_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

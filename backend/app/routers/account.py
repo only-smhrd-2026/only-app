@@ -15,6 +15,7 @@ from sqlalchemy import delete, select, update
 from app.deps import DB, CurrentUser
 from app.errors import ApiError
 from app.models import (
+    CareDay,
     DailyPick,
     Diary,
     FamilyRoom,
@@ -22,9 +23,11 @@ from app.models import (
     MoodCheck,
     Notification,
     Photo,
+    PushSubscription,
     RoomMember,
     StoryFact,
     TalkSession,
+    UrgentAlert,
     WeeklySummary,
 )
 from app.schemas.account import WithdrawIn
@@ -33,9 +36,8 @@ from app.security import (
     SESSION_COOKIE,
     clear_cookie,
     clear_login_failures,
-    login_account_blocked,
     login_allowed,
-    record_login_failure,
+    reserve_login_attempt,
     verify_password,
 )
 from app.services import storage
@@ -47,6 +49,9 @@ WITHDRAWN_NAME = "탈퇴한 가족"  # 남은 일기의 글쓴이 이름 (users.
 # 가족방 하나를 통째로 지우는 순서 — db/schema.sql 의 FK 를 따라, 가리키는 표부터. family_rooms 는 맨 끝에 따로.
 # room_id 칸이 있는 표가 늘면 여기에도 넣는다 (빠뜨리면 tests/test_withdraw.py 가 잡는다)
 _ROOM_TABLES = (
+    PushSubscription,  # 어르신 기기의 푸시 구독
+    CareDay,
+    UrgentAlert,  # → sessions, users(acked_by 는 계정 줄이 남아 그대로)
     Notification,
     MoodCheck,
     WeeklySummary,
@@ -82,12 +87,15 @@ def withdraw(body: WithdrawIn, request: Request, response: Response, user: Curre
     # 비밀번호 확인 — 비밀번호 바꾸기(auth.change_password)와 같은 오류 코드·같은 실패 제한
     ip = request.client.host if request.client else "unknown"
     email = user.email
-    if not login_allowed(ip) or (email and login_account_blocked(email)):
-        raise ApiError(429, "TOO_MANY_ATTEMPTS", "잠시 후 다시 시도해 주세요")
-    if not verify_password(body.password, user.password_hash):
+    # 카카오로 가입한 회원은 비밀번호가 없다 — 로그인 쿠키와 화면의 확인 판으로만 받는다(비교할 것이 없음)
+    if user.password_hash is not None:
+        # 이메일별 시도 칸을 비교 전에 먼저 잡는다(로그인과 같은 셈·같은 방식, security.reserve_login_attempt)
+        if not login_allowed(ip) or (email and not reserve_login_attempt(email)):
+            raise ApiError(429, "TOO_MANY_ATTEMPTS", "잠시 후 다시 시도해 주세요")
+        if not verify_password(body.password, user.password_hash):
+            raise ApiError(400, "WRONG_PASSWORD", "지금 비밀번호가 맞지 않아요")  # 잡은 칸이 실패로 남는다
         if email:
-            record_login_failure(email)
-        raise ApiError(400, "WRONG_PASSWORD", "지금 비밀번호가 맞지 않아요")
+            clear_login_failures(email)  # 비밀번호는 맞았다 — 아래에서 거절돼도(방장 넘기기 등) 실패가 아니다
 
     transfers = {t.room_id: t.new_owner_user_id for t in body.transfers}
     keys: list[str] = []
@@ -134,6 +142,7 @@ def withdraw(body: WithdrawIn, request: Request, response: Response, user: Curre
     # 줄도 지운다 — 줄이 남으면 남은 글 옆에 호칭이 그대로 보인다
     db.execute(delete(RoomMember).where(RoomMember.user_id == user.user_id))
     db.execute(delete(Notification).where(Notification.target_user_id == user.user_id))
+    db.execute(delete(PushSubscription).where(PushSubscription.user_id == user.user_id))  # 내 폰의 푸시 구독
     if user.profile_key:
         keys.append(user.profile_key)
     user.status = "WITHDRAWN"

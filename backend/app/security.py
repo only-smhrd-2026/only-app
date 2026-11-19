@@ -156,14 +156,15 @@ def clear_login_failures(email: str) -> None:
         _account_failures.pop(email.lower(), None)
 
 
-def integration_blocked(ip: str) -> bool:
-    """꼬마심심이 연동 키 맞히기 막기. 같은 IP 에서 키가 틀린 횟수를 로그인 실패와 같은 표·같은 상한
-    (LOGIN_FAIL_PER_EMAIL 번 / LOGIN_FAIL_WINDOW_SEC 초)으로 센다. 이름표에 '@' 가 없어 이메일과 겹치지 않는다."""
-    return login_account_blocked(f"integration:{ip}")
+def reserve_integration_attempt(ip: str) -> bool:
+    """꼬마심심이 연동 키 맞히기 막기. 같은 IP 의 시도를 로그인과 같은 표·같은 상한
+    (LOGIN_FAIL_PER_EMAIL 번 / LOGIN_FAIL_WINDOW_SEC 초)·같은 방식(비교 전에 칸을 먼저 잡기)으로 센다.
+    이름표에 '@' 가 없어 이메일과 겹치지 않는다. 키가 맞으면 부른 쪽이 clear_integration_attempts 로 지운다."""
+    return reserve_login_attempt(f"integration:{ip}")
 
 
-def record_integration_failure(ip: str) -> None:
-    record_login_failure(f"integration:{ip}")
+def clear_integration_attempts(ip: str) -> None:
+    clear_login_failures(f"integration:{ip}")
 
 
 def stt_allowed(ip: str) -> bool:

@@ -27,7 +27,7 @@ from app.schemas.integration import (
     IntegrationSummaryOut,
     IntegrationTalkWeek,
 )
-from app.security import integration_blocked, record_integration_failure
+from app.security import clear_integration_attempts, reserve_integration_attempt
 
 log = logging.getLogger("app.integration")
 router = APIRouter(tags=["integration"])
@@ -56,11 +56,13 @@ def _require_key(request: Request, sent: Annotated[HTTPAuthorizationCredentials 
     if not key:
         raise ApiError(404, "HTTP_404", "Not Found")  # 등록 안 된 주소와 똑같은 답
     ip = request.client.host if request.client else "unknown"
-    if integration_blocked(ip):  # 막힌 동안에는 맞는 키도 막는다 — 틀린 키만 막으면 계속 맞혀 볼 수 있다
+    # 시도 칸을 비교 전에 먼저 잡는다(로그인과 같은 방식).
+    # 막힌 동안에는 맞는 키도 막는다 — 틀린 키만 막으면 계속 맞혀 볼 수 있다
+    if not reserve_integration_attempt(ip):
         raise ApiError(429, "TOO_MANY_ATTEMPTS", "잠시 후 다시 시도해 주세요")
     if sent is None or not hmac.compare_digest(sent.credentials.encode(), key.encode()):
-        record_integration_failure(ip)
-        raise ApiError(401, "INTEGRATION_KEY_INVALID", "연동 키가 올바르지 않습니다")
+        raise ApiError(401, "INTEGRATION_KEY_INVALID", "연동 키가 올바르지 않습니다")  # 잡은 칸이 실패로 남는다
+    clear_integration_attempts(ip)
 
 
 @router.get(

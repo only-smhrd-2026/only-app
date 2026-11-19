@@ -10,5 +10,5 @@ class OwnerTransferIn(BaseModel):
 
 
 class WithdrawIn(BaseModel):
-    password: str = Field(max_length=64)  # 지금 비밀번호 (LoginIn 과 같은 길이)
+    password: str = Field(default="", max_length=64)  # 지금 비밀번호 (LoginIn 과 같은 길이). 카카오 회원은 빈 값
     transfers: list[OwnerTransferIn] = Field(default_factory=list, max_length=100)  # 내가 방장인 가족방마다 1칸
