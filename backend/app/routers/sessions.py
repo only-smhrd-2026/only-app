@@ -65,7 +65,7 @@ from app.schemas.sessions import (
     TurnIn,
     TurnOut,
 )
-from app.services import alerts
+from app.services import alerts, care
 
 log = logging.getLogger("app.sessions")
 router = APIRouter(prefix="/elder/sessions", tags=["sessions"])
@@ -118,7 +118,7 @@ def coach_context(db, room: FamilyRoom, session: TalkSession) -> coach.CoachCont
         turns=[
             {"speaker": t["speaker"], "text": t["text"]}
             | ({"quiz": True} if t.get("question_code") else {})
-            | ({"story": True} if t.get("fact_id") else {})
+            | ({"story": True} if t.get("fact_id") or t.get("care") else {})
             for t in session.turns
         ],
         # 일기 사진이 옛 사진이면 1·2번을 그 사진 속 그때로 (FR-DI-002, D58). 분류(AI-04 #29) 전에는 늘 False.
@@ -157,7 +157,8 @@ def _story_offset(session: TalkSession) -> int:
     """첫 AI 질문이 지난 대화의 이야기(fact_id)면 1 — 코치에 넘기는 사진 질문 번호가 하나씩 밀린다 (D77).
 
     최대 질문 수·문제 차례는 밀리지 않는다 — 어제 이야기 질문도 MAX_TURNS 4번 안에 든다 (D79)."""
-    return 1 if session.turns and session.turns[0].get("fact_id") else 0
+    first = session.turns[0] if session.turns else {}
+    return 1 if first.get("fact_id") or first.get("care") else 0  # 오늘의 안부(돌봄 루프)도 같은 자리
 
 
 def _max_turns(session: TalkSession) -> int:
@@ -201,8 +202,11 @@ def _ask(
         reply, signal, private = coach.next_question(ctx, turn_no - off, picked, _max_turns(session) - off)
         # 출제 기록: 은행 원문이면 그 code, AI 가 쓴 생각 문제면 GEN-유형 (D72). 마무리로 바뀐 턴은 기록 없음
         code = quiz.record_code(picked, reply.text) if picked and signal not in coach.ENDING_SIGNALS else None
+    last = _last_ai_turn(session)
+    # 오늘의 안부에 하신 답이면 AI 가 본 신호를 돌봄 일지에 반응으로 적는다 (11/19 돌봄 루프)
+    if last and last.get("care") and session.turns[-1].get("reply_to_turn_no") == last["turn_no"]:
+        care.react(db, session.room_id, signal)
     if signal == "DENY":  # '그런 말 안 했어' — 바로 앞 질문이 어제 이야기일 때만 그 기억을 끈다 (FR-AI-008, D77)
-        last = _last_ai_turn(session)
         if last and last.get("fact_id"):
             story.deny(db, session.room_id, last["fact_id"])
         signal = "NONE"
@@ -218,6 +222,7 @@ def _ask(
         question_code=code,
         latency_ms=int((time.perf_counter() - t0) * 1000),
         urgent="BODY" if signal == "BODY" else None,
+        signal="LOW" if signal == "LOW" else None,  # 다음 날 안부 주제를 고르는 데 쓴다 (services/care.py)
     )
     _last_reply[session.session_id] = reply
     return reply, signal
@@ -230,16 +235,23 @@ def _ask_story(db, session: TalkSession, ctx: coach.CoachContext) -> CoachReply 
     AI 가 실패하면 그 기억은 묻지 않은 채 두고 고정 사진 질문으로 시작한다 — AI 를 한 번 더 기다리면
     화면이 첫 말을 기다리는 15초를 넘을 수 있다 (시간 초과 한 번이 약 9초).
     """
-    fact = story.pick(db, session.room_id)
-    if fact is None:
-        return None
     t0 = time.perf_counter()
-    reply = coach.story_question(ctx, fact.fact_text, story.when(fact.fact_date), fact.fact_date)
+    plan = care.pick(db, session.room_id)  # 오늘의 안부가 먼저 (11/19 돌봄 루프) — 없으면 지난 이야기
+    fact = story.pick(db, session.room_id) if plan is None else None
+    if plan is not None:
+        reply = coach.story_question(ctx, care.fact(plan), story.when(plan.heard_on), plan.heard_on)
+        if reply is not None:
+            plan.asked_at = now_kst()
+        fields = {"care": plan.topic}
+    elif fact is not None:
+        reply = coach.story_question(ctx, fact.fact_text, story.when(fact.fact_date), fact.fact_date)
+        if reply is not None:
+            fact.used_at = now_kst()
+        fields = {"fact_id": fact.fact_id}
+    else:
+        return None
     if reply is None:
         reply, fields = coach.FALLBACK_QUESTION, {}
-    else:
-        fact.used_at = now_kst()
-        fields = {"fact_id": fact.fact_id}
     _add_turn(
         session,
         "AI",

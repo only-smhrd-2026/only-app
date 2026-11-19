@@ -20,9 +20,8 @@ from app.config import (
 )
 from app.deps import DB, CurrentDevice, CurrentUser, require_member
 from app.models import ELDER_SPOKE, Diary, FamilyRoom, MoodCheck, TalkSession
-from app.schemas.common import OkOut
-from app.schemas.mood import MoodCheckDueOut, MoodCheckIn, MoodCheckOut, MoodDayOut, MoodWeekOut
-from app.services import picks
+from app.schemas.mood import MoodCheckDueOut, MoodCheckIn, MoodCheckOut, MoodCheckSavedOut, MoodDayOut, MoodWeekOut
+from app.services import care, picks
 
 router = APIRouter(tags=["mood"])
 
@@ -91,7 +90,7 @@ def check_level(total: int) -> str:
     return "USUAL"
 
 
-@router.post("/elder/mood-check", response_model=OkOut)
+@router.post("/elder/mood-check", response_model=MoodCheckSavedOut)
 def save_mood_check(body: MoodCheckIn, device: CurrentDevice, db: DB):
     total = sum(body.answers)
     db.execute(
@@ -111,4 +110,5 @@ def save_mood_check(body: MoodCheckIn, device: CurrentDevice, db: DB):
         .values(mood_check_consent_at=now_kst())
     )
     db.commit()
-    return OkOut()
+    # 끝 인사: 높게 답한 문항 하나를 쉬운 말로 받아 드린다 — 점수·단계는 말하지 않는다 (11/19 멘토링)
+    return MoodCheckSavedOut(say=care.check_say(body.answers))

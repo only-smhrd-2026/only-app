@@ -306,3 +306,23 @@ class UrgentAlert(Base):
     )  # [제가 연락했어요] 처음 누른 가족
     acked_at: Mapped[datetime | None] = mapped_column(TS)
     reminded_at: Mapped[datetime | None] = mapped_column(TS)  # 확인이 없어 한 번 더 알린 시각
+
+
+class CareDay(Base):
+    """돌봄 일지 (11/18 멘토링 — 돌봄 루프). 가족방·날짜마다 1줄: 전날까지 본 것 → 판단 → 오늘 여쭐 안부 → 어르신 답."""
+
+    __tablename__ = "care_days"
+    __table_args__ = (UniqueConstraint("room_id", "care_date", name="uq_care_days_room_id_care_date"),)
+
+    care_id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    room_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("family_rooms.room_id"))
+    care_date: Mapped[date] = mapped_column(Date)
+    numbers: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'"))  # 전날 숫자 (services/care.py)
+    level: Mapped[str] = mapped_column(String(5))  # USUAL | WATCH | CARE — 코드가 정한다
+    reasons: Mapped[list[str]] = mapped_column(JSONB, server_default=text("'[]'"))
+    source: Mapped[str | None] = mapped_column(String(5))  # TALK | DIARY | CHECK
+    topic: Mapped[str | None] = mapped_column(String(8))  # SLEEP | APPETITE | LONELY | ENERGY | INTEREST | MOOD
+    heard_on: Mapped[date | None] = mapped_column(Date)
+    asked_at: Mapped[datetime | None] = mapped_column(TS)
+    reaction: Mapped[str | None] = mapped_column(String(4))  # OK | SAME | DENY
+    created_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)

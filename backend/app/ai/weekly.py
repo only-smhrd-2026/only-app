@@ -53,7 +53,7 @@ def pairs_of(sessions: list[TalkSession]) -> list[dict[str, Any]]:
             confidence = turn.get("stt_confidence")
             if turn.get("speaker") != "ELDER" or not asked or len(said) < SAID_MIN:
                 continue
-            if asked.get("fact_id"):  # 어제 이야기 질문(D77)에 한 답 — 사진 이야기가 아니다
+            if asked.get("fact_id") or asked.get("care"):  # 어제 이야기(D77)·오늘의 안부에 한 답 — 사진 이야기가 아니다
                 continue
             if confidence is not None and confidence < WEEKLY_STT_MIN:  # 잘못 들은 말을 가족에게 전하지 않는다
                 continue

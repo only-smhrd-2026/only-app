@@ -109,6 +109,12 @@ MOOD_CHECK_HARD_MIN = 10  # 답 합이 이 이상이면 HARD '많이 힘드신 �
 URGENT_REMIND_MIN = 30  # 위급 알림에 [제가 연락했어요]가 이 분 동안 없으면 가족에게 한 번 더 알린다 (11/19 응급)
 URGENT_SHOW_HOURS = 24  # 가족 홈 긴급 카드가 보이는 시간 — 확인한 뒤에도 '○○님이 연락했어요'로 이만큼 남는다
 URGENT_CHECK_EVERY_MIN = 5  # 위 '한 번 더 알림'을 살피는 예약 작업 간격
+CARE_BASE_DAYS = 14  # 돌봄 루프가 '평소'로 보는 날수 — 오늘 전 이만큼의 기록과 견준다 (11/19)
+CARE_BASE_MIN_DAYS = 5  # 말수 비교는 이야기한 날이 이만큼 쌓인 뒤부터 (처음 며칠은 평소를 모른다)
+CARE_TALK_DOWN = 0.6  # 어제 한마디 길이가 평소 평균의 이 비율보다 짧으면 '말수가 줄었어요'
+CARE_ASK_GAP_DAYS = 2  # 같은 안부는 이 날수에 한 번 — 어제 여쭌 안부는 오늘 쉰다
+CARE_ASK_MAX = 3  # 같은 안부는 평소 기간 안에 이만큼까지만 여쭌다
+CARE_KEEP_DAYS = 90  # 돌봄 일지 보관 날수 — 지나면 지운다
 
 
 class Settings(BaseSettings):

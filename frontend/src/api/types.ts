@@ -192,6 +192,18 @@ export type MoodCheckOut = { check_date: string; level: 'USUAL' | 'DOWN' | 'HARD
 export type MoodWeekOut = { days: MoodDayOut[]; talked_days: number; low_days: number; last_check: MoodCheckOut | null } // days 는 7칸, 오래된 날 → 오늘
 export type MoodCheckDueOut = { due: boolean } // 어르신 홈 마음 체크 초대 (D56)
 export type MoodCheckIn = { answers: number[] } // 8칸, 문항 순서대로 0~3
+// 마음 체크 저장 응답. say = 어르신께 드리는 끝 인사 한마디('잠이 편치 않은 날이 많으셨군요. …') — null 이면 평소 인사
+export type MoodCheckSavedOut = { ok: boolean; say: string | null }
+// 가족 홈 돌봄 일지 (backend/app/schemas/care.py, 11/19 돌봄 루프). 문장은 서버가 만든다 — 어르신 말 원문·점수 없음
+export type CareDayOut = {
+  date: string
+  level: 'WATCH' | 'CARE' // 지켜봄 / 주의
+  heard: string | null // 들은 것
+  did: string | null // 한 일
+  reaction: string | null // 어르신 답
+  notes: string[] // 그 밖에 달라진 점
+}
+export type CareOut = { days: CareDayOut[] } // 새 날부터, 최근 7일 가운데 살핀 것이 있는 날만
 export type IllustrationType = 'PHOTO' | 'AI_DRAWING' | 'NONE'
 export type DraftOut = {
   session_id: string

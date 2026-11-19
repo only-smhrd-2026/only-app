@@ -1,13 +1,14 @@
 /**
  * ELDER_MOOD_002 — 마음 체크 8문항 (D56·D66). 한 번에 하나씩 읽어 주고 보기 4개로 답한다.
- * 끝에는 고맙다는 말만 — 결과·점수는 어르신께 보이지 않는다(가족 홈 마음 카드에 3단계 문장으로만).
+ * 끝에는 서버가 준 한마디 — 높게 답한 문항 하나를 쉬운 말로 받아 드리고 고맙다고 한다(11/18 멘토링 '본인도 알 수 있게').
+ * 점수·단계 이름은 어르신께 보이지 않는다(가족 홈 마음 카드에 3단계 문장으로만). 한마디가 없으면 평소 인사.
  * 답은 8개를 다 골라야 서버에 간다. 도중에 나가면 저장하지 않는다(다음 날 홈에서 다시 권한다).
  * 문항·보기 글은 lib/moodCheck.ts 한 곳 — 바꾸면 mp3 도 다시 만든다.
  */
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { MoodCheckIn } from '../../api/types'
+import type { MoodCheckIn, MoodCheckSavedOut } from '../../api/types'
 import { useLive, type ElderNavState } from '../../hooks/useElderSession'
 import { say, stopSpeaking } from '../../lib/audio'
 import { MOOD_ANSWERS, MOOD_ITEMS, MOOD_PROMPT } from '../../lib/moodCheck'
@@ -23,16 +24,17 @@ export default function ELDER_MOOD_002() {
   const [step, setStep] = useState<'asking' | 'saving' | 'failed' | 'done'>('asking')
   const [error, setError] = useState<string>()
   const [saying, setSaying] = useState(false)
+  const [thanks, setThanks] = useState<string>(MOOD_PROMPT.moodThanks) // 끝 인사 — 서버가 한마디를 주면 그것으로
   const sayingTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const tappedAt = useRef(0)
   const k = answers.length
   const item = MOOD_ITEMS[k] as string | undefined // 8개를 다 답하면 undefined
 
   useEffect(() => {
-    if (step === 'done') void say(MOOD_PROMPT.moodThanks, speed)
+    if (step === 'done') void say(thanks, speed)
     else if (step === 'asking' && item) void say(item, speed) // 읽는 중에 답하면 끊기고 다음 문항을 읽는다
     return () => stopSpeaking()
-  }, [item, step, speed])
+  }, [item, step, speed, thanks])
 
   useEffect(() => () => clearTimeout(sayingTimer.current), [])
 
@@ -48,8 +50,10 @@ export default function ELDER_MOOD_002() {
     setError(undefined)
     try {
       const body: MoodCheckIn = { answers: all }
-      await api('/api/elder/mood-check', { body })
-      if (live.current) setStep('done')
+      const saved = await api<MoodCheckSavedOut>('/api/elder/mood-check', { body })
+      if (!live.current) return
+      setThanks(saved.say ?? MOOD_PROMPT.moodThanks)
+      setStep('done')
     } catch (e) {
       if (!live.current) return
       const text = e instanceof ApiError ? e.message : '연결이 잠깐 끊겼어요. 다시 해 주세요.'
@@ -84,7 +88,7 @@ export default function ELDER_MOOD_002() {
     <main className="elder elder--fit">
       {step === 'done' ? (
         <>
-          {paper(MOOD_PROMPT.moodThanks)}
+          {paper(thanks)}
           <button className="elder-btn elder-bottom" onClick={() => nav('/elder', { replace: true })}>홈으로</button>
         </>
       ) : step === 'asking' && item ? (

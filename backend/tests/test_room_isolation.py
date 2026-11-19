@@ -32,6 +32,7 @@ CASES = [
     ("GET", "/rooms/{room_id}/weekly", None),
     ("GET", "/rooms/{room_id}/mood-week", None),
     ("GET", "/rooms/{room_id}/alert", None),
+    ("GET", "/rooms/{room_id}/care", None),
     ("POST", "/rooms/{room_id}/alerts/{alert_id}/ack", None),
     ("PATCH", "/rooms/{room_id}/integration", {"integration_scope": "NONE"}),
     ("GET", "/diaries/{diary_id}", None),

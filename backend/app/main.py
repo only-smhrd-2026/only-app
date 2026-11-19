@@ -14,6 +14,7 @@ from app.errors import install_handlers
 from app.routers import (
     alerts,
     auth,
+    care,
     devices,
     diaries,
     elder,
@@ -83,6 +84,7 @@ for r in (
     notifications.router,
     mood.router,
     alerts.router,
+    care.router,
     weekly.router,
     *stubs.routers,
 ):
