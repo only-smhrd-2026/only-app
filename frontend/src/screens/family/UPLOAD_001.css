@@ -17,6 +17,12 @@
 .up-rm { position: absolute; top: 0; right: 0; width: 44px; height: 44px; padding: 9px; border: 0; border-radius: 999px; display: grid; place-items: center; background: rgba(31,27,46,.62); background-clip: content-box; color: #fff; font-size: 18px; line-height: 1; cursor: pointer; }
 .up-rm:focus-visible { outline-offset: -9px; } /* 키보드 포커스 테두리를 보이는 동그라미에 맞춘다(안 하면 44px 둘레에 그려져 사진 칸 모서리에서 잘림) */
 
+/* 사진첩 (11/19) — 고르기 칸 아래, 지금 보는 가족방에 올라와 있는 사진. 칸은 위 .upload-grid 그대로 */
+.up-album h2 { display: flex; align-items: baseline; gap: 6px; margin: 22px 0 10px; font-size: 17px; font-weight: 800; }
+.up-album h2 small { color: var(--text-3); font-size: 15px; font-weight: 500; }
+.up-album a { display: block; height: 100%; }
+.up-album .fam-text-btn { display: inline-block; margin-top: 4px; padding-left: 0; }
+
 /* 이 화면에서는 격자를 화면 양옆 여백 안에 */
 .up-grid { padding: 0 var(--gut); }
 .up-grid .upload-grid { margin: 0; }
