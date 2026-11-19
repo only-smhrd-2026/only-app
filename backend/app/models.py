@@ -1,4 +1,4 @@
-"""db/schema.sql 의 거울 (D1). 테이블 13개. schema.sql 을 바꾸면 여기도 같이 바꾼다.
+"""db/schema.sql 의 거울 (D1). 테이블 16개. schema.sql 을 바꾸면 여기도 같이 바꾼다.
 
 CHECK 제약·인덱스는 DB(schema.sql)가 원천이라 여기서는 반복하지 않는다. 컬럼·NULL·UNIQUE·FK·기본값만 맞춘다.
 """

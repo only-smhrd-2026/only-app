@@ -20,7 +20,7 @@ only-app/
 │   ├── app/main.py           FastAPI 앱, 라우터 등록, lifespan(스케줄러)
 │   ├── app/config.py         .env 설정 1곳, 시간대 KST, 상한 상수
 │   ├── app/db.py             SQLAlchemy 엔진 (접속마다 timezone=Asia/Seoul)
-│   ├── app/models.py         테이블 13개 (db/schema.sql 의 거울)
+│   ├── app/models.py         테이블 16개 (db/schema.sql 의 거울)
 │   ├── app/deps.py           current_user / current_device / require_member
 │   ├── app/security.py       bcrypt, JWT, 토큰 해시, 쿠키, 로그인 속도 제한
 │   ├── app/errors.py         오류 형식 {detail, code}
