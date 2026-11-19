@@ -230,3 +230,7 @@ export type FamilyAskIn = { text: string } // 가족이 쓴 말 1~200자
 export type FamilyAskOut = { question: string } // 질문 1개 (AI 가 실패하면 고정 질문)
 export type FamilyDraftIn = { text: string; question?: string; answer?: string } // 답은 비워도 됨 → 쓴 말만으로
 export type FamilyDraftOut = { body: string } // 존댓말 1인칭 3~5문장 → 가족이 고친 뒤 POST /rooms/{id}/diaries
+// ---- 웹 푸시 (backend/app/schemas/push.py) — lib/push.ts 가 쓴다
+// GET /api/push/key → PushKeyOut. 구독 등록 POST /api/push/subscribe(가족)·/api/elder/push/subscribe(어르신 기기)는
+// 브라우저의 PushSubscription.toJSON() 을 그대로 보낸다. 끄기 POST /api/push/unsubscribe { endpoint }. 셋 다 { ok: true }
+export type PushKeyOut = { public_key: string | null } // null = 이 서버는 푸시를 안 쓴다 → 알림 카드를 숨긴다

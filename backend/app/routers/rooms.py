@@ -24,6 +24,7 @@ from app.schemas.rooms import (
     RoomSettingsIn,
 )
 from app.security import new_token, sha256_hex
+from app.services import push
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
@@ -191,6 +192,7 @@ def revoke_device(room_id: int, user: CurrentUser, db: DB):
         room.device_push_token = None
         room.device_connected_at = None
         room.device_last_seen_at = None
+        push.forget_room(db, room_id)  # 풀린 기기로는 시간 알림(푸시)도 보내지 않는다
         db.commit()
     return OkOut()
 

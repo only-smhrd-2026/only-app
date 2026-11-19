@@ -11,7 +11,7 @@ dependencies = [
     "pydantic>=2.9",
     "pydantic-settings>=2.5",
     "python-multipart>=0.0.12",
-    "pyjwt>=2.9",
+    "pyjwt[crypto]>=2.9",  # [crypto] = cryptography — 웹 푸시 VAPID(ES256)·본문 암호화(app/services/push.py)
     "bcrypt>=4.2",
     "apscheduler>=3.10,<4",
     "pillow>=10.4",

@@ -1,6 +1,7 @@
 """예약 작업 틀 (D9). APScheduler in-process, 시간대 Asia/Seoul 고정. 세 함수의 본문은 담당자가 채운다.
 
 - 매시 정각 가족방별 memory_time 기준 오늘의 한 장 선정 — 홈에서도 보정한다 (D9).
+- 매시 1분 추억 알림 — 오늘의 한 장을 아직 안 본 어르신 기기에 푸시 (FR-NT-002, services/push.py). 일기 알림도 푸시로
 - 19:00 일기 알림 (천주웅)
 - 19:00 이틀째 기록 없음 가족 알림 (천주웅) — 기록 = 어르신이 말한 대화(models.ELDER_SPOKE)·어르신 일기
 - 일요일 19:00 주간 요약 (배선 천주웅, 요약 AI 홍진성)
@@ -23,6 +24,7 @@ from app.ai.weekly import summarize
 from app.config import (
     CLASSIFY_EVERY_MIN,
     DAILY_ALERT_HOUR,
+    MEMORY_REMINDER_HOURS,
     NO_RECORD_DAYS,
     STORY_HOUR,
     TZ,
@@ -33,7 +35,7 @@ from app.config import (
 from app.db import SessionLocal
 from app.models import ELDER_SPOKE, DailyPick, Diary, FamilyRoom, Notification, TalkSession, WeeklySummary
 from app.routers.devices import notify_family
-from app.services import picks, weekly
+from app.services import picks, push, weekly
 
 log = logging.getLogger("app.jobs")
 scheduler = BackgroundScheduler(timezone=TZ)
@@ -98,8 +100,55 @@ def diary_reminders() -> None:
                     sent_at=now,
                 )
             )
+            # 푸시는 일기 시간 뒤 MEMORY_REMINDER_HOURS 안에만 — 밤에 서버를 다시 띄울 때(기동 보정 catch_up)
+            # 어르신 폰이 뒤늦게 울리지 않게. 앱 안 알림 줄은 그대로 만든다
+            if now.hour < DAILY_ALERT_HOUR + MEMORY_REMINDER_HOURS:
+                push.queue_elder(db, room.room_id, "DIARY_REMINDER")
         db.commit()
     log.info("job diary_reminders rooms=%d", len(rooms))
+
+
+def memory_reminders() -> None:
+    """추억 시간이 지난 연결된 가족방에 오늘의 한 장이 아직 그대로면(PENDING) 알림을 하루 한 번 만들고 푸시한다.
+
+    이야기를 마쳤거나(COMPLETED) 건너뛴(SKIPPED) 날은 보내지 않는다. 일기 알림과 합쳐 어르신 푸시는 하루 최대 2건.
+    추억 시간 뒤 MEMORY_REMINDER_HOURS 안에만 보낸다 — 그때를 놓친 날(서버가 꺼져 있었음)은 밤에 뒤늦게 울리지 않는다.
+    (FR-NT-002)
+    """
+    now = now_kst()
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    since = max(day_start, now - timedelta(hours=MEMORY_REMINDER_HOURS)).time()
+    with SessionLocal() as db:
+        waiting = select(DailyPick.room_id).where(DailyPick.pick_date == now.date(), DailyPick.status == "PENDING")
+        reminded_today = select(Notification.room_id).where(
+            Notification.kind == "MEMORY_REMINDER", Notification.sent_at >= day_start
+        )
+        rooms = db.scalars(
+            select(FamilyRoom)
+            .where(
+                FamilyRoom.status == "ACTIVE",
+                FamilyRoom.device_token_hash.is_not(None),
+                FamilyRoom.memory_time <= now.time(),
+                FamilyRoom.memory_time >= since,
+                FamilyRoom.room_id.in_(waiting),
+                FamilyRoom.room_id.not_in(reminded_today),
+            )
+            .order_by(FamilyRoom.room_id)
+        ).all()
+        for room in rooms:
+            db.add(
+                Notification(
+                    room_id=room.room_id,
+                    target_type="ELDER",
+                    kind="MEMORY_REMINDER",
+                    title=f"{room.elder_name} {room.elder_honorific}, 오늘의 한 장이 기다리고 있어요",
+                    link_screen="ELDER_TODAY_001",
+                    sent_at=now,
+                )
+            )
+            push.queue_elder(db, room.room_id, "MEMORY_REMINDER")
+        db.commit()
+    log.info("job memory_reminders rooms=%d", len(rooms))
 
 
 def no_record_alerts() -> None:
@@ -247,6 +296,10 @@ def catch_up() -> None:
 def start() -> None:
     scheduler.add_job(
         select_daily_picks, CronTrigger(minute=0, timezone=TZ), id="select_daily_picks", replace_existing=True
+    )
+    # 매시 1분: 정각에 고른 오늘의 한 장이 있어야 알림이 가므로 사진 고르기(정각) 바로 뒤에 돈다
+    scheduler.add_job(
+        memory_reminders, CronTrigger(minute=1, timezone=TZ), id="memory_reminders", replace_existing=True
     )
     scheduler.add_job(
         diary_reminders,

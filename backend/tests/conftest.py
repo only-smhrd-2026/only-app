@@ -54,6 +54,15 @@ def isolate_login_rate(monkeypatch):
     monkeypatch.setattr(security, "_account_failures", OrderedDict())
 
 
+@pytest.fixture(autouse=True)
+def no_push(monkeypatch):
+    """.env 에 VAPID 키가 있어도 테스트는 푸시를 보내지 않는다(키 없음 = 안 보냄). 푸시 테스트만 키를 따로 넣는다."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "VAPID_PUBLIC_KEY", "")
+    monkeypatch.setattr(settings, "VAPID_PRIVATE_KEY", "")
+
+
 @pytest.fixture(scope="session", autouse=True)
 def schema():
     with engine.begin() as conn:

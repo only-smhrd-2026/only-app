@@ -285,3 +285,17 @@ CREATE TABLE mood_checks (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT uq_mood_checks_room_id_check_date UNIQUE (room_id, check_date)   -- 같은 날 두 번 보내도 1줄
 );
+
+-- 14. 웹 푸시 구독 (11/19, FR-NT-002·003). 한 줄 = 알림을 받는 브라우저 하나.
+--     어르신 기기는 room_id(가족방당 1줄 — 새 기기 연결·해제 때 지움), 가족은 user_id(쓰는 브라우저마다 1줄).
+--     같은 브라우저(endpoint)가 다시 등록하면 그 줄의 주인을 바꾼다. family_rooms.device_push_token 은 쓰지 않는다.
+CREATE TABLE push_subscriptions (
+    subscription_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    room_id BIGINT REFERENCES family_rooms(room_id),
+    user_id BIGINT REFERENCES users(user_id),
+    endpoint VARCHAR(1000) NOT NULL UNIQUE,                        -- 브라우저 푸시 서비스 주소(FCM·애플·모질라). 허용 목록은 서버 코드가 검사
+    p256dh VARCHAR(200) NOT NULL,                                  -- 브라우저 공개 키 (base64url) — 본문 암호화용
+    auth VARCHAR(50) NOT NULL,                                     -- 브라우저 인증 비밀 (base64url)
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),                 -- 마지막으로 등록한 때
+    CONSTRAINT ck_push_subscriptions_owner CHECK ((room_id IS NULL) <> (user_id IS NULL))
+);

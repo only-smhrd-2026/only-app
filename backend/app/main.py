@@ -24,6 +24,7 @@ from app.routers import (
     mood,
     notifications,
     photos,
+    push,
     rooms,
     sessions,
     stt,
@@ -85,6 +86,7 @@ for r in (
     mood.router,
     weekly.router,
     integration.router,
+    push.router,
 ):
     api.include_router(r)
 

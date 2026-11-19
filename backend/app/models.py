@@ -286,3 +286,16 @@ class MoodCheck(Base):
     total: Mapped[int] = mapped_column(SmallInteger)  # 0~24. 화면에 점수를 보이지 않는다 (NFR-DE-003)
     level: Mapped[str] = mapped_column(String(5))  # USUAL | DOWN | HARD
     created_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
+
+
+class PushSubscription(Base):
+    """웹 푸시 구독 — 한 줄 = 알림을 받는 브라우저 하나. 어르신 기기는 room_id, 가족은 user_id (둘 중 하나만)."""
+
+    __tablename__ = "push_subscriptions"
+    subscription_id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    room_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("family_rooms.room_id"))
+    user_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.user_id"))
+    endpoint: Mapped[str] = mapped_column(String(1000), unique=True)  # 푸시 서비스 주소. 로그에 남기지 않는다 (D15)
+    p256dh: Mapped[str] = mapped_column(String(200))  # 브라우저 공개 키 (base64url)
+    auth: Mapped[str] = mapped_column(String(50))  # 브라우저 인증 비밀 (base64url)
+    created_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)  # 마지막으로 등록한 때
