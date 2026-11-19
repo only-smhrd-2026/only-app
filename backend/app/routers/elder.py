@@ -154,7 +154,7 @@ def home(device: CurrentDevice, db: DB):
         elder_name=room.elder_name,
         elder_honorific=room.elder_honorific,
         today_pick=today_pick,
-        # 못 들은 가족 이모지가 있으면 몇 개든 소식 1건 — 하트만 온 날에도 가족 소식에 들어갈 계기가 생긴다 (D63)
+        # 못 들은 가족 이모지·한마디가 있으면 몇 개든 소식 1건 — 하트만 온 날에도 가족 소식에 들어갈 계기가 생긴다 (D63)
         unread_family_news=(unread or 0) + (1 if unheard_hearts(db, room.room_id) else 0),
         settings=ElderSettingsOut(
             font_size=room.font_size,

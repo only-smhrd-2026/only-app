@@ -1,10 +1,13 @@
 """일기 API 계약 (FR-DI-003~005, FR-FD-001, D36). 모양을 바꾸면 김승희(화면)를 리뷰어로."""
 
+import re
 import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import AwareDatetime, BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field, field_validator
+
+from app.config import REPLY_MAX
 
 Mood = Literal["GOOD", "SO_SO", "UPSET", "LONELY"]  # 좋았어요·그저 그랬어요·속상했어요·쓸쓸했어요 (D75)
 IllustrationType = Literal["PHOTO", "AI_DRAWING", "NONE"]
@@ -52,12 +55,26 @@ class ElderLikeIn(BaseModel):
     on: bool
 
 
+class ReplyIn(BaseModel):
+    """가족이 어르신 일기에 남기는 한마디 (11/19). 한 줄로 만든 뒤(줄바꿈·제어 문자 → 빈칸, 앞뒤 빈칸 뗌) 1~40자."""
+
+    text: str = Field(min_length=1, max_length=REPLY_MAX)
+
+    @field_validator("text", mode="before")
+    @classmethod
+    def _one_line(cls, value):
+        # 어르신께 한 문장으로 읽어 드리는 글. NUL 은 DB(JSONB)가 거부해 500 이 난다 — 여기서 빈칸으로
+        return " ".join(re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", value).split()) if isinstance(value, str) else value
+
+
 class ReactionOut(BaseModel):
     by: Literal["ELDER", "FAMILY"]
-    kind: Literal["LIKE", "HEART", "SMILE", "CLAP"]
+    kind: Literal["LIKE", "HEART", "SMILE", "CLAP", "REPLY"]  # REPLY = 가족 한마디 (이모지와 따로 한 사람 1칸)
     user_id: int | None = None  # 가족만
     name: str | None = None  # 가족만 — 가족방 별명, 없으면 이름. 응답에만 있다 (DB 에는 user_id 만)
     at: datetime
+    # REPLY 칸의 글. 다른 칸은 응답에 text 키를 싣지 않는다 (DB 칸과 같이 — 값 없는 키는 안 넣음)
+    text: str | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class DiaryOut(BaseModel):
@@ -77,7 +94,7 @@ class DiaryOut(BaseModel):
     read_by_elder: bool  # 어르신이 들었는지 (가족 일기용, FR-FD-004)
     read_by_me: bool  # 지금 보는 사람이 봤는지(내가 쓴 것은 true). 가족 홈 '새 일기 N개' 한 줄 (D36)
     # 리액션 (D54). 누른 사람마다 1칸 — 가족 HEART·SMILE·CLAP 은 어르신 일기에, 어르신 LIKE 는 가족 일기에.
-    # name 은 응답에만 있다
+    # 가족 한마디 REPLY 는 이모지와 따로 한 사람 1칸(어르신 일기에), 이모지 칸들 뒤에 온다. name 은 응답에만 있다
     reactions: list[ReactionOut]
 
 
@@ -87,20 +104,24 @@ class DiaryListOut(BaseModel):
 
 
 class HeartOut(BaseModel):
-    """어르신이 아직 못 들은 가족 이모지 한 개 — 가족 소식 첫 장 '하트가 왔어요' (D63)."""
+    """어르신이 아직 못 들은 가족 이모지·한마디 한 개 — 가족 소식 첫 장 '하트가 왔어요' (D63, 한마디는 11/19)."""
 
     diary_id: int  # 어르신이 쓴 어느 일기에 보냈는지
-    kind: Literal["HEART", "SMILE", "CLAP"]
+    kind: Literal["HEART", "SMILE", "CLAP", "REPLY"]
     name: str | None  # 보낸 가족의 가족방 별명, 없으면 이름
     at: datetime
+    # REPLY 의 글 — 화면이 "큰딸이 ‘…’래요."로 읽는다. 이모지 칸은 text 키를 싣지 않는다
+    text: str | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class FamilyNewsOut(DiaryListOut):
-    """어르신 가족 소식 (GET /elder/family-news): 안 들은 가족 일기 + 아직 못 들은 가족 이모지(받은 순서)."""
+    """어르신 가족 소식 (GET /elder/family-news): 안 들은 가족 일기 + 아직 못 들은 가족 이모지·한마디(받은 순서).
+
+    ?again=1 이면 이미 들은 가족 일기 최근 몇 개(지난 소식 다시 듣기) — 이때 hearts 는 빈 목록."""
 
     hearts: list[HeartOut]
 
 
 class HeartsHeardIn(BaseModel):
-    # 읽어 드린 마지막 하트의 at. 그 뒤에 온 하트는 다음에 읽어 드린다. 시간대 없는 시각은 422
+    # 읽어 드린 마지막 하트·한마디의 at. 그 뒤에 온 것은 다음에 읽어 드린다. 시간대 없는 시각은 422
     until: AwareDatetime

@@ -2,8 +2,10 @@
  * ELDER_FAMILY_001 — 아직 듣지 않은 가족 일기를 한 장씩 읽는다 (FR-FD-003·004, D53).
  * 가족이 내 일기에 보낸 하트·웃음·박수가 있으면 첫 장 '하트가 왔어요'로 먼저 알려 준다 (D63·D64).
  * 가족 일기마다 [좋아요] 하나 — 안 눌러도 넘어간다 (D54). 사진은 자르지 않고 ElderPhoto 로(누르면 크게, D60).
+ * 가족이 내 일기에 남긴 한마디도 첫 장에서 "큰딸이 ‘…’래요."로 읽는다. 새 소식이 없으면 [지난 소식 다시 듣기] —
+ * 들은 가족 일기 최근 5개를 같은 방식으로 다시 읽고, 읽음 표시는 바꾸지 않는다 (11/19).
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { FamilyNewsOut, Heart } from '../../api/types'
@@ -15,6 +17,9 @@ import './ELDER_FAMILY_001.css'
 
 const KIND_WORD = { HEART: '하트', SMILE: '웃음', CLAP: '박수' } as const
 const MAX_HEART_LINES = 4 // 한 화면(384×700)에 들어가는 줄 수
+// 새 소식이 없을 때. 들은 가족 일기가 있으면 둘째 문장과 [지난 소식 다시 듣기]를 같이 보이고 읽는다 (11/19)
+const NO_NEWS = '오늘은 새 소식이 없어요.'
+const AGAIN_GUIDE = '지난 소식 다시 듣기를 누르면 다시 읽어 드려요.'
 
 /** 받침이 있으면 앞의 조사, 없으면 뒤의 조사 — '큰딸이'·'손주가', '웃음을'·'하트를' */
 function josa(word: string, withFinal: string, without: string) {
@@ -26,6 +31,7 @@ function josa(word: string, withFinal: string, without: string) {
 function heartLines(hearts: Heart[]): string[] {
   const byWho = new Map<string, string[]>()
   for (const heart of hearts) {
+    if (heart.kind === 'REPLY') continue // 한마디는 replyLines 가 따로 만든다
     const who = heart.name || '가족'
     const words = byWho.get(who) ?? []
     if (!words.includes(KIND_WORD[heart.kind])) words.push(KIND_WORD[heart.kind])
@@ -40,6 +46,16 @@ function heartLines(hearts: Heart[]): string[] {
   return [...shown, `다른 가족 ${lines.length - shown.length}명도 보냈어요.`]
 }
 
+/** 받은 한마디 → 하나에 한 줄 "큰딸이 ‘엄마 김치 최고’래요." 받침은 글 끝의 느낌표·이모지를 건너뛰고 마지막 한글로 본다 */
+function replyLines(hearts: Heart[]): string[] {
+  return hearts.flatMap((heart) => {
+    if (heart.kind !== 'REPLY' || !heart.text) return []
+    const who = heart.name || '가족'
+    const tail = heart.text.replace(/[^가-힣]+$/, '')
+    return [`${who}${josa(who, '이', '가')} ‘${heart.text}’${josa(tail, '이래요', '래요')}.`]
+  })
+}
+
 const speaker = (
   <svg className="elder-spk" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M4 9.5v5h3.2L12 18.5v-13L7.2 9.5z" />
@@ -52,8 +68,8 @@ const heartIcon = (
   </svg>
 )
 
-/** 긴 가족 소식도 글자 크기를 유지하며 한 화면 안에서 쪽을 넘겨 읽는다. */
-function FamilyPaper({ body, saying, onRead }: { body: string; saying: boolean; onRead: () => void }) {
+/** 긴 가족 소식도 글자 크기를 유지하며 한 화면 안에서 쪽을 넘겨 읽는다. children 을 주면 body 대신 그것을 보인다(첫 장의 줄들). */
+function FamilyPaper({ body, saying, onRead, children }: { body: string; saying: boolean; onRead: () => void; children?: ReactNode }) {
   const text = useRef<HTMLSpanElement>(null)
   const [page, setPage] = useState(0)
   const [count, setCount] = useState(1)
@@ -82,7 +98,7 @@ function FamilyPaper({ body, saying, onRead }: { body: string; saying: boolean; 
     <div className="family-reading">
       <button type="button" className={`elder-paper family-paper${saying ? ' elder-saying' : ''}`} onClick={onRead}>
         <span className="family-paper-window">
-          <span ref={text} className="family-paper-pages" style={{ transform: `translateX(-${page * 100}%)` }}>{body}</span>
+          <span ref={text} className="family-paper-pages" style={{ transform: `translateX(-${page * 100}%)` }}>{children ?? body}</span>
         </span>
         {speaker}
       </button>
@@ -102,6 +118,10 @@ export default function ELDER_FAMILY_001() {
   const { home } = (useLocation().state ?? {}) as ElderNavState
   const speed = Number(home?.settings.tts_speed) || 0.9
   const { data, error, loading, reload } = useFetch<FamilyNewsOut>('/api/elder/family-news')
+  // 새 소식이 없을 때만 지난 소식(들은 가족 일기 최근 5개)을 받아 둔다 — 있으면 [지난 소식 다시 듣기]를 보인다
+  const empty = !!data && !data.diaries.length && !data.hearts.length
+  const past = useFetch<FamilyNewsOut>(empty ? '/api/elder/family-news?again=1' : null)
+  const [again, setAgain] = useState(false)
   const live = useLive()
   const [index, setIndex] = useState(0)
   const [heartsHeard, setHeartsHeard] = useState(false)
@@ -112,17 +132,24 @@ export default function ELDER_FAMILY_001() {
   const reading = useRef(false)
   const sayingTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const hearts = !heartsHeard && data?.hearts.length ? data.hearts : undefined
-  const lines = hearts ? heartLines(hearts) : []
+  // 이모지 줄 다음에 한마디 줄. 같은 줄(같은 사람이 일기 두 편에 같은 한마디)은 한 번만 읽는다
+  const lines = hearts ? [...new Set([...heartLines(hearts), ...replyLines(hearts)])] : []
   const heartsText = lines.join(' ')
-  const diary = hearts ? undefined : data?.diaries[index]
+  const heartsTitle = hearts?.every((heart) => heart.kind === 'REPLY') ? '한마디가 왔어요' : '하트가 왔어요'
+  // 지난 소식을 받는 동안은 '새 소식이 없어요'를 읽지 않는다 — 받은 뒤 문장이 바뀌면 두 번 읽게 된다
+  const waiting = loading || (empty && !past.data && !past.error)
+  const canAgain = !!past.data?.diaries.length
+  const news = again ? past.data : data
+  const diary = hearts ? undefined : news?.diaries[index]
   const sender = [diary?.author_nickname, diary?.author_name].filter(Boolean).join(' ') || '가족'
   const isLiked = diary ? (liked[diary.diary_id] ?? diary.reactions.some((r) => r.by === 'ELDER')) : false
   // 사진이 없는 가족 일기는 '사진 일기'라고 읽지 않는다 (D64)
-  const message = loading ? undefined : error
+  const message = waiting ? undefined : error
     ? error.code === 'DEVICE_REQUIRED' ? '가족이 보낸 연결 링크를 먼저 열어 주세요.' : error.message
-    : hearts ? `하트가 왔어요. ${heartsText}`
+    : hearts ? `${heartsTitle}. ${heartsText}`
       : diary ? `${sender}${josa(sender, '이', '가')} ${diary.illustration_url ? '사진 일기' : '일기'}를 보냈어요. 읽어 드릴게요. ${diary.body}`
-        : data ? '오늘은 새 소식이 없어요.' : undefined
+        : !data ? undefined
+          : canAgain ? `${NO_NEWS} ${AGAIN_GUIDE}` : NO_NEWS
 
   useEffect(() => {
     if (message) void speak(message, speed)
@@ -175,11 +202,17 @@ export default function ELDER_FAMILY_001() {
 
   function markRead() {
     if (!diary) return
-    void send(`/api/elder/diaries/${diary.diary_id}/read`, undefined, () => {
+    const next = () => {
       // 목록을 다시 읽으면 읽은 일기가 빠져 번호가 밀린다. 받은 목록에서 번호만 바꾼다.
-      if (index === data!.diaries.length - 1) nav('/elder', { replace: true })
+      if (index === news!.diaries.length - 1) nav('/elder', { replace: true })
       else setIndex((value) => value + 1)
-    })
+    }
+    if (again) {
+      // 다시 듣기는 읽음 표시를 바꾸지 않는다 — 서버에 적지 않고 넘긴다
+      clearTimeout(sayingTimer.current)
+      setSaying(false)
+      next()
+    } else void send(`/api/elder/diaries/${diary.diary_id}/read`, undefined, next)
   }
 
   async function toggleLike() {
@@ -200,7 +233,7 @@ export default function ELDER_FAMILY_001() {
 
   return (
     <main className="elder elder--fit elder-family">
-      {loading ? (
+      {waiting ? (
         <p className="elder-text" role="status">잠시만요…</p>
       ) : error ? (
         <>
@@ -209,11 +242,11 @@ export default function ELDER_FAMILY_001() {
         </>
       ) : hearts ? (
         <>
-          <p className="elder-text elder-text--lg elder-hearts-title">{heartIcon}하트가 왔어요</p>
-          <button type="button" className={`elder-paper${saying ? ' elder-saying' : ''}`} onClick={() => replay(heartsText)}>
-            <span>{lines.map((line) => <span key={line} className="elder-hearts-line">{line}</span>)}</span>
-            {speaker}
-          </button>
+          <p className="elder-text elder-text--lg elder-hearts-title">{heartIcon}{heartsTitle}</p>
+          {/* 한마디가 여럿이면 한 화면을 넘는다 — 가족 일기 글과 같이 쪽을 넘겨 읽는다 */}
+          <FamilyPaper body={heartsText} saying={saying} onRead={() => replay(heartsText)}>
+            {lines.map((line) => <span key={line} className="elder-hearts-line">{line}</span>)}
+          </FamilyPaper>
           {readError && <p className="elder-text" role="alert">{readError}</p>}
           <button className="elder-btn elder-bottom" disabled={busy} onClick={heardHearts}>
             {busy ? '잠시만요…' : data!.diaries.length ? '다음 소식' : '다 들었어요'}
@@ -221,7 +254,7 @@ export default function ELDER_FAMILY_001() {
         </>
       ) : diary ? (
         <>
-          <div className="elder-who"><span>{sender}</span><small>{index + 1} / {data!.diaries.length}</small></div>
+          <div className="elder-who"><span>{sender}</span><small>{index + 1} / {news!.diaries.length}</small></div>
           {diary.illustration_url && <ElderPhoto src={diary.illustration_url} alt="가족이 보낸 사진" />}
           <FamilyPaper key={diary.diary_id} body={diary.body} saying={saying} onRead={() => replay(diary.body)} />
           {readError && <p className="elder-text" role="alert">{readError}</p>}
@@ -230,14 +263,16 @@ export default function ELDER_FAMILY_001() {
               {heartIcon}<span>{isLiked ? '보냈어요' : '좋아요'}</span>
             </button>
             <button className="elder-btn" disabled={busy} onClick={markRead}>
-              {busy ? '잠시만요…' : index === data!.diaries.length - 1 ? '다 들었어요' : '다음 소식'}
+              {busy ? '잠시만요…' : index === news!.diaries.length - 1 ? '다 들었어요' : '다음 소식'}
             </button>
           </div>
         </>
       ) : data && (
         <>
-          <p className="elder-text">오늘은 새 소식이 없어요.</p>
-          <button className="elder-btn" onClick={() => nav('/elder', { replace: true })}>홈으로</button>
+          <p className="elder-text">{NO_NEWS}</p>
+          {canAgain && <p className="elder-text">{AGAIN_GUIDE}</p>}
+          {canAgain && <button className="elder-btn" onClick={() => setAgain(true)}>지난 소식 다시 듣기</button>}
+          <button className={`elder-btn${canAgain ? ' elder-btn--secondary' : ''}`} onClick={() => nav('/elder', { replace: true })}>홈으로</button>
         </>
       )}
     </main>
