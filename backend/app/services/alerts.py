@@ -37,7 +37,24 @@ def _who(room: FamilyRoom) -> str:
 
 
 def raise_alert(db: Session, room: FamilyRoom, session_id: uuid.UUID | None, kind: str) -> None:
-    """위급 1건: 긴급 카드용 줄 + 가족 모두에게 알림. 커밋은 호출자가 한다."""
+    """위급 1건: 긴급 카드용 줄 + 가족 모두에게 알림. 커밋은 호출자가 한다.
+
+    같은 방에 아직 아무도 확인하지 않은 같은 종류 알림이 URGENT_REMIND_MIN 분 안에 있으면 새로 만들지 않는다 —
+    어르신 기기에서 위급한 말을 되풀이해(대화를 새로 열어 가며) 가족 폰을 알림으로 뒤덮지 못하게 (11/19 보안 점검).
+    대화를 위급으로 마무리하는 것은 그대로이고, 그 알림이 계속 확인 안 되면 remind 가 한 번 더 알린다.
+    """
+    open_recent = db.scalar(
+        select(UrgentAlert.alert_id)
+        .where(
+            UrgentAlert.room_id == room.room_id,
+            UrgentAlert.kind == kind,
+            UrgentAlert.acked_at.is_(None),
+            UrgentAlert.created_at >= now_kst() - timedelta(minutes=URGENT_REMIND_MIN),
+        )
+        .limit(1)
+    )
+    if open_recent is not None:
+        return
     title, body = TEXTS[kind]
     db.add(UrgentAlert(room_id=room.room_id, session_id=session_id, kind=kind))
     notify_family(db, room.room_id, "MOOD_URGENT", title, body.format(who=_who(room)), "HOME_001")

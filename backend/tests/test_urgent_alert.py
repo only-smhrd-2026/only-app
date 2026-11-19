@@ -200,3 +200,21 @@ def test_body_words_close_a_diary_talk_without_ai_and_save_no_diary(client, monk
     assert [a.kind for a in _alerts(ctx["room_id"])] == ["BODY"]
     with SessionLocal() as db:  # 위급한 말이 그대로 일기가 되지 않는다
         assert db.scalar(select(Diary.diary_id).where(Diary.room_id == ctx["room_id"])) is None
+
+
+def test_repeated_urgent_words_do_not_flood_the_family(client):
+    """대화를 새로 열어 가며 위급한 말을 되풀이해도, 확인 안 된 같은 알림이 있는 30분 동안은 새로 알리지 않는다."""
+    ctx = setup_elder(client)
+    room_id = ctx["room_id"]
+    for _ in range(3):
+        out = _say(client, _start(client, ctx, kind="DIARY"), "방금 넘어져서 못 일어나겠어")
+        assert (out["state"], out["urgent"]) == ("ENDED", "BODY")  # 대화 마무리와 119 버튼은 매번 그대로
+    assert len(_alerts(room_id)) == 1 and len(_urgent_notes(room_id)) == 1
+    _say(client, _start(client, ctx, kind="DIARY"), "요즘은 정말 죽고 싶어요")  # 다른 종류(마음 위급)는 따로 알린다
+    assert [a.kind for a in _alerts(room_id)] == ["BODY", "MOOD"]
+    newest = client.get(f"/api/rooms/{room_id}/alert").json()
+    assert client.post(f"/api/rooms/{room_id}/alerts/{newest['alert_id']}/ack").status_code == 200
+    _say(
+        client, _start(client, ctx, kind="DIARY"), "방금 넘어져서 못 일어나겠어"
+    )  # 가족이 확인한 뒤의 새 위급은 다시 알린다
+    assert [a.kind for a in _alerts(room_id)] == ["BODY", "MOOD", "BODY"]

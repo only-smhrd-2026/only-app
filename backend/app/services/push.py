@@ -38,9 +38,8 @@ log = logging.getLogger("app.push")
 
 # 가족 알림 중 푸시로도 보내는 것 (FR-NT-003 일기·주간 이야기 + 11/19 마음 알림 2종). 나머지는 알림 목록에만
 FAMILY_KINDS = ("DIARY_POSTED", "WEEKLY_READY", "MOOD_URGENT", "MOOD_LOW_2D")
-# 마음 알림(위급·'전화 한 통 드려 보세요')의 body 는 대화 내용이 없는 고정 문장이라 푸시에도 싣는다 —
-# 제목만으로는 누구 이야기인지 알 수 없다. 급하게 전하는 것(Urgency high)은 위급뿐
-MOOD_KINDS = ("MOOD_URGENT", "MOOD_LOW_2D")
+# 푸시에는 어떤 알림이든 제목만 싣는다 — 마음 알림의 body 에는 어르신 이름과 '많이 힘드심·몸이 불편'이 들어 있어
+# 잠금 화면을 보는 남에게 그대로 보인다 (11/19 보안 점검). 누구 이야기인지는 눌러서 앱 안 긴급 카드·알림 목록에서 본다
 # 어르신 시간 알림 (FR-NT-002): 종류 → (폰에 뜨는 문장, 누르면 열리는 주소)
 ELDER_PUSH = {
     "MEMORY_REMINDER": ("오늘의 한 장이 기다리고 있어요", "/elder/today"),  # 홈 위에 오늘의 한 장 팝업
@@ -193,7 +192,7 @@ def queue_family(
 ) -> None:
     """가족 알림 1건을 그 가족들의 브라우저에 예약한다 — 푸시로 보내는 종류만 (routers/devices.notify_family 가 부른다).
 
-    일기 알림의 body 는 일기 글이라 넣지 않는다. 마음 알림(MOOD_KINDS)의 body 는 대화 내용이 없는 고정 문장이라 보낸다.
+    body 는 푸시에 넣지 않는다 — 일기 알림은 일기 글이고, 마음 알림은 어르신 이름과 상태가 들어 있다(잠금 화면).
     """
     if kind not in FAMILY_KINDS or not user_ids:
         return
@@ -203,8 +202,6 @@ def queue_family(
         "url": _FAMILY_URL.get(link or "", "/start").format(room_id=room_id),
         "tag": f"{kind}-{room_id}",
     }
-    if kind in MOOD_KINDS and body:
-        payload["body"] = body
     _queue(db, PushSubscription.user_id.in_(user_ids), payload, urgent=urgent)
 
 

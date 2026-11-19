@@ -8,10 +8,12 @@
 """
 
 import logging
+from datetime import timedelta
 
 from fastapi import APIRouter, Request, Response
 from sqlalchemy import delete, select, update
 
+from app.config import WITHDRAW_REAUTH_MIN, now_kst
 from app.deps import DB, CurrentUser
 from app.errors import ApiError
 from app.models import (
@@ -87,8 +89,13 @@ def withdraw(body: WithdrawIn, request: Request, response: Response, user: Curre
     # 비밀번호 확인 — 비밀번호 바꾸기(auth.change_password)와 같은 오류 코드·같은 실패 제한
     ip = request.client.host if request.client else "unknown"
     email = user.email
-    # 카카오로 가입한 회원은 비밀번호가 없다 — 로그인 쿠키와 화면의 확인 판으로만 받는다(비교할 것이 없음)
-    if user.password_hash is not None:
+    if user.password_hash is None:
+        # 다시 확인할 비밀번호가 없으니 '방금 카카오로 로그인했는지'로 갈음한다 — 오래된 로그인 쿠키(잃어버린 폰·
+        # 같이 쓰는 폰)만으로는 가족방을 지울 수 없게 (11/19 보안 점검)
+        fresh = user.last_login_at or user.created_at
+        if now_kst() - fresh > timedelta(minutes=WITHDRAW_REAUTH_MIN):
+            raise ApiError(403, "REAUTH_REQUIRED", "안전을 위해 카카오로 다시 로그인한 뒤 바로 탈퇴해 주세요")
+    else:
         # 이메일별 시도 칸을 비교 전에 먼저 잡는다(로그인과 같은 셈·같은 방식, security.reserve_login_attempt)
         if not login_allowed(ip) or (email and not reserve_login_attempt(email)):
             raise ApiError(429, "TOO_MANY_ATTEMPTS", "잠시 후 다시 시도해 주세요")

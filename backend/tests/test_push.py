@@ -367,9 +367,9 @@ def test_family_push_only_for_diary_weekly_and_urgent(client, outbox):
         _notify(room_id, kind, f"제목 {kind}", body=SECRET, link=links.get(kind, "HOME_001"))
     got = {phone.open(r)["tag"].split("-")[0]: (phone.open(r), r.headers) for r in outbox.sent}
     assert len(outbox.sent) == 4 and set(got) == set(links)
-    # '전화 한 통 드려 보세요'(기운 없는 날·마음 체크)는 고정 문장 body 와 함께, 급하게 전하지는 않는다 (11/19)
+    # '전화 한 통 드려 보세요'(기운 없는 날·마음 체크)도 제목만, 급하게 전하지는 않는다 (11/19)
     low, low_headers = got["MOOD_LOW_2D"]
-    assert low["body"] == SECRET and low_headers["urgency"] == "normal"
+    assert "body" not in low and low_headers["urgency"] == "normal"
 
     diary, headers = got["DIARY_POSTED"]  # 일기 알림의 body(일기 글)는 보내지 않는다 — 제목만
     assert diary == {"title": "제목 DIARY_POSTED", "url": f"/?room={room_id}", "tag": f"DIARY_POSTED-{room_id}"}
@@ -381,8 +381,8 @@ def test_family_push_only_for_diary_weekly_and_urgent(client, outbox):
     assert headers["authorization"].startswith("vapid t=")
     weekly, _ = got["WEEKLY_READY"]
     assert weekly == {"title": "제목 WEEKLY_READY", "url": f"/weekly/{room_id}", "tag": f"WEEKLY_READY-{room_id}"}
-    urgent, headers = got["MOOD_URGENT"]  # 위급 알림은 고정 문장 본문까지, 급하게
-    assert urgent["body"] == SECRET and urgent["url"] == f"/?room={room_id}" and headers["urgency"] == "high"
+    urgent, headers = got["MOOD_URGENT"]  # 위급 알림도 제목만(이름·상태는 잠금 화면에 안 보이게), 급하게
+    assert "body" not in urgent and urgent["url"] == f"/?room={room_id}" and headers["urgency"] == "high"
 
 
 def test_unknown_link_opens_the_app_start(client, outbox):
@@ -461,8 +461,7 @@ def test_risk_words_push_urgently_without_what_was_said(client, outbox):
     [request] = outbox.sent
     payload = phone.open(request)
     assert payload == {
-        "title": "지금 전화 한 통 드려 보세요",
-        "body": "순자 할머니께서 많이 힘드신 것 같아요. 무슨 말씀을 하셨는지는 전하지 않아요.",
+        "title": "지금 전화 한 통 드려 보세요",  # 이름·상태가 든 body 는 푸시에 싣지 않는다
         "url": f"/?room={ctx['room_id']}",
         "tag": f"MOOD_URGENT-{ctx['room_id']}",
     }

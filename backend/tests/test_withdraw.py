@@ -369,6 +369,17 @@ def test_kakao_member_withdraws_without_password_and_push_subscription_goes(clie
         endpoint = "https://fcm.googleapis.com/fcm/send/kakao-member"
         db.add(PushSubscription(user_id=user.user_id, endpoint=endpoint, p256dh="p", auth="a"))
         db.commit()
+    with (
+        SessionLocal() as db
+    ):  # 로그인한 지 오래된 쿠키로는 못 한다 — 비밀번호가 없으니 '방금 로그인'으로 갈음 (보안 점검)
+        user = db.get(User, me["user_id"])
+        user.created_at = user.last_login_at = now_kst() - timedelta(hours=1)
+        db.commit()
+    stale = client.post("/api/auth/withdraw", json={"transfers": []})
+    assert (stale.status_code, stale.json()["code"]) == (403, "REAUTH_REQUIRED")
+    with SessionLocal() as db:
+        db.get(User, me["user_id"]).last_login_at = now_kst()
+        db.commit()
     assert client.post("/api/auth/withdraw", json={"transfers": []}).status_code == 200
     with SessionLocal() as db:
         user = db.get(User, me["user_id"])
