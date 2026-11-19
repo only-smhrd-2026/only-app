@@ -140,7 +140,11 @@ def get_summary(
         mood_trend=[IntegrationMoodDay(date=day["date"], mood=day["mood"]) for day in summary.mood_trend],
         talk_volume_trend=[
             IntegrationTalkWeek(
-                week_start=start, words=volume["words"], turns=volume["turns"], avg_words=volume["avg_words"]
+                week_start=start,
+                # 옛 줄에 칸이 빠져 있어도 밖으로 500 을 내지 않는다
+                words=volume.get("words", 0),
+                turns=volume.get("turns", 0),
+                avg_words=volume.get("avg_words", 0),
             )
             for start, volume in trend
         ],
