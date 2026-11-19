@@ -8,6 +8,7 @@ import { api, ApiError } from '../../api/client'
 import type { DeviceOut, InviteStatusOut } from '../../api/types'
 import connectPreview from '../../assets/elder-connect-preview.svg'
 import { PROMPT, say, setVoice, speak, stopSpeaking } from '../../lib/audio'
+import { ELDER_PUSH, enablePush, pushKey, pushSupported } from '../../lib/push'
 import './ELDER_CONNECT_001.css'
 
 const VOICES = [
@@ -31,7 +32,7 @@ export default function ELDER_CONNECT_001() {
     : '이 링크는 더 쓸 수 없어요. 가족에게 새 링크를 받아 주세요.'
   const guidance = error ?? {
     invite: status ? inviteGuidance : undefined,
-    permissions: '안녕하세요, 저는 꼬마심심이예요. 마이크로 말씀을 들어요. 휴대폰에서 마이크 권한을 물으면 허용을 눌러 주세요. 허용하지 않아도 시작할 수 있어요.',
+    permissions: '안녕하세요, 저는 꼬마심심이예요. 마이크로 말씀을 들어요. 휴대폰에서 마이크와 알림 권한을 물으면 허용을 눌러 주세요. 허용하지 않아도 시작할 수 있어요.',
     voice: undefined,
   }[step]
 
@@ -88,7 +89,12 @@ export default function ELDER_CONNECT_001() {
       } catch {
         /* 거부해도 버튼 모드로 진행 */
       }
-      await api('/api/devices/me/permissions', { method: 'PATCH', body: { perm_mic } })
+      // 알림 — 허용하면 이 폰을 구독시켜 추억·일기 시간에 폰 알림(웹 푸시)을 받는다 (lib/push). 거부해도 진행.
+      // 푸시를 쓰는 서버·브라우저에서만 묻는다 — 아니면 칸을 비워(undefined) 전처럼 마이크만 알린다
+      const perm_notification = pushSupported() && (await pushKey())
+        ? (await enablePush(ELDER_PUSH).catch(() => 'off')) === 'on'
+        : undefined
+      await api('/api/devices/me/permissions', { method: 'PATCH', body: { perm_mic, perm_notification } })
       setStep('voice')
       setBusy(false)
     } catch (e) {
@@ -151,7 +157,7 @@ export default function ELDER_CONNECT_001() {
         <div className="elder-connect-permissions" aria-live="polite">
           <p className="elder-text elder-connect-bubble">안녕하세요,<br />저는 꼬마심심이예요.<br />마이크를 허락해 주세요.</p>
           <p className="elder-text elder-connect-mic">마이크로 말씀을 들어요.</p>
-          <p className="elder-text elder-connect-guide">휴대폰에서 마이크 권한을 물으면 ‘허용’을 눌러 주세요. 허용하지 않아도 시작할 수 있어요.</p>
+          <p className="elder-text elder-connect-guide">휴대폰에서 마이크와 알림 권한을 물으면 ‘허용’을 눌러 주세요. 허용하지 않아도 시작할 수 있어요.</p>
           {busy && <p className="elder-text" role="status">연결 중…</p>}
         </div>
       )}

@@ -15,6 +15,7 @@ import { setVoice, speak, stopSpeaking } from '../../lib/audio'
 import { moodSnoozed, snoozeMood } from '../../lib/moodCheck'
 import { setElderFont } from '../../lib/elderFont'
 import { readPaused, resumePath } from '../../lib/pausedSession'
+import { ELDER_PUSH, syncPush } from '../../lib/push'
 import ELDER_MOOD_001 from './ELDER_MOOD_001'
 import ELDER_TODAY_001 from './ELDER_TODAY_001'
 import './ELDER_HOME_001.css'
@@ -85,6 +86,7 @@ export default function ELDER_HOME_001() {
 
   useEffect(() => {
     if (serverHome) loadedDate.current = kstDate()
+    if (serverHome) void syncPush(ELDER_PUSH, true) // 알림을 허용해 둔 폰이면 조용히 푸시 구독(화면 변화 없음, lib/push)
   }, [serverHome])
 
   // 홈을 다시 읽고, 앞서 뜬 오류 문장과 대화 번호는 비운다

@@ -1,9 +1,11 @@
-/** NOTI_001 — 어르신별 알림 (FR-NT-003). */
-import { useState } from 'react'
+/** NOTI_001 — 어르신별 알림 (FR-NT-003). 맨 위 카드에서 폰 알림(웹 푸시)을 켜고 끈다. */
+import { useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
 import type { NotificationListOut, NotificationOut, RoomOut } from '../../api/types'
 import { useFetch } from '../../hooks/useFetch'
+import { getInstallState } from '../../lib/installPrompt'
+import { disablePush, enablePush, FAMILY_PUSH, pushKey, pushState, type PushState } from '../../lib/push'
 import './NOTI_001.css'
 
 const LINKS: Record<string, (roomId: number) => string> = {
@@ -23,6 +25,57 @@ function period(sentAt: string, today: string) {
   const monday = new Date(today + 'T00:00:00Z')
   monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7)
   return day >= monday.toISOString().slice(0, 10) && day < today ? '이번 주' : '이전'
+}
+
+/**
+ * 폰 알림(웹 푸시) 카드 — 일기·주간 이야기·위급 알림을 앱을 안 열어도 받게 이 브라우저를 켜고 끈다 (lib/push).
+ * 서버에 푸시 키가 없거나, 아이폰이 아닌데 푸시를 못 쓰는 브라우저면 아무것도 그리지 않는다.
+ */
+function PushCard() {
+  const [state, setState] = useState<PushState>()
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    let alive = true
+    void pushKey()
+      .then((key) => (key ? pushState() : undefined))
+      .then((s) => alive && setState(s), () => {})
+    return () => {
+      alive = false
+    }
+  }, [])
+  async function toggle() {
+    setBusy(true)
+    setFailed(false)
+    try {
+      if (state === 'on') {
+        await disablePush()
+        setState('off')
+      } else setState(await enablePush(FAMILY_PUSH))
+    } catch {
+      setFailed(true)
+    }
+    setBusy(false)
+  }
+  if (!state) return null
+  // 푸시를 못 쓰는 브라우저 중 안내할 것은 아이폰 탭뿐 — 아이폰은 홈 화면에 추가한 앱에서만 웹 푸시가 된다
+  if (state === 'unsupported' && (!/iPhone/i.test(navigator.userAgent) || getInstallState() === 'installed')) return null
+  const guide =
+    state === 'unsupported' ? '아이폰은 홈 화면에 추가한 앱에서만 알림을 받을 수 있어요'
+    : state === 'denied' ? '알림이 막혀 있어요. 폰 설정의 알림에서 하루한장을 허용해 주세요.'
+    : failed ? '알림 설정을 바꾸지 못했어요. 다시 눌러 주세요.'
+    : state === 'on' ? '폰 알림 켜짐'
+    : '일기가 도착하면 폰으로 알려 드려요'
+  return (
+    <section className="fam-card noti-push" aria-label="폰 알림">
+      <p role={failed ? 'alert' : undefined}>{guide}</p>
+      {(state === 'on' || state === 'off') && (
+        <button type="button" className={`fam-btn fam-btn--sm ${state === 'on' ? 'fam-btn--tonal' : 'fam-btn--primary'}`} onClick={toggle} disabled={busy}>
+          {state === 'on' ? '끄기' : '알림 켜기'}
+        </button>
+      )}
+    </section>
+  )
 }
 
 export default function NOTI_001() {
@@ -64,6 +117,7 @@ export default function NOTI_001() {
   return (
     <main className="page noti-page">
       <div className="noti-heading"><h1>알림</h1><span className="muted">전체 안 읽음 {data.unread}개</span></div>
+      <PushCard />
       <div className="noti-chips" role="group" aria-label="알림을 볼 어르신">
         {rooms.data.map((room) => {
           const count = data.notifications.filter((n) => n.room_id === room.room_id && n.read_at === null).length
