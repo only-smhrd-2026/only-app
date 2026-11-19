@@ -516,6 +516,10 @@ function RoomTab() {
           이 가족방 나가기
         </button>
       )}
+      {/* 회원 탈퇴 화면(ACCOUNT_001)으로 — 방장도 여기서 간다(방장 넘기기는 그 화면이 묻는다) */}
+      <Link className="fam-text-btn gr-leave" to="/account/withdraw">
+        회원 탈퇴
+      </Link>
 
       {sheet && (
         <>

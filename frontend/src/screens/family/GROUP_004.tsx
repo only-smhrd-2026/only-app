@@ -183,6 +183,8 @@ export default function GROUP_004() {
                   {isOff(cur) && <span className="gp-chip off">{OFF}</span>}
                 </div>
                 {cur.ai_scene && <p className="gp-line">{cur.ai_scene}</p>}
+                {/* 어르신이 대화에서 바로잡아 주신 말 (FR-ME-009) — 있으면 다음 대화는 AI 가 본 모습 대신 이 말을 따른다 */}
+                {cur.elder_note && <p className="gp-line">어르신 말씀: {cur.elder_note}</p>}
                 {isOff(cur) ? (
                   // 오늘의 한 장에서 빠진 사진은 대화·생각 문제에 안 쓰여서 활동을 고쳐도 바뀌는 게 없다 → 고치기 버튼 없음
                   <p className="gp-fine">
