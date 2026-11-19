@@ -202,6 +202,7 @@ def test_get_latest_specific_and_permissions(client):
         "talk_volume",
         "diaries",
         "notes",
+        "changes",
     }
     assert (response.json()["prev_week_start"], response.json()["next_week_start"]) == ("2026-11-02", None)
     older = client.get(path + "?week_start=2026-11-02").json()
