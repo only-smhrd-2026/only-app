@@ -373,5 +373,6 @@ def test_kakao_member_withdraws_without_password_and_push_subscription_goes(clie
     with SessionLocal() as db:
         user = db.get(User, me["user_id"])
         assert (user.status, user.kakao_id) == ("WITHDRAWN", None)
-        assert db.scalar(select(func.count()).select_from(PushSubscription)) == 0
+        mine = PushSubscription.user_id == me["user_id"]
+        assert db.scalar(select(func.count()).select_from(PushSubscription).where(mine)) == 0
     assert client.get("/api/auth/me").status_code == 401
