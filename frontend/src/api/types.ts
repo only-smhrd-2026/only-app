@@ -2,6 +2,9 @@
 
 export type UserOut = { user_id: number; email: string | null; name: string; login_type: string; created_at: string }
 export type PasswordChangeIn = { current_password: string; new_password: string }
+// ---- 카카오 로그인 (backend/app/schemas/kakao.py)
+export type ProvidersOut = { kakao: boolean } // GET /api/auth/providers — 서버에 카카오 키가 없으면 false('준비 중')
+export type KakaoPendingOut = { nickname: string } // GET /api/auth/kakao/signup — 처음 온 카카오 회원의 이름 칸에 미리 넣는다(없으면 '')
 
 export type RoomOut = {
   room_id: number
