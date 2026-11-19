@@ -14,6 +14,9 @@ const REACTS = [
   ['SMILE', '😊', '웃음'],
   ['CLAP', '👏', '박수'],
 ] as const
+// 한마디 (11/19): 추천 답은 누르면 바로 보낸다. 글자 수는 서버 config.REPLY_MAX 와 같은 값
+const REPLY_PICKS = ['보고 싶어요', '곧 갈게요', '잘 읽었어요', '사랑해요']
+const REPLY_MAX = 40
 
 const postedAt = (iso: string) =>
   new Date(iso).toLocaleString('ko-KR', {
@@ -44,6 +47,9 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
   const [edit, setEdit] = useState<{ base: DiaryOut; data: DiaryOut } | null>(null)
   const [busy, setBusy] = useState(false)
   const [reactionError, setReactionError] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [replySent, setReplySent] = useState(false)
+  const [replyError, setReplyError] = useState<string>()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string>()
@@ -52,7 +58,10 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
   const cancelDelete = useRef<HTMLButtonElement>(null)
   const d = edit?.base === diary.data ? edit?.data : diary.data
   const room = rooms.data?.find((r) => r.room_id === d?.room_id)
-  const mine = d?.reactions.find((r) => r.by === 'FAMILY' && r.user_id === me.data?.user_id)?.kind
+  // 내 이모지 칸 — 내 한마디(REPLY) 칸은 따로라 여기서 뺀다
+  const mine = d?.reactions.find((r) => r.by === 'FAMILY' && r.kind !== 'REPLY' && r.user_id === me.data?.user_id)?.kind
+  const replies = d?.reactions.filter((r) => r.kind === 'REPLY') ?? []
+  const myReply = replies.find((r) => r.user_id === me.data?.user_id)
 
   useEffect(() => {
     if (deleteOpen) {
@@ -90,6 +99,46 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
       setEdit({ base, data })
     } catch {
       setReactionError(true)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // 한마디 남기기 (11/19). 한 사람 1개 — 새로 보내면 서버가 바꿔 끼우고 어르신께 다시 읽어 드린다
+  async function sendReply(text: string) {
+    const clean = text.trim()
+    if (!d || !diary.data || d.author_type !== 'ELDER' || busy || !clean) return
+    if (clean === myReply?.text) {
+      setDraft('') // 이미 남긴 글 그대로 — 서버가 다시 읽어 드리지 않으니 보내지 않는다
+      return
+    }
+    const base = diary.data
+    setBusy(true)
+    setReplySent(false)
+    setReplyError(undefined)
+    try {
+      const data = await api<DiaryOut>(`/api/diaries/${d.diary_id}/reply`, { body: { text: clean } })
+      setEdit({ base, data })
+      setDraft('')
+      setReplySent(true)
+    } catch (e) {
+      setReplyError(e instanceof ApiError ? e.message : '한마디를 보내지 못했어요. 다시 해 주세요.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function removeReply() {
+    if (!d || !diary.data || !myReply || busy) return
+    const base = diary.data
+    setBusy(true)
+    setReplySent(false)
+    setReplyError(undefined)
+    try {
+      await api<void>(`/api/diaries/${d.diary_id}/reply`, { method: 'DELETE' })
+      setEdit({ base, data: { ...d, reactions: d.reactions.filter((r) => r !== myReply) } })
+    } catch (e) {
+      setReplyError(e instanceof ApiError ? e.message : '한마디를 지우지 못했어요. 다시 해 주세요.')
     } finally {
       setBusy(false)
     }
@@ -220,6 +269,47 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
         )}
         {elder && reactionError && (
           <p className="diary-detail-note" role="alert">이모지를 보내지 못했어요. 연결을 확인하고 다시 눌러 주세요.</p>
+        )}
+        {elder && (
+          <section className="diary-detail-reply" aria-labelledby="diary-reply-title" aria-busy={busy}>
+            <h2 id="diary-reply-title">한마디 남기기</h2>
+            <p className="diary-detail-reply-hint">
+              {room.elder_honorific}께 가족 소식에서 읽어 드려요. 한 일기에 하나, 새로 보내면 바뀌어요.
+            </p>
+            {replies.length > 0 && (
+              <ul className="diary-detail-replies">
+                {replies.map((r) => (
+                  <li key={r.user_id}>
+                    <span><b>{r === myReply ? '내 한마디' : (r.name ?? '가족')}:</b> {r.text}</span>
+                    {r === myReply && (
+                      <button type="button" className="fam-text-btn" disabled={busy} onClick={removeReply}>지우기</button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="diary-detail-reply-picks" role="group" aria-label="추천 한마디">
+              {REPLY_PICKS.map((pick) => (
+                <button type="button" key={pick} className="fam-btn fam-btn--tonal fam-btn--sm" disabled={busy} onClick={() => sendReply(pick)}>
+                  {pick}
+                </button>
+              ))}
+            </div>
+            <form className="diary-detail-reply-form" onSubmit={(e) => { e.preventDefault(); void sendReply(draft) }}>
+              <input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                maxLength={REPLY_MAX}
+                placeholder="직접 쓰기"
+                aria-label={`한마디 직접 쓰기, ${REPLY_MAX}자까지`}
+                enterKeyHint="send"
+              />
+              <button type="submit" className="fam-btn fam-btn--primary fam-btn--sm" disabled={busy || !draft.trim()}>보내기</button>
+              <small aria-hidden="true">{draft.length}/{REPLY_MAX}</small>
+            </form>
+            {replyError && <p className="diary-detail-reply-note" role="alert">{replyError}</p>}
+            {replySent && <p className="diary-detail-reply-note" role="status">{name}께 읽어 드릴게요.</p>}
+          </section>
         )}
         {!elder && (
           <p className={`diary-detail-heard${d.read_by_elder ? '' : ' not'}`}>

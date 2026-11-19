@@ -210,17 +210,21 @@ export type DiaryOut = {
 // 리액션 한 칸. name = 누른 가족의 별명(없으면 이름), 어르신은 null
 // 가족: POST /api/diaries/{id}/reaction { kind, on } · 어르신: POST /api/elder/diaries/{id}/like { on } → 둘 다 DiaryOut
 // on 은 '이 상태로 만들어 줘' — 화면은 지금 보이는 상태의 반대를 보낸다(같은 요청이 두 번 가도 결과가 같다)
+// 가족 한마디 (11/19): kind 'REPLY' + text. 이모지와 따로 한 사람 1칸(어르신 일기에), 응답에서는 이모지 칸들 뒤에 온다
+// POST /api/diaries/{id}/reply { text: 한 줄 1~40자 } → DiaryOut (새로 보내면 바뀜) · DELETE /api/diaries/{id}/reply → 204
 export type Reaction = {
   by: 'ELDER' | 'FAMILY'
-  kind: 'LIKE' | 'HEART' | 'SMILE' | 'CLAP'
+  kind: 'LIKE' | 'HEART' | 'SMILE' | 'CLAP' | 'REPLY'
   user_id: number | null
   name: string | null
   at: string
+  text?: string // REPLY 칸에만
 }
 export type DiaryListOut = { diaries: DiaryOut[]; has_more: boolean }
-// 어르신 가족 소식 GET /api/elder/family-news (D63): 안 들은 가족 일기 + 아직 못 들은 가족 이모지(첫 장 '하트가 왔어요', 받은 순서)
-// 첫 장을 읽어 드린 뒤 POST /api/elder/hearts/heard { until: 읽어 드린 마지막 하트의 at } → 204
-export type Heart = { diary_id: number; kind: 'HEART' | 'SMILE' | 'CLAP'; name: string | null; at: string }
+// 어르신 가족 소식 GET /api/elder/family-news (D63): 안 들은 가족 일기 + 아직 못 들은 가족 이모지·한마디(첫 장 '하트가 왔어요', 받은 순서)
+// 첫 장을 읽어 드린 뒤 POST /api/elder/hearts/heard { until: 읽어 드린 마지막 하트·한마디의 at } → 204
+// ?again=1 (11/19): 새 소식이 없을 때 '지난 소식 다시 듣기' — 이미 들은 가족 일기 최근 5개, hearts 는 빈 목록. 읽음 표시는 그대로
+export type Heart = { diary_id: number; kind: 'HEART' | 'SMILE' | 'CLAP' | 'REPLY'; name: string | null; at: string; text?: string }
 export type FamilyNewsOut = DiaryListOut & { hearts: Heart[] }
 // ---- 가족 일기 동무 (backend/app/schemas/family_diary.py, D58) — FDIARY_002 질문 · FDIARY_003 초안. 서버는 저장하지 않는다
 // POST /api/rooms/{room_id}/family-diary/ask · /draft. 여러 가족방에 보내도 고른 방 하나로 한 번만 부른다
