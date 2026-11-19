@@ -75,7 +75,7 @@ def test_save_keeps_first_answers_and_consent(client):
     answers = [1, 1, 1, 1, 1, 0, 0, 0]
     response = client.post("/api/elder/mood-check", json={"answers": answers})
     assert response.status_code == 200
-    assert response.json() == {"ok": True}
+    assert response.json() == {"ok": True, "say": None}  # 높게 답한 문항이 없으면 끝 인사 한마디는 없다 (11/19)
     with SessionLocal() as db:
         checks = db.scalars(select(MoodCheck).where(MoodCheck.room_id == room_id)).all()
         assert len(checks) == 1
@@ -85,7 +85,7 @@ def test_save_keeps_first_answers_and_consent(client):
         assert consent is not None
     response = client.post("/api/elder/mood-check", json={"answers": [3] * 8})
     assert response.status_code == 200
-    assert response.json() == {"ok": True}
+    assert response.json()["ok"] is True  # 끝 인사 한마디(say)는 test_care_loop.py 가 본다
     with SessionLocal() as db:
         checks = db.scalars(select(MoodCheck).where(MoodCheck.room_id == room_id)).all()
         assert len(checks) == 1

@@ -12,18 +12,17 @@
 .weekly-stat b { font-weight:800; }
 .weekly-card { overflow:hidden; }
 .weekly-card-heading { padding:16px 16px 6px; font-size:16px; font-weight:800; letter-spacing:-.02em; }
-.weekly-card-heading small { margin-left:4px; color:var(--text-3); font-size:15px; font-weight:600; }
+/* 달라진 점 — 살펴볼 줄은 점·낱말 색 --danger(흰 바탕 5.3:1)에 '살펴보기' 글자를 같이 쓴다(색만으로 가르지 않는다) */
+.weekly-changes { display:flex; flex-direction:column; gap:8px; margin:0; padding:4px 16px 16px; list-style:none; line-height:1.55; }
+.weekly-changes li { position:relative; padding-left:15px; }
+.weekly-changes li::before { content:''; position:absolute; left:0; top:8px; width:7px; height:7px; border-radius:50%; background:#dcd7e8; }
+.weekly-changes .watch::before { background:var(--danger); }
+.weekly-changes b { margin-right:6px; color:var(--danger); font-weight:800; }
 .weekly-week { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; padding:0 12px 14px; text-align:center; }
 .weekly-day { display:flex; flex-direction:column; align-items:center; gap:6px; padding:8px 0 9px; border-radius:12px; color:var(--text-2); font-size:15px; }
 .weekly-day b { font-weight:600; }
 .weekly-day .elder-ic, .weekly-no-mood { display:block; flex:none; width:22px; height:22px; }
 .weekly-no-mood { color:var(--text-3); line-height:22px; }
-.weekly-diaries { display:flex; gap:8px; overflow-x:auto; padding:4px 16px 16px; }
-.weekly-diary { flex:none; width:76px; padding:0; border:0; border-radius:12px; background:none; color:var(--text-2); text-align:center; }
-.weekly-diary-picture { display:grid; place-items:center; width:76px; height:76px; overflow:hidden; border-radius:12px; background:var(--tint-2); }
-.weekly-diary-picture img { width:100%; height:100%; object-fit:contain; }
-.weekly-diary-picture .elder-ic { width:30px; height:30px; }
-.weekly-diary small { display:block; margin-top:5px; font-size:15px; }
 
 /* D67: 안부 한 줄과 사진·날짜·Q·A는 기존 표시 방식을 유지한다. */
 .weekly-note { padding:16px; border:1px solid var(--primary); }

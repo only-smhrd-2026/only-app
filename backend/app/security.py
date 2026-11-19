@@ -1,4 +1,4 @@
-"""비밀번호 해시(bcrypt), 가족 세션 JWT, 토큰 해시, 쿠키, 속도 제한(로그인·음성 인식·가족 일기 동무), 하루 상한.
+"""비밀번호 해시(bcrypt), 가족 세션 JWT, 토큰 해시, 쿠키, 속도 제한(로그인·음성 인식·가족 일기 동무·연동 키), 하루 상한.
 
 D2, D20, D46, D58.
 """
@@ -130,30 +130,41 @@ def _expire_account_failures(now: float) -> None:
         _account_failures.popitem(last=False)
 
 
-def login_account_blocked(email: str) -> bool:
-    with _account_failure_lock:
-        now = monotonic()
-        _expire_account_failures(now)
-        return len(_account_failures.get(email.lower(), ())) >= LOGIN_FAIL_PER_EMAIL
+def reserve_login_attempt(email: str) -> bool:
+    """비밀번호를 비교하기 전에 이 이메일의 시도 칸을 하나 잡는다. 이미 상한이면 잡지 않고 False(막힘).
 
-
-def record_login_failure(email: str) -> None:
+    '막혔는지 확인'과 '기록'이 한 잠금 안이라, 같은 이메일로 동시에 온 요청도 상한까지만 비교에 들어간다
+    (둘을 따로 하면 느린 bcrypt 비교 동안 전부 확인을 통과한다). 비교가 맞으면 부른 쪽이 clear_login_failures 로
+    지우고, 틀리면 잡은 칸이 그대로 실패 1번으로 남는다.
+    """
     email = email.lower()
     with _account_failure_lock:
         now = monotonic()
         _expire_account_failures(now)
         failures = _account_failures.setdefault(email, deque())
         if len(failures) >= LOGIN_FAIL_PER_EMAIL:
-            return
+            return False
         while failures and now - failures[0] >= LOGIN_FAIL_WINDOW_SEC:
             failures.popleft()
         failures.append(now)
         _account_failures.move_to_end(email)
+        return True
 
 
 def clear_login_failures(email: str) -> None:
     with _account_failure_lock:
         _account_failures.pop(email.lower(), None)
+
+
+def reserve_integration_attempt(ip: str) -> bool:
+    """꼬마심심이 연동 키 맞히기 막기. 같은 IP 의 시도를 로그인과 같은 표·같은 상한
+    (LOGIN_FAIL_PER_EMAIL 번 / LOGIN_FAIL_WINDOW_SEC 초)·같은 방식(비교 전에 칸을 먼저 잡기)으로 센다.
+    이름표에 '@' 가 없어 이메일과 겹치지 않는다. 키가 맞으면 부른 쪽이 clear_integration_attempts 로 지운다."""
+    return reserve_login_attempt(f"integration:{ip}")
+
+
+def clear_integration_attempts(ip: str) -> None:
+    clear_login_failures(f"integration:{ip}")
 
 
 def stt_allowed(ip: str) -> bool:

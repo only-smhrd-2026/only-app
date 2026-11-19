@@ -1,0 +1,12 @@
+/* 가족 홈 긴급 카드 — 색은 FamilyFrame.css 의 --danger(#c03c40, 흰 글자 5.3:1). 본문 글자는 --text(연한 빨강 바탕 대비 13:1 이상) */
+.urgent { padding:16px; border:2px solid var(--danger); background:#fdf1f1; display:flex; flex-direction:column; gap:8px; }
+.urgent h2 { margin:0; font-size:19px; line-height:1.3; color:var(--danger); }
+.urgent small { font-size:14px; color:var(--text-2); }
+.urgent ul { margin:2px 0 0; padding-left:18px; display:flex; flex-direction:column; gap:4px; font-size:15px; line-height:1.45; color:var(--text); }
+.urgent-tel { margin:2px 0 0; display:flex; flex-wrap:wrap; gap:8px; }
+.urgent-tel a { display:inline-flex; align-items:center; min-height:44px; padding:0 14px; border:1px solid var(--danger); border-radius:12px;
+  background:var(--surface); color:var(--danger); font-size:15px; font-weight:700; text-decoration:none; } /* 누르는 곳 44px */
+.urgent-ack { background:var(--danger); color:#fff; }
+.urgent-fail { margin:0; font-size:14px; color:var(--danger); }
+.urgent--done { border-color:var(--line); background:var(--surface); gap:2px; }
+.urgent--done b { font-size:16px; color:var(--text); }

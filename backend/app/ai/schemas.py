@@ -10,7 +10,7 @@ import math
 import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.config import FAMILY_DRAFT_MAX, ROOT
 
@@ -24,6 +24,15 @@ TAXONOMY: dict = json.loads((ROOT / "data" / "taxonomy.json").read_text("utf-8")
 def has_risk_words(text: str) -> bool:
     t = re.sub(r"\s+", "", text)
     return any(w in t for w in RISK_WORDS)
+
+
+# 몸 위급 표현 조각 (11/19 응급 안전망). 띄어쓰기를 뺀 어르신 말에 들어 있으면 AI 판단과 상관없이 몸 위급으로 본다
+BODY_WORDS: list[str] = json.loads((ROOT / "data" / "body_words.json").read_text("utf-8"))["words"]
+
+
+def has_body_words(text: str) -> bool:
+    t = re.sub(r"\s+", "", text)
+    return any(w in t for w in BODY_WORDS)
 
 
 def check_banned(text: str) -> str:
@@ -66,6 +75,17 @@ def check_model_chips(v: list[str]) -> list[str]:
     return out
 
 
+def _urgent_text(data):
+    """위급 신호(RISK·BODY)면 모델이 쓴 말을 버린다 — 마무리는 코드 문장이라 쓰이지 않는다.
+
+    위급한 말에는 모델이 길게 답해 글자 수 검사에 걸리고, 그러면 한 번 더 부르느라 가장 급한 순간에 몇 초가 늦는다
+    (11/19 실호출 평가: 위급 5번 중 2번이 다시 부름).
+    """
+    if isinstance(data, dict) and data.get("signal") in ("RISK", "BODY"):
+        return {**data, "text": "네.", "suggestions": []}
+    return data
+
+
 class CoachReply(BaseModel):
     """회상·일기 코치 한 턴 응답. 한 문장 질문 + 추천 답변 2~3개."""
 
@@ -97,10 +117,16 @@ class CoachTurn(BaseModel):
     # 문제 이름표(KNOWHOW 등)가 붙어 출제 기록이 섞이거나, API 계약에 없는 값으로 500 이 나지 않게.
     text: str = Field(min_length=1, max_length=MODEL_TEXT_MAX)
     suggestions: list[str] = Field(default_factory=list, max_length=3)
-    # LOW 는 기록하고 이어 감, SAD·RISK·STOP 이면 대화를 끝낸다 (FR-AI-005, D55).
+    # LOW 는 기록하고 이어 감, SAD·RISK·STOP·BODY 이면 대화를 끝낸다 (FR-AI-005, D55).
     # DENY = 어제 이야기 질문에 '그런 말 안 했어' — 그 기억을 끄고 대화는 이어 간다 (FR-AI-008, D77)
-    signal: Literal["NONE", "LOW", "SAD", "RISK", "STOP", "DENY"] = "NONE"
+    # BODY = 지금 몸이 위급하다는 말 — 가족에게 바로 알리고 화면이 119 버튼을 띄운다 (11/19 응급)
+    signal: Literal["NONE", "LOW", "SAD", "RISK", "STOP", "DENY", "BODY"] = "NONE"
     private: bool = False  # '애들한테 말하지 마' → 그 대화는 기운 없는 날에서 뺀다. 위급만 예외 (D55 ③)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _urgent(cls, data):
+        return _urgent_text(data)
 
     @field_validator("text")
     @classmethod
@@ -114,10 +140,19 @@ class CoachTurn(BaseModel):
 
 
 class DiaryTurn(CoachReply):
-    """일기 대화 한 턴. 한 문장 질문 + 어르신이 버튼으로 고를 짧은 답 2개(빈칸을 빼고 6자 이내)."""
+    """일기 대화 한 턴. 한 문장 질문 + 어르신이 버튼으로 고를 짧은 답 2개(빈칸을 빼고 6자 이내)
+    + 어르신 직전 답으로 본 상태(signal)."""
 
     # diary_buddy 의 모델 출력 (docstring 이 스키마 description 으로 모델에게 간다).
     # 화면에 보이는 답은 회상과 같은 상한 (D52 ④)
+    # 어르신 직전 답에서 본 상태 (11/19 S3): LOW 기운 없는 말(기록하고 이어 감), RISK 목숨을 해치는 이야기,
+    # BODY 지금 몸이 위급하다는 말 — RISK·BODY 는 코드 문장으로 마무리하고 일기로 남기지 않는다
+    signal: Literal["NONE", "LOW", "RISK", "BODY"] = "NONE"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _urgent(cls, data):
+        return _urgent_text(data)
 
     @field_validator("suggestions")
     @classmethod
@@ -174,7 +209,8 @@ class StoryFactItem(BaseModel):
     """
 
     ref: str  # 입력 pairs 의 ref — 근거가 된 어르신 답
-    kind: Literal["PLAN", "EVENT"]  # PLAN 앞으로 하실 일·약속, EVENT 요즘 하신 일
+    # PLAN 앞으로 하실 일·약속, EVENT 요즘 하신 일, CORRECTION 사진 내용을 바로잡아 주신 답 (FR-ME-009)
+    kind: Literal["PLAN", "EVENT", "CORRECTION"]
     fact: str  # 그 답을 전하는 한 문장
     quote: str  # 그 답 원문에서 글자 그대로 옮긴 구절
 

@@ -1,4 +1,4 @@
-"""db/schema.sql 의 거울 (D1). 테이블 13개. schema.sql 을 바꾸면 여기도 같이 바꾼다.
+"""db/schema.sql 의 거울 (D1). 테이블 16개. schema.sql 을 바꾸면 여기도 같이 바꾼다.
 
 CHECK 제약·인덱스는 DB(schema.sql)가 원천이라 여기서는 반복하지 않는다. 컬럼·NULL·UNIQUE·FK·기본값만 맞춘다.
 """
@@ -141,6 +141,9 @@ class Photo(Base):
     model_version: Mapped[str | None] = mapped_column(String(30))
     analyzed_at: Mapped[datetime | None] = mapped_column(TS)  # None = 아직 분류 전
     ai_scene: Mapped[str | None] = mapped_column(String(100))  # 분류 AI 가 본 '보이는 모습' 한 줄 — 대화 재료 (D71)
+    # 어르신이 대화에서 이 사진을 바로잡아 주신 내용 한 문장 (FR-ME-009). 있으면 대화는 ai_scene 대신 이것을 따른다
+    elder_note: Mapped[str | None] = mapped_column(String(100))
+    elder_noted_at: Mapped[datetime | None] = mapped_column(TS)
 
 
 class DailyPick(Base):
@@ -285,4 +288,54 @@ class MoodCheck(Base):
     answers: Mapped[list[int]] = mapped_column(JSONB)  # 문항 순서대로 0~3, 8칸 (0~3 은 코드가 검사)
     total: Mapped[int] = mapped_column(SmallInteger)  # 0~24. 화면에 점수를 보이지 않는다 (NFR-DE-003)
     level: Mapped[str] = mapped_column(String(5))  # USUAL | DOWN | HARD
+    created_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
+
+
+class PushSubscription(Base):
+    """웹 푸시 구독 — 한 줄 = 알림을 받는 브라우저 하나. 어르신 기기는 room_id, 가족은 user_id (둘 중 하나만)."""
+
+    __tablename__ = "push_subscriptions"
+    subscription_id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    room_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("family_rooms.room_id"))
+    user_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.user_id"))
+    endpoint: Mapped[str] = mapped_column(String(1000), unique=True)  # 푸시 서비스 주소. 로그에 남기지 않는다 (D15)
+    p256dh: Mapped[str] = mapped_column(String(200))  # 브라우저 공개 키 (base64url)
+    auth: Mapped[str] = mapped_column(String(50))  # 브라우저 인증 비밀 (base64url)
+    created_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)  # 마지막으로 등록한 때
+
+
+class UrgentAlert(Base):
+    """위급 알림 (D55 마음 위급 + 11/19 몸 위급). 대화에서 감지한 위급 1건마다 한 줄 — 가족 홈 긴급 카드."""
+
+    __tablename__ = "urgent_alerts"
+
+    alert_id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    room_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("family_rooms.room_id"))
+    session_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("sessions.session_id"))
+    kind: Mapped[str] = mapped_column(String(5))  # MOOD | BODY
+    created_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
+    acked_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.user_id")
+    )  # [제가 연락했어요] 처음 누른 가족
+    acked_at: Mapped[datetime | None] = mapped_column(TS)
+    reminded_at: Mapped[datetime | None] = mapped_column(TS)  # 확인이 없어 한 번 더 알린 시각
+
+
+class CareDay(Base):
+    """돌봄 일지 (11/18 멘토링 — 돌봄 루프). 가족방·날짜마다 1줄: 전날까지 본 것 → 판단 → 오늘 여쭐 안부 → 어르신 답."""
+
+    __tablename__ = "care_days"
+    __table_args__ = (UniqueConstraint("room_id", "care_date", name="uq_care_days_room_id_care_date"),)
+
+    care_id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    room_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("family_rooms.room_id"))
+    care_date: Mapped[date] = mapped_column(Date)
+    numbers: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'"))  # 전날 숫자 (services/care.py)
+    level: Mapped[str] = mapped_column(String(5))  # USUAL | WATCH | CARE — 코드가 정한다
+    reasons: Mapped[list[str]] = mapped_column(JSONB, server_default=text("'[]'"))
+    source: Mapped[str | None] = mapped_column(String(5))  # TALK | DIARY | CHECK
+    topic: Mapped[str | None] = mapped_column(String(8))  # SLEEP | APPETITE | LONELY | ENERGY | INTEREST | MOOD
+    heard_on: Mapped[date | None] = mapped_column(Date)
+    asked_at: Mapped[datetime | None] = mapped_column(TS)
+    reaction: Mapped[str | None] = mapped_column(String(4))  # OK | SAME | DENY
     created_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)

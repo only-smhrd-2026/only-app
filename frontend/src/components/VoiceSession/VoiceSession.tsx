@@ -138,6 +138,7 @@ export default function VoiceSession({ sessionId, initial, history, speed, input
   const [draft, setDraft] = useState('')
   const [heardId, setHeardId] = useState<number>() // [다시] 를 보이는 내 말풍선
   const [lastAiId, setLastAiId] = useState<number>()
+  const [urgent, setUrgent] = useState(initial.urgent) // 몸 위급으로 끝난 대화 — [119 전화하기] (11/19 응급)
   const logRef = useRef<HTMLDivElement>(null)
   const recorder = useRef<Recorder | null>(null)
   const heard = useRef<{ id: number; r: SttOut } | null>(null) // [다시] 를 기다리는 들은 말
@@ -224,6 +225,7 @@ export default function VoiceSession({ sessionId, initial, history, speed, input
     const my = ++seq.current
     clearTimers() // 다시 듣기: 기다리던 20초 무응답을 멈추고 다 읽은 뒤 새로 센다
     last.current = r
+    if (r.urgent) setUrgent(r.urgent) // 마무리 말을 읽는 동안에도 119 버튼이 바로 보이게
     setAi(r.ai)
     setNote(undefined) // 4초 '조금만 기다려 주세요'·실패 안내는 새 질문에서 지운다 (남으면 어르신이 기다리기만 함)
     if (fresh) setLastAiId(add('AI', r.ai.text, r.ai.audio_b64))
@@ -596,6 +598,13 @@ export default function VoiceSession({ sessionId, initial, history, speed, input
             </button>
           ))}
         </div>
+      )}
+
+      {/* 몸이 위급하다는 말로 끝난 대화 (11/19 응급): 전화 앱이 119 를 채운 채 열린다 — 거는 것은 어르신이 한 번 더 누른다 */}
+      {urgent === 'BODY' && (
+        <a className="vs-talk vs-rec vs-urgent" href="tel:119">
+          119 전화하기
+        </a>
       )}
 
       {typing ? (

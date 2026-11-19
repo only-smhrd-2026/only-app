@@ -1,5 +1,5 @@
 -- =====================================================================
--- 하루한장 DB 스키마 (PostgreSQL 16) — 테이블 13개. 이 파일이 원천(source of truth)입니다.
+-- 하루한장 DB 스키마 (PostgreSQL 16) — 테이블 16개. 이 파일이 원천(source of truth)입니다.
 -- 바꾸면 backend/app/models.py 도 같이 고칩니다 (PR 템플릿 체크 항목). DB 담당(천주웅·홍진성)이 PR로 수정.
 -- 배포 서버 DB 는 데이터가 있어 seed 로 다시 만들지 않습니다 → 바꾼 만큼 db/migrations/ 에 ALTER 파일을 같은 PR 에 둡니다 (D57).
 --
@@ -117,6 +117,8 @@ CREATE TABLE photos (
     model_version VARCHAR(30),
     analyzed_at TIMESTAMPTZ,                                       -- NULL = 아직 분류 전
     ai_scene VARCHAR(100),                                         -- 분류 AI 가 본 '보이는 모습' 한 줄, 대화 재료 (D71)
+    elder_note VARCHAR(100),                                       -- 어르신이 대화에서 바로잡아 주신 내용 한 문장 (FR-ME-009)
+    elder_noted_at TIMESTAMPTZ,
     CONSTRAINT uq_photos_room_id_object_key UNIQUE (room_id, object_key)   -- S10 업로드 멱등
 );
 CREATE INDEX ix_photos_room_status ON photos(room_id, status);
@@ -161,7 +163,10 @@ CREATE TABLE sessions (
 --   공통  : turn_no, speaker(AI|ELDER), text, created_at
 --   어르신: stt_confidence(0~1), input_type(VOICE|CHIP|BUTTON|TEXT — TEXT 는 글로 쓰기 D52), retried, reply_to_turn_no
 --   AI    : question_type(RECALL|REMEMBER|KNOWHOW|THEN_NOW|COMMON|RECHECK|CLOSING|NONE), latency_ms,
---           fact_id(지난 대화의 이야기로 연 첫 질문 — story_facts.fact_id, D77. RECHECK 는 쓰지 않음)
+--           fact_id(지난 대화의 이야기로 연 첫 질문 — story_facts.fact_id, D77. RECHECK 는 쓰지 않음),
+--           urgent(BODY — 몸이 위급하다는 말로 끝난 마무리 턴. 화면이 [119 전화하기]를 띄운다, 11/19),
+--           care(오늘의 안부로 연 첫 질문 — care_days.topic, 11/19 돌봄 루프),
+--           signal(LOW — 바로 앞 어르신 말을 AI 가 기운 없는 말로 봄. 다음 날 안부 주제를 고르는 데 쓴다)
 --   출제  : question_code(문제 은행 code, AI 가 쓴 생각 문제는 'GEN-유형' 예 GEN-REMEMBER — D72, 되짚기는 없음),
 --           hint_level(0~3), recheck_result(REMEMBERED|HINTED|SKIPPED|NA),
 --           answer_summary — 14일 반복 방지는 최근 14일 세션의 question_code → question_bank.code 의 카테고리·활동,
@@ -228,6 +233,7 @@ CREATE TABLE diaries (
 --   by(ELDER|FAMILY), user_id(FAMILY 만), at(누른 시각, turns 의 created_at 과 같은 ISO 문자열),
 --   heard_at(FAMILY 칸만 — 어르신이 가족 소식 첫 장에서 들은 시각, 같은 ISO 문자열. 없으면 아직 못 들으심, D63),
 --   kind: LIKE = 어르신 [좋아요] (가족 일기에) | HEART·SMILE·CLAP = 가족 이모지 (어르신 일기에)
+--         REPLY = 가족 한마디 (어르신 일기에, 11/19) — text(한 줄 1~40자) 키가 더 있다. 이모지 칸과 따로 한 사람 1칸, 글을 바꾸면 새 칸
 CREATE INDEX ix_diaries_room_posted ON diaries(room_id, posted_at DESC);
 CREATE INDEX ix_diaries_room_author_posted ON diaries(room_id, author_type, posted_at);   -- S14
 
@@ -284,4 +290,50 @@ CREATE TABLE mood_checks (
     level VARCHAR(5) NOT NULL CHECK (level IN ('USUAL', 'DOWN', 'HARD')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT uq_mood_checks_room_id_check_date UNIQUE (room_id, check_date)   -- 같은 날 두 번 보내도 1줄
+);
+
+-- 14. 웹 푸시 구독 (11/19, FR-NT-002·003). 한 줄 = 알림을 받는 브라우저 하나.
+--     어르신 기기는 room_id(가족방당 1줄 — 새 기기 연결·해제 때 지움), 가족은 user_id(쓰는 브라우저마다 1줄).
+--     같은 브라우저(endpoint)가 다시 등록하면 그 줄의 주인을 바꾼다. family_rooms.device_push_token 은 쓰지 않는다.
+CREATE TABLE push_subscriptions (
+    subscription_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    room_id BIGINT REFERENCES family_rooms(room_id),
+    user_id BIGINT REFERENCES users(user_id),
+    endpoint VARCHAR(1000) NOT NULL UNIQUE,                        -- 브라우저 푸시 서비스 주소(FCM·애플·모질라). 허용 목록은 서버 코드가 검사
+    p256dh VARCHAR(200) NOT NULL,                                  -- 브라우저 공개 키 (base64url) — 본문 암호화용
+    auth VARCHAR(50) NOT NULL,                                     -- 브라우저 인증 비밀 (base64url)
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),                 -- 마지막으로 등록한 때
+    CONSTRAINT ck_push_subscriptions_owner CHECK ((room_id IS NULL) <> (user_id IS NULL))
+);
+
+-- 15. 위급 알림 (D55 마음 위급 + 11/19 몸 위급). 대화에서 감지한 위급 1건마다 한 줄 — 가족 홈 긴급 카드
+CREATE TABLE urgent_alerts (
+    alert_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
+    session_id UUID REFERENCES sessions(session_id),               -- 어느 대화에서 감지했는지
+    kind VARCHAR(5) NOT NULL CHECK (kind IN ('MOOD', 'BODY')),      -- MOOD 마음 위급(RISK), BODY 몸 위급
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    acked_by BIGINT REFERENCES users(user_id),                     -- [제가 연락했어요]를 처음 누른 가족
+    acked_at TIMESTAMPTZ,
+    reminded_at TIMESTAMPTZ                                        -- 30분 동안 확인이 없어 한 번 더 알린 시각
+);
+CREATE INDEX ix_urgent_alerts_room_created ON urgent_alerts(room_id, created_at);
+
+-- 16. 돌봄 일지 (11/18 멘토링 — 돌봄 루프). 가족방·날짜마다 1줄: 전날까지 본 것 → 판단 → 오늘 여쭐 안부 → 어르신 답.
+-- 어르신 말 원문은 넣지 않는다(숫자와 주제 이름만). 보관 CARE_KEEP_DAYS 일 — 줄을 만들 때 오래된 줄을 지운다
+CREATE TABLE care_days (
+    care_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
+    care_date DATE NOT NULL,                                       -- 이 줄이 쓰이는 날(한국 날짜). 전날까지의 기록으로 만든다
+    -- 전날 숫자: talks·turns·words·avg_words·chip_ratio·stopped·low·diary_mood (서버 코드가 채운다, services/care.py)
+    numbers JSONB NOT NULL DEFAULT '{}',
+    level VARCHAR(5) NOT NULL CHECK (level IN ('USUAL', 'WATCH', 'CARE')),   -- 평소 / 지켜봄 / 주의. 코드가 정한다(AI 아님)
+    reasons JSONB NOT NULL DEFAULT '[]',                           -- 그렇게 본 이유: LOW_TALK·DIARY_MOOD·TALK_DOWN·QUIET·CHECK_ITEM·SAME_AGAIN
+    source VARCHAR(5) CHECK (source IN ('TALK', 'DIARY', 'CHECK')),          -- 오늘 안부가 나온 곳: 대화의 말 / 일기 기분 / 마음 체크 문항
+    topic VARCHAR(8) CHECK (topic IN ('SLEEP', 'APPETITE', 'LONELY', 'ENERGY', 'INTEREST', 'MOOD')),   -- NULL = 여쭐 안부 없음
+    heard_on DATE,                                                 -- 그 말을 들은 날 — 첫인사의 '어제·며칠 전'
+    asked_at TIMESTAMPTZ,                                          -- 그 안부를 실제로 여쭌 시각 (그날 첫 회상 대화)
+    reaction VARCHAR(4) CHECK (reaction IN ('OK', 'SAME', 'DENY')),          -- 어르신 답: 괜찮다 / 여전하다 / 그런 적 없다
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_care_days_room_id_care_date UNIQUE (room_id, care_date)
 );

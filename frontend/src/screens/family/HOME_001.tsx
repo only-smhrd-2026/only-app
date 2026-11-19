@@ -19,8 +19,10 @@ import {
   type WeeklyOut,
 } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
+import CareCard from '../../components/CareCard'
 import { Avatar } from '../../components/FamilyFrame'
 import MoodIcon from '../../components/MoodIcon'
+import UrgentCard from '../../components/UrgentCard'
 import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
 import { getInstallState, promptInstall, subscribeInstallPrompt } from '../../lib/installPrompt'
@@ -479,6 +481,8 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
     busy: boolean
     error?: string
   }>()
+  // 일기 목록 글쓴이 필터 (11/18 멘토링) — 이미 불러온 목록을 화면에서 거른다. 더 불러온 지난 일기도 같은 필터로 보인다
+  const [who, setWho] = useState<'ALL' | DiaryOut['author_type']>('ALL')
 
   // 설치형 앱은 다시 열어도 화면이 새로 뜨지 않는다 → 앱으로 돌아올 때마다 다시 읽는다
   const reloadDiaries = diaries.reload
@@ -499,9 +503,11 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
   const update = (d: DiaryOut) => setEdits({ base, byId: { ...byId, [d.diary_id]: d } })
   const page = older?.base === base ? older : undefined
   const items = [...(base?.diaries ?? []), ...(page?.diaries ?? [])].map((d) => byId[d.diary_id] ?? d)
+  const shown = who === 'ALL' ? items : items.filter((d) => d.author_type === who)
   const hasMore = page?.hasMore ?? base?.has_more ?? false
   const error = diaries.error ?? mood.error
-  const diaryOrder = JSON.stringify(!error && mood.data ? items.map((d) => d.diary_id) : [])
+  // 일기 상세의 앞뒤 넘기기도 지금 보이는(거른) 목록 순서를 따른다
+  const diaryOrder = JSON.stringify(!error && mood.data ? shown.map((d) => d.diary_id) : [])
 
   useEffect(() => {
     try {
@@ -536,7 +542,7 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
 
   // 날짜별로 묶는다 (목록은 최신 순)
   const groups: [string, DiaryOut[]][] = []
-  for (const d of items) {
+  for (const d of shown) {
     const label = dayLabel(new Date(d.posted_at))
     const last = groups[groups.length - 1]
     if (last && last[0] === label) last[1].push(d)
@@ -544,9 +550,32 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
   }
   return (
     <main className="fam-stack">
+      <UrgentCard roomId={room.room_id} who={`${room.elder_name} ${room.elder_honorific}`} />
       <InstallCard />
       <MoodCard week={mood.data} />
+      <CareCard roomId={room.room_id} />
       <WeeklyBanner room={room} />
+      {items.length > 0 && (
+        <div className="home-filter" role="group" aria-label="글쓴이로 일기 거르기">
+          {(
+            [
+              ['ALL', '전체'],
+              ['ELDER', `${room.elder_name} ${room.elder_honorific}`],
+              ['FAMILY', '가족'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              type="button"
+              key={key}
+              className={who === key ? 'home-chip on' : 'home-chip'}
+              onClick={() => setWho(key)}
+              aria-pressed={who === key}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       {groups.map(([label, ds]) => (
         <Fragment key={label}>
           <h3 className="home-day-h">{label}</h3>
@@ -555,6 +584,7 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
           ))}
         </Fragment>
       ))}
+      {items.length > 0 && shown.length === 0 && <p className="home-none">아직 이 일기가 없어요</p>}
       {page?.error && <p className="fam-error" role="alert">{page.error}</p>}
       {hasMore && items.length > 0 && (
         <button

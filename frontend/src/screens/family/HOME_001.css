@@ -46,6 +46,12 @@
 .home-banner-txt small { color:var(--text-2); font-size:15px; }
 .home-banner-chev { color:var(--text-3); }
 
+/* 일기 목록 글쓴이 필터 (11/18 멘토링) — 전체·어르신·가족. 누르는 곳 44px, 고른 칩은 색·굵기 + aria-pressed */
+.home-filter { display:flex; flex-wrap:wrap; gap:8px; margin:2px var(--gut) -2px; }
+.home-chip { min-height:44px; padding:0 16px; border:1px solid var(--line); border-radius:999px; background:var(--surface); color:var(--text-2); font-size:15px; font-weight:600; }
+.home-chip.on { background:var(--tint); border-color:#c9bbef; color:var(--primary); font-weight:800; }
+.fam-stack .home-none { margin:14px var(--gut) 6px; color:var(--text-2); font-size:15px; text-align:center; }
+
 /* 일기 카드 — 큰 사진, 자르지 않고 4:3 칸에 맞춤 (11/14 사용자) */
 .home-post { display:flex; flex-direction:column; gap:11px; padding:14px 0; overflow:hidden; }
 .home-post-link { display:flex; flex-direction:column; gap:11px; color:inherit; text-decoration:none; }

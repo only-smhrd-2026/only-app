@@ -17,6 +17,9 @@
    (켜기·바꾸기·취소), 한 사람 1칸. POST /elder/diaries/{id}/like — 어르신 [좋아요]를 가족 일기에(기기 쿠키). 본문 {on}.
 10. GET /elder/family-news 의 hearts — 어르신이 아직 못 들은 가족 이모지('하트가 왔어요' 첫 장, D63).
     읽어 드린 뒤 POST /elder/hearts/heard {until} 이 그때까지 온 칸에 heard_at 을 적는다.
+11. POST·DELETE /diaries/{id}/reply — 가족 한마디(40자까지)를 어르신 일기에 남기고 지운다 (11/19, D50 을 바꿈).
+    reactions 의 REPLY 칸 — 이모지와 따로 한 사람 1칸. 어르신께는 10 의 hearts 로 같이 내려가 첫 장에서 읽어 드린다.
+12. GET /elder/family-news?again=1 — 새 소식이 없을 때 '지난 소식 다시 듣기': 이미 들은 가족 일기 최근 5개 (11/19).
 
 담당: 일기 프롬프트·그림 화풍(image.STYLE) 다듬기 홍진성 / 사진 일기(카메라)·가족 일기·목록 세부 천주웅.
 그림 제공자는 Workers AI FLUX.2 klein 4B 로 연결됨(D37, IMAGE_PROVIDER=cloudflare).
@@ -36,7 +39,13 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.ai import coach, image, tts
-from app.config import DIARY_DRAFT_MIN, ELDER_DIARY_LIST_LIMIT, ELDER_HEARTS_LIMIT, now_kst
+from app.config import (
+    DIARY_DRAFT_MIN,
+    ELDER_DIARY_LIST_LIMIT,
+    ELDER_HEARTS_LIMIT,
+    ELDER_NEWS_AGAIN_LIMIT,
+    now_kst,
+)
 from app.deps import DB, CurrentDevice, CurrentUser, require_member
 from app.errors import ApiError
 from app.models import Diary, FamilyRoom, Photo, RoomMember, User
@@ -54,6 +63,7 @@ from app.schemas.diaries import (
     HeartOut,
     HeartsHeardIn,
     ReactionIn,
+    ReplyIn,
 )
 from app.services import storage
 
@@ -190,7 +200,10 @@ def _unheard(reaction: dict) -> bool:
 
 
 def unheard_hearts(db, room_id: int) -> list[tuple[Diary, dict]]:
-    """어르신이 아직 못 들은 가족 이모지 (일기, 칸), 받은 순서. 가족 소식 첫 장과 홈 숫자(elder.py)가 쓴다 (D63)."""
+    """어르신이 아직 못 들은 가족 이모지·한마디 (일기, 칸), 받은 순서. 가족 소식 첫 장과 홈 숫자(elder.py)가 쓴다 (D63).
+
+    한마디(REPLY) 칸도 by=FAMILY 라 같은 조건으로 걸린다 (11/19).
+    """
     # ponytail: 리액션이 달린 어르신 일기를 읽어 코드로 거른다(일기는 하루 한두 편). 느려지면 jsonb_path_exists 조건으로
     diaries = db.scalars(_elder_diaries_with_reactions(room_id)).all()
     found = [(diary, r) for diary in diaries for r in diary.reactions if _unheard(r)]
@@ -233,8 +246,11 @@ def _rows(db, room: FamilyRoom, *cond, me: int | None = None, limit: int = 50) -
                 posted_at=d.posted_at,
                 read_by_elder=by_elder,
                 read_by_me=mine or by_me,
+                # 한마디(REPLY) 칸은 이모지 칸들 뒤로 — 가족 홈(HOME_001)은 '내 칸'을 앞에서부터 하나만 찾아
+                # 이모지가 켜졌는지 본다. 한마디가 앞에 오면 켜 둔 이모지가 꺼진 것처럼 보인다
                 reactions=[
-                    dict(r, name=names.get(r.get("user_id")) if r.get("by") == "FAMILY" else None) for r in d.reactions
+                    dict(r, name=names.get(r.get("user_id")) if r.get("by") == "FAMILY" else None)
+                    for r in sorted(d.reactions, key=lambda r: r.get("kind") == "REPLY")
                 ],
             )
         )
@@ -355,16 +371,23 @@ def elder_my_diaries(device: CurrentDevice, db: DB):
 
 
 @router.get("/elder/family-news", response_model=FamilyNewsOut)
-def elder_family_news(device: CurrentDevice, db: DB):
-    """어르신이 아직 안 들은 이 가족방의 가족 일기, 최근 50개 (FR-FD-003) + 아직 못 들은 가족 이모지 (D63).
+def elder_family_news(device: CurrentDevice, db: DB, again: bool = False):
+    """어르신이 아직 안 들은 이 가족방의 가족 일기, 최근 50개 (FR-FD-003) + 아직 못 들은 가족 이모지·한마디 (D63).
 
     홈의 안 들은 소식 수(elder.py home)와 같은 조건. 50개가 넘으면 들은 뒤 다시 부를 때 나머지가 나온다.
     hearts 는 가족 소식 첫 장 '하트가 왔어요' — 받은 순서. 읽어 드린 뒤 POST /elder/hearts/heard.
+    again=1 은 새 소식이 없을 때 '지난 소식 다시 듣기' (11/19): 이미 들은 가족 일기를 최근에 올라온 순서로 5개,
+    같은 모양으로. 읽기만 한다 — 읽음 표시는 그대로이고 hearts 는 비운다.
     """
     room = db.get(FamilyRoom, device.room_id)
+    if again:
+        heard = (Diary.author_type == "FAMILY", Diary.elder_read_at.is_not(None))
+        return FamilyNewsOut(diaries=_rows(db, room, *heard, limit=ELDER_NEWS_AGAIN_LIMIT), hearts=[])
     names = _member_names(db, room.room_id)
     hearts = [
-        HeartOut(diary_id=diary.diary_id, kind=r["kind"], name=names.get(r.get("user_id")), at=r["at"])
+        HeartOut(
+            diary_id=diary.diary_id, kind=r["kind"], name=names.get(r.get("user_id")), at=r["at"], text=r.get("text")
+        )
         for diary, r in unheard_hearts(db, room.room_id)[:ELDER_HEARTS_LIMIT]
     ]
     return FamilyNewsOut(
@@ -404,7 +427,7 @@ def elder_like(diary_id: int, body: ElderLikeIn, device: CurrentDevice, db: DB):
 
 @router.post("/elder/hearts/heard", status_code=204)
 def elder_hearts_heard(body: HeartsHeardIn, device: CurrentDevice, db: DB):
-    """가족 소식 첫 장을 들으셨다 — until 까지 온 가족 이모지에 들은 시각을 적는다 (D63).
+    """가족 소식 첫 장을 들으셨다 — until 까지 온 가족 이모지·한마디에 들은 시각을 적는다 (D63).
 
     그 뒤에 온 것은 다음에 읽어 드린다(듣는 사이에 온 하트가 읽히지 않은 채 '들음'이 되지 않게).
     여러 번 불러도 처음 들은 시각 그대로.
@@ -501,6 +524,18 @@ def delete_diary(diary_id: int, user: CurrentUser, db: DB):
     db.commit()
 
 
+def _own_cell(diary: Diary, user_id: int, *, reply: bool) -> dict | None:
+    """이 가족이 이 일기에 둔 칸. 이모지 칸(reply=False)과 한마디 칸(reply=True)은 따로 — 한 사람이 하나씩 가진다."""
+    return next(
+        (
+            r
+            for r in diary.reactions
+            if r.get("by") == "FAMILY" and r.get("user_id") == user_id and (r.get("kind") == "REPLY") is reply
+        ),
+        None,
+    )
+
+
 @router.post("/diaries/{diary_id}/reaction", response_model=DiaryOut)
 def send_reaction(diary_id: int, body: ReactionIn, user: CurrentUser, db: DB):
     """가족 이모지를 어르신 일기에 (D54). 본문 {kind, on} = '이 상태로 만들어 줘' — 켜기·바꾸기·취소, 한 사람 1칸.
@@ -519,7 +554,7 @@ def send_reaction(diary_id: int, body: ReactionIn, user: CurrentUser, db: DB):
         raise ApiError(404, "DIARY_NOT_FOUND", "일기를 찾을 수 없어요")
     if diary.author_type != "ELDER":  # 404 확인 뒤에 — 먼저 하면 남의 가족방에 어떤 일기가 있는지 드러난다
         raise ApiError(409, "REACTION_NOT_ALLOWED", "이모지는 어르신 일기에만 보낼 수 있어요")
-    mine = next((r for r in diary.reactions if r.get("by") == "FAMILY" and r.get("user_id") == user.user_id), None)
+    mine = _own_cell(diary, user.user_id, reply=False)  # 내 한마디 칸은 others 에 남는다
     others = [r for r in diary.reactions if r is not mine]
     same = mine is not None and mine.get("kind") == body.kind
     if body.on and not same:  # 없던 것을 켜거나 다른 이모지에서 바꿔 끼움. 새 리스트를 통째로 넣어야 저장된다
@@ -529,3 +564,50 @@ def send_reaction(diary_id: int, body: ReactionIn, user: CurrentUser, db: DB):
         diary.reactions = others
     db.commit()  # 바뀐 게 없어도 — 행 잠금이 풀린다
     return _rows(db, db.get(FamilyRoom, diary.room_id), Diary.diary_id == diary_id, me=user.user_id)[0]
+
+
+def _diary_for_reply(db, diary_id: int, user) -> Diary:
+    """한마디를 남기거나 지울 일기를 행 잠금으로 읽는다 — 같은 순간의 이모지·'들음' 기록과 서로 덮어쓰지 않게.
+
+    구성원이 아니거나 지워진 일기는 없는 것처럼 404 (D43, send_reaction 과 같은 확인).
+    """
+    diary = db.get(Diary, diary_id, with_for_update=True)
+    member = diary is not None and db.scalar(
+        select(RoomMember.member_id).where(
+            RoomMember.room_id == diary.room_id,
+            RoomMember.user_id == user.user_id,
+            RoomMember.removed_at.is_(None),
+        )
+    )
+    if not member or diary.status != "POSTED":
+        raise ApiError(404, "DIARY_NOT_FOUND", "일기를 찾을 수 없어요")
+    return diary
+
+
+@router.post("/diaries/{diary_id}/reply", response_model=DiaryOut)
+def send_reply(diary_id: int, body: ReplyIn, user: CurrentUser, db: DB):
+    """가족 한마디를 어르신 일기에 (11/19 — D50 '글 답장은 없다'를 바꿈). 한 사람 1개, 이모지 칸과 따로.
+
+    글이 바뀌면 그 사람의 한마디 칸을 새 칸으로 바꿔 끼운다 — heard_at 이 없어 가족 소식 첫 장에서 다시 읽어 드린다.
+    같은 글이 또 오면(두 번 누름) 그대로 둔다. 글 검사는 가족 일기 본문과 같다(금지어 검사 없음).
+    글은 로그에 남기지 않는다.
+    """
+    diary = _diary_for_reply(db, diary_id, user)
+    if diary.author_type != "ELDER":  # 404 확인 뒤에 — 먼저 하면 남의 가족방에 어떤 일기가 있는지 드러난다
+        raise ApiError(400, "REPLY_NOT_ALLOWED", "한마디는 어르신 일기에만 남길 수 있어요")
+    mine = _own_cell(diary, user.user_id, reply=True)
+    if mine is None or mine.get("text") != body.text:  # 새 리스트를 통째로 넣어야 저장된다
+        new = {"by": "FAMILY", "user_id": user.user_id, "kind": "REPLY", "text": body.text, "at": now_kst().isoformat()}
+        diary.reactions = [*(r for r in diary.reactions if r is not mine), new]
+    db.commit()  # 바뀐 게 없어도 — 행 잠금이 풀린다
+    return _rows(db, db.get(FamilyRoom, diary.room_id), Diary.diary_id == diary_id, me=user.user_id)[0]
+
+
+@router.delete("/diaries/{diary_id}/reply", status_code=204)
+def delete_reply(diary_id: int, user: CurrentUser, db: DB):
+    """내 한마디 지우기. 없어도 204. 내 이모지 칸과 다른 가족의 칸은 그대로 둔다."""
+    diary = _diary_for_reply(db, diary_id, user)
+    mine = _own_cell(diary, user.user_id, reply=True)
+    if mine is not None:
+        diary.reactions = [r for r in diary.reactions if r is not mine]
+    db.commit()  # 바뀐 게 없어도 — 행 잠금이 풀린다

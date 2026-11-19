@@ -12,20 +12,25 @@ from app.config import now_kst, settings
 from app.deps import DB
 from app.errors import install_handlers
 from app.routers import (
+    account,
+    alerts,
     auth,
+    care,
     devices,
     diaries,
     elder,
     family_diary,
+    integration,
     invites,
+    kakao,
     media,
     mood,
     notifications,
     photos,
+    push,
     rooms,
     sessions,
     stt,
-    stubs,
     weekly,
 )
 from app.services import scheduler
@@ -69,6 +74,8 @@ async def log_request_timing(request: Request, call_next):
 api = APIRouter(prefix="/api")
 for r in (
     auth.router,
+    account.router,
+    kakao.router,
     rooms.router,
     invites.router,
     devices.router,
@@ -81,8 +88,11 @@ for r in (
     photos.router,
     notifications.router,
     mood.router,
+    alerts.router,
+    care.router,
     weekly.router,
-    *stubs.routers,
+    integration.router,
+    push.router,
 ):
     api.include_router(r)
 

@@ -20,12 +20,12 @@ only-app/
 │   ├── app/main.py           FastAPI 앱, 라우터 등록, lifespan(스케줄러)
 │   ├── app/config.py         .env 설정 1곳, 시간대 KST, 상한 상수
 │   ├── app/db.py             SQLAlchemy 엔진 (접속마다 timezone=Asia/Seoul)
-│   ├── app/models.py         테이블 13개 (db/schema.sql 의 거울)
+│   ├── app/models.py         테이블 16개 (db/schema.sql 의 거울)
 │   ├── app/deps.py           current_user / current_device / require_member
 │   ├── app/security.py       bcrypt, JWT, 토큰 해시, 쿠키, 로그인 속도 제한
 │   ├── app/errors.py         오류 형식 {detail, code}
 │   ├── app/schemas/          요청·응답 모델 (API 계약)
-│   ├── app/routers/          auth, rooms, invites, devices, elder, stt, sessions, diaries, family_diary, media, photos, notifications, mood, weekly, stubs(빈 API)
+│   ├── app/routers/          auth, rooms, invites, devices, elder, stt, sessions, diaries, family_diary, media, photos, notifications, mood, weekly, integration(꼬마심심이 연동 — 키를 넣기 전에는 꺼짐)
 │   ├── app/services/         storage(local|r2), picks(오늘의 한 장), weekly(주간 집계), scheduler(예약 작업)
 │   ├── app/ai/               llm·stt·tts·image 어댑터, coach(회상 코치·일기 동무), quiz(문제 은행 고르기), schemas(출력 검사), prompts/*.md
 │   ├── scripts/seed.py       DB 초기화 + 시드
@@ -105,6 +105,7 @@ ELDER_DIARY_003: POST /elder/sessions/{id}/draft
              → 합 0~4 USUAL / 5~9 DOWN / 10~ HARD, 가족방·날짜당 1줄. 어르신 응답에는 점수·단계가 없다 (D56)
 주간 이야기: GET /rooms/{id}/weekly[?week_start=] → 집계 줄(이야기한 날·일기 쓴 날·기분·말 수). 없으면 404 WEEKLY_NOT_FOUND
              + prev_week_start·next_week_start(‹ › 지난·다음 주가 있으면) · diaries[].illustration_url(가족 홈 일기 카드와 같은 그림 주소)
+             + changes[{kind, text, tone}] '이번 주 달라진 점' — 앞 4주와 견준 변화·돌봄 안부·알림 이력 문장. 저장 없이 조회 때 계산 (services/weekly.changes)
 일기:        GET /diaries/{id} (가족, 상세) · GET /elder/diaries (기기, 내 일기 목록 — 일기 쓰기 화면의 [지난 일기] ELDER_DIARY_004, D60) · POST /rooms/{id}/diaries (가족 일기, 같은 방 + 같은 request_id 는 1개)
 사진첩:      GET /elder/album — 가족이 올린 사진만. 어르신이 일기에 찍은 사진은 지난 일기에서 본다 (D60)
 가족방:      PATCH /rooms/{id}/settings (방장만 — 추억 시간은 정각, 글자 L·XL·XXL, 말 속도 "0.80"·"0.90"·"1.00", 목소리 FEMALE·MALE, 입력 방식)

@@ -10,6 +10,7 @@ from app.errors import ApiError
 from app.models import Diary, FamilyRoom, WeeklySummary
 from app.routers.diaries import _rows as diary_rows
 from app.schemas.weekly import WeeklyOut
+from app.services.weekly import changes
 
 router = APIRouter(prefix="/rooms/{room_id}/weekly", tags=["weekly"])
 
@@ -41,4 +42,5 @@ def get_weekly(room_id: int, user: CurrentUser, db: DB, week_start: date | None 
         talk_volume=row.talk_volume,
         diaries=[{**d, "illustration_url": urls.get(d["diary_id"])} for d in row.diaries],
         notes=row.notes,
+        changes=changes(db, row),
     )

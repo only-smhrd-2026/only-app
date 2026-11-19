@@ -20,9 +20,9 @@ from app.config import (
 )
 from app.deps import DB, CurrentDevice, CurrentUser, require_member
 from app.models import ELDER_SPOKE, Diary, FamilyRoom, MoodCheck, TalkSession
-from app.schemas.common import OkOut
-from app.schemas.mood import MoodCheckDueOut, MoodCheckIn, MoodCheckOut, MoodDayOut, MoodWeekOut
-from app.services import picks
+from app.routers.devices import notify_family
+from app.schemas.mood import MoodCheckDueOut, MoodCheckIn, MoodCheckOut, MoodCheckSavedOut, MoodDayOut, MoodWeekOut
+from app.services import care, picks
 
 router = APIRouter(tags=["mood"])
 
@@ -91,24 +91,34 @@ def check_level(total: int) -> str:
     return "USUAL"
 
 
-@router.post("/elder/mood-check", response_model=OkOut)
+@router.post("/elder/mood-check", response_model=MoodCheckSavedOut)
 def save_mood_check(body: MoodCheckIn, device: CurrentDevice, db: DB):
     total = sum(body.answers)
-    db.execute(
+    level = check_level(total)
+    saved = db.execute(
         pg_insert(MoodCheck)
         .values(
             room_id=device.room_id,
             check_date=today_kst(),
             answers=body.answers,
             total=total,
-            level=check_level(total),
+            level=level,
         )
         .on_conflict_do_nothing(constraint="uq_mood_checks_room_id_check_date")
-    )
+        .returning(MoodCheck.check_id)
+    ).scalar_one_or_none()
+    if level == "HARD" and saved is not None:  # 그날 처음 저장될 때만 — 다시 보내도 알림은 1건 (11/19 S9)
+        # 가족이 마음 카드를 열어 보지 않아도 알게. 무엇을 답하셨는지·점수는 넣지 않는다.
+        # 종류는 '기운 없는 날' 알림과 같이 써서(MOOD_LOW_2D) 같은 주에 '전화 한 통' 알림이 겹치지 않는다 (D55 ②)
+        room = db.get(FamilyRoom, device.room_id)
+        who = f"{room.elder_name} {room.elder_honorific}"
+        body_text = f"{who}께서 마음 체크에서 요즘 많이 힘들다고 답하셨어요. 무엇을 답하셨는지는 전하지 않아요."
+        notify_family(db, room.room_id, "MOOD_LOW_2D", "전화 한 통 드려 보세요", body_text, "HOME_001")
     db.execute(
         update(FamilyRoom)
         .where(FamilyRoom.room_id == device.room_id, FamilyRoom.mood_check_consent_at.is_(None))
         .values(mood_check_consent_at=now_kst())
     )
     db.commit()
-    return OkOut()
+    # 끝 인사: 높게 답한 문항 하나를 쉬운 말로 받아 드린다 — 점수·단계는 말하지 않는다 (11/19 멘토링)
+    return MoodCheckSavedOut(say=care.check_say(body.answers, hard=level == "HARD"))

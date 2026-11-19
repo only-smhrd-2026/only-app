@@ -11,6 +11,7 @@ import type { NotificationListOut, RoomOut, UserOut } from '../api/types'
 import type { FamilyCtx } from '../hooks/useFamily'
 import { useFetch } from '../hooks/useFetch'
 import { clearFamilyDiaryDraft } from '../lib/familyDiaryDraft'
+import { disablePush, FAMILY_PUSH, syncPush } from '../lib/push'
 import { clearUploadDraft } from '../lib/uploadDraft'
 import FamIcon, { type FamIconName } from './FamIcon'
 import './FamilyFrame.css'
@@ -100,6 +101,12 @@ export default function FamilyFrame() {
     return () => document.removeEventListener('visibilitychange', onShow)
   }, [reloadRooms, reloadNoti])
 
+  // 폰 알림을 켜 둔 브라우저면 지금 로그인한 사람 것으로 서버에 맞춘다(화면 변화 없음, lib/push)
+  const myId = me.data?.user_id
+  useEffect(() => {
+    if (myId) void syncPush(FAMILY_PUSH, false, myId)
+  }, [myId])
+
   if (me.error?.status === 401) return <Navigate to="/login" replace />
 
   const list = rooms.data ?? []
@@ -116,6 +123,7 @@ export default function FamilyFrame() {
   }
 
   async function logout() {
+    await disablePush().catch(() => {}) // 이 브라우저로 가던 폰 알림을 끈다 — 로그인이 풀리기 전에(내 구독만 지울 수 있다)
     await api('/api/auth/logout', { method: 'POST' }).catch(() => {})
     clearUploadDraft() // 고르다 만 사진을 다음 사람에게 남기지 않는다
     clearFamilyDiaryDraft() // 쓰다 만 가족 일기 글도

@@ -37,8 +37,10 @@ ALBUM_PER_DAY = 3
 ALBUM_TURNS = 2  # 사진첩 대화 장당 AI 질문 수 (FR-ME-008)
 # 어르신 사진첩 '내 일기' 목록이 한 번에 돌려주는 개수(최신 순) — 사진 목록 PHOTO_LIST_LIMIT 와 같은 값 (D8)
 ELDER_DIARY_LIST_LIMIT = 100
-# 가족 소식 첫 장 '하트가 왔어요'가 한 번에 받는 가족 이모지 수. 넘으면 들은 뒤 나머지가 나온다 (D63)
+# 가족 소식 첫 장 '하트가 왔어요'가 한 번에 받는 가족 이모지·한마디 수. 넘으면 들은 뒤 나머지가 나온다 (D63)
 ELDER_HEARTS_LIMIT = 20
+REPLY_MAX = 40  # 가족이 어르신 일기에 남기는 한마디 글자 수 (11/19) — 화면 HOME_002 의 REPLY_MAX 와 같은 값
+ELDER_NEWS_AGAIN_LIMIT = 5  # 가족 소식이 비었을 때 '지난 소식 다시 듣기'가 돌려주는 들은 가족 일기 수 (11/19)
 # 가족 사진 목록·어르신 사진첩이 한 번에 돌려주는 장수(최신 순) — 두 화면이 같은 사진을 보이게 한 값으로 (D8)
 PHOTO_LIST_LIMIT = 100
 NOTI_LIST_LIMIT = 50  # 가족 알림 목록이 한 번에 돌려주는 개수, 최신 순
@@ -54,6 +56,14 @@ WEEKLY_HOUR = 19  # 주간 집계는 일요일 이 시각, D19 — 집계 창과
 WEEKLY_CARDS_MAX = 4  # 주간 이야기의 질문·답 카드 수 (D62)
 WEEKLY_PAIRS_MAX = 60  # 주간 요약 AI 에 주는 질문·답 쌍 수. 넘으면 긴 답부터 고른다
 WEEKLY_STT_MIN = 0.7  # 음성 인식 신뢰도가 이보다 낮은 답은 가족에게 전하지 않는다 (FR-FD-006)
+INTEGRATION_TREND_WEEKS = 4  # 꼬마심심이 연동 요약의 대화량 추이가 담는 주 수 — 그 주까지 최근 4주 (FR-API-002)
+# 주간 이야기 '이번 주 달라진 점' (11/18 멘토링) — services/weekly.changes 가 그 주를 앞 주들과 견줄 때 쓴다
+WEEKLY_BASE_WEEKS = 4  # 바로 앞 이만큼의 주를 '평소'로 본다
+WEEKLY_BASE_MIN_WEEKS = 2  # 앞 주가 이보다 적으면 견주지 않는다 (처음 몇 주는 평소를 모른다)
+WEEKLY_DAYS_GAP = 2  # 이야기한 날이 평소보다 이만큼 이상 다르면 '줄었다·늘었다'
+WEEKLY_TALK_SHORT = 0.7  # 한마디 길이가 평소의 이 비율보다 짧으면 '짧아졌어요'
+WEEKLY_TALK_LONG = 1.3  # 한마디 길이가 평소의 이 비율보다 길면 '길어졌어요'
+WEEKLY_MOOD_LOW_DAYS = 2  # 속상했어요·쓸쓸했어요를 고르신 날이 한 주에 이만큼이면 살펴볼 것으로 알린다
 STORY_HOUR = 4  # 새벽 이 시각에 어제 대화에서 이야기 기억을 뽑는다 — 가족방마다 AI 1번 (FR-AI-007, D77)
 STORY_FACTS_MAX = 3  # 하루치 대화에서 뽑는 기억 수 상한
 STORY_LOOKBACK_DAYS = 7  # 이어 물을 기억을 찾는 날수 — 이 안에서 가장 최근 대화한 날의 기억 하나 (FR-AI-008, D77)
@@ -101,11 +111,32 @@ CLASSIFY_SYNC_SEC = 4.0  # 어르신 카메라 사진을 일기 대화 열 때 �
 CLASSIFY_IMAGE_SIDE = 1024  # 분류에 보내는 사진 긴 변(px). 저장본(2560)보다 작게 — 토큰·보내는 시간을 줄인다
 SESSION_COOKIE_DAYS = 7
 DEVICE_COOKIE_DAYS = 365
+KAKAO_STEP_MIN = 10  # 카카오 로그인 중간 쿠키(state·가입 대기) 수명(분) — 카카오 화면에서 머무는 시간
+KAKAO_TIMEOUT_SEC = 5.0  # 카카오 서버(토큰·회원번호) 응답을 기다리는 시간. 넘으면 로그인 화면으로 돌려보낸다
 MOOD_WEEK_DAYS = 7  # 가족 홈 마음 카드가 보여 주는 날수
 MOOD_CHECK_EVERY_DAYS = 14  # 마음 체크 초대 간격 — 마지막 마음 체크 뒤 이 날수가 지나면 다시 권함, D56
 MOOD_CHECK_QUESTIONS = 8  # PHQ-9에서 9번을 뺀 8문항, D56. mood_checks.answers와 같게
 MOOD_CHECK_DOWN_MIN = 5  # 답 합이 이 이상이면 DOWN '조금 가라앉으신 편이에요'
 MOOD_CHECK_HARD_MIN = 10  # 답 합이 이 이상이면 HARD '많이 힘드신 것 같아요'. DOWN 미만은 USUAL
+# 웹 푸시 (app/services/push.py)
+PUSH_TIMEOUT_SEC = 5  # 푸시 서비스(FCM·애플·모질라)를 한 번 부를 때 기다리는 시간
+PUSH_TTL_SEC = 24 * 3600  # 폰이 꺼져 있으면 푸시 서비스가 이만큼 맡아 뒀다 전한다. 어르신 시간 알림은 그날 자정까지만
+PUSH_JWT_SEC = 12 * 3600  # VAPID 서명(JWT) 유효 시간 — RFC 8292 상한은 24시간
+PUSH_SUBS_PER_USER = 5  # 가족 한 사람이 알림을 받는 브라우저 수. 넘으면 오래전에 등록한 것부터 지운다
+# 추억 알림은 추억 시간 뒤 이 시간 안에만 보낸다 — 서버가 아침에 꺼져 있었다고 밤에 어르신 폰을 울리지 않게 (FR-NT-002)
+MEMORY_REMINDER_HOURS = 2
+URGENT_REMIND_MIN = 30  # 위급 알림에 [제가 연락했어요]가 이 분 동안 없으면 가족에게 한 번 더 알린다 (11/19 응급)
+URGENT_SHOW_HOURS = 24  # 가족 홈 긴급 카드가 보이는 시간 — 확인한 뒤에도 '○○님이 연락했어요'로 이만큼 남는다
+URGENT_CHECK_EVERY_MIN = 5  # 위 '한 번 더 알림'을 살피는 예약 작업 간격
+WITHDRAW_REAUTH_MIN = 10  # 비밀번호가 없는 카카오 회원은 로그인한 지 이 분 안에만 탈퇴할 수 있다 (11/19 보안 점검)
+CARE_BASE_DAYS = 14  # 돌봄 루프가 '평소'로 보는 날수 — 오늘 전 이만큼의 기록과 견준다 (11/19)
+CARE_BASE_MIN_DAYS = 5  # 말수 비교는 이야기한 날이 이만큼 쌓인 뒤부터 (처음 며칠은 평소를 모른다)
+CARE_TALK_DOWN = 0.6  # 어제 한마디 길이가 평소 평균의 이 비율보다 짧으면 '말수가 줄었어요'
+CARE_ASK_GAP_DAYS = 2  # 같은 안부는 이 날수에 한 번 — 어제 여쭌 안부는 오늘 쉰다
+CARE_ASK_MAX = 3  # 같은 안부는 평소 기간 안에 이만큼까지만 여쭌다
+CARE_KEEP_DAYS = 90  # 돌봄 일지 보관 날수 — 지나면 지운다
+PICK_LEARN_DAYS = 60  # 오늘의 한 장을 고를 때 돌아보는 날수 — 슬퍼하신 사진을 쉬게 하는 기간이기도 하다 (11/19)
+PICK_LIKE = 1.2  # 한 주제의 대화가 전체 평균의 이 배수보다 길면 '좋아하시는 주제'로 본다
 
 
 class Settings(BaseSettings):
@@ -128,6 +159,11 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = str(ROOT / "uploads")
     DOMAIN: str = ""
 
+    # 카카오 로그인 (FR-AD-001 2순위). REST 키나 돌아올 주소가 비면 카카오 로그인 전체가 꺼진다(routers/kakao.py)
+    KAKAO_REST_KEY: str = ""
+    KAKAO_CLIENT_SECRET: str = ""  # 카카오 콘솔에서 'Client Secret' 을 켰을 때만
+    KAKAO_REDIRECT_URI: str = ""  # 예 https://<도메인>/api/auth/kakao/callback — 요청의 Host 를 믿지 않고 이 값만 쓴다
+
     # 이름만 예약 (키를 받으면 .env 에 채움)
     R2_ACCOUNT_ID: str = ""
     R2_ACCESS_KEY_ID: str = ""
@@ -138,6 +174,14 @@ class Settings(BaseSettings):
     GOOGLE_TTS_API_KEY: str = ""
     CF_ACCOUNT_ID: str = ""
     CF_API_TOKEN: str = ""
+    # 웹 푸시 VAPID 키 (만들기: uv run python -m scripts.vapid_keys). 두 키가 비어 있으면 푸시를 보내지 않는다
+    VAPID_PUBLIC_KEY: str = ""  # base64url, 풀면 65바이트 — 화면이 구독할 때 받아 간다
+    VAPID_PRIVATE_KEY: str = ""  # base64url, 풀면 32바이트
+    VAPID_SUBJECT: str = ""  # mailto:운영자 주소 또는 https://주소 — 애플(아이폰) 푸시는 이 값이 없으면 거절한다
+
+    # 꼬마심심이 연동 요약 API 의 Bearer 키. 비어 있으면(기본값) 그 주소가 꺼진다 (FR-API-003).
+    # 기업과 계약을 확정하기 전에는 운영 서버에서도 비워 둔다
+    INTEGRATION_API_KEY: str = ""
 
     @property
     def is_dev(self) -> bool:
@@ -150,6 +194,9 @@ if len(settings.JWT_SECRET) < 32:
     raise RuntimeError("JWT_SECRET 은 32자 이상이어야 합니다 (.env)")
 if not settings.is_dev and settings.JWT_SECRET == DEV_JWT_SECRET:
     raise RuntimeError("배포 환경(APP_ENV=deploy)에서는 JWT_SECRET 을 개발 기본값으로 둘 수 없습니다")
+# 연동 키는 인터넷에서 어르신 요약을 막는 하나뿐인 문 — 짧으면 여러 IP 로 맞혀 볼 수 있다(틀린 키 제한은 IP 별)
+if 0 < len(settings.INTEGRATION_API_KEY) < 32:
+    raise RuntimeError("INTEGRATION_API_KEY 는 32자 이상이어야 합니다 (.env). 비워 두면 연동이 꺼집니다")
 
 
 def now_kst() -> datetime:
