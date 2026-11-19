@@ -222,7 +222,8 @@ def _ask(
         question_code=code,
         latency_ms=int((time.perf_counter() - t0) * 1000),
         urgent="BODY" if signal == "BODY" else None,
-        signal="LOW" if signal == "LOW" else None,  # 다음 날 안부 주제를 고르는 데 쓴다 (services/care.py)
+        # LOW 는 다음 날 안부 주제를(services/care.py), SAD 는 그 사진을 한동안 쉬게 하는 데 쓴다(services/picks.py)
+        signal=signal if signal in ("LOW", "SAD") else None,
     )
     _last_reply[session.session_id] = reply
     return reply, signal

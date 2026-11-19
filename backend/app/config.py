@@ -115,6 +115,8 @@ CARE_TALK_DOWN = 0.6  # 어제 한마디 길이가 평소 평균의 이 비율�
 CARE_ASK_GAP_DAYS = 2  # 같은 안부는 이 날수에 한 번 — 어제 여쭌 안부는 오늘 쉰다
 CARE_ASK_MAX = 3  # 같은 안부는 평소 기간 안에 이만큼까지만 여쭌다
 CARE_KEEP_DAYS = 90  # 돌봄 일지 보관 날수 — 지나면 지운다
+PICK_LEARN_DAYS = 60  # 오늘의 한 장을 고를 때 돌아보는 날수 — 슬퍼하신 사진을 쉬게 하는 기간이기도 하다 (11/19)
+PICK_LIKE = 1.2  # 한 주제의 대화가 전체 평균의 이 배수보다 길면 '좋아하시는 주제'로 본다
 
 
 class Settings(BaseSettings):
