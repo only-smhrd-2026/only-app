@@ -185,7 +185,7 @@ gitGraph
 | 폴더/파일 | 들어가는 것 | 담당 | 브랜치 이름 예시 |
 |---|---|---|---|
 | `frontend/` | 화면 전부. `src/screens/elder/` 어르신 화면 10개, `src/screens/family/` 가족 화면 15개. **파일 이름 = 화면설계서 화면 ID** (예: `ELDER_HOME_001.tsx`). 경로 표는 `src/App.tsx` | 김승희 18개 (박유승: 사진 올리기 `UPLOAD_001~003`·가족방 `GROUP_001~003`·`JOIN_001` 7개, 홍진성: `src/components/VoiceSession/`) | `feature/fe-elder-today` |
-| `backend/app/routers/`, `backend/app/schemas/` | API 주소별 서버 코드 (로그인·가족방·사진·세션·일기·주간·알림)와 요청·응답 모양. 빈 API 는 `stubs.py` | **각자 자기 API**: 박유승(사진 올리기·가족방·일기), 천주웅(사진첩 제한·가족 소식·알림·주간·기기 해제), 홍진성(세션 `sessions.py`) | `feature/be-photo-upload` |
+| `backend/app/routers/`, `backend/app/schemas/` | API 주소별 서버 코드 (로그인·가족방·사진·세션·일기·주간·알림)와 요청·응답 모양 | **각자 자기 API**: 박유승(사진 올리기·가족방·일기), 천주웅(사진첩 제한·가족 소식·알림·주간·기기 해제), 홍진성(세션 `sessions.py`) | `feature/be-photo-upload` |
 | `backend/app/ai/` | AI 부품: `llm.py`(Claude) `stt.py` `tts.py` `image.py` `coach.py` `prompts/`(지시문 5종) | 홍진성 | `feature/ai-memory-coach` |
 | `backend/app/models.py`, `backend/app/services/` | 테이블 13개의 모양을 서버 코드로 적은 파일 (`db/schema.sql` 과 짝) / 예약 작업 `scheduler.py`, 오늘의 한 장 고르기 `picks.py`, 사진 저장 `storage.py` | 천주웅 (`storage.py` 는 박유승). 내 API 안에서 데이터를 읽고 저장하는 코드는 각자 써요 | `feature/be-daily-pick-job` |
 | `db/schema.sql`, `db/seed/` | 테이블 생성 SQL(기준 문서) / 시드·더미 데이터 | **천주웅·홍진성만 수정** | `feature/db-diary-table` |
