@@ -106,6 +106,13 @@ MOOD_CHECK_EVERY_DAYS = 14  # 마음 체크 초대 간격 — 마지막 마음 �
 MOOD_CHECK_QUESTIONS = 8  # PHQ-9에서 9번을 뺀 8문항, D56. mood_checks.answers와 같게
 MOOD_CHECK_DOWN_MIN = 5  # 답 합이 이 이상이면 DOWN '조금 가라앉으신 편이에요'
 MOOD_CHECK_HARD_MIN = 10  # 답 합이 이 이상이면 HARD '많이 힘드신 것 같아요'. DOWN 미만은 USUAL
+# 웹 푸시 (app/services/push.py)
+PUSH_TIMEOUT_SEC = 5  # 푸시 서비스(FCM·애플·모질라)를 한 번 부를 때 기다리는 시간
+PUSH_TTL_SEC = 24 * 3600  # 폰이 꺼져 있으면 푸시 서비스가 이만큼 맡아 뒀다 전한다. 어르신 시간 알림은 그날 자정까지만
+PUSH_JWT_SEC = 12 * 3600  # VAPID 서명(JWT) 유효 시간 — RFC 8292 상한은 24시간
+PUSH_SUBS_PER_USER = 5  # 가족 한 사람이 알림을 받는 브라우저 수. 넘으면 오래전에 등록한 것부터 지운다
+# 추억 알림은 추억 시간 뒤 이 시간 안에만 보낸다 — 서버가 아침에 꺼져 있었다고 밤에 어르신 폰을 울리지 않게 (FR-NT-002)
+MEMORY_REMINDER_HOURS = 2
 
 
 class Settings(BaseSettings):
@@ -138,6 +145,10 @@ class Settings(BaseSettings):
     GOOGLE_TTS_API_KEY: str = ""
     CF_ACCOUNT_ID: str = ""
     CF_API_TOKEN: str = ""
+    # 웹 푸시 VAPID 키 (만들기: uv run python -m scripts.vapid_keys). 두 키가 비어 있으면 푸시를 보내지 않는다
+    VAPID_PUBLIC_KEY: str = ""  # base64url, 풀면 65바이트 — 화면이 구독할 때 받아 간다
+    VAPID_PRIVATE_KEY: str = ""  # base64url, 풀면 32바이트
+    VAPID_SUBJECT: str = ""  # mailto:운영자 주소 또는 https://주소 — 애플(아이폰) 푸시는 이 값이 없으면 거절한다
 
     @property
     def is_dev(self) -> bool:

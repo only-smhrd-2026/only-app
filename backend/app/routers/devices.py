@@ -9,6 +9,7 @@ from app.errors import ApiError
 from app.models import FamilyRoom, Notification, RoomMember
 from app.schemas.rooms import DeviceConnectIn, DeviceOut, PermissionsIn
 from app.security import new_token, set_device_cookie, sha256_hex
+from app.services import push
 
 router = APIRouter(prefix="/devices", tags=["devices"])
 
@@ -26,10 +27,11 @@ def _out(room: FamilyRoom) -> DeviceOut:
 
 
 def notify_family(db, room_id: int, kind: str, title: str, body: str | None = None, link: str | None = None):
-    """가족 구성원 모두에게 앱 내 알림 1건씩."""
-    for uid in db.scalars(
+    """가족 구성원 모두에게 앱 내 알림 1건씩. 일기·주간 이야기·위급 알림은 폰 푸시로도 (services/push.py)."""
+    uids = db.scalars(
         select(RoomMember.user_id).where(RoomMember.room_id == room_id, RoomMember.removed_at.is_(None))
-    ):
+    ).all()
+    for uid in uids:
         db.add(
             Notification(
                 room_id=room_id,
@@ -41,6 +43,7 @@ def notify_family(db, room_id: int, kind: str, title: str, body: str | None = No
                 link_screen=link,
             )
         )
+    push.queue_family(db, uids, room_id, kind, title, body, link)
 
 
 @router.post("/connect", response_model=DeviceOut)
@@ -68,6 +71,7 @@ def connect(body: DeviceConnectIn, response: Response, db: DB):
     if not row:
         raise ApiError(410, "INVITE_INVALID", "링크가 만료되었거나 이미 사용됐어요. 가족에게 새 링크를 받아 주세요")
     room = db.get(FamilyRoom, row[0])
+    push.forget_room(db, room.room_id)  # 옛 기기의 푸시 구독 — 새 기기는 연결 화면에서 새로 등록한다
     notify_family(db, room.room_id, "DEVICE_CONNECTED", f"{room.elder_name} 님 기기가 연결됐어요", link="GROUP_002")
     db.commit()
     set_device_cookie(response, raw)
