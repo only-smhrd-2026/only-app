@@ -41,6 +41,18 @@ STATE_COOKIE = "kakao_state"  # 내 브라우저가 시작한 로그인인지 �
 JOIN_COOKIE = "kakao_join"  # 가입 대기: 서명한 {카카오 회원번호, 닉네임}
 JOIN_AUD = "kakao-join"  # 세션 JWT 에는 aud 가 없고 이 토큰에는 sub 가 없다 → 서로 자리를 바꿔 쓸 수 없다
 COOKIE_PATH = "/api/auth/kakao"  # 중간 쿠키 둘은 이 주소들에만 실린다
+CALLBACK_PATH = "/api/auth/kakao/callback"
+
+
+def _hide_callback_query(record: logging.LogRecord) -> bool:
+    """uvicorn 접속 로그는 주소를 물음표 뒤까지 남긴다 — 카카오 콜백의 code·state 는 빼고 경로만 남긴다 (D15)."""
+    args = record.args
+    if isinstance(args, tuple) and len(args) > 2 and str(args[2]).startswith(CALLBACK_PATH):
+        record.args = (*args[:2], CALLBACK_PATH, *args[3:])
+    return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_hide_callback_query)
 
 
 def _enabled() -> bool:
@@ -162,7 +174,8 @@ def kakao_callback(request: Request, db: DB, code: str = "", state: str = ""):
     # 내 브라우저가 시작한 로그인인지 본다 (CSRF — 남이 자기 카카오 계정으로 내 브라우저를 로그인시키지 못하게)
     saved = request.cookies.get(STATE_COOKIE, "")
     if not saved or not hmac.compare_digest(saved.encode(), state.encode()):
-        raise ApiError(400, "KAKAO_STATE", "카카오 로그인을 처음부터 다시 해 주세요")
+        # 로그인은 시키지 않고 안내 화면으로 — 카카오 화면에 10분 넘게 머문 사람도 여기로 온다(JSON 글자만 보이지 않게)
+        return _go(AFTER_FAIL)
     ip = request.client.host if request.client else "unknown"
     # code 가 없는 것은 카카오 화면에서 동의를 취소한 경우. 카카오 서버를 부르는 횟수는 로그인과 같은 IP 상한으로 (D20)
     if not code or not login_allowed(ip):

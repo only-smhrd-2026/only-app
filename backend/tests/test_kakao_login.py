@@ -162,9 +162,10 @@ def test_callback_rejects_wrong_state(client, on, monkeypatch, case):
         client.cookies.clear()
     sent = {"no_cookie": state, "other_state": state[::-1], "no_state": "", "not_ascii": "가나다"}[case]
     response = _callback(client, sent)
-    assert response.status_code == 400 and response.json()["code"] == "KAKAO_STATE"
+    # 로그인시키지 않고 안내 화면으로 (JSON 글자만 보이는 화면 대신) — 세션 쿠키는 주지 않는다
+    assert (response.status_code, response.headers["location"]) == (302, kakao.AFTER_FAIL)
     assert calls == []  # 카카오 서버를 부르기 전에 막는다
-    assert "set-cookie" not in response.headers
+    assert "session=" not in response.headers.get("set-cookie", "")
     assert client.get("/api/auth/me").status_code == 401
 
 
@@ -208,7 +209,7 @@ def test_kakao_failure_returns_to_fixed_address(client, on, monkeypatch, caplog,
     assert len(calls) == kakao_calls
     log = _server_log(caplog)
     assert logged in log and not any(secret in log for secret in (ACCESS_TOKEN, CODE, state))
-    assert _callback(client, state).status_code == 400  # state 는 한 번만 쓴다
+    assert _callback(client, state).headers["location"] == kakao.AFTER_FAIL  # state 는 한 번만 쓴다
 
 
 def test_new_member_waits_for_terms_without_account(client, on, monkeypatch):
@@ -421,3 +422,27 @@ def test_password_api_does_not_crash_for_kakao_member(client, on, monkeypatch):
     assert 400 <= result.status_code < 500
     with SessionLocal() as db:
         assert db.scalar(select(User.password_hash).where(User.kakao_id == str(kakao_id))) is None
+
+
+def test_access_log_drops_code_and_state_of_the_callback():
+    """uvicorn 접속 로그에 인가 코드·state 가 남지 않는다 (D15) — 다른 주소의 줄은 그대로."""
+    import logging
+
+    def line(path):
+        record = logging.LogRecord(
+            "uvicorn.access",
+            logging.INFO,
+            "",
+            0,
+            '%s - "%s %s HTTP/%s" %d',
+            ("1.2.3.4:5", "GET", path, "1.1", 302),
+            None,
+        )
+        assert kakao._hide_callback_query(record) is True
+        return record.getMessage()
+
+    assert (
+        line(f"/api/auth/kakao/callback?code={CODE}&state=abc")
+        == '1.2.3.4:5 - "GET /api/auth/kakao/callback HTTP/1.1" 302'
+    )
+    assert "week_start=2026-11-09" in line("/api/rooms/1/weekly?week_start=2026-11-09")
