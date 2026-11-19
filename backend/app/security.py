@@ -1,4 +1,4 @@
-"""비밀번호 해시(bcrypt), 가족 세션 JWT, 토큰 해시, 쿠키, 속도 제한(로그인·음성 인식·가족 일기 동무), 하루 상한.
+"""비밀번호 해시(bcrypt), 가족 세션 JWT, 토큰 해시, 쿠키, 속도 제한(로그인·음성 인식·가족 일기 동무·연동 키), 하루 상한.
 
 D2, D20, D46, D58.
 """
@@ -154,6 +154,16 @@ def record_login_failure(email: str) -> None:
 def clear_login_failures(email: str) -> None:
     with _account_failure_lock:
         _account_failures.pop(email.lower(), None)
+
+
+def integration_blocked(ip: str) -> bool:
+    """꼬마심심이 연동 키 맞히기 막기. 같은 IP 에서 키가 틀린 횟수를 로그인 실패와 같은 표·같은 상한
+    (LOGIN_FAIL_PER_EMAIL 번 / LOGIN_FAIL_WINDOW_SEC 초)으로 센다. 이름표에 '@' 가 없어 이메일과 겹치지 않는다."""
+    return login_account_blocked(f"integration:{ip}")
+
+
+def record_integration_failure(ip: str) -> None:
+    record_login_failure(f"integration:{ip}")
 
 
 def stt_allowed(ip: str) -> bool:

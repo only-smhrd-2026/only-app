@@ -25,7 +25,7 @@ only-app/
 │   ├── app/security.py       bcrypt, JWT, 토큰 해시, 쿠키, 로그인 속도 제한
 │   ├── app/errors.py         오류 형식 {detail, code}
 │   ├── app/schemas/          요청·응답 모델 (API 계약)
-│   ├── app/routers/          auth, rooms, invites, devices, elder, stt, sessions, diaries, family_diary, media, photos, notifications, mood, weekly, stubs(빈 API)
+│   ├── app/routers/          auth, rooms, invites, devices, elder, stt, sessions, diaries, family_diary, media, photos, notifications, mood, weekly, integration(꼬마심심이 연동 — 키를 넣기 전에는 꺼짐)
 │   ├── app/services/         storage(local|r2), picks(오늘의 한 장), weekly(주간 집계), scheduler(예약 작업)
 │   ├── app/ai/               llm·stt·tts·image 어댑터, coach(회상 코치·일기 동무), quiz(문제 은행 고르기), schemas(출력 검사), prompts/*.md
 │   ├── scripts/seed.py       DB 초기화 + 시드

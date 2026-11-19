@@ -17,6 +17,7 @@ from app.routers import (
     diaries,
     elder,
     family_diary,
+    integration,
     invites,
     media,
     mood,
@@ -25,7 +26,6 @@ from app.routers import (
     rooms,
     sessions,
     stt,
-    stubs,
     weekly,
 )
 from app.services import scheduler
@@ -82,7 +82,7 @@ for r in (
     notifications.router,
     mood.router,
     weekly.router,
-    *stubs.routers,
+    integration.router,
 ):
     api.include_router(r)
 

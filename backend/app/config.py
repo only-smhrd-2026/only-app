@@ -54,6 +54,7 @@ WEEKLY_HOUR = 19  # 주간 집계는 일요일 이 시각, D19 — 집계 창과
 WEEKLY_CARDS_MAX = 4  # 주간 이야기의 질문·답 카드 수 (D62)
 WEEKLY_PAIRS_MAX = 60  # 주간 요약 AI 에 주는 질문·답 쌍 수. 넘으면 긴 답부터 고른다
 WEEKLY_STT_MIN = 0.7  # 음성 인식 신뢰도가 이보다 낮은 답은 가족에게 전하지 않는다 (FR-FD-006)
+INTEGRATION_TREND_WEEKS = 4  # 꼬마심심이 연동 요약의 대화량 추이가 담는 주 수 — 그 주까지 최근 4주 (FR-API-002)
 STORY_HOUR = 4  # 새벽 이 시각에 어제 대화에서 이야기 기억을 뽑는다 — 가족방마다 AI 1번 (FR-AI-007, D77)
 STORY_FACTS_MAX = 3  # 하루치 대화에서 뽑는 기억 수 상한
 STORY_LOOKBACK_DAYS = 7  # 이어 물을 기억을 찾는 날수 — 이 안에서 가장 최근 대화한 날의 기억 하나 (FR-AI-008, D77)
@@ -139,6 +140,10 @@ class Settings(BaseSettings):
     CF_ACCOUNT_ID: str = ""
     CF_API_TOKEN: str = ""
 
+    # 꼬마심심이 연동 요약 API 의 Bearer 키. 비어 있으면(기본값) 그 주소가 꺼진다 (FR-API-003).
+    # 기업과 계약을 확정하기 전에는 운영 서버에서도 비워 둔다
+    INTEGRATION_API_KEY: str = ""
+
     @property
     def is_dev(self) -> bool:
         return self.APP_ENV == "dev"
@@ -150,6 +155,9 @@ if len(settings.JWT_SECRET) < 32:
     raise RuntimeError("JWT_SECRET 은 32자 이상이어야 합니다 (.env)")
 if not settings.is_dev and settings.JWT_SECRET == DEV_JWT_SECRET:
     raise RuntimeError("배포 환경(APP_ENV=deploy)에서는 JWT_SECRET 을 개발 기본값으로 둘 수 없습니다")
+# 연동 키는 인터넷에서 어르신 요약을 막는 하나뿐인 문 — 짧으면 여러 IP 로 맞혀 볼 수 있다(틀린 키 제한은 IP 별)
+if 0 < len(settings.INTEGRATION_API_KEY) < 32:
+    raise RuntimeError("INTEGRATION_API_KEY 는 32자 이상이어야 합니다 (.env). 비워 두면 연동이 꺼집니다")
 
 
 def now_kst() -> datetime:
