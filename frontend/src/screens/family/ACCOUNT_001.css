@@ -1,0 +1,39 @@
+/* ACCOUNT_001 회원 탈퇴 — 하위 화면 틀(SubFrame) 안. 색 변수·카드·버튼·아래 판·고르는 줄(fam-opt)은 components/FamilyFrame.css.
+   가족 화면 규격(11/17): 글자 15px 이상·누르는 곳 44px. .fam p 의 margin 0 보다 세게 하려고 p 는 .fam 을 앞에 붙인다 */
+.acc-head { padding:2px var(--gut) 4px; }
+.acc-head h1 { font-size:25px; font-weight:800; letter-spacing:-.04em; }
+.acc-form { display:flex; flex-direction:column; gap:12px; } /* 카드 사이는 fam-stack 과 같은 간격 */
+.acc-card { display:flex; flex-direction:column; gap:10px; padding:16px; }
+.acc-card h2 { font-size:16px; font-weight:800; letter-spacing:-.02em; overflow-wrap:anywhere; }
+.acc-card .fam-error { margin:0; }
+.fam .acc-note { color:var(--text-2); }
+.acc > .acc-note, .acc-retry { margin:0 var(--gut); }
+
+/* 탈퇴하면 — 처리방침(POLICY_001 .pol-list)과 같은 점 목록 */
+.acc-list { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px; color:var(--text-2); line-height:1.6; }
+.acc-list li { position:relative; padding-left:14px; }
+.acc-list li::before { content:''; position:absolute; left:2px; top:.75em; width:5px; height:5px; border-radius:50%; background:var(--primary); }
+
+/* 방장을 넘길 분 — 라디오 줄. 공통 fam-opt 의 작은 글자(13px)만 15px 로 올린다 */
+.acc-pick { margin:0; padding:0; border:0; min-width:0; }
+.acc-pick legend { padding:0; margin-bottom:4px; color:var(--text-2); }
+.acc-opt { min-height:52px; padding:8px; cursor:pointer; overflow-wrap:anywhere; }
+.acc-opt:has(input:checked) { background:var(--tint); }
+.acc-opt:has(input:focus-visible) { outline:2px solid var(--primary); outline-offset:1px; }
+.acc-opt input { flex:none; width:22px; height:22px; margin:0; accent-color:var(--primary); }
+.acc-opt small { font-size:15px; }
+.fam .acc-warn { padding:10px 12px; border-radius:12px; background:#fdecee; color:#b4232a; line-height:1.55; } /* GROUP_002 .gr-warn 과 같은 색 */
+
+/* 지금 비밀번호 — 가족방 만들기(GROUP_001 .newroom-field > input)와 같은 모양 */
+.acc-label { font-size:15px; font-weight:800; }
+.acc-input { width:100%; min-width:0; border:1px solid var(--line); border-radius:14px; background:var(--surface); padding:12px 14px; font-size:16px; line-height:1.55; color:var(--text); }
+.acc-input:focus { outline:2px solid var(--primary); outline-offset:1px; }
+.acc-danger { background:var(--danger); color:#fff; } /* 위험 버튼 — 화면마다 한 줄씩 둔다(gr-btn-danger·gp-del-ok 와 같은 값) */
+
+/* 확인 판 — <dialog> 라 브라우저 기본 모양(가운데·테두리)을 fam-sheet 모양으로 되돌린다 (HOME_002 .diary-detail-delete-sheet 와 같음) */
+.acc-sheet { top:auto; width:100%; max-height:90dvh; overflow-y:auto; border:0; color:var(--text); }
+.acc-sheet::backdrop { background:rgba(18,16,28,.42); }
+.fam .acc-sheet > p { margin:0 12px 14px; color:var(--text-2); line-height:1.5; }
+.acc-two { display:flex; gap:8px; padding:6px 8px 2px; }
+.acc-two .fam-btn { flex:1; }
+.acc-danger:focus-visible, .acc-two .fam-btn:focus-visible { outline:2px solid var(--primary); outline-offset:3px; }

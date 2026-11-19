@@ -12,6 +12,7 @@ from app.config import now_kst, settings
 from app.deps import DB
 from app.errors import install_handlers
 from app.routers import (
+    account,
     auth,
     devices,
     diaries,
@@ -69,6 +70,7 @@ async def log_request_timing(request: Request, call_next):
 api = APIRouter(prefix="/api")
 for r in (
     auth.router,
+    account.router,
     rooms.router,
     invites.router,
     devices.router,

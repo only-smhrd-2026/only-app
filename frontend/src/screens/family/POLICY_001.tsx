@@ -2,10 +2,11 @@
  * POLICY_001 — 이용약관·개인정보 처리방침 (/policy). 로그인 전에도 열려야 해서 틀(FamilyFrame) 밖 화면이다(App.tsx).
  * 시작 화면(LOGIN_001)의 [보기]·추억 올리기 1/3 의 '자세히 ›'(#vendors, D71)·가족 홈의 '자세히 ›'(#mood)에서 온다.
  * 글은 11/17 확정본 그대로(Drive 「동의 문구·개인정보 처리방침 (초안)」을 코드와 대조해 확정, 책임자·연락처도 이때 정함).
+ * 11/19 '지우는 방법'의 '계정 지우기는 문의처로'를 회원 탈퇴(ACCOUNT_001) 안내로 바꿈 — 글은 서버(routers/account.py)가 하는 그대로.
  * [팀 확인] 남은 곳: ① 맡기는 곳 Cloudflare R2 의 나라(버킷 저장 위치) ② 연락처 — 팀 공용 메일이 생기면 '준비 중'을 바꾼다
  */
 import { useEffect } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import FamIcon from '../../components/FamIcon'
 import '../../components/FamilyFrame.css'
 import './POLICY_001.css'
@@ -247,9 +248,14 @@ export default function POLICY_001() {
               쓴 일기와 올린 사진은 남으니, 지우려면 나가기 전에 지워요.
             </li>
             <li>
-              어르신 일기·대화 기록, 계정 지우기, 그 밖의 정보를 보거나 고치거나 지우고 싶으면 아래 문의처로 알려
-              주세요.
+              회원 탈퇴: 탈퇴하면 이메일·이름·비밀번호는 바로 지워져요. 내가 쓴 일기와 올린 사진은 가족방에 '탈퇴한
+              가족' 이름으로 남으니, 지우려면 탈퇴하기 전에 지워요. 내가 방장인 가족방은 다른 가족에게 방장을 넘기고,
+              다른 가족이 없는 가족방은 어르신 일기·대화·사진까지 모두 지워져요.
+              <Link className="pol-link" to="/account/withdraw">
+                회원 탈퇴 ›
+              </Link>
             </li>
+            <li>어르신 일기·대화 기록, 그 밖의 정보를 보거나 고치거나 지우고 싶으면 아래 문의처로 알려 주세요.</li>
           </ul>
         </section>
 

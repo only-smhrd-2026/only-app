@@ -2,6 +2,8 @@
 
 export type UserOut = { user_id: number; email: string | null; name: string; login_type: string; created_at: string }
 export type PasswordChangeIn = { current_password: string; new_password: string }
+/** POST /api/auth/withdraw — 회원 탈퇴. transfers = 내가 방장인 가족방마다 1칸: 방장을 넘길 가족, 혼자인 방은 null(가족방을 지움) */
+export type WithdrawIn = { password: string; transfers: { room_id: number; new_owner_user_id: number | null }[] }
 
 export type RoomOut = {
   room_id: number

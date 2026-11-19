@@ -19,6 +19,7 @@ import ELDER_FAMILY_001 from './screens/elder/ELDER_FAMILY_001'
 import ELDER_HOME_001 from './screens/elder/ELDER_HOME_001'
 import ELDER_MEMORY_001 from './screens/elder/ELDER_MEMORY_001'
 import ELDER_MOOD_002 from './screens/elder/ELDER_MOOD_002'
+import ACCOUNT_001 from './screens/family/ACCOUNT_001'
 import FDIARY_001 from './screens/family/FDIARY_001'
 import FDIARY_002 from './screens/family/FDIARY_002'
 import FDIARY_003 from './screens/family/FDIARY_003'
@@ -71,6 +72,7 @@ export const SCREENS: ScreenDef[] = [
   { id: 'FDIARY_003', path: '/fdiary/confirm', title: '가족 일기 확인', Screen: FDIARY_003 },
   { id: 'WEEKLY_001', path: '/weekly/:roomId', title: '주간 이야기', Screen: WEEKLY_001 },
   { id: 'NOTI_001', path: '/notifications', title: '알림', Screen: NOTI_001 },
+  { id: 'ACCOUNT_001', path: '/account/withdraw', title: '회원 탈퇴', Screen: ACCOUNT_001 }, // 11/19 새 화면
   // 11/17 새 화면 — 로그인 전에도 열려야 해서 TAB·SUB 어디에도 넣지 않는다(틀 밖, 화면이 스스로 ← 를 그린다)
   { id: 'POLICY_001', path: '/policy', title: '약관·개인정보 처리방침', Screen: POLICY_001 },
 ]
@@ -102,7 +104,7 @@ function Start() {
 // 가족 탭 첫 화면 5개는 공통 틀(위 막대·아래 탭, D70) 안에 들어간다. 가족방 탭은 지금 구성원 화면(월요일 팀이 한 화면으로)
 const TAB_SCREENS = new Set(['HOME_001', 'UPLOAD_001', 'FDIARY_001', 'WEEKLY_001', 'GROUP_002'])
 // 그 밖의 가족 화면은 위 ← 만 있는 하위 화면 틀(D70). 로그인·참여는 틀 없이(목업 '설계서대로')
-const SUB_SCREENS = new Set(['GROUP_001', 'GROUP_004', 'HOME_002', 'UPLOAD_002', 'UPLOAD_003', 'FDIARY_002', 'FDIARY_003', 'NOTI_001'])
+const SUB_SCREENS = new Set(['GROUP_001', 'GROUP_004', 'HOME_002', 'UPLOAD_002', 'UPLOAD_003', 'FDIARY_002', 'FDIARY_003', 'NOTI_001', 'ACCOUNT_001'])
 const route = ({ id, path, title, Screen }: ScreenDef) => (
   <Route key={id} path={path} element={Screen ? <Screen /> : <NotYet id={id} title={title} />} />
 )
