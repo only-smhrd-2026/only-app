@@ -356,12 +356,20 @@ def test_family_push_only_for_diary_weekly_and_urgent(client, outbox):
     signup(client)
     room_id = make_room(client)["room_id"]
     phone = _family_phone(client)
-    links = {"DIARY_POSTED": "HOME_001", "WEEKLY_READY": "WEEKLY_001", "MOOD_URGENT": "HOME_001"}
+    links = {
+        "DIARY_POSTED": "HOME_001",
+        "WEEKLY_READY": "WEEKLY_001",
+        "MOOD_URGENT": "HOME_001",
+        "MOOD_LOW_2D": "HOME_001",
+    }
     others = ["DEVICE_CONNECTED", "NO_RECORD_2D", "PERMISSION_OFF", "SESSION_ERROR_3X", "TTS_ERROR", "PICK_SKIPPED_2X"]
-    for kind in [*links, *others, "MOOD_LOW_2D"]:
+    for kind in [*links, *others]:
         _notify(room_id, kind, f"제목 {kind}", body=SECRET, link=links.get(kind, "HOME_001"))
     got = {phone.open(r)["tag"].split("-")[0]: (phone.open(r), r.headers) for r in outbox.sent}
-    assert len(outbox.sent) == 3 and set(got) == set(links)
+    assert len(outbox.sent) == 4 and set(got) == set(links)
+    # '전화 한 통 드려 보세요'(기운 없는 날·마음 체크)는 고정 문장 body 와 함께, 급하게 전하지는 않는다 (11/19)
+    low, low_headers = got["MOOD_LOW_2D"]
+    assert low["body"] == SECRET and low_headers["urgency"] == "normal"
 
     diary, headers = got["DIARY_POSTED"]  # 일기 알림의 body(일기 글)는 보내지 않는다 — 제목만
     assert diary == {"title": "제목 DIARY_POSTED", "url": f"/?room={room_id}", "tag": f"DIARY_POSTED-{room_id}"}
@@ -642,3 +650,13 @@ def test_midnight_memory_time_still_gets_its_reminder(client, outbox, monkeypatc
     _at(monkeypatch, 0, 1)
     scheduler.memory_reminders()
     assert len(outbox.to(elder)) == 1 and len(_reminders(room_id, "MEMORY_REMINDER")) == 1
+
+
+def test_diary_reminder_push_is_not_sent_hours_late(client, outbox, monkeypatch):
+    """밤에 서버를 다시 띄우면(기동 보정) 일기 알림 줄은 만들되 어르신 폰은 울리지 않는다 (11/19 — 배포가 주로 저녁)."""
+    room_id = setup_elder(client)["room_id"]
+    elder = Phone()
+    assert client.post("/api/elder/push/subscribe", json=elder.json).status_code == 200
+    _at(monkeypatch, 22)
+    scheduler.diary_reminders()
+    assert outbox.to(elder) == [] and len(_reminders(room_id, "DIARY_REMINDER")) == 1

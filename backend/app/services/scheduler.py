@@ -100,7 +100,10 @@ def diary_reminders() -> None:
                     sent_at=now,
                 )
             )
-            push.queue_elder(db, room.room_id, "DIARY_REMINDER")
+            # 푸시는 일기 시간 뒤 MEMORY_REMINDER_HOURS 안에만 — 밤에 서버를 다시 띄울 때(기동 보정 catch_up)
+            # 어르신 폰이 뒤늦게 울리지 않게. 앱 안 알림 줄은 그대로 만든다
+            if now.hour < DAILY_ALERT_HOUR + MEMORY_REMINDER_HOURS:
+                push.queue_elder(db, room.room_id, "DIARY_REMINDER")
         db.commit()
     log.info("job diary_reminders rooms=%d", len(rooms))
 
