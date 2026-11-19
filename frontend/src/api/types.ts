@@ -128,6 +128,16 @@ export type SessionOut = {
   end_reason: EndReason | null
   turn_no: number
   input_locked: boolean
+  urgent?: 'BODY' | null // 몸이 위급하다는 말로 끝난 대화 — 화면이 [119 전화하기]를 띄운다 (11/19 응급)
+}
+// 가족 홈 긴급 카드 (backend/app/schemas/alerts.py). acked_at 이 null 이면 아직 아무도 [제가 연락했어요]를 안 누름
+export type AlertOut = {
+  alert_id: number
+  kind: 'MOOD' | 'BODY' // MOOD 마음 위급(D55), BODY 몸 위급
+  created_at: string
+  acked_at: string | null
+  acked_by_name: string | null
+  acked_by_me: boolean
 }
 export type SessionGetOut = {
   session_id: string

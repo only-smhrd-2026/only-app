@@ -163,7 +163,8 @@ CREATE TABLE sessions (
 --   공통  : turn_no, speaker(AI|ELDER), text, created_at
 --   어르신: stt_confidence(0~1), input_type(VOICE|CHIP|BUTTON|TEXT — TEXT 는 글로 쓰기 D52), retried, reply_to_turn_no
 --   AI    : question_type(RECALL|REMEMBER|KNOWHOW|THEN_NOW|COMMON|RECHECK|CLOSING|NONE), latency_ms,
---           fact_id(지난 대화의 이야기로 연 첫 질문 — story_facts.fact_id, D77. RECHECK 는 쓰지 않음)
+--           fact_id(지난 대화의 이야기로 연 첫 질문 — story_facts.fact_id, D77. RECHECK 는 쓰지 않음),
+--           urgent(BODY — 몸이 위급하다는 말로 끝난 마무리 턴. 화면이 [119 전화하기]를 띄운다, 11/19)
 --   출제  : question_code(문제 은행 code, AI 가 쓴 생각 문제는 'GEN-유형' 예 GEN-REMEMBER — D72, 되짚기는 없음),
 --           hint_level(0~3), recheck_result(REMEMBERED|HINTED|SKIPPED|NA),
 --           answer_summary — 14일 반복 방지는 최근 14일 세션의 question_code → question_bank.code 의 카테고리·활동,
@@ -287,3 +288,16 @@ CREATE TABLE mood_checks (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT uq_mood_checks_room_id_check_date UNIQUE (room_id, check_date)   -- 같은 날 두 번 보내도 1줄
 );
+
+-- 14. 위급 알림 (D55 마음 위급 + 11/19 몸 위급). 대화에서 감지한 위급 1건마다 한 줄 — 가족 홈 긴급 카드
+CREATE TABLE urgent_alerts (
+    alert_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
+    session_id UUID REFERENCES sessions(session_id),               -- 어느 대화에서 감지했는지
+    kind VARCHAR(5) NOT NULL CHECK (kind IN ('MOOD', 'BODY')),      -- MOOD 마음 위급(RISK), BODY 몸 위급
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    acked_by BIGINT REFERENCES users(user_id),                     -- [제가 연락했어요]를 처음 누른 가족
+    acked_at TIMESTAMPTZ,
+    reminded_at TIMESTAMPTZ                                        -- 30분 동안 확인이 없어 한 번 더 알린 시각
+);
+CREATE INDEX ix_urgent_alerts_room_created ON urgent_alerts(room_id, created_at);

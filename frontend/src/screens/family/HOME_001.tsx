@@ -21,6 +21,7 @@ import {
 import FamIcon from '../../components/FamIcon'
 import { Avatar } from '../../components/FamilyFrame'
 import MoodIcon from '../../components/MoodIcon'
+import UrgentCard from '../../components/UrgentCard'
 import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
 import { getInstallState, promptInstall, subscribeInstallPrompt } from '../../lib/installPrompt'
@@ -544,6 +545,7 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
   }
   return (
     <main className="fam-stack">
+      <UrgentCard roomId={room.room_id} who={`${room.elder_name} ${room.elder_honorific}`} />
       <InstallCard />
       <MoodCard week={mood.data} />
       <WeeklyBanner room={room} />

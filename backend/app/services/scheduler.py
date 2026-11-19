@@ -6,6 +6,7 @@
 - 일요일 19:00 주간 요약 (배선 천주웅, 요약 AI 홍진성)
 - 10분마다 분류 전 가족 사진 분류 (AI-04, 홍진성 — D71)
 - 04:00 어제 대화에서 이야기 기억 뽑기·보관 기간 지난 기억 지우기 (AI-07, 홍진성 — D77)
+- 5분마다 확인 안 된 위급 알림을 가족에게 한 번 더 (홍진성 — 11/19 응급)
 compose 는 restart: unless-stopped, uvicorn --workers 1 전제 (잡이 두 번 돌지 않게).
 """
 
@@ -26,6 +27,7 @@ from app.config import (
     NO_RECORD_DAYS,
     STORY_HOUR,
     TZ,
+    URGENT_CHECK_EVERY_MIN,
     WEEKLY_HOUR,
     now_kst,
     today_kst,
@@ -33,7 +35,7 @@ from app.config import (
 from app.db import SessionLocal
 from app.models import ELDER_SPOKE, DailyPick, Diary, FamilyRoom, Notification, TalkSession, WeeklySummary
 from app.routers.devices import notify_family
-from app.services import picks, weekly
+from app.services import alerts, picks, weekly
 
 log = logging.getLogger("app.jobs")
 scheduler = BackgroundScheduler(timezone=TZ)
@@ -231,6 +233,14 @@ def story_facts() -> None:
     log.info("job story_facts rooms=%d kept=%d", rooms, kept)
 
 
+def urgent_reminders() -> None:
+    """위급 알림에 아무도 [제가 연락했어요]를 누르지 않았으면 가족에게 한 번 더 알린다 (11/19 응급)."""
+    with SessionLocal() as db:
+        told = alerts.remind(db)
+    if told:  # 할 일이 없을 때는 5분마다 줄을 남기지 않는다
+        log.info("job urgent_reminders rooms=%d", told)
+
+
 def catch_up() -> None:
     """기동 시 놓친 작업 보정 (D9). 예: 지난 일요일 주간 요약이 없으면 지금 생성. TODO(천주웅)."""
     jobs = [weekly_summaries]
@@ -274,6 +284,12 @@ def start() -> None:
     )
     scheduler.add_job(
         story_facts, CronTrigger(hour=STORY_HOUR, minute=0, timezone=TZ), id="story_facts", replace_existing=True
+    )
+    scheduler.add_job(
+        urgent_reminders,
+        CronTrigger(minute=f"*/{URGENT_CHECK_EVERY_MIN}", timezone=TZ),
+        id="urgent_reminders",
+        replace_existing=True,
     )
     scheduler.start()
     catch_up()

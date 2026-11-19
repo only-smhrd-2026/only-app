@@ -29,7 +29,7 @@ from fastapi import APIRouter
 from sqlalchemy import func, select
 
 from app.ai import classify, coach, quiz, story, tts
-from app.ai.schemas import CoachReply, has_risk_words
+from app.ai.schemas import CoachReply, has_body_words, has_risk_words
 from app.config import (
     ALBUM_PER_DAY,
     ALBUM_TURNS,
@@ -65,6 +65,7 @@ from app.schemas.sessions import (
     TurnIn,
     TurnOut,
 )
+from app.services import alerts
 
 log = logging.getLogger("app.sessions")
 router = APIRouter(prefix="/elder/sessions", tags=["sessions"])
@@ -206,6 +207,9 @@ def _ask(
             story.deny(db, session.room_id, last["fact_id"])
         signal = "NONE"
     _note_mood(db, session, signal, private)  # 가족 마음 카드·알림·주간 요약용 (FR-AI-005, FR-FD-006, D55)
+    if signal == "BODY":  # 몸이 위급하다는 말 — 가족 모두에게 바로, 비밀 부탁 대화여도 보낸다 (11/19 응급)
+        alerts.raise_alert(db, db.get(FamilyRoom, session.room_id), session.session_id, "BODY")
+        log.info("body urgent room=%s session=%s", session.room_id, session.session_id)
     _add_turn(
         session,
         "AI",
@@ -213,6 +217,7 @@ def _ask(
         question_type=reply.question_type,
         question_code=code,
         latency_ms=int((time.perf_counter() - t0) * 1000),
+        urgent="BODY" if signal == "BODY" else None,
     )
     _last_reply[session.session_id] = reply
     return reply, signal
@@ -264,9 +269,7 @@ def _note_mood(db, session: TalkSession, signal: str, private: bool = False) -> 
     session.emotion_flag = flag
     room = db.get(FamilyRoom, session.room_id)
     if flag == "RISK":
-        who = f"{room.elder_name} {room.elder_honorific}"
-        body = f"{who}께서 많이 힘드신 것 같아요. 무슨 말씀을 하셨는지는 전하지 않아요."
-        notify_family(db, room.room_id, "MOOD_URGENT", "지금 전화 한 통 드려 보세요", body, "HOME_001")
+        alerts.raise_alert(db, room, session.session_id, "MOOD")  # 가족 모두에게 알림 + 가족 홈 긴급 카드
         log.info("mood urgent room=%s session=%s", room.room_id, session.session_id)
     _check_low_days(db, room)
 
@@ -315,6 +318,21 @@ def _risk_close(db, session: TalkSession, room: FamilyRoom) -> SessionOut:
     _note_mood(db, session, "RISK")
     reply = coach.RISK_CLOSING
     _add_turn(session, "AI", reply.text, question_type=reply.question_type)
+    reason = "USER_STOP" if session.kind == "DIARY" else "COMPLETED"
+    _finish(db, session, reason)
+    db.commit()
+    return _out(db, session, room, reply, "ENDED", reason)
+
+
+def _body_close(db, session: TalkSession, room: FamilyRoom) -> SessionOut:
+    """몸 위급 낱말(안전망, 11/19 응급): AI 를 부르지 않고 가족 모두에게 바로 알린 뒤 119 버튼과 함께 마무리한다.
+
+    일기 대화·AI 가 실패한 턴도 잡는다. 일기 대화는 일기로 남기지 않는다(USER_STOP — _risk_close 와 같다).
+    """
+    alerts.raise_alert(db, room, session.session_id, "BODY")
+    log.info("body urgent room=%s session=%s", room.room_id, session.session_id)
+    reply = coach.BODY_CLOSING
+    _add_turn(session, "AI", reply.text, question_type=reply.question_type, urgent="BODY")
     reason = "USER_STOP" if session.kind == "DIARY" else "COMPLETED"
     _finish(db, session, reason)
     db.commit()
@@ -419,6 +437,8 @@ def _out(db, session, room, reply, state="CONTINUE", end_reason=None) -> Session
         end_reason=end_reason,
         turn_no=session.turn_count,
         input_locked=_locked(session.session_id),
+        # 몸 위급으로 끝난 대화면 화면이 [119 전화하기]를 띄운다 — 마무리 턴에 남긴 표시를 읽는다 (다시 열어도 같게)
+        urgent=(_last_ai_turn(session) or {}).get("urgent") if state == "ENDED" else None,
     )
 
 
@@ -576,6 +596,8 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
                 _save_elder(db, session, body, text)
                 if has_risk_words(text):
                     return _risk_close(db, session, room)
+                if has_body_words(text):
+                    return _body_close(db, session, room)
         reply, _ = _ask(db, session, coach_context(db, room, session), end="LIMIT")
         _finish(db, session, "LIMIT")
         db.commit()
@@ -618,6 +640,8 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
     _save_elder(db, session, body, text)
     if has_risk_words(text):  # 위급 낱말 안전망 — AI 판단을 기다리지 않는다 (D55 ①)
         return _risk_close(db, session, room)
+    if has_body_words(text):  # 몸 위급 낱말 안전망 — 일기 대화·AI 실패 때도 (11/19 응급)
+        return _body_close(db, session, room)
     ctx = coach_context(db, room, session)
     if session.turn_count >= _max_turns(session):  # 마지막 답(회상 4번째·일기 3번째) → 마무리 인사 후 종료
         reply, _ = _ask(db, session, ctx, end="COMPLETED")

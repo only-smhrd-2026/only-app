@@ -6,8 +6,8 @@
 4번째 질문(생각 문제, D72 섞기): 유형은 코드가 돌려 정하고(ai/quiz.py), 모델이 맞장구 + 그 유형 문제를 사진·대화에
 맞춰 쓴다. 코드가 유형 틀·정답 있는 질문(연도·나이·이름 맞히기)을 검사해 걸리면 문제 은행 원문으로 바꾼다.
 question_type 은 모델이 아니라 여기서 정한다: 모델 질문 RECALL, 생각 문제 = 그 유형(은행 문제면 qtype), 마무리 CLOSING.
-모델은 어르신 직전 말로 signal(NONE|LOW|SAD|RISK|STOP)과 private 을 함께 낸다. LOW 는 기록하고 이어 가고,
-SAD·RISK·STOP 이면 그 턴 말은 마무리 인사다 (FR-AI-005, D55). 위급(RISK) 마무리는 코드 문장.
+모델은 어르신 직전 말로 signal(NONE|LOW|SAD|RISK|BODY|STOP)과 private 을 함께 낸다. LOW 는 기록하고 이어 가고,
+SAD·RISK·BODY·STOP 이면 그 턴 말은 마무리 인사다 (FR-AI-005, D55). 위급(RISK 마음·BODY 몸) 마무리는 코드 문장.
 이야기 기억 (AI-07 #46, D77) — 그날 첫 회상 대화는 지난 대화의 이야기 하나로 시작한다(story_question). 그 답에
 '그런 말 안 했어'면 모델이 signal DENY 를 내고 호출자가 그 기억을 끈다. 되짚기 문제(RECHECK)는 하지 않는다 — 질문마다
 어르신 말을 되받아 말하는 것으로 갈음한다 (11/12 멘토 '테스트 느낌', D52·D77).
@@ -68,7 +68,12 @@ CONFIRM_YES |= {"네맞아요", "예맞아요", "응맞아"}
 CONFIRM_NO = {"다시말할게요", "아니요", "아니", "아뇨", "아니에요", "틀렸어요", "아니야"}
 SKIP_CHIP = "다음에 할게요"  # 옛 넘기기 칩 (11/12 전). 문제 칩은 답 2개만이라(D52 ⑧) 모델이 이 칩을 내도 거른다
 QUIZ_FALLBACK_CHIPS = ["잘 모르겠어요"]  # 열린 문제인데 모델이 칩을 못 만들었을 때
-ENDING_SIGNALS = ("SAD", "RISK", "STOP")  # 이 신호면 그 턴 말은 마무리 — 호출자가 대화를 끝낸다. LOW 는 이어 감 (D55)
+ENDING_SIGNALS = (
+    "SAD",
+    "RISK",
+    "STOP",
+    "BODY",
+)  # 이 신호면 그 턴 말은 마무리 — 호출자가 대화를 끝낸다. LOW 는 이어 감 (D55)
 # 위급 표현 뒤 마무리 (D55, 11/13 사용자: 상담 번호 안내 없이 마무리만). 모델이 지어내지 않게 코드 문장
 RISK_CLOSING = CoachReply(
     text="많이 힘드셨겠어요. 이야기해 주셔서 고마워요. 오늘은 여기까지 하고 편히 쉬세요.",
@@ -76,6 +81,16 @@ RISK_CLOSING = CoachReply(
     question_type="CLOSING",
     choice_mode="TWO_BUTTONS",
 )
+# 몸이 위급하다는 말 뒤 마무리 (11/19 응급). 가족 알림은 routers/sessions.py 가 같이 보내고,
+# 화면이 [119 전화하기]를 띄운다.
+# 숫자 119 는 소리로 '백십구'로 읽힐 수 있어 말에는 넣지 않는다 (버튼 글자에만)
+BODY_CLOSING = CoachReply(
+    text="몸이 많이 불편하시군요. 가족에게 바로 알렸어요. 급하시면 아래 빨간 버튼으로 구급차를 부르세요.",
+    suggestions=[],
+    question_type="CLOSING",
+    choice_mode="TWO_BUTTONS",
+)
+URGENT_CLOSINGS = {"RISK": RISK_CLOSING, "BODY": BODY_CLOSING}  # 위급 마무리는 모델이 지어내지 않게 코드 문장
 WEEKDAYS = "월화수목금토일"
 
 
@@ -196,8 +211,8 @@ def next_question(
         return (_quiz_reply(quiz.fallback, "", []) if quiz else FALLBACK_QUESTION), "NONE", False
     if out.signal != "NONE" and not any(t["speaker"] == "ELDER" for t in ctx.turns):  # 어르신 말 전의 신호 → 무시
         return FALLBACK_QUESTION, "NONE", False
-    if out.signal == "RISK":  # 위급은 문제 넘기기로 보지 않는다
-        return RISK_CLOSING, "RISK", out.private
+    if out.signal in URGENT_CLOSINGS:  # 위급(마음·몸)은 문제 넘기기로 보지 않는다
+        return URGENT_CLOSINGS[out.signal], out.signal, out.private
     if out.signal in ENDING_SIGNALS:
         if _skipped_quiz(ctx, out.signal):  # 문제를 넘기는 말 — 대화를 끝내지 않는다 (FR-AI-003)
             return FALLBACK_QUESTION, "NONE", out.private
@@ -218,8 +233,8 @@ def closing(ctx: CoachContext, turn_no: int, max_turns: int = MAX_TURNS) -> tupl
         out = llm.call_json("memory_coach", _memory_data(ctx, turn_no, closing=True, max_turns=max_turns), CoachTurn)
     except (llm.LlmError, NotImplementedError):
         return FALLBACK_CLOSING, "NONE", False
-    if out.signal == "RISK":
-        return RISK_CLOSING, "RISK", out.private
+    if out.signal in URGENT_CLOSINGS:
+        return URGENT_CLOSINGS[out.signal], out.signal, out.private
     return _closing_reply(out.text), out.signal, out.private
 
 

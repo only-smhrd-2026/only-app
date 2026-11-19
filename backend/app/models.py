@@ -289,3 +289,20 @@ class MoodCheck(Base):
     total: Mapped[int] = mapped_column(SmallInteger)  # 0~24. 화면에 점수를 보이지 않는다 (NFR-DE-003)
     level: Mapped[str] = mapped_column(String(5))  # USUAL | DOWN | HARD
     created_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
+
+
+class UrgentAlert(Base):
+    """위급 알림 (D55 마음 위급 + 11/19 몸 위급). 대화에서 감지한 위급 1건마다 한 줄 — 가족 홈 긴급 카드."""
+
+    __tablename__ = "urgent_alerts"
+
+    alert_id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    room_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("family_rooms.room_id"))
+    session_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("sessions.session_id"))
+    kind: Mapped[str] = mapped_column(String(5))  # MOOD | BODY
+    created_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
+    acked_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.user_id")
+    )  # [제가 연락했어요] 처음 누른 가족
+    acked_at: Mapped[datetime | None] = mapped_column(TS)
+    reminded_at: Mapped[datetime | None] = mapped_column(TS)  # 확인이 없어 한 번 더 알린 시각

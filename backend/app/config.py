@@ -106,6 +106,9 @@ MOOD_CHECK_EVERY_DAYS = 14  # 마음 체크 초대 간격 — 마지막 마음 �
 MOOD_CHECK_QUESTIONS = 8  # PHQ-9에서 9번을 뺀 8문항, D56. mood_checks.answers와 같게
 MOOD_CHECK_DOWN_MIN = 5  # 답 합이 이 이상이면 DOWN '조금 가라앉으신 편이에요'
 MOOD_CHECK_HARD_MIN = 10  # 답 합이 이 이상이면 HARD '많이 힘드신 것 같아요'. DOWN 미만은 USUAL
+URGENT_REMIND_MIN = 30  # 위급 알림에 [제가 연락했어요]가 이 분 동안 없으면 가족에게 한 번 더 알린다 (11/19 응급)
+URGENT_SHOW_HOURS = 24  # 가족 홈 긴급 카드가 보이는 시간 — 확인한 뒤에도 '○○님이 연락했어요'로 이만큼 남는다
+URGENT_CHECK_EVERY_MIN = 5  # 위 '한 번 더 알림'을 살피는 예약 작업 간격
 
 
 class Settings(BaseSettings):

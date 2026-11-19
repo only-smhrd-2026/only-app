@@ -26,6 +26,15 @@ def has_risk_words(text: str) -> bool:
     return any(w in t for w in RISK_WORDS)
 
 
+# 몸 위급 표현 조각 (11/19 응급 안전망). 띄어쓰기를 뺀 어르신 말에 들어 있으면 AI 판단과 상관없이 몸 위급으로 본다
+BODY_WORDS: list[str] = json.loads((ROOT / "data" / "body_words.json").read_text("utf-8"))["words"]
+
+
+def has_body_words(text: str) -> bool:
+    t = re.sub(r"\s+", "", text)
+    return any(w in t for w in BODY_WORDS)
+
+
 def check_banned(text: str) -> str:
     hit = [w for w in BANNED_WORDS if w in text]
     if hit:
@@ -97,9 +106,10 @@ class CoachTurn(BaseModel):
     # 문제 이름표(KNOWHOW 등)가 붙어 출제 기록이 섞이거나, API 계약에 없는 값으로 500 이 나지 않게.
     text: str = Field(min_length=1, max_length=MODEL_TEXT_MAX)
     suggestions: list[str] = Field(default_factory=list, max_length=3)
-    # LOW 는 기록하고 이어 감, SAD·RISK·STOP 이면 대화를 끝낸다 (FR-AI-005, D55).
+    # LOW 는 기록하고 이어 감, SAD·RISK·STOP·BODY 이면 대화를 끝낸다 (FR-AI-005, D55).
     # DENY = 어제 이야기 질문에 '그런 말 안 했어' — 그 기억을 끄고 대화는 이어 간다 (FR-AI-008, D77)
-    signal: Literal["NONE", "LOW", "SAD", "RISK", "STOP", "DENY"] = "NONE"
+    # BODY = 지금 몸이 위급하다는 말 — 가족에게 바로 알리고 화면이 119 버튼을 띄운다 (11/19 응급)
+    signal: Literal["NONE", "LOW", "SAD", "RISK", "STOP", "DENY", "BODY"] = "NONE"
     private: bool = False  # '애들한테 말하지 마' → 그 대화는 기운 없는 날에서 뺀다. 위급만 예외 (D55 ③)
 
     @field_validator("text")

@@ -12,6 +12,7 @@ from app.config import now_kst, settings
 from app.deps import DB
 from app.errors import install_handlers
 from app.routers import (
+    alerts,
     auth,
     devices,
     diaries,
@@ -81,6 +82,7 @@ for r in (
     photos.router,
     notifications.router,
     mood.router,
+    alerts.router,
     weekly.router,
     *stubs.routers,
 ):
