@@ -5,7 +5,7 @@
  * 'AI 가 본 것' 판의 [이 사진 지우기] — 내가 올린 사진이거나 방장일 때만(서버 DELETE …/photos/{id}, 같은 규칙).
  */
 import { useEffect, useState } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { PhotoListOut, PhotoOut, RoomOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
@@ -42,7 +42,11 @@ export default function GROUP_004() {
   const list = useFetch<PhotoListOut>(`/api/rooms/${roomId}/photos`)
   const [saved, setSaved] = useState<Record<number, PhotoOut>>({}) // 고친 뒤 서버가 돌려준 사진으로 덮어쓴다
   const [gone, setGone] = useState<number[]>([]) // 지운 사진 — 목록을 다시 읽지 않고 화면에서만 뺀다(깜빡임 없음)
-  const [open, setOpen] = useState<{ id: number; step: 'ai' | 'fix' | 'del' }>()
+  // 추억 올리기의 사진첩에서 누르고 왔으면 그 사진의 'AI 가 본 것' 판부터 연다 (11/19)
+  const from = (useLocation().state as { open?: number } | null)?.open
+  const [open, setOpen] = useState<{ id: number; step: 'ai' | 'fix' | 'del' } | undefined>(
+    from ? { id: from, step: 'ai' } : undefined,
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [note, setNote] = useState<string>()

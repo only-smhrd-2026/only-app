@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useNavigationType } from 'react-router-dom'
-import type { RoomOut } from '../../api/types'
+import type { PhotoListOut, RoomOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
 import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
@@ -69,11 +69,45 @@ function FileInput({ onPick, disabled }: { onPick: (e: ChangeEvent<HTMLInputElem
   )
 }
 
+/**
+ * 사진첩 (11/19 사용자: '추억 올리기 아래에 사진첩') — 지금 보는 어르신 가족방에 올라와 있는 사진, 최신 먼저.
+ * 사진을 누르면 '올린 사진'(GROUP_004)에서 그 사진의 'AI 가 본 것' 판이 열린다 — 활동 고치기·지우기는 거기서.
+ * ponytail: 작은 그림(썸네일) 없이 올린 사진 그대로 — 화면에 보일 때만 불러온다(loading=lazy). 수백 장이 되면 썸네일을
+ */
+function Album({ room }: { room: RoomOut }) {
+  const to = `/groups/${room.room_id}/photos`
+  const list = useFetch<PhotoListOut>(`/api/rooms/${room.room_id}/photos`)
+  if (list.error) return <p className="up-hint">사진첩을 불러오지 못했어요</p>
+  const photos = list.data?.photos ?? []
+  if (photos.length === 0) return null // 아직 올린 사진이 없으면 위 안내만
+  return (
+    <section className="up-grid up-album" aria-labelledby="up-album-title">
+      <h2 id="up-album-title">
+        사진첩 <small>{list.data?.has_more ? `최근 ${photos.length}장` : `${photos.length}장`}</small>
+      </h2>
+      <ul className="upload-grid">
+        {photos.map((p, i) => (
+          <li key={p.photo_id}>
+            <Link to={to} state={{ open: p.photo_id }} aria-label={p.caption || `${i + 1}번째 사진`}>
+              <img src={p.url} alt="" loading="lazy" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+      {list.data?.has_more && (
+        <Link className="fam-text-btn" to={to}>
+          전체 보기 ›
+        </Link>
+      )}
+    </section>
+  )
+}
+
 export default function UPLOAD_001() {
   const nav = useNavigate()
   // 로그인·가족방 0개는 사진을 고르기 전에 알린다 (보낼 가족방 고르기는 UPLOAD_002)
   const rooms = useFetch<RoomOut[]>('/api/rooms')
-  const { me } = useFamily()
+  const { me, room } = useFamily()
   // 다음 화면에서 뒤로 가기로 돌아올 때(POP)만 고른 사진과 번호를 되살린다.
   // 링크·버튼으로 들어오면 빈 상태 — 같은 창에서 로그아웃 뒤 다른 계정이 들어와도 앞 사람이 고른 사진이 남지 않게(재현함).
   // ponytail: 다른 계정이 브라우저 뒤로 가기로 여기까지 거슬러 오면 남을 수 있음. 막으려면 로그아웃 때 uploadDraft 비우기(HOME_001)
@@ -235,6 +269,8 @@ export default function UPLOAD_001() {
             {error}
           </p>
         )}
+        {/* 사진첩 — 사진을 고르기 전에만. 국외 전송 안내가 고르기 칸 바로 아래에 남게 그 뒤에 둔다 */}
+        {files.length === 0 && room && <Album room={room} />}
       </div>
 
       {/* 가족방 목록이 온 뒤에만 — 뒤로 돌아온 직후 목록을 못 불러왔으면 보낼 곳을 모른 채 넘어가지 않게 */}
