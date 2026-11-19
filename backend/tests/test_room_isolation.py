@@ -31,6 +31,9 @@ CASES = [
     ("POST", "/rooms/{room_id}/family-diary/draft", {"text": "소식이에요"}),
     ("GET", "/rooms/{room_id}/weekly", None),
     ("GET", "/rooms/{room_id}/mood-week", None),
+    ("GET", "/rooms/{room_id}/alert", None),
+    ("GET", "/rooms/{room_id}/care", None),
+    ("POST", "/rooms/{room_id}/alerts/{alert_id}/ack", None),
     ("PATCH", "/rooms/{room_id}/integration", {"integration_scope": "NONE"}),
     ("GET", "/diaries/{diary_id}", None),
     ("POST", "/diaries/{diary_id}/read", None),
@@ -90,6 +93,7 @@ def test_other_family_cannot_access_resource(client, method, path, body):
             notification_id=notice.notification_id,
             user_id=notice.target_user_id,
             kind="FAMILY",
+            alert_id=1,
         )
     client.cookies.clear()
     setup_elder(client)

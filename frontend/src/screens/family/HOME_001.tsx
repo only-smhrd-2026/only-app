@@ -19,8 +19,10 @@ import {
   type WeeklyOut,
 } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
+import CareCard from '../../components/CareCard'
 import { Avatar } from '../../components/FamilyFrame'
 import MoodIcon from '../../components/MoodIcon'
+import UrgentCard from '../../components/UrgentCard'
 import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
 import { getInstallState, promptInstall, subscribeInstallPrompt } from '../../lib/installPrompt'
@@ -544,8 +546,10 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
   }
   return (
     <main className="fam-stack">
+      <UrgentCard roomId={room.room_id} who={`${room.elder_name} ${room.elder_honorific}`} />
       <InstallCard />
       <MoodCard week={mood.data} />
+      <CareCard roomId={room.room_id} />
       <WeeklyBanner room={room} />
       {groups.map(([label, ds]) => (
         <Fragment key={label}>

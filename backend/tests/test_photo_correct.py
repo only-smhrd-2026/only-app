@@ -50,6 +50,7 @@ def test_correct_repeat_and_change(client, context, monkeypatch):
         "ai_activity",
         "ai_scene",
         "corrected_activity",
+        "elder_note",  # 어르신이 대화에서 바로잡아 주신 내용 (FR-ME-009)
     }
     assert response.json()["is_mine"] is False  # 이 fixture의 사진은 uploaded_by가 없는 시드형 자료
     with SessionLocal() as db:

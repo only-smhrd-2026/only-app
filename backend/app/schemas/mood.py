@@ -39,3 +39,9 @@ class MoodCheckIn(BaseModel):
     answers: list[Annotated[int, Field(ge=0, le=3)]] = Field(
         min_length=MOOD_CHECK_QUESTIONS, max_length=MOOD_CHECK_QUESTIONS
     )
+
+
+class MoodCheckSavedOut(BaseModel):
+    ok: bool = True
+    # 어르신께 드리는 끝 인사 한마디('잠이 편치 않은 날이 많으셨군요. …'). None 이면 화면이 평소 인사를 한다
+    say: str | None = None

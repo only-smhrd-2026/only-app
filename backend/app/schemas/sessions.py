@@ -37,6 +37,7 @@ class SessionOut(BaseModel):
     end_reason: EndReason | None = None
     turn_no: int
     input_locked: bool = False
+    urgent: Literal["BODY"] | None = None  # 몸이 위급하다는 말로 끝난 대화 — 화면이 [119 전화하기]를 띄운다 (11/19)
 
 
 class TurnOut(BaseModel):

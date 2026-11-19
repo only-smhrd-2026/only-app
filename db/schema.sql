@@ -117,6 +117,8 @@ CREATE TABLE photos (
     model_version VARCHAR(30),
     analyzed_at TIMESTAMPTZ,                                       -- NULL = 아직 분류 전
     ai_scene VARCHAR(100),                                         -- 분류 AI 가 본 '보이는 모습' 한 줄, 대화 재료 (D71)
+    elder_note VARCHAR(100),                                       -- 어르신이 대화에서 바로잡아 주신 내용 한 문장 (FR-ME-009)
+    elder_noted_at TIMESTAMPTZ,
     CONSTRAINT uq_photos_room_id_object_key UNIQUE (room_id, object_key)   -- S10 업로드 멱등
 );
 CREATE INDEX ix_photos_room_status ON photos(room_id, status);
@@ -161,7 +163,10 @@ CREATE TABLE sessions (
 --   공통  : turn_no, speaker(AI|ELDER), text, created_at
 --   어르신: stt_confidence(0~1), input_type(VOICE|CHIP|BUTTON|TEXT — TEXT 는 글로 쓰기 D52), retried, reply_to_turn_no
 --   AI    : question_type(RECALL|REMEMBER|KNOWHOW|THEN_NOW|COMMON|RECHECK|CLOSING|NONE), latency_ms,
---           fact_id(지난 대화의 이야기로 연 첫 질문 — story_facts.fact_id, D77. RECHECK 는 쓰지 않음)
+--           fact_id(지난 대화의 이야기로 연 첫 질문 — story_facts.fact_id, D77. RECHECK 는 쓰지 않음),
+--           urgent(BODY — 몸이 위급하다는 말로 끝난 마무리 턴. 화면이 [119 전화하기]를 띄운다, 11/19),
+--           care(오늘의 안부로 연 첫 질문 — care_days.topic, 11/19 돌봄 루프),
+--           signal(LOW — 바로 앞 어르신 말을 AI 가 기운 없는 말로 봄. 다음 날 안부 주제를 고르는 데 쓴다)
 --   출제  : question_code(문제 은행 code, AI 가 쓴 생각 문제는 'GEN-유형' 예 GEN-REMEMBER — D72, 되짚기는 없음),
 --           hint_level(0~3), recheck_result(REMEMBERED|HINTED|SKIPPED|NA),
 --           answer_summary — 14일 반복 방지는 최근 14일 세션의 question_code → question_bank.code 의 카테고리·활동,
@@ -298,4 +303,34 @@ CREATE TABLE push_subscriptions (
     auth VARCHAR(50) NOT NULL,                                     -- 브라우저 인증 비밀 (base64url)
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),                 -- 마지막으로 등록한 때
     CONSTRAINT ck_push_subscriptions_owner CHECK ((room_id IS NULL) <> (user_id IS NULL))
+-- 15. 위급 알림 (D55 마음 위급 + 11/19 몸 위급). 대화에서 감지한 위급 1건마다 한 줄 — 가족 홈 긴급 카드
+CREATE TABLE urgent_alerts (
+    alert_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
+    session_id UUID REFERENCES sessions(session_id),               -- 어느 대화에서 감지했는지
+    kind VARCHAR(5) NOT NULL CHECK (kind IN ('MOOD', 'BODY')),      -- MOOD 마음 위급(RISK), BODY 몸 위급
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    acked_by BIGINT REFERENCES users(user_id),                     -- [제가 연락했어요]를 처음 누른 가족
+    acked_at TIMESTAMPTZ,
+    reminded_at TIMESTAMPTZ                                        -- 30분 동안 확인이 없어 한 번 더 알린 시각
+);
+CREATE INDEX ix_urgent_alerts_room_created ON urgent_alerts(room_id, created_at);
+
+-- 16. 돌봄 일지 (11/18 멘토링 — 돌봄 루프). 가족방·날짜마다 1줄: 전날까지 본 것 → 판단 → 오늘 여쭐 안부 → 어르신 답.
+-- 어르신 말 원문은 넣지 않는다(숫자와 주제 이름만). 보관 CARE_KEEP_DAYS 일 — 줄을 만들 때 오래된 줄을 지운다
+CREATE TABLE care_days (
+    care_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
+    care_date DATE NOT NULL,                                       -- 이 줄이 쓰이는 날(한국 날짜). 전날까지의 기록으로 만든다
+    -- 전날 숫자: talks·turns·words·avg_words·chip_ratio·stopped·low·diary_mood (서버 코드가 채운다, services/care.py)
+    numbers JSONB NOT NULL DEFAULT '{}',
+    level VARCHAR(5) NOT NULL CHECK (level IN ('USUAL', 'WATCH', 'CARE')),   -- 평소 / 지켜봄 / 주의. 코드가 정한다(AI 아님)
+    reasons JSONB NOT NULL DEFAULT '[]',                           -- 그렇게 본 이유: LOW_TALK·DIARY_MOOD·TALK_DOWN·QUIET·CHECK_ITEM·SAME_AGAIN
+    source VARCHAR(5) CHECK (source IN ('TALK', 'DIARY', 'CHECK')),          -- 오늘 안부가 나온 곳: 대화의 말 / 일기 기분 / 마음 체크 문항
+    topic VARCHAR(8) CHECK (topic IN ('SLEEP', 'APPETITE', 'LONELY', 'ENERGY', 'INTEREST', 'MOOD')),   -- NULL = 여쭐 안부 없음
+    heard_on DATE,                                                 -- 그 말을 들은 날 — 첫인사의 '어제·며칠 전'
+    asked_at TIMESTAMPTZ,                                          -- 그 안부를 실제로 여쭌 시각 (그날 첫 회상 대화)
+    reaction VARCHAR(4) CHECK (reaction IN ('OK', 'SAME', 'DENY')),          -- 어르신 답: 괜찮다 / 여전하다 / 그런 적 없다
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_care_days_room_id_care_date UNIQUE (room_id, care_date)
 );

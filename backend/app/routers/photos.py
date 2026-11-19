@@ -133,6 +133,7 @@ def photo_out(p: Photo, user_id: int | None = None) -> PhotoOut:
         ai_activity=p.activity if analyzed else None,  # 분류 AI 가 본 것 그대로 (가족방 탭 '올린 사진', D73)
         ai_scene=p.ai_scene if analyzed else None,
         corrected_activity=p.corrected_activity,
+        elder_note=p.elder_note,
     )
 
 
@@ -370,6 +371,8 @@ def commit_photo_deletion(db: DB, photo: Photo) -> None:
     photo.ai_scene = None
     photo.corrected_activity = None  # 가족이 고친 활동도 가족이 쓴 글 — 처리방침 '지우면 서버에서도 글을 지움'
     photo.corrected_at = None
+    photo.elder_note = None  # 어르신이 바로잡아 주신 말도 같이 지운다 (FR-ME-009)
+    photo.elder_noted_at = None
     photo_id = photo.photo_id
     keys = [key for key in dict.fromkeys((photo.object_key, photo.thumb_key)) if key]
     db.commit()

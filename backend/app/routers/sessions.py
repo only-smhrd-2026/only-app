@@ -29,7 +29,7 @@ from fastapi import APIRouter
 from sqlalchemy import func, select
 
 from app.ai import classify, coach, quiz, story, tts
-from app.ai.schemas import CoachReply, has_risk_words
+from app.ai.schemas import CoachReply, has_body_words, has_risk_words
 from app.config import (
     ALBUM_PER_DAY,
     ALBUM_TURNS,
@@ -65,6 +65,7 @@ from app.schemas.sessions import (
     TurnIn,
     TurnOut,
 )
+from app.services import alerts, care
 
 log = logging.getLogger("app.sessions")
 router = APIRouter(prefix="/elder/sessions", tags=["sessions"])
@@ -106,6 +107,8 @@ def coach_context(db, room: FamilyRoom, session: TalkSession) -> coach.CoachCont
                 "taken_at": photo.taken_at.isoformat() if photo.taken_at else None,
                 # 가족이 '올린 사진'에서 고른 활동 (D73). 'none'(맞는 것 없음)은 넘기지 않는다
                 "activity": photo.corrected_activity if photo.corrected_activity not in (None, "none") else None,
+                # 지난 대화에서 어르신이 이 사진을 바로잡아 주신 내용 (FR-ME-009) — 가족 설명·AI 짐작보다 먼저 따른다
+                "elder_note": photo.elder_note,
             }
             if photo
             else None
@@ -115,7 +118,7 @@ def coach_context(db, room: FamilyRoom, session: TalkSession) -> coach.CoachCont
         turns=[
             {"speaker": t["speaker"], "text": t["text"]}
             | ({"quiz": True} if t.get("question_code") else {})
-            | ({"story": True} if t.get("fact_id") else {})
+            | ({"story": True} if t.get("fact_id") or t.get("care") else {})
             for t in session.turns
         ],
         # 일기 사진이 옛 사진이면 1·2번을 그 사진 속 그때로 (FR-DI-002, D58). 분류(AI-04 #29) 전에는 늘 False.
@@ -128,8 +131,9 @@ def coach_context(db, room: FamilyRoom, session: TalkSession) -> coach.CoachCont
             and photo.confidence is not None
             and float(photo.confidence) >= OLD_PHOTO_CONF_MIN
         ),
-        # 분류 AI 가 본 '보이는 모습' 한 줄 (D71) — 대화에 못 쓰는 사진(usable=false)이면 넘기지 않는다
-        scene=photo.ai_scene if photo and photo.usable is not False else None,
+        # 분류 AI 가 본 '보이는 모습' 한 줄 (D71) — 대화에 못 쓰는 사진(usable=false)이면 넘기지 않는다.
+        # 어르신이 바로잡아 주신 사진도 넘기지 않는다 — 틀렸다고 하신 짐작을 다시 꺼내지 않게 (FR-ME-009)
+        scene=photo.ai_scene if photo and photo.usable is not False and not photo.elder_note else None,
     )
 
 
@@ -153,7 +157,8 @@ def _story_offset(session: TalkSession) -> int:
     """첫 AI 질문이 지난 대화의 이야기(fact_id)면 1 — 코치에 넘기는 사진 질문 번호가 하나씩 밀린다 (D77).
 
     최대 질문 수·문제 차례는 밀리지 않는다 — 어제 이야기 질문도 MAX_TURNS 4번 안에 든다 (D79)."""
-    return 1 if session.turns and session.turns[0].get("fact_id") else 0
+    first = session.turns[0] if session.turns else {}
+    return 1 if first.get("fact_id") or first.get("care") else 0  # 오늘의 안부(돌봄 루프)도 같은 자리
 
 
 def _max_turns(session: TalkSession) -> int:
@@ -186,6 +191,11 @@ def _ask(
     if session.kind == "DIARY":
         if end is None:
             reply = coach.diary_question(ctx, turn_no)
+            # 일기 동무 AI 가 직전 답에서 본 신호 (11/19 S3) — 2번째 질문을 만들 때만 온다(1번은 어르신 말 전,
+            # 3번 기분 질문과 고정 문장에는 없다). 위급이면 회상 대화와 같은 코드 문장으로 마무리
+            if any(t["speaker"] == "ELDER" for t in ctx.turns):
+                signal = getattr(reply, "signal", "NONE")
+            reply = coach.URGENT_CLOSINGS.get(signal, reply)
         else:  # "일기를 써 볼게요"는 일기를 쓸 때만. 무응답으로 끝나면 저장하지 않으니 다른 인사
             reply = coach.DIARY_CLOSING if end in DIARY_SAVED else coach.DIARY_STOP
     elif end:
@@ -197,12 +207,18 @@ def _ask(
         reply, signal, private = coach.next_question(ctx, turn_no - off, picked, _max_turns(session) - off)
         # 출제 기록: 은행 원문이면 그 code, AI 가 쓴 생각 문제면 GEN-유형 (D72). 마무리로 바뀐 턴은 기록 없음
         code = quiz.record_code(picked, reply.text) if picked and signal not in coach.ENDING_SIGNALS else None
+    last = _last_ai_turn(session)
+    # 오늘의 안부에 하신 답이면 AI 가 본 신호를 돌봄 일지에 반응으로 적는다 (11/19 돌봄 루프)
+    if last and last.get("care") and session.turns[-1].get("reply_to_turn_no") == last["turn_no"]:
+        care.react(db, session.room_id, signal)
     if signal == "DENY":  # '그런 말 안 했어' — 바로 앞 질문이 어제 이야기일 때만 그 기억을 끈다 (FR-AI-008, D77)
-        last = _last_ai_turn(session)
         if last and last.get("fact_id"):
             story.deny(db, session.room_id, last["fact_id"])
         signal = "NONE"
     _note_mood(db, session, signal, private)  # 가족 마음 카드·알림·주간 요약용 (FR-AI-005, FR-FD-006, D55)
+    if signal == "BODY":  # 몸이 위급하다는 말 — 가족 모두에게 바로, 비밀 부탁 대화여도 보낸다 (11/19 응급)
+        alerts.raise_alert(db, db.get(FamilyRoom, session.room_id), session.session_id, "BODY")
+        log.info("body urgent room=%s session=%s", session.room_id, session.session_id)
     _add_turn(
         session,
         "AI",
@@ -210,6 +226,9 @@ def _ask(
         question_type=reply.question_type,
         question_code=code,
         latency_ms=int((time.perf_counter() - t0) * 1000),
+        urgent="BODY" if signal == "BODY" else None,
+        # LOW 는 다음 날 안부 주제를(services/care.py), SAD 는 그 사진을 한동안 쉬게 하는 데 쓴다(services/picks.py)
+        signal=signal if signal in ("LOW", "SAD") else None,
     )
     _last_reply[session.session_id] = reply
     return reply, signal
@@ -222,16 +241,23 @@ def _ask_story(db, session: TalkSession, ctx: coach.CoachContext) -> CoachReply 
     AI 가 실패하면 그 기억은 묻지 않은 채 두고 고정 사진 질문으로 시작한다 — AI 를 한 번 더 기다리면
     화면이 첫 말을 기다리는 15초를 넘을 수 있다 (시간 초과 한 번이 약 9초).
     """
-    fact = story.pick(db, session.room_id)
-    if fact is None:
-        return None
     t0 = time.perf_counter()
-    reply = coach.story_question(ctx, fact.fact_text, story.when(fact.fact_date), fact.fact_date)
+    plan = care.pick(db, session.room_id)  # 오늘의 안부가 먼저 (11/19 돌봄 루프) — 없으면 지난 이야기
+    fact = story.pick(db, session.room_id) if plan is None else None
+    if plan is not None:
+        reply = coach.story_question(ctx, care.fact(plan), story.when(plan.heard_on), plan.heard_on)
+        if reply is not None:
+            plan.asked_at = now_kst()
+        fields = {"care": plan.topic}
+    elif fact is not None:
+        reply = coach.story_question(ctx, fact.fact_text, story.when(fact.fact_date), fact.fact_date)
+        if reply is not None:
+            fact.used_at = now_kst()
+        fields = {"fact_id": fact.fact_id}
+    else:
+        return None
     if reply is None:
         reply, fields = coach.FALLBACK_QUESTION, {}
-    else:
-        fact.used_at = now_kst()
-        fields = {"fact_id": fact.fact_id}
     _add_turn(
         session,
         "AI",
@@ -261,9 +287,7 @@ def _note_mood(db, session: TalkSession, signal: str, private: bool = False) -> 
     session.emotion_flag = flag
     room = db.get(FamilyRoom, session.room_id)
     if flag == "RISK":
-        who = f"{room.elder_name} {room.elder_honorific}"
-        body = f"{who}께서 많이 힘드신 것 같아요. 무슨 말씀을 하셨는지는 전하지 않아요."
-        notify_family(db, room.room_id, "MOOD_URGENT", "지금 전화 한 통 드려 보세요", body, "HOME_001")
+        alerts.raise_alert(db, room, session.session_id, "MOOD")  # 가족 모두에게 알림 + 가족 홈 긴급 카드
         log.info("mood urgent room=%s session=%s", room.room_id, session.session_id)
     _check_low_days(db, room)
 
@@ -312,6 +336,21 @@ def _risk_close(db, session: TalkSession, room: FamilyRoom) -> SessionOut:
     _note_mood(db, session, "RISK")
     reply = coach.RISK_CLOSING
     _add_turn(session, "AI", reply.text, question_type=reply.question_type)
+    reason = "USER_STOP" if session.kind == "DIARY" else "COMPLETED"
+    _finish(db, session, reason)
+    db.commit()
+    return _out(db, session, room, reply, "ENDED", reason)
+
+
+def _body_close(db, session: TalkSession, room: FamilyRoom) -> SessionOut:
+    """몸 위급 낱말(안전망, 11/19 응급): AI 를 부르지 않고 가족 모두에게 바로 알린 뒤 119 버튼과 함께 마무리한다.
+
+    일기 대화·AI 가 실패한 턴도 잡는다. 일기 대화는 일기로 남기지 않는다(USER_STOP — _risk_close 와 같다).
+    """
+    alerts.raise_alert(db, room, session.session_id, "BODY")
+    log.info("body urgent room=%s session=%s", room.room_id, session.session_id)
+    reply = coach.BODY_CLOSING
+    _add_turn(session, "AI", reply.text, question_type=reply.question_type, urgent="BODY")
     reason = "USER_STOP" if session.kind == "DIARY" else "COMPLETED"
     _finish(db, session, reason)
     db.commit()
@@ -416,6 +455,8 @@ def _out(db, session, room, reply, state="CONTINUE", end_reason=None) -> Session
         end_reason=end_reason,
         turn_no=session.turn_count,
         input_locked=_locked(session.session_id),
+        # 몸 위급으로 끝난 대화면 화면이 [119 전화하기]를 띄운다 — 마무리 턴에 남긴 표시를 읽는다 (다시 열어도 같게)
+        urgent=(_last_ai_turn(session) or {}).get("urgent") if state == "ENDED" else None,
     )
 
 
@@ -517,6 +558,20 @@ def get_session(session_id: uuid.UUID, device: CurrentDevice, db: DB):
     )
 
 
+def _urgent_words(text: str) -> bool:
+    return has_risk_words(text) or has_body_words(text)
+
+
+def _urgent_close(db, session: TalkSession, room: FamilyRoom, body: TurnIn, text: str) -> SessionOut:
+    """확인을 거치지 않은 저신뢰 음성에 위급 낱말이 있을 때 — 그 말을 낮은 신뢰도 그대로 남기고 위급으로 마무리 (S2).
+
+    낮은 신뢰도 답은 주간 이야기·이야기 기억에 쓰이지 않는다(WEEKLY_STT_MIN).
+    """
+    _pending.pop(session.session_id, None)
+    _save_elder(db, session, body, text)
+    return _risk_close(db, session, room) if has_risk_words(text) else _body_close(db, session, room)
+
+
 def _unconfirmed(body: TurnIn) -> bool:
     """저신뢰 음성인데 어르신이 아직 '맞아요' 하지 않은 답 — 저장하지 않는다 (D5)."""
     return (
@@ -567,12 +622,16 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
 
     if _expired(session):  # 5분 상한 (D8). 방금 한 답은 저장한 뒤 마무리
         text = (body.text or "").strip()
+        if text and body.event is None and _unconfirmed(body) and _urgent_words(text):
+            return _urgent_close(db, session, room, body, text)  # 잘 못 들은 말 속 위급 낱말 — 버리지 않는다 (S2)
         if text and body.event is None and not _unconfirmed(body):
             body, text, said_no = _confirmed(session, body, text)  # 확인 질문 뒤 '맞아요'면 맡긴 문장을
             if not said_no:
                 _save_elder(db, session, body, text)
                 if has_risk_words(text):
                     return _risk_close(db, session, room)
+                if has_body_words(text):
+                    return _body_close(db, session, room)
         reply, _ = _ask(db, session, coach_context(db, room, session), end="LIMIT")
         _finish(db, session, "LIMIT")
         db.commit()
@@ -601,6 +660,11 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
         raise ApiError(422, "TEXT_REQUIRED", "말씀 내용이 비어 있어요")
     if body.input_type == "VOICE" and _locked(session.session_id):
         raise ApiError(409, "INPUT_LOCKED", "지금은 버튼으로만 답할 수 있어요")
+    if _unconfirmed(body) and _urgent_words(text):
+        # 잘 못 들은 말이어도 위급 낱말이 있으면 되묻지 않고 바로 위급으로 본다 (11/19 S2). 되물으면 AI 가 그 말을
+        # 되읽게 되고("제가 '죽고 싶어' 라고 들었어요"), '맞아요'가 없으면 알림 없이 사라진다.
+        # 잘못 들은 말로 알림이 가는 쪽이, 진짜 위급을 놓치는 쪽보다 낫다
+        return _urgent_close(db, session, room, body, text)
     if _unconfirmed(body):  # 저신뢰: 저장하지 않고 문장을 맡겨 둔 채 확인 질문만 (D5, D52 ③)
         _low_conf[session.session_id] += 1
         _pending[session.session_id] = (text, body.stt_confidence)
@@ -615,6 +679,8 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
     _save_elder(db, session, body, text)
     if has_risk_words(text):  # 위급 낱말 안전망 — AI 판단을 기다리지 않는다 (D55 ①)
         return _risk_close(db, session, room)
+    if has_body_words(text):  # 몸 위급 낱말 안전망 — 일기 대화·AI 실패 때도 (11/19 응급)
+        return _body_close(db, session, room)
     ctx = coach_context(db, room, session)
     if session.turn_count >= _max_turns(session):  # 마지막 답(회상 4번째·일기 3번째) → 마무리 인사 후 종료
         reply, _ = _ask(db, session, ctx, end="COMPLETED")
@@ -623,7 +689,8 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
         return _out(db, session, room, reply, "ENDED", "COMPLETED")
     reply, signal = _ask(db, session, ctx, turn_no=session.turn_count + 1)
     if signal in coach.ENDING_SIGNALS:  # 슬픔·위급·그만 (FR-AI-005, D55): 마무리 인사로 끝낸다. 질문 수는 그대로
-        reason = "USER_STOP" if signal == "STOP" else "COMPLETED"
+        # 일기 대화가 위급으로 끝나면 일기로 남기지 않는다(USER_STOP) — 위급한 말이 그대로 일기가 되지 않게
+        reason = "USER_STOP" if signal == "STOP" or session.kind == "DIARY" else "COMPLETED"
         _finish(db, session, reason)
         db.commit()
         return _out(db, session, room, reply, "ENDED", reason)

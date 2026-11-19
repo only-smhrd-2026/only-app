@@ -226,3 +226,10 @@
   font-weight: 600;
 }
 .vs-type .vs-talk { flex: none; padding: 0 16px; }
+
+/* 몸 위급으로 끝난 대화의 [119 전화하기] (11/19 응급) — 결정 버튼 높이(88px), 색은 .vs-rec 의 빨강(흰 글자 7:1 이상) */
+.vs-urgent {
+  flex: none;
+  min-height: var(--elder-btn-height, 88px);
+  text-decoration: none;
+}

@@ -31,6 +31,7 @@ from app.models import ELDER_SPOKE, FamilyRoom, Photo, StoryFact, TalkSession, W
 log = logging.getLogger("app.ai")
 
 CARE_LINE = "전화 한 통 드려 보세요."  # 마음 알림(D55 ②)과 같은 말. 대화 내용은 넣지 않는다
+CORRECTIONS_MAX = 2  # 한 주에 보이는 사진 바로잡기 카드 수 (FR-ME-009) — 질문·답 카드(WEEKLY_CARDS_MAX)와 따로 센다
 SAID_MIN = 4  # 이보다 짧은 답은 카드 후보에서 뺀다
 ANSWER_MAX = 60  # 전달형 한 문장의 글자 수
 QUOTE_MIN = 4  # 근거 구절의 글자 수 (빈칸은 세지 않는다)
@@ -52,7 +53,7 @@ def pairs_of(sessions: list[TalkSession]) -> list[dict[str, Any]]:
             confidence = turn.get("stt_confidence")
             if turn.get("speaker") != "ELDER" or not asked or len(said) < SAID_MIN:
                 continue
-            if asked.get("fact_id"):  # 어제 이야기 질문(D77)에 한 답 — 사진 이야기가 아니다
+            if asked.get("fact_id") or asked.get("care"):  # 어제 이야기(D77)·오늘의 안부에 한 답 — 사진 이야기가 아니다
                 continue
             if confidence is not None and confidence < WEEKLY_STT_MIN:  # 잘못 들은 말을 가족에게 전하지 않는다
                 continue
@@ -96,6 +97,44 @@ def check(cards: list[WeeklyCard], pairs: list[dict[str, Any]]) -> list[tuple[di
     return list(passed.values())[:WEEKLY_CARDS_MAX]
 
 
+def _fixes(db: Session, room_id: int, end: datetime) -> list[dict[str, Any]]:
+    """이 주에 새로 알게 된 사진 바로잡기 카드 (FR-ME-009) — "이 사진은 고사리 다듬는 거래요."
+
+    새벽 작업(ai/story)이 뽑아 규칙 검사를 마친 문장을 그대로 쓴다 — AI 를 다시 부르지 않는다.
+    뽑힌 때(created_at)로 주를 가른다: 일요일 대화의 정정은 월요일 새벽에 뽑혀 다음 주 이야기에 실린다.
+    """
+    facts = db.scalars(
+        select(StoryFact)
+        .where(
+            StoryFact.room_id == room_id,
+            StoryFact.kind == "CORRECTION",
+            StoryFact.is_active.is_(True),
+            StoryFact.created_at >= end - timedelta(days=7),
+            StoryFact.created_at < end,
+        )
+        .order_by(StoryFact.fact_id)
+    ).all()
+    cards: list[dict[str, Any]] = []
+    for fact in facts:
+        session = db.get(TalkSession, fact.session_id)
+        by_no = {turn.get("turn_no"): turn for turn in session.turns}
+        asked = by_no.get(by_no.get(fact.source_turn_no, {}).get("reply_to_turn_no"))
+        if not asked or session.private_flag or any(word in str(asked.get("text", "")) for word in BANNED_WORDS):
+            continue
+        cards.append(
+            {
+                "photo_id": session.photo_id,
+                "photo_url": None,  # summarize 가 채운다
+                "date": session.started_at.astimezone(TZ).date().isoformat(),
+                "question": str(asked.get("text", "")),
+                "answer": fact.fact_text,
+                "session_id": str(session.session_id),
+                "source_turns": [fact.source_turn_no],
+            }
+        )
+    return cards[:CORRECTIONS_MAX]
+
+
 def summarize(db: Session, room_id: int, week_start: date) -> None:
     """그 주 줄에 카드와 안부 한 줄을 채운다. 줄이 없거나 AI 를 이미 불렀으면(성공·실패 모두) 아무것도 하지 않는다."""
     row = db.scalar(
@@ -128,10 +167,15 @@ def summarize(db: Session, room_id: int, week_start: date) -> None:
             )
         )
     }
-    pairs = [pair for pair in pairs if (pair["session_id"], pair["turn_no"]) not in denied]
-    photo_ids = {pair["photo_id"] for pair in pairs if pair["photo_id"]}
+    fixes = _fixes(db, room_id, end)
+    # 바로잡아 주신 답은 정정 카드로 따로 나가므로 질문·답 카드 후보에서는 뺀다 (같은 답이 두 번 보이지 않게)
+    taken = denied | {(card["session_id"], card["source_turns"][0]) for card in fixes}
+    pairs = [pair for pair in pairs if (pair["session_id"], pair["turn_no"]) not in taken]
+    photo_ids = {item["photo_id"] for item in [*pairs, *fixes] if item["photo_id"]}
     photos = db.scalars(select(Photo).where(Photo.photo_id.in_(photo_ids), Photo.status == "ACTIVE")).all()
     photo_urls = {photo.photo_id: f"/api/media/{photo.object_key}" for photo in photos}
+    for card in fixes:
+        card["photo_url"] = photo_urls.get(card["photo_id"])
     honorific = db.get(FamilyRoom, room_id).elder_honorific
     db.commit()  # AI 를 기다리는 동안(최대 30초) DB 연결을 쥐지 않는다
 
@@ -163,6 +207,9 @@ def summarize(db: Session, room_id: int, week_start: date) -> None:
             row.qa_list = cards
             row.rule_check_passed = True  # 저장한 카드는 모두 규칙 검사를 통과한 것
             row.model_version = (settings.LLM_MODEL if settings.LLM_PROVIDER == "anthropic" else "mock")[:30]
+    if fixes:  # 정정 카드는 전할 답이 없던 주·AI 가 실패한 주에도 보인다 — 새벽 작업이 이미 규칙 검사를 한 문장
+        row.qa_list = fixes + cards
+        row.rule_check_passed = True
     row.notes = {"lines": [CARE_LINE]} if care else None
     db.commit()
     log.info(
