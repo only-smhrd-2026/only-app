@@ -18,6 +18,7 @@ from app.routers import (
     elder,
     family_diary,
     invites,
+    kakao,
     media,
     mood,
     notifications,
@@ -69,6 +70,7 @@ async def log_request_timing(request: Request, call_next):
 api = APIRouter(prefix="/api")
 for r in (
     auth.router,
+    kakao.router,
     rooms.router,
     invites.router,
     devices.router,
