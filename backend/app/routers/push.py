@@ -10,7 +10,7 @@ from app.deps import DB, CurrentDevice, CurrentUser
 from app.errors import ApiError
 from app.models import PushSubscription
 from app.schemas.common import OkOut
-from app.schemas.push import PushKeyOut, PushSubscribeIn, PushUnsubscribeIn
+from app.schemas.push import PushKeyOut, PushPrefs, PushSubscribeIn, PushUnsubscribeIn
 from app.services import push
 
 router = APIRouter(tags=["push"])
@@ -66,6 +66,20 @@ def unsubscribe(body: PushUnsubscribeIn, user: CurrentUser, db: DB):
     db.execute(delete(s).where(s.endpoint == body.endpoint, s.user_id == user.user_id))
     db.commit()
     return OkOut()
+
+
+@router.get("/push/prefs", response_model=PushPrefs)
+def get_prefs(user: CurrentUser):
+    """내가 끈 폰 알림 묶음 (11/23). 급한 알림은 목록에 없다 — 끌 수 없다."""
+    return PushPrefs(muted=user.push_muted)
+
+
+@router.put("/push/prefs", response_model=PushPrefs)
+def put_prefs(body: PushPrefs, user: CurrentUser, db: DB):
+    """끈 묶음을 통째로 바꾼다 — 같은 요청이 두 번 와도 같다. 앱 안 알림 목록은 그대로 쌓인다."""
+    user.push_muted = sorted(set(body.muted))
+    db.commit()
+    return PushPrefs(muted=user.push_muted)
 
 
 @router.post("/elder/push/subscribe", response_model=OkOut)

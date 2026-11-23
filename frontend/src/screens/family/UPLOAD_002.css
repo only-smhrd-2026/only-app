@@ -1,19 +1,16 @@
-/* UPLOAD_002 추억 올리기 2/3 — 목업 설계자료/목업_1115_가족 ④ .thumbs·.tb·.flabel small·.note-ai 값 그대로.
-   진행 막대·아래 버튼은 steps.css, 칩·입력 칸(.fd2-*)은 FDIARY_002.css(15px·44px 는 거기서 — #234).
-   글자 15px 이상(가족 화면 규격, 11/17). '선택' 표시(.up2-opt)는 보조 이름표라 그대로(FDIARY 글자 수와 같음) */
-.up2-thumbs { margin:0 var(--gut); display:flex; align-items:center; gap:6px; }
-.up2-tb { flex:none; width:56px; height:56px; border-radius:10px; overflow:hidden; background:#eceaf2; }
+/* UPLOAD_002 추억 사진 올리기 2/3 — 11/23 시안 f-upload-to 의 .fcard.opt·.chk. 칩·입력 칸·아래 버튼은 steps.css */
+.up2-thumbs { display:flex; align-items:center; gap:6px; }
+.up2-tb { flex:none; width:56px; height:56px; border-radius:10px; overflow:hidden; background:var(--line); }
 .up2-tb img { display:block; width:100%; height:100%; object-fit:cover; }
-.up2-thumbs small { margin-left:6px; font-size:15px; font-weight:600; color:var(--text-2); }
+.up2-thumbs small { margin-left:6px; font-size:15px; font-weight:600; color:var(--ink2); }
 
-.up2-opt { margin-left:4px; font-size:12.5px; font-weight:600; color:var(--text-3); }
-.fd2-field > .up2-opt { margin-left:0; font-size:15px; } /* '구성원을 불러오는 중…' 줄은 이름표가 아니라 안내라 15px */
-.fd2-mood .fam-ic { width:16px; height:16px; }
-.fd2-mood:disabled { cursor:default; }
-
-.fam .up2-note-ai { display:flex; align-items:flex-start; gap:8px; padding:12px 14px; border-radius:14px; background:var(--tint-2); font-size:15px; line-height:1.5; color:var(--text-2); }
-.up2-note-ai .fam-ic { flex:none; width:16px; height:16px; margin-top:1px; color:var(--primary); }
-
-/* 틀의 '.fam p { margin:0 }' 보다 세게 — 화면 양옆 여백 */
-.fam .up2-pad { margin:0 var(--gut); }
-.fam .up2-res { color:var(--text-2); font-size:15px; }
+/* 보낼 분 — 누르면 고름/뺌. 이미 보낸 곳은 잠금 */
+.up2-rooms { display:flex; flex-direction:column; gap:8px; }
+.up2-room { display:flex; align-items:center; gap:12px; width:100%; min-height:60px; padding:10px 14px; border:0; border-radius:20px; background:var(--surf); box-shadow:0 0 0 1px var(--line); color:var(--ink); font-size:15px; text-align:left; cursor:pointer; }
+.up2-room[aria-pressed="true"] { background:var(--soft); box-shadow:0 0 0 2px var(--edge); }
+.up2-room:disabled { cursor:default; }
+.up2-room b { flex:1; min-width:0; font-size:16px; }
+.up2-room b small { font-weight:600; color:var(--ink3); }
+.up2-chk { flex:none; box-sizing:border-box; display:grid; place-items:center; width:26px; height:26px; border-radius:50%; border:2px solid var(--ink3); color:transparent; }
+.up2-chk .fam-ic { width:15px; height:15px; }
+.up2-room[aria-pressed="true"] .up2-chk { border-color:var(--ink); background:var(--ink); color:var(--surf); }

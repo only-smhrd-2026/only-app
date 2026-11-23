@@ -8,7 +8,7 @@ from sqlalchemy import or_, select
 from app.config import now_kst
 from app.deps import DB, CurrentUser
 from app.errors import ApiError
-from app.models import FamilyRoom, RoomMember
+from app.models import FamilyRoom, RoomMember, User
 from app.routers.rooms import INVITE_COLS, room_out
 from app.schemas.rooms import DeviceConnectIn, InviteAcceptIn, InviteStatusOut, RoomOut
 from app.security import sha256_hex
@@ -32,7 +32,15 @@ def _find(db, token: str) -> tuple[FamilyRoom, str, datetime]:
 @router.post("/status", response_model=InviteStatusOut)
 def invite_status(body: DeviceConnectIn, db: DB):
     room, kind, expires_at = _find(db, body.token)
-    return InviteStatusOut(kind=kind, elder_name=room.elder_name, expires_at=expires_at, valid=expires_at > now_kst())
+    # 초대한 사람 (11/23) — 링크를 누가 만들었는지는 저장하지 않아(D38) 방장. 탈퇴한 방장이면 null
+    owner = db.get(User, room.owner_user_id)
+    return InviteStatusOut(
+        kind=kind,
+        elder_name=room.elder_name,
+        expires_at=expires_at,
+        valid=expires_at > now_kst(),
+        inviter_name=owner.name if owner and owner.status == "ACTIVE" else None,
+    )
 
 
 @router.post("/accept", response_model=RoomOut)

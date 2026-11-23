@@ -54,7 +54,7 @@ export type MemberOut = {
 }
 export type InviteKind = 'FAMILY' | 'ELDER_DEVICE'
 export type InviteCreatedOut = { kind: InviteKind; url: string; expires_at: string } // 종류마다 링크 1개 (D38)
-export type InviteStatusOut = { kind: InviteKind; elder_name: string; expires_at: string; valid: boolean }
+export type InviteStatusOut = { kind: InviteKind; elder_name: string; expires_at: string; valid: boolean; inviter_name: string | null } // 11/23 초대한 사람
 export type InviteOut = { kind: InviteKind; expires_at: string }
 
 export type DeviceOut = {
@@ -80,12 +80,17 @@ export type ElderHomeOut = {
     input_mode: 'VOICE' | 'BUTTON'
     tts_voice: 'FEMALE' | 'MALE' // 고정 안내 mp3 도 이 목소리로 (D74)
   }
+  diary_today: boolean // 11/23 오늘 어르신 일기를 올렸나 — 홈 말풍선 순서
+  mood_due: boolean // 11/23 마음 체크 할 차례(= GET /elder/mood-check/due) — '내 마음' 칸 ! 표시
 }
+// 11/23 어르신 설정 화면·처음 연결 글자 단계: PATCH /api/elder/settings (어르신 기기 쿠키). 보낸 칸만 바뀐다
+export type ElderSettingsOut = ElderHomeOut['settings']
+export type ElderSettingsIn = Partial<Pick<ElderSettingsOut, 'font_size' | 'tts_speed' | 'tts_voice'>>
 
 export type SttOut = { transcript: string; confidence: number }
 
 // ---- 알림 (backend/app/schemas/notifications.py)
-export type NotificationOut = { notification_id: number; room_id: number; kind: string; title: string; body: string | null; link_screen: string | null; sent_at: string; read_at: string | null } // read_at이 null이면 안 읽음
+export type NotificationOut = { notification_id: number; room_id: number; kind: string; title: string; body: string | null; link_screen: string | null; link_id: number | null; sent_at: string; read_at: string | null } // link_id: 11/23 일기 알림 = diary_id // read_at이 null이면 안 읽음
 export type NotificationListOut = { notifications: NotificationOut[]; unread: number } // 최신 순 최대 50개, unread는 안 읽은 전체 수
 // ---- 주간 이야기 (backend/app/schemas/weekly.py · ai/weekly.py)
 // 질문·답 카드 한 장 (D62). 질문은 대화 원문, 답은 어르신 말을 전하는 전달형 한 문장. 사진이 지워졌거나 없으면 photo_url null
@@ -127,6 +132,7 @@ export type AiOut = {
   suggestions: string[]
   choice_mode: 'CHIPS' | 'TWO_BUTTONS'
   question_type: 'RECALL' | 'REMEMBER' | 'KNOWHOW' | 'THEN_NOW' | 'COMMON' | 'RECHECK' | 'CLOSING' | 'NONE'
+  care?: boolean // 11/23 힘든 말씀 뒤 위로 중인 턴(D94 바꿈) — 대화는 이어지고, 화면은 전화 버튼 없이 심심이가 위로
 }
 export type SessionState = 'CONTINUE' | 'ENDED'
 export type EndReason = 'COMPLETED' | 'USER_STOP' | 'NO_RESPONSE' | 'ERROR' | 'LIMIT'
@@ -150,6 +156,8 @@ export type AlertOut = {
   acked_at: string | null
   acked_by_name: string | null
   acked_by_me: boolean
+  missed_at: string | null // 11/23 '안 받으세요' — POST /api/rooms/{id}/alerts/{alert_id}/missed → AlertOut
+  missed_by_name: string | null
 }
 export type SessionGetOut = {
   session_id: string
@@ -171,7 +179,20 @@ export type TurnIn = {
   event?: 'NO_RESPONSE'
 }
 
-export type AlbumOut = { photos: { photo_id: number; url: string; taken_at: string | null; caption: string | null }[] }
+// 11/23 분류 묶음 — 서버가 AI 분류(D76 활동·주제)를 묶는다. 분류 전·없음 = ETC
+export type PhotoGroup = 'FAMILY' | 'TRAVEL' | 'FOOD' | 'NATURE' | 'EVENT' | 'ETC'
+// 어르신 사진첩 GET /api/elder/album — 11/23 어르신 일기 사진·갤러리 사진(ELDER_CAMERA)도 (D60 바꿈), 새것 먼저
+export type AlbumPhoto = {
+  photo_id: number
+  url: string
+  taken_at: string | null
+  caption: string | null
+  group: PhotoGroup
+  source: 'FAMILY' | 'ELDER_CAMERA' | 'FAMILY_DIARY'
+  diary_id: number | null // 어르신 일기 사진이면 그 일기
+}
+export type AlbumOut = { photos: AlbumPhoto[] }
+// POST /api/elder/album (multipart file + request_id) → AlbumPhoto — 어르신이 폰 갤러리에서 고른 사진 1장
 // ---- 사진 올리기 (backend/app/schemas/photos.py, D17)
 export type PhotoOut = {
   usable: boolean | null // 분류 AI가 본 오늘의 한 장 사용 가능 여부. 분류 전이거나 이름표가 없으면 null
@@ -179,6 +200,7 @@ export type PhotoOut = {
   photo_id: number
   url: string
   taken_at: string | null
+  taken_year: number | null // 11/23 찍은 날이 없을 때 가족이 고른 연도
   caption: string | null
   people_note: string | null
   status: string
@@ -189,8 +211,11 @@ export type PhotoOut = {
   ai_scene: string | null // 보이는 모습 한 줄
   corrected_activity: string | null // 가족이 고친 활동('none' = 맞는 것 없음) — 있으면 이것이 먼저
   elder_note: string | null // 어르신이 대화에서 이 사진을 바로잡아 주신 내용 한 문장 (FR-ME-009)
+  group: PhotoGroup // 11/23 사진첩 분류 칩
+  uploader_name: string | null // 11/23 올린 사람(가족 별명→이름, 어르신 사진이면 '순자 할머니' 꼴)
+  shown: boolean // 11/23 어르신께 보여 드렸나(오늘의 한 장·대화에 나옴). false = 기다려요
 }
-export type PhotoListOut = { photos: PhotoOut[]; has_more: boolean }
+export type PhotoListOut = { photos: PhotoOut[]; has_more: boolean; waiting_count: number } // 11/23 ?group= 거르기, waiting_count = 오늘의 한 장으로 남은 사진 수
 export type PhotoBatchOut = { upload_batch_id: string; photos: PhotoOut[] }
 
 // ---- 일기 (backend/app/schemas/diaries.py, D36)
@@ -201,11 +226,16 @@ export const MOOD_LABEL: Record<Mood, string> = { GOOD: '좋았어요', SO_SO: '
 // ---- 가족 홈 마음 카드 (backend/app/schemas/mood.py)
 export type MoodDayOut = { date: string; talked: boolean; diary_mood: Mood | null; low: boolean }
 export type MoodCheckOut = { check_date: string; level: 'USUAL' | 'DOWN' | 'HARD' } // 마음 체크 마지막 결과. 점수는 오지 않음
-export type MoodWeekOut = { days: MoodDayOut[]; talked_days: number; low_days: number; last_check: MoodCheckOut | null } // days 는 7칸, 오래된 날 → 오늘
+export type MoodWeekOut = { days: MoodDayOut[]; talked_days: number; low_days: number; last_check: MoodCheckOut | null; other_checks: MoodOtherOut[]; last_talk_at: string | null } // days 는 7칸, 오래된 날 → 오늘
+// 11/23 외로움·걱정·기억력 체크·기억력 놀이 — 종류마다 마지막 결과, 점수 없이 얼굴·말만
+export type MoodOtherOut = { kind: 'UCLA3' | 'GAD7' | 'SMCQ' | 'MEMGAME'; check_date: string; face: string; title: string }
 export type MoodCheckDueOut = { due: boolean } // 어르신 홈 마음 체크 초대 (D56)
-export type MoodCheckIn = { answers: number[] } // 8칸, 문항 순서대로 0~3
+// 11/23 내 마음: 종류 5가지 + 기억력 놀이. 칸 수·값 — PHQ8 8칸 0~3 · PHQ9 9칸 0~3 · UCLA3 3칸 0~2 · GAD7 7칸 0~3 · SMCQ 14칸 0~1 · MEMGAME 1칸 0~3(맞힌 수)
+export type MoodKind = 'PHQ8' | 'PHQ9' | 'UCLA3' | 'GAD7' | 'SMCQ' | 'MEMGAME'
+export type MoodCheckIn = { kind?: MoodKind; answers: number[] } // kind 없으면 PHQ8
 // 마음 체크 저장 응답. say = 어르신께 드리는 끝 인사 한마디('잠이 편치 않은 날이 많으셨군요. …') — null 이면 평소 인사
-export type MoodCheckSavedOut = { ok: boolean; say: string | null }
+export type MoodCheckSavedOut = { ok: boolean; say: string | null; face: string; title: string; sub: string } // 11/23 결과는 점수 없이 얼굴·말
+export type MoodHistoryOut = { items: { check_date: string; kind: MoodKind; level: 'USUAL' | 'DOWN' | 'HARD'; face: string; title: string }[] } // GET /api/elder/mood-history 최근 10개
 // 가족 홈 돌봄 일지 (backend/app/schemas/care.py, 11/19 돌봄 루프). 문장은 서버가 만든다 — 어르신 말 원문·점수 없음
 export type CareDayOut = {
   date: string
@@ -260,7 +290,21 @@ export type DiaryListOut = { diaries: DiaryOut[]; has_more: boolean }
 // 어르신 가족 소식 GET /api/elder/family-news (D63): 안 들은 가족 일기 + 아직 못 들은 가족 이모지·한마디(첫 장 '하트가 왔어요', 받은 순서)
 // 첫 장을 읽어 드린 뒤 POST /api/elder/hearts/heard { until: 읽어 드린 마지막 하트·한마디의 at } → 204
 // ?again=1 (11/19): 새 소식이 없을 때 '지난 소식 다시 듣기' — 이미 들은 가족 일기 최근 5개, hearts 는 빈 목록. 읽음 표시는 그대로
-export type Heart = { diary_id: number; kind: 'HEART' | 'SMILE' | 'CLAP' | 'REPLY'; name: string | null; at: string; text?: string }
+export type Heart = {
+  diary_id: number
+  kind: 'HEART' | 'SMILE' | 'CLAP' | 'REPLY'
+  name: string | null
+  at: string
+  text?: string
+  diary_body: string // 11/23 어느 일기에 — 앞 40자
+  diary_posted_at: string
+  diary_thumb_url: string | null
+}
+// 11/23 어르신 [말로 답하기] (가족 일기에만, 답장의 답장 없음): 녹음 → POST /api/stt → POST /api/elder/diaries/{id}/reply-draft {transcript} → {text}
+// → 어르신 확인 → POST /api/elder/diaries/{id}/reply {text} → DiaryOut (reactions 에 by ELDER·kind REPLY 한 칸)
+export type ElderReplyDraftIn = { transcript: string }
+export type ElderReplyDraftOut = { text: string }
+export type ElderReplyIn = { text: string }
 export type FamilyNewsOut = DiaryListOut & { hearts: Heart[] }
 // ---- 가족 일기 동무 (backend/app/schemas/family_diary.py, D58) — FDIARY_002 질문 · FDIARY_003 초안. 서버는 저장하지 않는다
 // POST /api/rooms/{room_id}/family-diary/ask · /draft. 여러 가족방에 보내도 고른 방 하나로 한 번만 부른다
@@ -271,4 +315,7 @@ export type FamilyDraftOut = { body: string } // 존댓말 1인칭 3~5문장 →
 // ---- 웹 푸시 (backend/app/schemas/push.py) — lib/push.ts 가 쓴다
 // GET /api/push/key → PushKeyOut. 구독 등록 POST /api/push/subscribe(가족)·/api/elder/push/subscribe(어르신 기기)는
 // 브라우저의 PushSubscription.toJSON() 을 그대로 보낸다. 끄기 POST /api/push/unsubscribe { endpoint }. 셋 다 { ok: true }
+// 11/23 알림 종류별 끄기 GET·PUT /api/push/prefs — 급한 알림은 끌 수 없다
+export type PushGroup = 'DIARY' | 'WEEKLY' | 'CARE'
+export type PushPrefs = { muted: PushGroup[] }
 export type PushKeyOut = { public_key: string | null } // null = 이 서버는 푸시를 안 쓴다 → 알림 카드를 숨긴다

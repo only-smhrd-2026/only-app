@@ -1,51 +1,11 @@
-.elder-connect {
-  text-align: center;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-}
-
-.elder-connect-header { display: grid; gap: var(--elder-gap); }
-.elder-connect-photo {
-  display: block;
-  align-self: center;
-  flex: 1 1 0;
-  min-height: 0;
-  width: 100%;
-  object-fit: contain;
-}
-.elder-connect-invitation { font-weight: 700; }
-.elder-connect-note { font-size: var(--elder-font-size-long); } /* 마음 알림 안내 — 긴 글 크기(22) */
-.elder-connect-start {
-  flex-shrink: 0;
-}
-.elder-connect-install {
-  display: grid;
-  flex: 0 1 auto;
-  min-height: 0;
-  overflow: hidden;
-  padding: var(--elder-gap);
-  border-radius: var(--elder-radius);
-  background: var(--elder-soft);
-  text-align: left;
-}
-.elder-connect-guide { font-size: var(--elder-font-size-long); }
-.elder-connect-permissions { display: grid; gap: var(--elder-gap); text-align: left; }
-.elder-connect-bubble {
-  padding: var(--elder-gap);
-  border-radius: var(--elder-radius);
-  background: var(--elder-soft);
-  font-weight: 700;
-  text-align: center;
-}
-.elder-connect-mic { padding: var(--elder-gap); border-radius: var(--elder-radius); background: var(--elder-soft); }
-.elder-connect-message { text-align: left; }
-.elder-connect-start:focus-visible {
-  outline: calc(var(--elder-edge-w) * 2) solid var(--elder-fg);
-  outline-offset: calc(var(--elder-edge-w) * 2);
-}
-
-/* 목소리 고르기 (D74) — 가로로 긴 버튼 세로로, 고른 것은 옅은 보라(.elder-like 와 같은 색). 남는 자리를 채워 결정 버튼은 맨 아래 */
-.elder-connect-voice { display: grid; gap: var(--elder-gap); align-content: start; flex: 1 1 auto; min-height: 0; }
-.elder-connect-voice-btn { display: flex; align-items: center; gap: var(--elder-gap); padding: 4px 20px; text-align: left; }
-.elder-connect-voice-btn[aria-pressed="true"] { background: var(--elder-me); border-color: var(--elder-me-e); color: var(--elder-me-f); }
-.elder-connect-ok { margin-left: auto; }
+/* 처음 연결 (11/23 시안 .perm) — 허용 창 그림: 어디를 누를지 보여 준다(누를 수 없는 그림) */
+.econ-perm { display: flex; align-items: center; justify-content: center; }
+.econ-perm-box { box-sizing: border-box; width: 100%; max-width: 300px; padding: 18px 18px 14px; border-radius: 22px; background: var(--elder-card); box-shadow: var(--elder-sh2); font-size: 20px; line-height: 1.35; }
+.econ-perm-box b { display: block; margin-bottom: 16px; font-weight: 700; }
+.econ-perm-row { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.econ-perm-row i { position: relative; padding: 8px 16px; border-radius: 14px; font-style: normal; font-weight: 700; color: var(--elder-ink2); text-align: left; }
+.econ-perm-row i.yes { color: var(--elder-fg); background: var(--elder-soft); }
+.econ-perm-row i.yes::after { content: ''; position: absolute; inset: -6px; border-radius: 18px; border: 3px solid var(--elder-primary); animation: elder-ring 1.8s ease-out infinite; }
+.econ-perm-cap { font-size: var(--elder-font-size-s); color: var(--elder-ink2); text-align: center; }
+.econ-perm-cap b { color: var(--elder-fg); }
+@media (prefers-reduced-motion: reduce) { .econ-perm-row i.yes::after { animation: none; } }

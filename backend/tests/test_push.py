@@ -445,9 +445,11 @@ def test_elder_diary_pushes_the_title_only_and_logs_no_endpoint(client, outbox, 
     [request] = outbox.sent
     assert str(request.url) == phone.endpoint
     payload = phone.open(request)
+    diary_id = _post(client, sid).json()["diary_id"]  # 같은 일기를 다시 돌려준다 — 푸시는 더 안 간다
+    assert len(outbox.sent) == 1
     assert payload == {
         "title": "순자 할머니 일기가 왔어요",
-        "url": f"/?room={room_id}",
+        "url": f"/diaries/{diary_id}",  # 누르면 그 일기 (11/23 link_id)
         "tag": f"DIARY_POSTED-{room_id}",
     }
     assert SECRET not in json.dumps(payload, ensure_ascii=False)

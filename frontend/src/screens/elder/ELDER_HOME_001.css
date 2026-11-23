@@ -1,2 +1,53 @@
+/* 어르신 홈 (11/23 시안 .ehome): 위 로고·날짜 · 가운데 심심이 + 말풍선(남는 자리) · 아래 네모 6칸. 스크롤 없이 한 화면 */
 .elder-home { width: 100%; }
-.elder-home-note { text-align: center; }
+.ehome-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.ehome-top { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
+.ehome-logo { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 800; letter-spacing: -.04em; white-space: nowrap; }
+.ehome-logo svg { width: 30px; height: 30px; }
+.ehome-date {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--elder-card);
+  color: var(--elder-fg);
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: var(--elder-sh1);
+  cursor: pointer;
+}
+.ehome-say { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 12px; }
+.ehome-say .elder-bub { flex: none; white-space: pre-line; font-weight: 800; line-height: 1.32; text-wrap: balance; }
+/* 심심이는 230px 까지, 화면이 낮으면 남는 높이만큼 줄어든다 */
+.ehome-say .elder-sim { flex: 0 1 auto; min-height: 0; width: auto; height: min(230px, 100%); max-width: 230px; object-fit: contain; }
+.ehome-grid { flex: none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ehome-tile {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 10px 12px 12px;
+  border: 0;
+  border-radius: var(--elder-radius);
+  background: var(--elder-card);
+  color: var(--elder-fg);
+  text-align: left;
+  box-shadow: var(--elder-sh1);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .12s var(--elder-ease);
+}
+.ehome-tile:active { transform: scale(.96); box-shadow: none; }
+.ehome-tile:disabled { cursor: default; }
+/* 말풍선이 가리키는 칸 */
+.ehome-tile.now { box-shadow: 0 0 0 4px var(--elder-primary), var(--elder-sh2); }
+.ehome-tile:focus-visible { outline: 3px solid var(--elder-fg); outline-offset: 3px; }
+.ehome-art { flex: none; display: flex; align-items: center; height: 44px; margin-bottom: 4px; }
+.ehome-art svg { display: block; width: auto; height: 42px; }
+.ehome-art img { display: block; width: 54px; height: 40px; object-fit: cover; border: 3px solid #fff; border-radius: 8px; transform: rotate(-5deg); box-shadow: 0 4px 10px rgba(74, 45, 10, .22); }
+.ehome-tile b { font-size: var(--elder-font-size); font-weight: 800; letter-spacing: -.035em; line-height: 1.2; white-space: nowrap; }
+.ehome-tile small { max-width: 100%; font-size: 17px; font-weight: 700; line-height: 1.3; color: var(--elder-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (prefers-reduced-motion: reduce) { .ehome-tile { transition: none; } }

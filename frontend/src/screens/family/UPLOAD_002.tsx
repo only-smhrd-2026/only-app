@@ -1,14 +1,15 @@
 /**
- * UPLOAD_002 — 추억 올리기 2/3: 보낼 분·사진 속 사람·한마디 (FR-ME-002, D17, 목업 설계자료/목업_1115_가족 ④ '추억 올리기 2/3').
+ * UPLOAD_002 — 추억 사진 올리기 2/3: 보낼 분·사진 속 사람·한마디 (FR-ME-002, D17, 11/23 시안 f-upload-to).
  * UPLOAD_001 이 uploadDraft 에 넣은 사진·요청 번호를 고른 가족방마다 보낸다 → UPLOAD_003 결과. 하위 화면(위 ←).
  * 한마디·사진 속 사람은 묶음에 한 번 — 그 묶음의 모든 사진에 같은 값. 단, 사진 속 사람은 가족방마다
  * 그 방 호칭으로 바꿔 보낸다(할머니가 부르는 말로 AI 가 물어보게).
- * 진행 막대·아래 버튼은 steps.css, 칩·입력 칸은 FDIARY_002.css 를 같이 쓴다.
+ * 칩·입력 칸·아래 버튼은 steps.css, 보낼 분 카드·고른 사진 줄은 UPLOAD_002.css.
  */
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { MemberOut, PhotoBatchOut, RoomOut } from '../../api/types'
+import { Avatar } from '../../components/FamilyFrame'
 import FamIcon from '../../components/FamIcon'
 import { useFetch } from '../../hooks/useFetch'
 import {
@@ -22,11 +23,12 @@ import {
 } from '../../lib/uploadDraft'
 import { Thumb } from './UPLOAD_001'
 import './steps.css'
-import './FDIARY_002.css'
 import './UPLOAD_002.css'
 
 // 서버 config.py 의 UPLOAD_MAX_NOTE_CHARS 와 같게 (한마디·사진 속 사람 글자 수)
 const MAX_NOTE = 100
+// 언제쯤 사진인지 고를 연도: 올해부터 1940년까지 (서버는 1900~올해를 받는다)
+const YEARS = Array.from({ length: new Date().getFullYear() - 1939 }, (_, i) => new Date().getFullYear() - i)
 
 const nameOf = (r: RoomOut) => `${r.elder_name} ${r.elder_honorific}`
 
@@ -48,6 +50,7 @@ export default function UPLOAD_002() {
   const [results, setResults] = useState<Record<number, UploadRoomResult>>({})
   const [busy, setBusy] = useState(false)
   const [caption, setCaption] = useState(draft.caption)
+  const [year, setYear] = useState('') // 언제쯤 사진인지 (11/23) — 서버가 찍은 날이 없는 사진에만 붙인다
   const [peopleNote, setPeopleNote] = useState(draft.peopleNote)
   const [peopleIds, setPeopleIds] = useState<number[]>(draft.peopleIds)
   const [custom, setCustom] = useState(!!draft.peopleNote) // '직접 쓰기' 칸을 열었는지
@@ -134,8 +137,8 @@ export default function UPLOAD_002() {
     return (
       <main className="st">
         <div className="st-body">
-          <p className="fam-error up2-pad">{rooms.error.message}</p>
-          <button type="button" className="fam-btn fam-btn--tonal up2-pad" onClick={rooms.reload}>
+          <p className="fam-error">{rooms.error.message}</p>
+          <button type="button" className="fam-btn fam-btn--tonal" onClick={rooms.reload}>
             다시 시도
           </button>
         </div>
@@ -146,7 +149,7 @@ export default function UPLOAD_002() {
     return (
       <main className="st" aria-busy="true">
         <div className="st-body">
-          <p className="up2-pad up2-res">불러오는 중…</p>
+          <p className="st-hint">불러오는 중…</p>
         </div>
       </main>
     )
@@ -155,8 +158,8 @@ export default function UPLOAD_002() {
     return (
       <main className="st">
         <div className="st-body">
-          <p className="up2-pad">
-            먼저 가족방을 만들어 주세요 · <Link to="/groups/new">가족방 만들기</Link>
+          <p className="st-hint">
+            먼저 가족방을 만들어 주세요 · <Link className="st-link" to="/groups/new">가족방 만들기</Link>
           </p>
         </div>
       </main>
@@ -212,6 +215,7 @@ export default function UPLOAD_002() {
       if (caption.trim()) form.append('caption', caption.trim())
       const note = noteFor(room.room_id)
       if (note) form.append('people_note', note)
+      if (year) form.append('taken_year', year)
       const name = nameOf(room)
       try {
         const r = await api<PhotoBatchOut>(`/api/rooms/${room.room_id}/photos`, { form, signal })
@@ -254,15 +258,13 @@ export default function UPLOAD_002() {
 
   return (
     <main className="st">
-      <div className="st-prog" aria-hidden="true">
-        <i style={{ width: '66.6%' }} />
-      </div>
       <div className="st-body">
         <div className="st-head">
+          <h1>추억 사진 올리기</h1>
           <p className="st-step">2/3 · 보낼 분</p>
-          <h1>어느 분께 보낼까요?</h1>
-          {retry && <p className="st-lead">못 보낸 곳에 같은 사진·같은 글로 다시 보내요</p>}
+          <h2>어느 분께 보낼까요?</h2>
         </div>
+        {retry && <p className="st-dim">못 보낸 곳에 같은 사진·같은 글로 다시 보내요</p>}
 
         <div className="up2-thumbs">
           {draft.files.slice(0, 4).map((f, i) => (
@@ -273,110 +275,116 @@ export default function UPLOAD_002() {
           <small>사진 {draft.files.length}장</small>
         </div>
 
+        {/* 보낼 분 — 시안 f-upload-to 의 고르는 카드(얼굴 + 이름 + 동그라미 체크) */}
+        <div className="up2-rooms" role="group" aria-label="보낼 분">
+          {list.map((room) => {
+            const on = isChecked(room.room_id)
+            return (
+              <button
+                key={room.room_id}
+                type="button"
+                className="up2-room"
+                aria-pressed={on}
+                disabled={busy || done.has(room.room_id)}
+                onClick={() => toggleRoom(room.room_id)}
+              >
+                <Avatar name={room.elder_name} />
+                <b>
+                  {nameOf(room)}네{done.has(room.room_id) && <small> · 보냄</small>}
+                </b>
+                <span className="up2-chk" aria-hidden="true">
+                  <FamIcon name="check" />
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
         {/*
           보내는 중·한 번 보낸 묶음(다시 보내기)은 글을 못 고친다. 서버는 같은 번호(upload_batch_id)의
           두 번째 요청에 처음 저장본을 그대로 돌려줘서, 글을 고쳐 다시 보내도 바뀌지 않는다 (D17)
         */}
-        <section className="fam-card fd2-form">
-          <div className="fd2-field" role="group" aria-labelledby="up2-to">
-            <span className="fd2-label" id="up2-to">
-              보낼 분
-            </span>
-            <div className="fd2-moods">
-              {list.map((room) => {
-                const on = isChecked(room.room_id)
-                return (
-                  <button
-                    key={room.room_id}
-                    type="button"
-                    className={on ? 'fd2-mood on' : 'fd2-mood'}
-                    aria-pressed={on}
-                    disabled={busy || done.has(room.room_id)}
-                    onClick={() => toggleRoom(room.room_id)}
-                  >
-                    {done.has(room.room_id) && <FamIcon name="check" />}
-                    {nameOf(room)}
-                    {done.has(room.room_id) && ' · 보냄'}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="fd2-field" role="group" aria-labelledby="up2-people">
-            <span className="fd2-label" id="up2-people">
-              사진 속 사람 <small className="up2-opt">선택</small>
-            </span>
-            <div className="fd2-moods">
-              {[...people].map(([id, name]) => (
-                <button
-                  key={id}
-                  type="button"
-                  className={peopleIds.includes(id) ? 'fd2-mood on' : 'fd2-mood'}
-                  aria-pressed={peopleIds.includes(id)}
-                  disabled={locked}
-                  onClick={() => togglePerson(id)}
-                >
-                  {name}
-                </button>
-              ))}
-              {!custom && (
-                <button type="button" className="fd2-mood" disabled={locked} onClick={() => setCustom(true)}>
-                  <FamIcon name="plus" />
-                  직접 쓰기
-                </button>
-              )}
-            </div>
-            {!membersReady && people.size === 0 && <small className="up2-opt">구성원을 불러오는 중…</small>}
-            {custom && (
-              <input
-                className="fd2-input"
-                value={peopleNote}
-                maxLength={MAX_NOTE}
-                placeholder="예: 할머니, 이웃 영자 씨"
-                aria-label="사진 속 사람 직접 쓰기"
-                autoFocus={!draft.peopleNote}
-                disabled={locked}
-                onChange={(e) => setPeopleNote(e.target.value)}
-              />
-            )}
-            {tooLong.length > 0 && (
-              <p className="fam-error" role="alert">
-                사진 속 사람은 {MAX_NOTE}자까지예요 ({tooLong.map(nameOf).join(', ')}께 보낼 글이 길어요). 몇 분 빼 주세요
-              </p>
-            )}
-          </div>
-
-          <div className="fd2-field">
-            <label className="fd2-label" htmlFor="up2-caption">
-              한마디 <small className="up2-opt">선택</small>
-            </label>
-            <textarea
-              id="up2-caption"
-              className="fd2-input"
-              rows={2}
-              value={caption}
-              maxLength={MAX_NOTE}
-              placeholder="예: 2019년 설날 큰집에서"
+        <p className="st-label" id="up2-people">
+          사진 속 사람 <small>선택</small>
+        </p>
+        <div className="st-chips" role="group" aria-labelledby="up2-people">
+          {[...people].map(([id, name]) => (
+            <button
+              key={id}
+              type="button"
+              className="st-chip"
+              aria-pressed={peopleIds.includes(id)}
               disabled={locked}
-              onChange={(e) => setCaption(e.target.value)}
-            />
-            <span className="fd2-count">
-              {caption.length}/{MAX_NOTE}
-            </span>
-          </div>
-
-          <p className="up2-note-ai">
-            <FamIcon name="sparkle" />
-            <span>AI가 사진을 보고 이야기 거리를 찾아요. 사실로 단정해 말하지는 않아요</span>
+              onClick={() => togglePerson(id)}
+            >
+              {name}
+            </button>
+          ))}
+          {!custom && (
+            <button type="button" className="st-chip" disabled={locked} onClick={() => setCustom(true)}>
+              <FamIcon name="plus" />
+              직접 쓰기
+            </button>
+          )}
+        </div>
+        {!membersReady && people.size === 0 && <p className="st-dim">구성원을 불러오는 중…</p>}
+        {custom && (
+          <input
+            className="st-input"
+            value={peopleNote}
+            maxLength={MAX_NOTE}
+            placeholder="예) 작은아버지, 이웃 영자 씨"
+            aria-label="사진 속 사람 직접 쓰기"
+            autoFocus={!draft.peopleNote}
+            disabled={locked}
+            onChange={(e) => setPeopleNote(e.target.value)}
+          />
+        )}
+        {tooLong.length > 0 && (
+          <p className="fam-error" role="alert">
+            사진 속 사람은 {MAX_NOTE}자까지예요 ({tooLong.map(nameOf).join(', ')}께 보낼 글이 길어요). 몇 분 빼 주세요
           </p>
-        </section>
+        )}
+
+        <label className="st-label" htmlFor="up2-caption">
+          한마디 <small>선택 · 고른 {draft.files.length}장에 모두 붙어요</small>
+        </label>
+        <textarea
+          id="up2-caption"
+          className="st-input"
+          rows={2}
+          value={caption}
+          maxLength={MAX_NOTE}
+          placeholder="예) 신혼 때 아빠랑 간 바다예요"
+          disabled={locked}
+          onChange={(e) => setCaption(e.target.value)}
+        />
+        <span className="st-count">
+          {caption.length}/{MAX_NOTE}
+        </span>
+
+        <label className="st-label" htmlFor="up2-year">
+          언제쯤 사진인가요? <small>선택 · 찍은 날이 없는 사진(스캔·카톡으로 받은 사진)에만 붙어요</small>
+        </label>
+        <select id="up2-year" className="st-input" value={year} disabled={locked} onChange={(e) => setYear(e.target.value)}>
+          <option value="">모르겠어요</option>
+          {YEARS.map((y) => (
+            <option key={y} value={y}>
+              {y}년쯤
+            </option>
+          ))}
+        </select>
+
+        <p className="st-note">
+          <FamIcon name="sparkle" />
+          <span>AI가 사진을 보고 이야기 거리를 찾아요. 사실로 단정해 말하지는 않아요</span>
+        </p>
 
         {list.map((room) => {
           const r = results[room.room_id]
           return (
             r && (
-              <p key={room.room_id} className={r.ok ? 'up2-pad up2-res' : 'fam-error up2-pad'}>
+              <p key={room.room_id} className={r.ok ? 'st-dim' : 'fam-error'}>
                 {r.text}
               </p>
             )

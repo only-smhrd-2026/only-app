@@ -1,39 +1,46 @@
-/* 목업_1115_가족 ⑤ — 공통 틀의 색·카드 값을 읽고, 이 화면의 배치만 정한다. */
-.weekly-heading { padding:2px var(--gut) 4px; }
-.weekly-heading h1 { font-size:25px; font-weight:800; letter-spacing:-.04em; }
-.weekly-nav { display:flex; align-items:center; gap:4px; margin:0 var(--gut); padding:6px; border-radius:var(--r); background:var(--surface); }
+/* WEEKLY_001 — 11/23 시안 f-weekly(.callnote · .stat · .week · .story). 색·카드는 components/FamilyFrame.css */
+.weekly-heading { padding:0 var(--gut); font-size:22px; font-weight:800; letter-spacing:-.03em; }
+.weekly-nav { display:flex; align-items:center; gap:4px; margin:0 calc(var(--gut) - 10px); }
 .weekly-nav > div { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; line-height:1.35; text-align:center; }
-.weekly-nav b { font-size:16px; }
-.weekly-nav small { color:var(--text-2); font-size:15px; }
+.weekly-nav h1 { font-size:22px; font-weight:800; letter-spacing:-.03em; }
+.weekly-nav small { color:var(--text-3); font-size:13px; }
 .weekly-nav button:disabled { opacity:.25; }
 .weekly-prev .fam-ic { transform:rotate(180deg); }
-.weekly-screen button:focus-visible { outline:3px solid var(--primary); outline-offset:2px; }
-.weekly-stat { padding:16px; font-size:16px; }
-.weekly-stat b { font-weight:800; }
-.weekly-card { overflow:hidden; }
-.weekly-card-heading { padding:16px 16px 6px; font-size:16px; font-weight:800; letter-spacing:-.02em; }
-/* 달라진 점 — 살펴볼 줄은 점·낱말 색 --danger(흰 바탕 5.3:1)에 '살펴보기' 글자를 같이 쓴다(색만으로 가르지 않는다) */
-.weekly-changes { display:flex; flex-direction:column; gap:8px; margin:0; padding:4px 16px 16px; list-style:none; line-height:1.55; }
+
+/* 안부 한 줄 — 누르면 전화 앱 (D67②, 번호는 저장하지 않음 D57) */
+.weekly-note { display:flex; gap:8px; align-items:flex-start; margin:0 var(--gut); padding:12px 14px; border-radius:14px; background:var(--soft); color:var(--text); text-decoration:none; }
+.weekly-note .fam-ic { width:18px; height:18px; margin-top:2px; color:var(--acc); }
+.weekly-note u { color:var(--acc); font-weight:700; }
+
+.weekly-card { display:flex; flex-direction:column; gap:12px; padding:16px; overflow:hidden; }
+.weekly-card-heading { font-size:17px; font-weight:800; letter-spacing:-.02em; }
+.weekly-stats { display:flex; gap:10px; }
+.weekly-stat { flex:1; display:flex; flex-direction:column; padding:12px 14px; border-radius:14px; background:var(--bg); box-shadow:0 0 0 1px var(--line); }
+.weekly-stat span { color:var(--text-3); font-size:13px; }
+.weekly-stat b { font-size:22px; font-weight:800; letter-spacing:-.02em; }
+.weekly-label { font-size:15px; font-weight:700; }
+.weekly-week { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; margin:0; padding:0; list-style:none; }
+.weekly-day { display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--text-3); font-size:13px; }
+.weekly-day .elder-ic { display:block; width:30px; height:30px; }
+.weekly-no-mood { box-sizing:border-box; display:inline-block; flex:none; width:22px; height:22px; margin:4px; border-radius:50%; border:2px dashed var(--ink3); }
+.weekly-legend { display:flex; align-items:center; gap:5px; }
+.weekly-legend .weekly-no-mood { width:16px; height:16px; margin:0; border-width:1.5px; }
+
+/* 달라진 점 — 살펴볼 줄은 점·낱말 색 --danger 에 '살펴보기' 글자를 같이 쓴다(색만으로 가르지 않는다) */
+.weekly-changes { display:flex; flex-direction:column; gap:8px; margin:0; padding:0; list-style:none; line-height:1.55; }
 .weekly-changes li { position:relative; padding-left:15px; }
-.weekly-changes li::before { content:''; position:absolute; left:0; top:8px; width:7px; height:7px; border-radius:50%; background:#dcd7e8; }
+.weekly-changes li::before { content:''; position:absolute; left:0; top:8px; width:7px; height:7px; border-radius:50%; background:var(--line); }
 .weekly-changes .watch::before { background:var(--danger); }
 .weekly-changes b { margin-right:6px; color:var(--danger); font-weight:800; }
-.weekly-week { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; padding:0 12px 14px; text-align:center; }
-.weekly-day { display:flex; flex-direction:column; align-items:center; gap:6px; padding:8px 0 9px; border-radius:12px; color:var(--text-2); font-size:15px; }
-.weekly-day b { font-weight:600; }
-.weekly-day .elder-ic, .weekly-no-mood { display:block; flex:none; width:22px; height:22px; }
-.weekly-no-mood { color:var(--text-3); line-height:22px; }
 
-/* D67: 안부 한 줄과 사진·날짜·Q·A는 기존 표시 방식을 유지한다. */
-.weekly-note { padding:16px; border:1px solid var(--primary); }
-.weekly-note p { font-weight:700; }
-.weekly-qa { display:flex; gap:12px; align-items:flex-start; padding:12px 16px 14px; }
-.weekly-qa + .weekly-qa { border-top:1px solid var(--line); }
-.weekly-qa .weekly-thumb { flex:none; width:96px; height:72px; min-height:0; }
-.weekly-qa-text { display:flex; flex-direction:column; gap:4px; min-width:0; overflow-wrap:anywhere; }
-.weekly-qa-text small { color:var(--text-3); font-size:15px; }
-.weekly-q { color:var(--text-2); font-size:15px; }
-.weekly-a { font-weight:700; }
+/* 나눈 이야기 — 시안 .story */
+.weekly-h { margin:6px var(--gut) 0; font-size:17px; font-weight:800; letter-spacing:-.02em; }
+.weekly-qa { display:flex; flex-direction:column; gap:10px; padding:16px; }
+.weekly-qa-top { display:flex; align-items:center; gap:10px; }
+.weekly-qa .weekly-thumb { flex:none; width:72px; height:72px; min-height:0; border-radius:12px; overflow:hidden; }
+.weekly-qa-text { display:flex; flex-direction:column; min-width:0; overflow-wrap:anywhere; }
+.weekly-qa-text small { color:var(--text-3); font-size:13px; }
+.weekly-q { font-weight:700; }
+.weekly-a { padding:10px 14px; border-radius:14px 14px 14px 4px; background:var(--soft); overflow-wrap:anywhere; }
 .weekly-empty { display:flex; flex-direction:column; align-items:center; gap:8px; padding:26px 24px; color:var(--text-2); text-align:center; }
 .weekly-empty b { color:var(--text); font-size:16px; }
-.weekly-empty p { font-size:15px; }

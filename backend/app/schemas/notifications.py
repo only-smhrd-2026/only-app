@@ -12,6 +12,7 @@ class NotificationOut(BaseModel):
     title: str
     body: str | None
     link_screen: str | None
+    link_id: int | None = None  # 11/23 일기 알림(DIARY_POSTED·ELDER_REPLY) = diary_id → HOME_002
     sent_at: datetime
     read_at: datetime | None
 

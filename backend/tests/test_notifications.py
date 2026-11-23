@@ -51,6 +51,7 @@ def test_latest_list_and_first_read_time(client, monkeypatch):
         "title": "알림 테스트",
         "body": "알림 본문",
         "link_screen": "FDIARY_001",
+        "link_id": None,  # 11/23 일기 알림이면 diary_id — 이 줄은 번호 없이 넣었다
         "sent_at": result["notifications"][0]["sent_at"],
         "read_at": None,
     }

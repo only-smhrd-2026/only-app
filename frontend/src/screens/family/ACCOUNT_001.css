@@ -22,7 +22,7 @@
 .acc-opt:has(input:focus-visible) { outline:2px solid var(--primary); outline-offset:1px; }
 .acc-opt input { flex:none; width:22px; height:22px; margin:0; accent-color:var(--primary); }
 .acc-opt small { font-size:15px; }
-.fam .acc-warn { padding:10px 12px; border-radius:12px; background:#fdecee; color:#b4232a; line-height:1.55; } /* GROUP_002 .gr-warn 과 같은 색 */
+.fam .acc-warn { padding:10px 12px; border-radius:12px; background:var(--rec-soft); color:var(--rec); line-height:1.55; } /* GROUP_002 .gr-warn 과 같은 색 */
 
 /* 지금 비밀번호 — 가족방 만들기(GROUP_001 .newroom-field > input)와 같은 모양 */
 .acc-label { font-size:15px; font-weight:800; }
@@ -32,7 +32,7 @@
 
 /* 확인 판 — <dialog> 라 브라우저 기본 모양(가운데·테두리)을 fam-sheet 모양으로 되돌린다 (HOME_002 .diary-detail-delete-sheet 와 같음) */
 .acc-sheet { top:auto; width:100%; max-height:90dvh; overflow-y:auto; border:0; color:var(--text); }
-.acc-sheet::backdrop { background:rgba(18,16,28,.42); }
+.acc-sheet::backdrop { background:rgba(30,18,8,.42); }
 .fam .acc-sheet > p { margin:0 12px 14px; color:var(--text-2); line-height:1.5; }
 .acc-two { display:flex; gap:8px; padding:6px 8px 2px; }
 .acc-two .fam-btn { flex:1; }

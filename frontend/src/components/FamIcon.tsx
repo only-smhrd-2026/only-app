@@ -1,4 +1,4 @@
-/** 가족 화면 그림 (D70) — 목업 설계자료/목업_1115_가족 의 const I 도형 그대로(24 칸, 선 굵기 2). 기분 얼굴은 MoodIcon. */
+/** 가족 화면 그림 (D70) — 목업 설계자료/목업_1115_가족 의 const I 도형 그대로(24 칸, 선 굵기 2), 11/23 시안 그림 3개 더함. 기분 얼굴은 MoodIcon. */
 import type { ReactNode } from 'react'
 
 const ICONS = {
@@ -42,6 +42,12 @@ const ICONS = {
   chevRight: <path d="M9 6l6 6-6 6" />,
   arrowLeft: <path d="M19 12H5M11 6l-6 6 6 6" />,
   plus: <path d="M12 5v14M5 12h14" />,
+  camera: (
+    <>
+      <path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z" />
+      <circle cx="12" cy="12.5" r="3.5" />
+    </>
+  ),
   lock: (
     <>
       <rect x="5" y="11" width="14" height="9" rx="2" />
@@ -51,6 +57,26 @@ const ICONS = {
   sparkle: <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" />,
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   heart: <path d="M12 20s-7-4.6-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.4-7 10-7 10z" />,
+  // 11/23 시안 그림 — 사진첩 탭·안내 줄·일기 알림
+  image: (
+    <>
+      <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+      <circle cx="9" cy="10" r="1.6" />
+      <path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4" />
+    </>
+  ),
+  speaker: (
+    <>
+      <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" />
+      <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
+    </>
+  ),
+  book: (
+    <>
+      <path d="M5 4.5h11a3 3 0 0 1 3 3V20H8a3 3 0 0 1-3-3z" />
+      <path d="M5 17a3 3 0 0 1 3-3h11M9 8.5h6" />
+    </>
+  ),
   phone: <path d="M6 3h4l1.5 5L9 9.5a11 11 0 0 0 5.5 5.5L16 12.5l5 1.5v4a2 2 0 0 1-2 2A16 16 0 0 1 4 5a2 2 0 0 1 2-2z" />,
 } satisfies Record<string, ReactNode>
 

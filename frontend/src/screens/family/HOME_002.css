@@ -1,65 +1,58 @@
-/* HOME_002 — 목업 ① 일기 상세. 공통 틀의 변수만 쓰고 이 화면 안에서 모양을 정한다. */
-.diary-detail { gap:14px; padding:8px 0 32px; }
-.diary-detail-title { padding:0 18px; font-size:18px; font-weight:700; }
-.diary-detail-card { display:flex; flex-direction:column; gap:14px; padding:16px 0 20px; overflow:hidden; }
-.diary-detail-head { display:flex; align-items:center; gap:10px; padding:0 16px; }
+/* HOME_002 — 11/23 시안 f-detail. 공통 틀의 변수·카드·버튼·칩만 쓰고 이 화면 안에서 배치를 정한다. */
+.diary-detail { gap:12px; padding:4px 0 32px; }
+.diary-detail-title { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; } /* 제목은 화면 읽기에만 */
+.diary-detail-card { display:flex; flex-direction:column; gap:12px; padding:0 var(--gut); }
+.diary-detail-head { display:flex; align-items:center; gap:10px; }
 .diary-detail-who { flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.4; overflow-wrap:anywhere; }
 .diary-detail-who b { font-size:15px; }
-.diary-detail-who small { color:var(--text-3); font-size:15px; }
-.diary-detail-photo { position:relative; width:100%; min-height:44px; padding:0; border:0; background:var(--tint-2); font:inherit; text-align:left; cursor:zoom-in; }
-.diary-detail-photo:focus-visible { outline:2px solid var(--primary); outline-offset:-2px; }
+.diary-detail-who small { color:var(--text-3); font-size:13px; }
+.diary-detail-photo { position:relative; width:100%; min-height:44px; padding:0; border:0; border-radius:14px; overflow:hidden; background:var(--line); font:inherit; text-align:left; cursor:zoom-in; }
 .diary-detail-photo img { display:block; width:100%; height:auto; object-fit:contain; }
-.diary-detail-zoom { box-sizing:border-box; width:100vw; height:100dvh; max-width:none; max-height:none; margin:0; padding:12px; padding-top:max(12px, env(safe-area-inset-top)); padding-bottom:max(12px, env(safe-area-inset-bottom)); border:0; background:#14141a; color:#fff; }
+.diary-detail-zoom { box-sizing:border-box; width:100vw; height:100dvh; max-width:none; max-height:none; margin:0; padding:12px; padding-top:max(12px, env(safe-area-inset-top)); padding-bottom:max(12px, env(safe-area-inset-bottom)); border:0; background:#17120E; color:#fff; }
 .diary-detail-zoom[open] { display:flex; flex-direction:column; align-items:center; gap:12px; }
-.diary-detail-zoom::backdrop { background:#14141a; }
+.diary-detail-zoom::backdrop { background:#17120E; }
 .diary-detail-zoom > img { flex:1; min-height:0; width:100%; object-fit:contain; }
-.diary-detail-save { flex:none; display:flex; align-items:center; justify-content:center; min-height:48px; padding:0 24px; border-radius:12px; background:var(--surface); color:var(--text); font-size:16px; font-weight:700; text-decoration:none; }
+.diary-detail-save { flex:none; display:flex; align-items:center; justify-content:center; min-height:48px; padding:0 24px; border-radius:14px; background:var(--surface); color:var(--text); font-size:16px; font-weight:700; text-decoration:none; }
 .diary-detail-save:focus-visible { outline:2px solid #fff; outline-offset:3px; }
 .diary-detail-zoom > p { flex:none; margin:0; text-align:center; font-size:15px; }
-.diary-detail-tag { position:absolute; left:10px; top:10px; display:flex; align-items:center; gap:4px; padding:4px 9px; border-radius:999px; background:var(--text); color:var(--surface); font-size:15px; font-weight:700; }
+.diary-detail-tag { position:absolute; left:10px; top:10px; display:flex; align-items:center; gap:4px; padding:4px 9px; border-radius:8px; background:rgba(30,18,8,.72); color:#fff; font-size:13px; font-weight:700; }
 .diary-detail-tag .fam-ic { width:14px; height:14px; }
-.diary-detail-mood-pic { display:grid; place-items:center; min-height:210px; background:var(--tint-2); }
+.diary-detail-mood-pic { display:grid; place-items:center; min-height:210px; border-radius:14px; background:var(--soft); }
 .diary-detail-mood-pic .elder-ic { width:128px; height:128px; }
-.diary-detail-text { padding:0 18px; font-size:17px; line-height:1.78; white-space:pre-wrap; overflow-wrap:anywhere; }
-.diary-detail-chips { display:flex; flex-wrap:wrap; gap:8px; padding:0 16px; }
-.diary-detail-chip { display:inline-flex; align-items:center; gap:6px; min-height:32px; padding:4px 12px; border-radius:999px; background:var(--tint-2); color:var(--text-2); font-size:15px; font-weight:600; }
-.diary-detail-chip .elder-ic { width:20px; height:20px; }
-.diary-detail-reactions { display:flex; flex-wrap:wrap; gap:8px; padding:0 16px; }
-.diary-detail-react { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:56px; min-height:44px; padding:8px 14px; border:1px solid var(--line); border-radius:999px; background:var(--surface); color:var(--text-2); font:inherit; cursor:pointer; }
-.diary-detail-react > span:first-child { font-size:22px; line-height:1; }
-.diary-detail-react.on { border-color:var(--primary); background:var(--tint); color:var(--primary); }
-.diary-detail-react:focus-visible { outline:2px solid var(--primary); outline-offset:3px; }
+.diary-detail-text { font-size:17px; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere; }
+.diary-detail-mood { display:flex; align-items:center; gap:6px; color:var(--text-2); }
+.diary-detail-mood .elder-ic { width:20px; height:20px; }
+.diary-detail-reactions { display:flex; flex-wrap:wrap; gap:8px; }
+.diary-detail-react { display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:0 14px; border:1.5px solid var(--ink3); border-radius:22px; background:var(--surface); color:var(--text); font:inherit; font-weight:700; cursor:pointer; }
+.diary-detail-react > span:first-child { font-size:18px; line-height:1; }
+.diary-detail-react[aria-pressed='true'] { border-color:var(--edge); background:var(--soft); }
 .diary-detail-react:disabled { cursor:wait; opacity:.6; }
-/* 한마디 남기기 (11/19) — 추천 답 4개는 두 칸씩(누르는 곳 44px), 입력 칸은 가족방 글 고치기(GROUP_002 .gr-input)와 같은 모양 */
-.diary-detail-reply { display:flex; flex-direction:column; gap:10px; padding:0 16px; }
-.diary-detail-reply h2 { font-size:15px; font-weight:700; }
-.diary-detail-reply-hint, .diary-detail-reply-note { color:var(--text-2); font-size:15px; }
+/* 한마디 남기기 — 시안: 추천 칩(누르면 칸만 채움) + 입력 칸 + [보내기] */
+.fam-card.diary-detail-reply { margin:0; display:flex; flex-direction:column; gap:12px; padding:16px; }
+.diary-detail-reply h2 { font-size:17px; font-weight:800; letter-spacing:-.02em; }
+.diary-detail-reply-note { color:var(--danger); font-size:15px; }
 .diary-detail-replies { display:flex; flex-direction:column; gap:6px; margin:0; padding:0; list-style:none; }
-.diary-detail-replies li { display:flex; align-items:center; gap:4px; min-height:44px; padding:0 4px 0 12px; border-radius:14px; background:var(--tint-2); font-size:15px; }
-.diary-detail-replies li > span { flex:1; min-width:0; padding:8px 0; overflow-wrap:anywhere; }
+.diary-detail-replies li { display:flex; align-items:center; gap:4px; padding:10px 4px 10px 14px; border-radius:14px; background:var(--bg); box-shadow:0 0 0 1px var(--line); }
+.diary-detail-replies li > span { flex:1; min-width:0; display:flex; flex-direction:column; overflow-wrap:anywhere; }
+.diary-detail-replies small { color:var(--text-3); font-size:13px; }
 .diary-detail-replies .fam-text-btn { flex:none; }
-.diary-detail-reply-picks { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-.diary-detail-reply-form { display:grid; grid-template-columns:1fr auto; gap:4px 8px; }
-.diary-detail-reply-form input { min-width:0; height:44px; border:1px solid var(--line); border-radius:12px; background:var(--surface); padding:0 14px; font-size:16px; color:var(--text); }
-.diary-detail-reply-form input::placeholder { color:var(--text-3); }
-.diary-detail-reply-form small { justify-self:end; color:var(--text-3); font-size:15px; }
-.diary-detail-reply-form input:focus, .diary-detail-reply .fam-btn:focus-visible, .diary-detail-reply .fam-text-btn:focus-visible { outline:2px solid var(--primary); outline-offset:1px; }
-.diary-detail-heard { display:flex; align-items:center; gap:6px; padding:0 18px; color:var(--ok); font-size:15px; font-weight:600; }
+.diary-detail-reply-form { display:flex; gap:8px; }
+.diary-detail-reply-form .fam-input { flex:1; }
+/* 어르신이 말로 하신 답 (11/23) */
+.diary-detail-elder-reply { display:flex; flex-direction:column; gap:8px; }
+.diary-detail-quote { padding:12px 14px; border-radius:14px; background:var(--soft); font-size:16px; font-weight:700; overflow-wrap:anywhere; }
+.diary-detail-heard { display:flex; align-items:center; gap:6px; color:var(--ok); font-size:15px; font-weight:600; }
 .diary-detail-heard .fam-ic { width:17px; height:17px; }
 .diary-detail-heard.not { color:var(--text-3); font-weight:500; }
 .diary-detail-note { padding:8px 18px; color:var(--text-2); font-size:15px; }
-.diary-detail-nav { display:flex; flex-wrap:wrap; gap:10px; }
-.diary-detail-nav .fam-btn { flex:1; min-width:0; min-height:44px; font-size:15px; }
-.diary-detail-nav .diary-detail-past { margin-left:auto; }
-.diary-detail-nav .fam-btn:focus-visible { outline:2px solid var(--primary); outline-offset:3px; }
+.diary-detail-nav { display:flex; gap:8px; margin:0 var(--gut); }
+.diary-detail-nav .fam-btn { flex:1; min-width:0; }
 .diary-detail-state { display:flex; flex-direction:column; align-items:center; gap:20px; padding:32px 16px; text-align:center; }
 .diary-detail-state h1 { font-size:20px; }
 .diary-detail-delete { align-self:center; color:var(--danger); min-height:44px; }
-.diary-detail-delete-sheet { top:auto; width:100%; max-height:90dvh; overflow-y:auto; border:0; color:var(--text); }
-.diary-detail-delete-sheet::backdrop { background:rgba(18,16,28,.42); }
-.diary-detail-delete-sheet > p { margin:0 12px 16px; color:var(--text-2); font-size:15px; }
-.diary-detail-delete-sheet > .fam-error { color:var(--danger); }
-.diary-detail-delete-actions { display:flex; gap:10px; padding:0 12px; }
-.diary-detail-delete-actions .fam-btn { flex:1; min-height:48px; }
-.diary-detail-delete-confirm { background:var(--danger); color:var(--surface); }
-.diary-detail-delete:focus-visible, .diary-detail-delete-actions .fam-btn:focus-visible { outline:2px solid var(--primary); outline-offset:3px; }
+.diary-detail-delete-sheet { top:auto; width:100%; border:0; color:var(--text); }
+.diary-detail-delete-sheet::backdrop { background:rgba(30,18,8,.42); }
+.diary-detail-delete-sheet > p { color:var(--text-2); font-size:15px; }
+.diary-detail-delete-actions { display:flex; gap:10px; }
+.diary-detail-delete-actions .fam-btn { flex:1; }
+.diary-detail-delete-confirm { border-color:var(--rec); color:var(--rec); }

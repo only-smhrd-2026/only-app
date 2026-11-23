@@ -29,7 +29,10 @@ CREATE TABLE users (
     status VARCHAR(10) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'WITHDRAWN')),
     terms_agreed_at TIMESTAMPTZ,                                   -- S12 약관 동의 시각 (NFR-AN-004)
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),                 -- S3 DEFAULT 추가
-    last_login_at TIMESTAMPTZ
+    last_login_at TIMESTAMPTZ,
+    -- 폰 알림(웹 푸시)을 끈 묶음 (11/23): 'DIARY' 일기·한마디 · 'WEEKLY' 주간 이야기 · 'CARE' 안부(기운 없는 날·기록 없음).
+    -- 급한 알림(MOOD_URGENT·URGENT_MISSED)은 끌 수 없다. 앱 안 알림 목록 줄은 그대로 만들고 푸시만 건너뛴다
+    push_muted JSONB NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(push_muted) = 'array')
 );
 
 -- 2. 가족방 (어르신 1명 = 가족방 1개). 초대 링크·어르신 기기도 여기 칸으로 둔다 (D38)
@@ -101,6 +104,7 @@ CREATE TABLE photos (
     object_key VARCHAR(255) NOT NULL,                              -- 예: rooms/1/<batch uuid>/0.jpg
     thumb_key VARCHAR(255),
     taken_at DATE,
+    taken_year SMALLINT CHECK (taken_year BETWEEN 1900 AND 2100),  -- 11/23 찍은 날(EXIF)이 없는 사진에 가족이 고른 연도. 있으면 NULL
     source VARCHAR(12) NOT NULL CHECK (source IN ('FAMILY', 'ELDER_CAMERA', 'FAMILY_DIARY')),  -- S10 FAMILY_DIARY 추가. 오늘의 한 장 후보는 FAMILY 만
     caption VARCHAR(100),
     people_note VARCHAR(100),
@@ -268,28 +272,34 @@ CREATE TABLE notifications (
         'MEMORY_REMINDER', 'DIARY_REMINDER', 'DIARY_POSTED', 'WEEKLY_READY', 'DEVICE_CONNECTED',
         'NO_RECORD_2D', 'PERMISSION_OFF',
         'SESSION_ERROR_3X', 'TTS_ERROR', 'PICK_SKIPPED_2X',       -- S11 가족 알림 3종 추가
-        'MOOD_URGENT', 'MOOD_LOW_2D')),                           -- D55 마음 알림: 위급 표현 1번 → 바로, 기운 없는 날 7일 중 2일 → 주 1건
+        'MOOD_URGENT', 'MOOD_LOW_2D',                             -- D55 마음 알림: 위급 표현 1번 → 바로, 기운 없는 날 7일 중 2일 → 주 1건
+        'ELDER_REPLY', 'URGENT_MISSED')),                         -- 11/23 어르신 말로 답하기 · 급한 알림 '안 받으세요'
     title VARCHAR(60) NOT NULL,
     body VARCHAR(200),
     link_screen VARCHAR(30),
+    link_id BIGINT,                                                -- 11/23 누르면 열 것의 번호. 일기 알림(DIARY_POSTED·ELDER_REPLY) = diary_id
     sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     read_at TIMESTAMPTZ
 );
 CREATE INDEX ix_notifications_target ON notifications(target_type, target_user_id, read_at);
 
--- 13. 마음 체크 결과 (D56: PHQ-9 에서 9번을 뺀 8문항, 2주에 한 번). 어르신이 8문항을 다 답했을 때만 1줄
+-- 13. 마음 체크 결과 (D56: PHQ-9 에서 9번을 뺀 8문항, 2주에 한 번 → 11/23 '내 마음' 체크 5가지 + 기억력 놀이).
+--     어르신이 끝까지 답했을 때만 1줄, 가족방·날짜·종류마다 1줄
 CREATE TABLE mood_checks (
     check_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
     check_date DATE NOT NULL,                                      -- 한국 날짜 (S15)
-    -- 문항 순서대로 0~3 (없었어요·며칠·절반 넘게·거의 매일). 8칸인지는 DB 가, 0~3 은 서버 코드가 검사
-    answers JSONB NOT NULL CHECK (CASE WHEN jsonb_typeof(answers) = 'array' THEN jsonb_array_length(answers) = 8 ELSE false END),
-    total SMALLINT NOT NULL CHECK (total BETWEEN 0 AND 24),        -- answers 합. 화면에 점수를 보이지 않는다 (NFR-DE-003)
+    -- 11/23 종류: PHQ8 마음 체크(기본·2주에 한 번) · PHQ9 자세히 · UCLA3 외로움 · GAD7 걱정 · SMCQ 기억력 · MEMGAME 기억력 놀이.
+    -- 가족 홈(마음 카드·돌봄 일지·주간 이야기)에는 PHQ8·PHQ9 만 쓴다
+    kind VARCHAR(8) NOT NULL DEFAULT 'PHQ8' CHECK (kind IN ('PHQ8', 'PHQ9', 'UCLA3', 'GAD7', 'SMCQ', 'MEMGAME')),
+    -- 문항 순서대로 화면이 보낸 값. 배열인지만 DB 가, 종류별 칸 수·값 범위는 서버 코드가 검사(schemas/mood.py)
+    answers JSONB NOT NULL CHECK (jsonb_typeof(answers) = 'array'),
+    total SMALLINT NOT NULL CHECK (total BETWEEN 0 AND 27),        -- 공식 채점 합(PHQ9 최대 27). 화면에 점수를 보이지 않는다 (NFR-DE-003)
     -- 가족 홈 문장: USUAL 평소와 비슷해요 / DOWN 조금 가라앉으신 편이에요 / HARD 많이 힘드신 것 같아요(상담 권유).
     -- 합 구간은 config 상수(마음 체크 API 때). 단계를 저장해 기준이 바뀌어도 옛 결과의 뜻이 남는다
     level VARCHAR(5) NOT NULL CHECK (level IN ('USUAL', 'DOWN', 'HARD')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT uq_mood_checks_room_id_check_date UNIQUE (room_id, check_date)   -- 같은 날 두 번 보내도 1줄
+    CONSTRAINT uq_mood_checks_room_id_check_date_kind UNIQUE (room_id, check_date, kind)   -- 같은 날 같은 종류를 두 번 보내도 1줄
 );
 
 -- 14. 웹 푸시 구독 (11/19, FR-NT-002·003). 한 줄 = 알림을 받는 브라우저 하나.
@@ -315,7 +325,10 @@ CREATE TABLE urgent_alerts (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     acked_by BIGINT REFERENCES users(user_id),                     -- [제가 연락했어요]를 처음 누른 가족
     acked_at TIMESTAMPTZ,
-    reminded_at TIMESTAMPTZ                                        -- 30분 동안 확인이 없어 한 번 더 알린 시각
+    reminded_at TIMESTAMPTZ,                                       -- 30분 동안 확인이 없어 한 번 더 알린 시각
+    -- 11/23 가족이 전화했는데 '안 받으세요'를 누름 → 다른 가족에게 알림(URGENT_MISSED). 카드는 확인 안 된 채 남는다
+    missed_by BIGINT REFERENCES users(user_id),
+    missed_at TIMESTAMPTZ
 );
 CREATE INDEX ix_urgent_alerts_room_created ON urgent_alerts(room_id, created_at);
 

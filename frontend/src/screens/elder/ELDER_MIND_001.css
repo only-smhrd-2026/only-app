@@ -1,0 +1,22 @@
+/* ELDER_MIND_001 내 마음 — elder.css 변수만 쓴다 (11/23 시안 .mindnow·.mhist·.key.wide .tl) */
+.mind-now {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 0;
+  border-radius: var(--elder-radius);
+  background: var(--elder-card);
+  box-shadow: var(--elder-sh1);
+  color: var(--elder-fg);
+  text-align: left;
+  cursor: pointer;
+}
+.mind-now:active { background: var(--elder-bg2); }
+.mind-face { font-size: 64px; }
+.mind-now b { display: block; font-size: var(--elder-font-size-lg); font-weight: 800; letter-spacing: -.03em; line-height: 1.24; }
+.mind-now small, .mind-tl small { display: block; font-size: var(--elder-font-size-s); font-weight: 700; color: var(--elder-ink2); }
+.mind-hist { display: flex; justify-content: space-between; gap: 6px; padding: 10px 12px; border-radius: 18px; background: var(--elder-bg2); }
+.mind-hist span { display: flex; flex-direction: column; align-items: center; font-size: var(--elder-font-size-s); font-weight: 700; color: var(--elder-ink2); }
+.mind-hist i { font-style: normal; font-size: 30px; }
+.mind-tl { display: flex; flex-direction: column; line-height: 1.2; }

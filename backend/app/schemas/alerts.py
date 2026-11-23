@@ -13,3 +13,5 @@ class AlertOut(BaseModel):
     acked_at: datetime | None  # None = 아직 아무도 [제가 연락했어요]를 누르지 않음
     acked_by_name: str | None
     acked_by_me: bool
+    missed_at: datetime | None = None  # 11/23 가족이 전화했는데 '안 받으세요'를 누른 시각 (마지막으로 누른 것)
+    missed_by_name: str | None = None

@@ -12,7 +12,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.config import FAMILY_DRAFT_MAX, ROOT
+from app.config import FAMILY_DRAFT_MAX, REPLY_MAX, ROOT
 
 BANNED_WORDS: list[str] = json.loads((ROOT / "data" / "banned_words.json").read_text("utf-8"))["words"]
 # 위급 표현 조각 (D55 ① 안전망). 띄어쓰기를 뺀 어르신 말에 들어 있으면 AI 판단과 상관없이 위급으로 본다
@@ -185,6 +185,18 @@ class FamilyDraft(BaseModel):
     @classmethod
     def _body_rules(cls, v: str) -> str:
         return check_banned(v.strip())
+
+
+class ElderReply(BaseModel):
+    """어르신이 가족 일기에 말로 하신 답을 어르신 말투 한 줄로 (40자까지). 가족에게 그대로 간다."""
+
+    # elder_reply 의 모델 출력 (11/23 어르신 [말로 답하기]). 어르신이 확인한 뒤 POST /elder/diaries/{id}/reply
+    text: str = Field(min_length=1, max_length=REPLY_MAX)
+
+    @field_validator("text")
+    @classmethod
+    def _text_rules(cls, v: str) -> str:
+        return check_banned(" ".join(v.split()))
 
 
 class WeeklyCard(BaseModel):

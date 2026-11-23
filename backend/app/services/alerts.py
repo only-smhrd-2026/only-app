@@ -3,6 +3,7 @@
 - raise_alert: 대화에서 위급이 감지되면 urgent_alerts 한 줄 + 가족 모두에게 알림. 대화 내용은 넣지 않는다 (D15).
 - ack: 가족이 [제가 연락했어요]를 누르면 처음 누른 사람만 남는다 — 다른 가족에게 '○○님이 연락했어요'로 보인다.
 - remind: URGENT_REMIND_MIN 분 동안 아무도 누르지 않으면 한 번만 다시 알린다 (예약 작업).
+- missed: 가족이 전화했는데 '안 받으세요'를 누르면 다른 가족에게 알린다(URGENT_MISSED, 11/23). 카드는 확인 안 된 채.
 알림 종류는 둘 다 MOOD_URGENT(notifications.kind 는 D55 때 이름 그대로) — 마음·몸 구분은 urgent_alerts.kind 가 한다.
 """
 
@@ -26,6 +27,10 @@ TEXTS = {
         "{who}께서 몸이 많이 불편하다고 하셨어요. 전화를 안 받으시면 가까운 분께 부탁하거나 119 에 알려 주세요.",
     ),
 }
+MISSED = (
+    "전화를 안 받으세요",
+    "{name}님이 {who}께 전화했는데 안 받으세요. 다른 가족도 전화해 봐 주세요.",
+)
 REMIND = (
     "아직 연락한 가족이 없어요",
     "{who}께 급한 알림이 있었어요. 전화해 보시고 가족 홈에서 [제가 연락했어요]를 눌러 주세요.",
@@ -81,6 +86,29 @@ def ack(db: Session, room_id: int, alert_id: int, user_id: int) -> UrgentAlert |
     db.commit()
     alert = db.get(UrgentAlert, alert_id)
     return alert if alert is not None and alert.room_id == room_id else None
+
+
+def missed(db: Session, room_id: int, alert_id: int, user_id: int, name: str) -> UrgentAlert | None:
+    """'안 받으세요' — 누른 가족 빼고 다른 가족 모두에게 알림 1건씩. 확인([제가 연락했어요])은 하지 않는다.
+
+    같은 가족이 URGENT_REMIND_MIN 분 안에 다시 누르면(두 번 누름) 알림을 또 보내지 않는다. 커밋까지 한다.
+    """
+    alert = db.get(UrgentAlert, alert_id, with_for_update=True)  # 두 사람이 동시에 눌러도 서로 덮어쓰지 않게
+    if alert is None or alert.room_id != room_id:
+        return None
+    now = now_kst()
+    again = (
+        alert.missed_by == user_id and alert.missed_at and now - alert.missed_at < timedelta(minutes=URGENT_REMIND_MIN)
+    )
+    if not again:
+        alert.missed_by, alert.missed_at = user_id, now
+        title, body = MISSED
+        who = _who(db.get(FamilyRoom, room_id))
+        notify_family(
+            db, room_id, "URGENT_MISSED", title, body.format(name=name, who=who), "HOME_001", skip_user=user_id
+        )
+    db.commit()
+    return alert
 
 
 def remind(db: Session) -> int:

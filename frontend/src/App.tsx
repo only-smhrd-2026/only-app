@@ -18,19 +18,20 @@ import ELDER_DIARY_004 from './screens/elder/ELDER_DIARY_004'
 import ELDER_FAMILY_001 from './screens/elder/ELDER_FAMILY_001'
 import ELDER_HOME_001 from './screens/elder/ELDER_HOME_001'
 import ELDER_MEMORY_001 from './screens/elder/ELDER_MEMORY_001'
+import ELDER_MIND_001 from './screens/elder/ELDER_MIND_001'
+import ELDER_MIND_002 from './screens/elder/ELDER_MIND_002'
 import ELDER_MOOD_002 from './screens/elder/ELDER_MOOD_002'
+import ELDER_SETTING_001 from './screens/elder/ELDER_SETTING_001'
 import ACCOUNT_001 from './screens/family/ACCOUNT_001'
 import FDIARY_001 from './screens/family/FDIARY_001'
-import FDIARY_002 from './screens/family/FDIARY_002'
-import FDIARY_003 from './screens/family/FDIARY_003'
 import GROUP_001 from './screens/family/GROUP_001'
 import GROUP_002 from './screens/family/GROUP_002'
-import GROUP_004 from './screens/family/GROUP_004'
 import HOME_001 from './screens/family/HOME_001'
 import HOME_002 from './screens/family/HOME_002'
 import JOIN_001 from './screens/family/JOIN_001'
 import LOGIN_001 from './screens/family/LOGIN_001'
 import NOTI_001 from './screens/family/NOTI_001'
+import PHOTO_001 from './screens/family/PHOTO_001'
 import POLICY_001 from './screens/family/POLICY_001'
 import UPLOAD_001 from './screens/family/UPLOAD_001'
 import UPLOAD_002 from './screens/family/UPLOAD_002'
@@ -55,21 +56,23 @@ export const SCREENS: ScreenDef[] = [
   // 11/14 새 화면 2개 — 마음 체크 (D56·D66). 초대는 오늘의 한 장처럼 홈 위에 뜬다
   { id: 'ELDER_MOOD_001', path: '/elder/mood', title: '마음 체크 초대', Screen: ELDER_HOME_001 },
   { id: 'ELDER_MOOD_002', path: '/elder/mood-check', title: '마음 체크', Screen: ELDER_MOOD_002 },
+  // 11/23 시안 옮기기 새 화면 3개 — 홈 6칸의 '내 마음'·'설정'
+  { id: 'ELDER_MIND_001', path: '/elder/mind', title: '내 마음', Screen: ELDER_MIND_001 },
+  { id: 'ELDER_MIND_002', path: '/elder/mind/memory-game', title: '기억력 놀이', Screen: ELDER_MIND_002 },
+  { id: 'ELDER_SETTING_001', path: '/elder/settings', title: '어르신 설정', Screen: ELDER_SETTING_001 },
   // ---- 가족 (15)
   { id: 'LOGIN_001', path: '/login', title: '로그인', Screen: LOGIN_001 },
   { id: 'JOIN_001', path: '/join', title: '가족방 참여', Screen: JOIN_001 },
   { id: 'GROUP_001', path: '/groups/new', title: '가족방 만들기', Screen: GROUP_001 },
   { id: 'GROUP_002', path: '/groups/:roomId/members', title: '구성원', Screen: GROUP_002 },
-  // 11/14 밤 새 화면 — 가족방 탭의 하위 화면: 올린 사진 + AI 가 본 것 + 활동 고치기 (D73, 목업 ⑦)
-  { id: 'GROUP_004', path: '/groups/:roomId/photos', title: '올린 사진', Screen: GROUP_004 },
   { id: 'HOME_001', path: '/', title: '가족 홈', Screen: HOME_001 },
   { id: 'HOME_002', path: '/diaries/:diaryId', title: '일기 상세', Screen: HOME_002 },
+  // 11/23 사진첩 탭 — 올리기 두 갈래 + 분류 칩 + 달별 사진. 옛 '올린 사진'(GROUP_004)을 합침
+  { id: 'PHOTO_001', path: '/photos', title: '사진첩', Screen: PHOTO_001 },
   { id: 'UPLOAD_001', path: '/upload', title: '사진 올리기', Screen: UPLOAD_001 },
   { id: 'UPLOAD_002', path: '/upload/target', title: '올릴 가족방 고르기', Screen: UPLOAD_002 },
   { id: 'UPLOAD_003', path: '/upload/result', title: '올린 결과', Screen: UPLOAD_003 },
-  { id: 'FDIARY_001', path: '/fdiary', title: '가족 일기', Screen: FDIARY_001 },
-  { id: 'FDIARY_002', path: '/fdiary/write', title: '가족 일기 쓰기', Screen: FDIARY_002 },
-  { id: 'FDIARY_003', path: '/fdiary/confirm', title: '가족 일기 확인', Screen: FDIARY_003 },
+  { id: 'FDIARY_001', path: '/fdiary', title: '오늘 소식', Screen: FDIARY_001 }, // 11/23 3단계 → 한 화면, 사진첩 탭의 하위 화면
   { id: 'WEEKLY_001', path: '/weekly/:roomId', title: '주간 이야기', Screen: WEEKLY_001 },
   { id: 'NOTI_001', path: '/notifications', title: '알림', Screen: NOTI_001 },
   { id: 'ACCOUNT_001', path: '/account/withdraw', title: '회원 탈퇴', Screen: ACCOUNT_001 }, // 11/19 새 화면
@@ -101,10 +104,10 @@ function Start() {
   return null
 }
 
-// 가족 탭 첫 화면 5개는 공통 틀(위 막대·아래 탭, D70) 안에 들어간다. 가족방 탭은 지금 구성원 화면(월요일 팀이 한 화면으로)
-const TAB_SCREENS = new Set(['HOME_001', 'UPLOAD_001', 'FDIARY_001', 'WEEKLY_001', 'GROUP_002'])
+// 가족 탭 첫 화면 4개(11/23 시안: 홈·사진첩·주간 이야기·가족방)는 공통 틀(위 막대·아래 탭, D70) 안에 들어간다
+const TAB_SCREENS = new Set(['HOME_001', 'PHOTO_001', 'WEEKLY_001', 'GROUP_002'])
 // 그 밖의 가족 화면은 위 ← 만 있는 하위 화면 틀(D70). 로그인·참여는 틀 없이(목업 '설계서대로')
-const SUB_SCREENS = new Set(['GROUP_001', 'GROUP_004', 'HOME_002', 'UPLOAD_002', 'UPLOAD_003', 'FDIARY_002', 'FDIARY_003', 'NOTI_001', 'ACCOUNT_001'])
+const SUB_SCREENS = new Set(['GROUP_001', 'HOME_002', 'UPLOAD_001', 'UPLOAD_002', 'UPLOAD_003', 'FDIARY_001', 'NOTI_001', 'ACCOUNT_001'])
 const route = ({ id, path, title, Screen }: ScreenDef) => (
   <Route key={id} path={path} element={Screen ? <Screen /> : <NotYet id={id} title={title} />} />
 )
@@ -116,6 +119,9 @@ export default function App() {
       <Route element={<SubFrame />}>{SCREENS.filter((s) => SUB_SCREENS.has(s.id)).map(route)}</Route>
       {SCREENS.filter((s) => !TAB_SCREENS.has(s.id) && !SUB_SCREENS.has(s.id)).map(route)}
       <Route path="/start" element={<Start />} />
+      {/* 11/23 옛 주소 — 올린 사진·가족 일기 쓰기·확인은 사진첩·오늘 소식으로 합쳐짐 */}
+      <Route path="/groups/:roomId/photos" element={<Navigate to="/photos" replace />} />
+      <Route path="/fdiary/*" element={<Navigate to="/fdiary" replace />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   )

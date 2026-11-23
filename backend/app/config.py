@@ -118,9 +118,14 @@ KAKAO_STEP_MIN = 10  # 카카오 로그인 중간 쿠키(state·가입 대기) �
 KAKAO_TIMEOUT_SEC = 5.0  # 카카오 서버(토큰·회원번호) 응답을 기다리는 시간. 넘으면 로그인 화면으로 돌려보낸다
 MOOD_WEEK_DAYS = 7  # 가족 홈 마음 카드가 보여 주는 날수
 MOOD_CHECK_EVERY_DAYS = 14  # 마음 체크 초대 간격 — 마지막 마음 체크 뒤 이 날수가 지나면 다시 권함, D56
-MOOD_CHECK_QUESTIONS = 8  # PHQ-9에서 9번을 뺀 8문항, D56. mood_checks.answers와 같게
-MOOD_CHECK_DOWN_MIN = 5  # 답 합이 이 이상이면 DOWN '조금 가라앉으신 편이에요'
-MOOD_CHECK_HARD_MIN = 10  # 답 합이 이 이상이면 HARD '많이 힘드신 것 같아요'. DOWN 미만은 USUAL
+MOOD_CHECK_DOWN_MIN = 5  # PHQ-8·PHQ-9 답 합이 이 이상이면 DOWN '조금 가라앉으신 편이에요' (공식 '가벼움' 5점부터)
+MOOD_CHECK_HARD_MIN = (
+    10  # PHQ-8·PHQ-9 답 합이 이 이상이면 HARD '많이 힘드신 것 같아요' (공식 '중간' 10점부터). DOWN 미만은 USUAL
+)
+MOOD_HISTORY_LIMIT = 10  # 어르신 '내 마음' 지난 결과 수, 최신 순 (11/23)
+# 힘든 말씀(마음 위급) 뒤 위로 대화 (D94 바꿈, 11/23): 대화를 끝내지 않고 이만큼 더 위로한 뒤 마무리한다.
+# 위로 턴은 질문 수(MAX_TURNS)·5분 상한과 따로 센다 — 위로 도중에 시간이 다 됐다고 끊지 않게. 돈은 이 수로 막는다
+COMFORT_TURNS = 3
 # 웹 푸시 (app/services/push.py)
 PUSH_TIMEOUT_SEC = 5  # 푸시 서비스(FCM·애플·모질라)를 한 번 부를 때 기다리는 시간
 PUSH_TTL_SEC = 24 * 3600  # 폰이 꺼져 있으면 푸시 서비스가 이만큼 맡아 뒀다 전한다. 어르신 시간 알림은 그날 자정까지만

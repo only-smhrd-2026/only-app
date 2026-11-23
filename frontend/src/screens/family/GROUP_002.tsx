@@ -1,8 +1,8 @@
 /**
- * GROUP_002 — 가족방 탭 (목업 설계자료/목업_1115_가족 ⑥, 이슈 #24). 위 막대에서 고른 분의 가족방 한 화면:
- * 할머니 폰(연결 상태·연결 해제·링크 보내기) → '올린 사진 n장 ›'(GROUP_004) → 구성원(초대·내보내기·쓸 수 있는 링크)
- * → 할머니 화면 설정(#52, D74 — 누르면 아래 판에서 고르고 바로 저장. 옛 GROUP_003 화면을 이 카드로 합침).
- * 버튼은 방장에게만, 방장이 아니면 보기만.
+ * GROUP_002 — 가족방 탭 (11/23 시안 f-room, 이슈 #24). 위 막대에서 고른 분의 가족방 한 화면:
+ * 할머니 폰(연결됨·마지막으로 연 때 / 연결 3단계) → '올린 사진 n장 ›'(사진첩 탭) → 구성원(초대·내보내기·쓸 수 있는 링크)
+ * → 할머니 화면 설정(#52, D74 — 글자 크기·말 속도·목소리·말하는 방법은 칩을 누르면 바로 저장, 추억 시간·이름·부르는 말은 판에서)
+ * → 위험한 설정(폰 연결 끊기·가족방 나가기·회원 탈퇴). 버튼은 방장에게만, 방장이 아니면 보기만.
  * 링크 주소(토큰)는 이 화면 state 에만 둔다 (D16 — localStorage·console 금지). 서버는 토큰을 저장하지 않아 나가면 다시 못 본다.
  */
 import { useEffect, useState } from 'react'
@@ -19,6 +19,7 @@ import type {
 } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
 import { Avatar } from '../../components/FamilyFrame'
+import Sim from '../../components/Sim'
 import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
 import { PROMPT, say, stopSpeaking } from '../../lib/audio'
@@ -103,12 +104,6 @@ type Sheet =
   | { t: 'set'; s: SetDef }
   | TextSheet
 
-// 받침이 있으면 '과', 없으면 '와' — 할머니와 / 어머님과 (GROUP_004 와 같은 식)
-// 끝 글자가 한글이 아니면(예: 할머니2) '와' — 계산이 음수가 돼 '과'로 잘못 고르지 않게
-function wa(w: string) {
-  const c = w.charCodeAt(w.length - 1) - 0xac00
-  return c >= 0 && c <= 11171 && c % 28 ? '과' : '와'
-}
 const msgOf = (e: unknown) => (e instanceof ApiError ? e.message : '잘 안 됐어요. 다시 해 주세요')
 
 /** 남은 시간 — 24시간 이하면 'N시간 남음', 넘으면 'N일 남음' (올림: 방금 만든 가족용 7일, 기기용 24시간).
@@ -331,122 +326,128 @@ function RoomTab() {
   const list = members.data ?? []
   const reloadAll = () => (rooms.reload(), reloadRooms()) // 이 화면 + 위 막대·가족 홈이 같은 숫자를 보게
 
-  // 할머니 폰 카드 — 연결됨 / 사진 3장 전 / 링크 보낼 차례
-  const dev = room.device_connected
-    ? {
-        on: true,
-        title: '연결됐어요',
-        sub: room.device_last_seen_at ? `마지막으로 연 때 · ${seenLabel(room.device_last_seen_at)}` : `${hon} 폰에서 하루한장이 열려요`,
-      }
-    : room.photo_count < 3
-      ? { on: false, title: '아직 연결 전이에요', sub: `추억 사진을 3장 올리면 연결 링크를 만들 수 있어요 (지금 ${room.photo_count}장)` }
-      : {
-          on: false,
-          title: '아직 연결 전이에요',
-          sub: !owner
-            ? '방장이 링크를 보내면 연결돼요'
-            : elderLinkAlive
-              ? `링크를 보냈어요 · ${hon} 폰에서 열면 연결돼요`
-              : `${hon} 폰에 링크를 보내 주세요`,
-        }
+  const [timeSet, ...chipSets] = SETS // 추억 시간은 24칸이라 판에서, 나머지는 칩으로 바로
+  const fontPx = SETS[1].opts.find((o) => o[0] === room.font_size)?.[2]
 
   return (
     <main className="fam-stack gr">
-      <div className="gr-head">
-        <h1>가족방</h1>
-        <p>
-          {room.elder_name} {hon}네
-        </p>
-      </div>
+      <h1 className="gr-sr">가족방</h1>
 
-      <section className="fam-card">
-        <h2 className="gr-h">{hon} 폰</h2>
-        <div className="gr-dev">
-          <span className={dev.on ? 'gr-dev-ic on' : 'gr-dev-ic'}>
-            <FamIcon name="phone" />
+      {room.device_connected ? (
+        <section className="fam-card gr-card gr-dev">
+          <span className="fam-av fam-tone-a" aria-hidden="true">
+            <Sim face="thumbs" size={40} />
           </span>
           <div>
-            <b>{dev.title}</b>
-            <small>{dev.sub}</small>
+            <b>{hon} 폰 연결됐어요</b>{' '}
+            <i className="fam-tag fam-tag--ok">
+              <FamIcon name="check" />
+              연결됨
+            </i>
+            <p className="fam-mini">
+              {room.device_last_seen_at ? `마지막으로 연 때 · ${seenLabel(room.device_last_seen_at)}` : `${hon} 폰에서 하루한장이 열려요`}
+            </p>
           </div>
-          {owner && room.device_connected && (
-            <button type="button" className="fam-text-btn gr-danger" onClick={() => open({ t: 'unlink' })}>
-              연결 해제
-            </button>
+        </section>
+      ) : (
+        <section className="fam-card gr-card">
+          <div className="gr-dev">
+            <span className="fam-av fam-tone-a" aria-hidden="true">
+              <Sim face="hello" size={40} />
+            </span>
+            <div>
+              <b>
+                {room.elder_name} {hon} 폰을 연결해 주세요
+              </b>
+              <p className="fam-mini">연결하면 오늘의 한 장과 가족 소식이 {hon} 폰으로 가요</p>
+            </div>
+          </div>
+          <ol className="gr-steps3">
+            <li>
+              <b>연결 링크 보내기</b>
+              <span className="fam-mini">카카오톡으로 {hon}께 보내요</span>
+            </li>
+            <li>
+              <b>{hon} 폰에서 링크 열기</b>
+              <span className="fam-mini">[시작하기] → 마이크 '허용' · 곁에 계시면 같이 눌러 드려요</span>
+            </li>
+            <li>
+              <b>홈 화면에 추가</b>
+              <span className="fam-mini">크롬 메뉴 ⋮ → 홈 화면에 추가 · 다음부터 아이콘 하나로 열려요</span>
+            </li>
+          </ol>
+          {room.photo_count < 3 ? (
+            <>
+              <p className="gr-lock">
+                <FamIcon name="lock" />
+                추억 사진을 3장 올리면 연결 링크를 보낼 수 있어요 (지금 {room.photo_count}장)
+              </p>
+              <Link className="fam-btn" to="/upload">
+                <FamIcon name="image" />
+                사진 올리기
+              </Link>
+            </>
+          ) : !owner ? (
+            <p className="fam-mini">방장이 연결 링크를 보내면 연결돼요</p>
+          ) : (
+            <>
+              {elderLinkAlive && <p className="fam-mini">링크를 보냈어요 · {hon} 폰에서 열면 연결돼요</p>}
+              <button type="button" className="fam-btn fam-btn--primary" onClick={() => open({ t: 'invite', kind: 'ELDER_DEVICE' })}>
+                {elderLinkAlive ? '연결 링크 다시 보내기' : '연결 링크 보내기'}
+              </button>
+            </>
           )}
-          {owner && !room.device_connected && room.photo_count >= 3 && (
-            <button
-              type="button"
-              className="fam-btn fam-btn--primary fam-btn--sm"
-              onClick={() => open({ t: 'invite', kind: 'ELDER_DEVICE' })}
-            >
-              링크 보내기
-            </button>
-          )}
-        </div>
-      </section>
+        </section>
+      )}
 
-      <section className="fam-card">
-        <Link className="gr-row" to={`/groups/${roomId}/photos`}>
-          <span>올린 사진</span>
-          <b>{room.photo_count}장</b>
-          <FamIcon name="chevRight" className="gr-chev" />
-        </Link>
-        <p className="gr-note">AI 가 사진을 보고 {hon}
-          {wa(hon)} 나눌 이야기 거리를 찾아요 · 틀리면 고쳐 주세요</p>
-      </section>
+      <Link className="fam-card gr-banner" to="/photos">
+        <span className="gr-sq">
+          <FamIcon name="image" />
+        </span>
+        <b>올린 사진 {room.photo_count}장</b>
+        <FamIcon name="chevRight" />
+      </Link>
 
-      <section className="fam-card">
-        <div className="gr-h gr-h-row">
-          <span>구성원 {members.data ? list.length : room.member_count}명</span>
+      <section className="fam-card gr-card gr-members-card">
+        <div className="gr-h-row">
+          <h2>구성원 {members.data ? list.length : room.member_count}명</h2>
           {owner && (
-            <button
-              type="button"
-              className="fam-btn fam-btn--tonal fam-btn--sm"
-              onClick={() => open({ t: 'invite', kind: 'FAMILY' })}
-            >
+            <button type="button" className="fam-btn fam-btn--sm" onClick={() => open({ t: 'invite', kind: 'FAMILY' })}>
               <FamIcon name="plus" />
               초대
             </button>
           )}
         </div>
         {members.error ? (
-          <div className="gr-members">
+          <div>
             <p className="fam-error">{members.error.message}</p>
             <button type="button" className="fam-text-btn" onClick={members.reload}>
               다시 시도
             </button>
           </div>
         ) : (
-          <div className="gr-members">
-            {list.map((m) => (
-              <div key={m.user_id} className="gr-member">
-                <Avatar name={m.name} />
-                <div>
-                  <b>
-                    {m.name}
-                    {m.nickname ? ` · ${m.nickname}` : ''}
-                  </b>
-                  <small>
-                    {RELATION[m.relation_tag]}
-                    {m.is_owner ? ' · 방장' : ''}
-                  </small>
-                </div>
-                {m.user_id === me?.user_id && <i className="gr-me">나</i>}
-                {/* 방장은 자기 줄에도 ⋮ — 자기 호칭도 고칠 수 있게(판에서 내보내기는 숨김) */}
-                {owner && (
-                  <button
-                    type="button"
-                    className="fam-icon-btn gr-more"
-                    onClick={() => open({ t: 'member', m })}
-                    aria-label={`${m.name} 더 보기`}
-                  >
-                    ⋮
-                  </button>
-                )}
+          list.map((m) => (
+            <div key={m.user_id} className="gr-setrow gr-member">
+              <Avatar name={m.name} />
+              <div>
+                <b>
+                  {m.name}
+                  {m.nickname ? ` · ${m.nickname}` : ''}
+                </b>
+                <small className="fam-mini">
+                  {RELATION[m.relation_tag]}
+                  {m.is_owner ? ' · 방장' : ''}
+                </small>
               </div>
-            ))}
-          </div>
+              {m.user_id === me?.user_id && <i className="fam-tag">나</i>}
+              {/* 방장은 자기 줄에도 ⋮ — 자기 호칭도 고칠 수 있게(판에서 내보내기는 숨김) */}
+              {owner && (
+                <button type="button" className="fam-icon-btn gr-more" onClick={() => open({ t: 'member', m })} aria-label={`${m.name} 더 보기`}>
+                  ⋮
+                </button>
+              )}
+            </div>
+          ))
         )}
         {alive.map((i) => (
           <div key={i.kind} className="gr-link">
@@ -475,51 +476,79 @@ function RoomTab() {
         )}
       </section>
 
-      <section className="fam-card">
-        <h2 className="gr-h">{hon} 화면 설정</h2>
-        <div className="gr-set-list">
-          {(['elder_name', 'elder_honorific'] as const).map((k) => (
-            <button
-              key={k}
-              type="button"
-              className="gr-row gr-set"
-              disabled={!owner}
-              onClick={() => openText({ t: 'text', k }, room[k])}
-            >
-              <span>{TEXTS[k].name}</span>
-              <b>{room[k]}</b>
-              {owner && <FamIcon name="chevRight" className="gr-chev" />}
-            </button>
-          ))}
-          {SETS.map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              className="gr-row gr-set"
-              disabled={!owner}
-              onClick={() => open({ t: 'set', s })}
-            >
-              <span>{s.name}</span>
-              <b>{labelOf(s, curOf(room, s.key))}</b>
-              {owner && <FamIcon name="chevRight" className="gr-chev" />}
-            </button>
-          ))}
-        </div>
-        <p className="gr-note">
-          {owner ? `바꾸면 바로 저장돼요 · ${hon}의 다음 대화부터 바뀌어요` : '설정은 방장만 바꿀 수 있어요'}
+      <section className="fam-card gr-card">
+        <h2>
+          {room.elder_name} {hon} 화면 설정
+        </h2>
+        <p className="fam-mini gr-owner-note">
+          {owner ? `바꾸면 바로 저장돼요 · ${hon}의 다음 대화부터 바뀌어요` : '방장만 바꿀 수 있어요. 다른 가족에게는 읽기만 보여요.'}
         </p>
+        {(['elder_name', 'elder_honorific'] as const).map((k) => (
+          <button key={k} type="button" className="gr-setrow gr-set" disabled={!owner} onClick={() => openText({ t: 'text', k }, room[k])}>
+            <span>{TEXTS[k].name}</span>
+            <b>{room[k]}</b>
+            {owner && <FamIcon name="chevRight" className="gr-chev" />}
+          </button>
+        ))}
+        <div className="gr-setrow">
+          <div className="gr-grow">
+            <b>{timeSet.name}</b>
+            <p className="fam-mini">{timeSet.help(hon)}</p>
+          </div>
+          <button type="button" className="fam-btn fam-btn--sm" disabled={!owner} onClick={() => open({ t: 'set', s: timeSet })}>
+            {labelOf(timeSet, curOf(room, timeSet.key))}
+          </button>
+        </div>
+        {chipSets.map((s) => (
+          <div key={s.key} className="gr-seg" role="group" aria-label={s.name}>
+            <p className="gr-label" aria-hidden="true">
+              {s.name}
+            </p>
+            <div className="fam-seg fam-seg--fill">
+              {s.opts.map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  className="fam-chip"
+                  aria-pressed={v === curOf(room, s.key)}
+                  disabled={!owner || busy}
+                  onClick={() => saveSetting(room, s, v)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {s.key === 'font_size' && fontPx && (
+              <p className="gr-font-prev" style={{ fontSize: fontPx }}>
+                {room.elder_name} {hon}, 안녕하세요
+              </p>
+            )}
+          </div>
+        ))}
+        {!sheet && note === undefined && error === undefined ? null : null}
       </section>
 
-      {/* 방장은 나갈 수 없다(서버 OWNER_CANNOT_LEAVE) — 방장 아닌 가족에게만 */}
-      {!owner && (
-        <button type="button" className="fam-text-btn gr-danger gr-leave" onClick={() => open({ t: 'leave' })}>
-          이 가족방 나가기
-        </button>
-      )}
-      {/* 회원 탈퇴 화면(ACCOUNT_001)으로 — 방장도 여기서 간다(방장 넘기기는 그 화면이 묻는다) */}
-      <Link className="fam-text-btn gr-leave" to="/account/withdraw">
-        회원 탈퇴
-      </Link>
+      <section className="fam-card gr-card">
+        <h2>위험한 설정</h2>
+        {owner && room.device_connected && (
+          <>
+            <button type="button" className="fam-btn fam-btn--danger" onClick={() => open({ t: 'unlink' })}>
+              {hon} 폰 연결 끊기
+            </button>
+            <p className="fam-mini">끊으면 {hon} 폰에 사진과 소식이 더 가지 않아요. 다시 쓰려면 새 연결 링크가 필요해요.</p>
+          </>
+        )}
+        {/* 방장은 나갈 수 없다(서버 OWNER_CANNOT_LEAVE) — 방장 아닌 가족에게만 */}
+        {!owner && (
+          <button type="button" className="fam-btn fam-btn--danger" onClick={() => open({ t: 'leave' })}>
+            이 가족방 나가기
+          </button>
+        )}
+        {/* 회원 탈퇴 화면(ACCOUNT_001)으로 — 방장도 여기서 간다(방장 넘기기는 그 화면이 묻는다) */}
+        <Link className="fam-text-btn gr-withdraw" to="/account/withdraw">
+          회원 탈퇴
+        </Link>
+      </section>
 
       {sheet && (
         <>

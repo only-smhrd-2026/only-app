@@ -11,7 +11,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 from PIL import ExifTags, Image, ImageOps
-from sqlalchemy import and_, or_, select, update
+from sqlalchemy import and_, func, or_, select, update
 from starlette.datastructures import FormData, UploadFile  # fastapi.UploadFile 은 자식이라 isinstance 안 맞음
 from starlette.exceptions import HTTPException
 from starlette.requests import ClientDisconnect
@@ -34,7 +34,9 @@ from app.config import (
 )
 from app.deps import DB, CurrentUser, require_member
 from app.errors import ApiError
-from app.models import DailyPick, FamilyRoom, Photo
+from app.models import DailyPick, FamilyRoom, Photo, TalkSession
+from app.photo_groups import group_filter, group_of
+from app.schemas.elder import PhotoGroup
 from app.schemas.photos import PhotoBatchOut, PhotoCorrectIn, PhotoListOut, PhotoOut
 from app.services import storage
 
@@ -117,13 +119,17 @@ def to_jpeg(data: bytes) -> tuple[bytes, date | None]:
     return out.getvalue(), taken_at
 
 
-def photo_out(p: Photo, user_id: int | None = None) -> PhotoOut:
+def photo_out(
+    p: Photo, user_id: int | None = None, *, uploader_name: str | None = None, shown: bool = False
+) -> PhotoOut:
+    """uploader_name·shown 은 목록(list_photos)만 채운다 — 한 장씩 돌려주는 곳(올리기·고치기)은 기본값."""
     analyzed = p.analyzed_at is not None
     return PhotoOut(
         is_mine=user_id is not None and p.uploaded_by == user_id,
         photo_id=p.photo_id,
         url=f"/api/media/{p.object_key}",
         taken_at=p.taken_at,
+        taken_year=p.taken_year,
         caption=p.caption,
         people_note=p.people_note,
         status=p.status,
@@ -134,6 +140,9 @@ def photo_out(p: Photo, user_id: int | None = None) -> PhotoOut:
         ai_scene=p.ai_scene if analyzed else None,
         corrected_activity=p.corrected_activity,
         elder_note=p.elder_note,
+        group=group_of(p),
+        uploader_name=uploader_name,
+        shown=shown,
     )
 
 
@@ -175,6 +184,7 @@ _FAMILY_UPLOAD_BODY["requestBody"]["content"]["multipart/form-data"]["schema"]["
             "description": "한마디 (선택) — 이 묶음의 모든 사진에 같은 값",
         },
         "people_note": {"type": "string", "maxLength": UPLOAD_MAX_NOTE_CHARS, "description": "사진 속 사람 (선택)"},
+        "taken_year": {"type": "integer", "description": "언제쯤 사진인지 (선택) — 찍은 날(EXIF)이 없는 사진에만 쓴다"},
         "source": {
             "type": "string",
             "enum": list(UPLOAD_SOURCES),
@@ -225,13 +235,24 @@ def _note(form: FormData, name: str, label: str) -> str | None:
     return text or None
 
 
+def _year(form: FormData) -> int | None:
+    """언제쯤 사진인지 (선택). 빈 칸이면 None, 숫자가 아니거나 1900~올해 밖이면 422."""
+    raw = form.get("taken_year")
+    if raw is None or raw == "":
+        return None
+    if not isinstance(raw, str) or not raw.strip().isdigit() or not 1900 <= int(raw) <= today_kst().year:
+        raise ApiError(422, "VALIDATION", "언제쯤 사진인지 다시 골라 주세요")
+    return int(raw)
+
+
 @router.post("", response_model=PhotoBatchOut, status_code=201, openapi_extra=_FAMILY_UPLOAD_BODY)
 def upload_photos(room_id: int, user: CurrentUser, db: DB, form: Annotated[FormData, Depends(_upload_form)]):
     """받은 사진을 JPEG 로 다시 만들어 저장. 20장·10MB·30M 픽셀 제한, JPEG/PNG 만(HEIC 는 위 ALLOWED_FORMATS).
     upload_batch_id: 화면이 사진을 고를 때마다 새 번호를 만들고, 같은 요청을 다시 보낼 때([올리기] 두 번·재전송)만
     같은 번호를 쓴다. 같은 번호의 두 번째 요청은 사진을 보지 않고 처음 저장본을 돌려준다 — 사진이 달라도 (D17).
     caption·people_note: 선택, 100자, 묶음의 모든 사진에 같은 값. 같은 번호로 다시 보내면 처음 글 그대로.
-    source: 선택, FAMILY(기본) 또는 FAMILY_DIARY(가족 일기 사진). 같은 번호로 다시 보내면 처음 값 그대로."""
+    source: 선택, FAMILY(기본) 또는 FAMILY_DIARY(가족 일기 사진). 같은 번호로 다시 보내면 처음 값 그대로.
+    taken_year: 선택, 1900~올해. 찍은 날(EXIF)이 없는 사진에만 붙는다 — 스캔·카톡으로 받은 옛 사진 (11/23)."""
     files = [f for f in form.getlist("files") if isinstance(f, UploadFile)]
     if not files:
         raise ApiError(422, "VALIDATION", "사진을 골라 주세요")
@@ -242,6 +263,7 @@ def upload_photos(room_id: int, user: CurrentUser, db: DB, form: Annotated[FormD
         raise ApiError(422, "VALIDATION", "입력값이 올바르지 않습니다") from None
     caption = _note(form, "caption", "한마디는")
     people_note = _note(form, "people_note", "사진 속 사람은")
+    taken_year = _year(form)
     source = form.get("source") or "FAMILY"  # 칸이 없거나 빈 칸이면 지금처럼 FAMILY
     if source not in UPLOAD_SOURCES:  # ELDER_CAMERA·모르는 값·글 칸 이름으로 온 파일
         raise ApiError(422, "VALIDATION", "입력값이 올바르지 않습니다")
@@ -281,6 +303,7 @@ def upload_photos(room_id: int, user: CurrentUser, db: DB, form: Annotated[FormD
                 upload_batch_id=batch_id,
                 object_key=key,
                 taken_at=taken_at,
+                taken_year=None if taken_at else taken_year,  # 폰이 적은 날짜가 먼저
                 caption=caption,  # 묶음의 모든 사진에 같은 글
                 people_note=people_note,
                 source=source,  # 묶음의 모든 사진에 같은 값
@@ -293,17 +316,48 @@ def upload_photos(room_id: int, user: CurrentUser, db: DB, form: Annotated[FormD
     return PhotoBatchOut(upload_batch_id=batch_id, photos=[photo_out(p, user.user_id) for p in photos])
 
 
+def shown_ids(db: DB, room_id: int, photo_ids: list[int]) -> set[int]:
+    """어르신께 보여 드린 사진 — 오늘의 한 장으로 나와 PENDING 이 아니거나(다 했음·넘김), 그 사진으로 대화가 있었다."""
+    if not photo_ids:
+        return set()
+    picked = select(DailyPick.photo_id).where(
+        DailyPick.room_id == room_id, DailyPick.photo_id.in_(photo_ids), DailyPick.status != "PENDING"
+    )
+    talked = select(TalkSession.photo_id).where(TalkSession.room_id == room_id, TalkSession.photo_id.in_(photo_ids))
+    return set(db.scalars(picked.union(talked)))
+
+
+def waiting_count(db: DB, room_id: int) -> int:
+    """오늘의 한 장으로 아직 한 번도 안 나온 가족 사진 수 — 사진첩 '남은 사진 N장' (11/23).
+
+    고르는 쪽(services/picks.select_pick)과 같이 분류 전 사진도 센다(usable 이 false 인 것만 뺀다).
+    """
+    used = select(DailyPick.photo_id).where(DailyPick.room_id == room_id)
+    return db.scalar(
+        select(func.count())
+        .select_from(Photo)
+        .where(
+            Photo.room_id == room_id,
+            Photo.status == "ACTIVE",
+            Photo.source == "FAMILY",
+            Photo.usable.is_not(False),
+            Photo.photo_id.not_in(used),
+        )
+    )
+
+
 @router.get("", response_model=PhotoListOut)
-def list_photos(room_id: int, user: CurrentUser, db: DB, before: int | None = None):
-    """가족 화면에 올린 사진 목록, 최신 먼저 (FR-ME-004)."""
+def list_photos(room_id: int, user: CurrentUser, db: DB, before: int | None = None, group: PhotoGroup | None = None):
+    """가족 사진첩(PHOTO_001) 목록, 최신 먼저 (FR-ME-004). ?group= 분류 칩으로 거른다 (11/23)."""
     require_member(room_id, user, db)  # 로그인 안 함 401, 남의 가족방 404
-    # 지운 사진·그림일기 사진(FAMILY_DIARY)은 뺀다.
-    # 어르신 사진첩(elder.py album)은 여기서 어르신이 찍은 사진(ELDER_CAMERA)도 뺀다 (D60)
+    # 지운 사진·그림일기 사진(FAMILY_DIARY)은 뺀다. 어르신이 찍거나 고른 사진(ELDER_CAMERA)은 넣는다 (11/23)
     query = select(Photo).where(
         Photo.room_id == room_id,
         Photo.status == "ACTIVE",
         Photo.source.in_(["FAMILY", "ELDER_CAMERA"]),
     )
+    if group is not None:
+        query = query.where(group_filter(group))
     if before is not None:
         cursor = db.scalar(query.where(Photo.photo_id == before))
         if cursor is None:
@@ -317,9 +371,25 @@ def list_photos(room_id: int, user: CurrentUser, db: DB, before: int | None = No
     photos = db.scalars(
         query.order_by(Photo.uploaded_at.desc(), Photo.photo_id.desc()).limit(PHOTO_LIST_LIMIT + 1)
     ).all()
+    from app.routers.diaries import _member_names  # diaries 가 이 파일을 가져다 써서 여기서 늦게 가져온다
+
+    page = photos[:PHOTO_LIST_LIMIT]
+    names = _member_names(db, room_id)
+    room = db.get(FamilyRoom, room_id)
+    elder = f"{room.elder_name} {room.elder_honorific}"
+    shown = shown_ids(db, room_id, [p.photo_id for p in page])
     return PhotoListOut(
-        photos=[photo_out(p, user.user_id) for p in photos[:PHOTO_LIST_LIMIT]],
+        photos=[
+            photo_out(
+                p,
+                user.user_id,
+                uploader_name=elder if p.source == "ELDER_CAMERA" else names.get(p.uploaded_by),
+                shown=p.photo_id in shown,
+            )
+            for p in page
+        ],
         has_more=len(photos) > PHOTO_LIST_LIMIT,
+        waiting_count=waiting_count(db, room_id),
     )
 
 

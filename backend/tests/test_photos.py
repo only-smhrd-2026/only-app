@@ -703,3 +703,29 @@ def test_list_same_as_elder_album(client):
     listed = [p["photo_id"] for p in _list(client, room_id)]
     assert listed == album and len(album) == PHOTO_LIST_LIMIT
     assert listed[0] == min(listed)  # 방금 올린 사진(번호는 가장 작음)이 맨 앞 — 올린 시각이 번호보다 먼저
+
+
+# ---------------------------------------------------------------- 언제쯤 사진인지 (11/23 사용자)
+def test_taken_year_only_for_photos_without_taken_date(client):
+    """찍은 날(EXIF)이 없는 사진에만 가족이 고른 연도가 붙는다. 날짜가 있는 사진은 폰 날짜가 먼저."""
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    dated = _jpeg_with_exif(
+        lambda e: e.get_ifd(ExifTags.IFD.Exif).__setitem__(ExifTags.Base.DateTimeOriginal, "2020:05:05 10:00:00")
+    )
+    files = [("files", ("a.jpg", _jpeg(), "image/jpeg")), ("files", ("b.jpg", dated, "image/jpeg"))]
+    data = {"upload_batch_id": str(uuid.uuid4()), "taken_year": "1995"}
+    r = client.post(f"/api/rooms/{room_id}/photos", files=files, data=data)
+    assert r.status_code == 201, r.text
+    a, b = r.json()["photos"]
+    assert (a["taken_at"], a["taken_year"]) == (None, 1995)
+    assert (b["taken_at"], b["taken_year"]) == ("2020-05-05", None)
+
+
+@pytest.mark.parametrize("year", ["1899", "3000", "abc", "19.5"])
+def test_taken_year_out_of_range_is_422(client, year):
+    signup(client)
+    room_id = make_room(client)["room_id"]
+    files = [("files", ("a.jpg", _jpeg(), "image/jpeg"))]
+    r = client.post(f"/api/rooms/{room_id}/photos", files=files, data={"taken_year": year})
+    assert r.status_code == 422 and r.json()["code"] == "VALIDATION"

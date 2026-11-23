@@ -31,11 +31,12 @@ from app.ai.schemas import (
     CoachTurn,
     DiaryDraft,
     DiaryTurn,
+    ElderReply,
     FamilyDraft,
     FamilyQuestion,
     question_marks,
 )
-from app.config import DIARY_TURNS, FAMILY_DRAFT_MAX, MAX_TURNS, today_kst
+from app.config import COMFORT_TURNS, DIARY_TURNS, FAMILY_DRAFT_MAX, MAX_TURNS, REPLY_MAX, today_kst
 
 
 @dataclass
@@ -74,11 +75,23 @@ ENDING_SIGNALS = (
     "STOP",
     "BODY",
 )  # 이 신호면 그 턴 말은 마무리 — 호출자가 대화를 끝낸다. LOW 는 이어 감 (D55)
-# 위급 표현 뒤 마무리 (D55 → D94, 11/19 사용자): 가족에게 알린 것을 숨기지 않고, 어르신이 스스로 할 수 있는 일(전화)을
-# 권한다. '편히 쉬세요'는 어르신을 혼자 두고 끝내는 말이라 뺐다. 상담 번호는 넣지 않는다(D82).
-# 모델이 지어내지 않게 코드 문장
+# 위급 표현(마음) 뒤 (D94 바꿈, 11/23 사용자): 대화를 끝내지 않고 심심이가 위로를 잇는다 — routers/sessions._comfort.
+# 어르신께 '가족에게 알렸어요'라고 말하지 않고 전화도 권하지 않는다(가족 급한 알림은 그대로 간다). 상담 번호 없음(D82).
+# RISK_CLOSING 은 모델이 RISK 를 냈다는 표시로만 남는다 — 어르신께 읽히는 말은 아래 위로 문장이다
 RISK_CLOSING = CoachReply(
-    text="많이 힘드셨겠어요. 이야기해 주셔서 고마워요. 가족에게 알렸어요. 가족에게 전화 한 통 해 보세요.",
+    text="많이 힘드셨겠어요. 이야기해 주셔서 고마워요.",
+    suggestions=[],
+    question_type="CLOSING",
+    choice_mode="TWO_BUTTONS",
+)
+# 위로 턴의 고정 문장 — AI 가 실패하거나 키가 없을 때 n 번째 위로 (질문을 강요하지 않는다)
+COMFORT_LINES = (
+    "많이 힘드셨겠어요. 이야기해 주셔서 고마워요. 제가 옆에서 들을게요.",
+    "그런 마음이 드실 만큼 힘드셨군요. 천천히 말씀하셔도 괜찮아요.",
+    "말씀해 주셔서 고마워요. 혼자 견디지 않으셔도 돼요.",
+)
+COMFORT_CLOSING = CoachReply(
+    text="오늘 마음을 들려주셔서 고마워요. 저는 늘 여기 있을게요. 또 이야기해요.",
     suggestions=[],
     question_type="CLOSING",
     choice_mode="TWO_BUTTONS",
@@ -87,7 +100,7 @@ RISK_CLOSING = CoachReply(
 # 화면이 [119 전화하기]를 띄운다.
 # 숫자 119 는 소리로 '백십구'로 읽힐 수 있어 말에는 넣지 않는다 (버튼 글자에만)
 BODY_CLOSING = CoachReply(
-    text="몸이 많이 불편하시군요. 가족에게 바로 알렸어요. 급하시면 아래 빨간 버튼으로 구급차를 부르세요.",
+    text="몸이 많이 불편하시군요. 급하시면 아래 빨간 버튼으로 구급차를 부르세요.",
     suggestions=[],
     question_type="CLOSING",
     choice_mode="TWO_BUTTONS",
@@ -413,3 +426,24 @@ def family_draft(text: str, question: str, answer: str) -> str:
             said = f"{said} {sentence}".lstrip()
         # 첫 문장 하나가 200자를 넘을 때만 글자 수로 자른다
         return said or " ".join(kept)[:FAMILY_DRAFT_MAX] or FAMILY_DRAFT_EMPTY
+
+
+def comfort(ctx: CoachContext, n: int) -> CoachReply:
+    """힘든 말씀 뒤 n 번째 위로 말 (D94 바꿈, 11/23). 질문을 강요하지 않는다. AI 가 실패하면 고정 문장."""
+    data = _data(ctx, n, max_turns=COMFORT_TURNS)
+    try:
+        out = llm.call_json("comfort", data, CoachReply)
+    except (llm.LlmError, NotImplementedError):
+        return CoachReply(text=COMFORT_LINES[(n - 1) % len(COMFORT_LINES)], suggestions=[], question_type="NONE")
+    return out.model_copy(update={"suggestions": out.suggestions[:2], "question_type": "NONE"})
+
+
+def elder_reply(transcript: str) -> str:
+    """어르신이 가족 일기에 말로 하신 답 → 어르신 말투 한 줄 40자 (11/23). 실패하면 하신 말 앞 40자(금지어는 뺀다)."""
+    try:
+        return llm.call_json("elder_reply", {"said": transcript}, ElderReply).text
+    except (llm.LlmError, NotImplementedError):
+        said = " ".join(transcript.split())
+        for word in BANNED_WORDS:
+            said = said.replace(word, "")
+        return " ".join(said.split())[:REPLY_MAX]

@@ -3,12 +3,14 @@
  * 토큰은 # 뒤에서 읽어 요청 본문으로만 보낸다 (D16 — 주소 ? 뒤·console·localStorage 에 남기지 않는다).
  * 로그인 안 했으면 로그인 화면으로 보내고, 로그인·가입이 끝나면 LOGIN_001 이 이 링크로 다시 데려온다
  * (주소는 화면 이동 state 로만 넘긴다 — ? 뒤에 토큰을 두지 않는다).
- * 대표 사진·초대한 사람·구성원 수는 서버(InviteStatusOut)가 주지 않아 넣지 않는다.
+ * 11/23 시안 f-join: 심심이 + '○○ 님이 △△ 님 가족방에 초대했어요'(InviteStatusOut.inviter_name — 없으면 '초대받았어요').
+ * 서버가 어르신 호칭을 주지 않아 시안의 '순자 할머니네' 대신 '순자 님 가족방'. 대표 사진·구성원 수는 넣지 않는다.
  */
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { InviteStatusOut, RelationTag, RoomOut, UserOut } from '../../api/types'
+import Sim from '../../components/Sim'
 import { useFetch } from '../../hooks/useFetch'
 import '../../components/FamilyFrame.css'
 import './JOIN_001.css'
@@ -78,10 +80,25 @@ export default function JOIN_001() {
   return (
     <main className="fam join-page">
       <header className="join-heading">
-        <h1>가족방에 들어가기</h1>
-        <p>어르신께 내 소식을 어떻게 읽어 드릴지 정해요</p>
+        <Sim face="hello" size={120} />
+        {invite ? (
+          <>
+            <h1>
+              {invite.inviter_name && <>{invite.inviter_name} 님이<br /></>}
+              {invite.elder_name} 님 가족방에 {invite.inviter_name ? '초대했어요' : '초대받았어요'}
+            </h1>
+            <p>함께 추억 사진을 올리고, 어르신 일기를 받아 볼 수 있어요.</p>
+          </>
+        ) : (
+          <h1>가족방에 들어가기</h1>
+        )}
       </header>
       {statusError && <p className="join-error" role="alert">{statusError}</p>}
+      {statusError && !canRetry && (
+        <Link className="join-button join-button--secondary" to="/">
+          처음 화면으로
+        </Link>
+      )}
       {canRetry && (
         <button
           className="join-button join-button--secondary"
@@ -94,13 +111,6 @@ export default function JOIN_001() {
       {status && !invite && <p role="alert">이 링크는 더 쓸 수 없어요. 방장에게 새 링크를 받아 주세요.</p>}
       {invite && (
         <>
-          <section className="join-room" aria-label="초대받은 가족방">
-            <span className="join-avatar" aria-hidden="true">{invite.elder_name.slice(0, 1)}</span>
-            <div>
-              <strong>{invite.elder_name} 님 가족방</strong>
-              <p>가족방에 초대받았어요</p>
-            </div>
-          </section>
           {loggedOut || me.error?.status === 401 ? (
             <section className="join-notice">
               <p>먼저 로그인(처음이면 가입)해 주세요. 끝나면 이 화면으로 돌아와요.</p>
@@ -144,12 +154,14 @@ export default function JOIN_001() {
                   </h2>
                   <p aria-live="polite">“{sender}{subjectParticle(sender)} 사진 일기를 보냈어요. 읽어 드릴게요.”</p>
                 </section>
+                <p className="fam-mini">들어가면 가족 모두에게 이름과 관계가 보여요.</p>
               </fieldset>
               {error && <p className="join-error" role="alert">{error}</p>}
               <div className="join-actions">
                 <button className="join-button" disabled={busy || !relation || !myName}>
-                  {busy ? '들어가는 중…' : '가족방 들어가기'}
+                  {busy ? '들어가는 중…' : `${invite.elder_name} 님 가족방 들어가기`}
                 </button>
+                <Link className="fam-btn fam-btn--text fam-btn--block" to="/">나중에 할게요</Link>
               </div>
             </form>
           )}

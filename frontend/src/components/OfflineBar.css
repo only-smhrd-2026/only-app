@@ -6,7 +6,7 @@
   z-index: 100;
   padding: calc(12px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px)) 12px calc(16px + env(safe-area-inset-left, 0px));
   background: var(--elder-fg);
-  color: var(--elder-primary-fg);
+  color: #ffffff; /* 코코아 바탕 위 흰 글자 (elder-primary-fg 는 11/23 부터 코코아라 쓰지 않는다) */
   font-size: 16px;
   font-weight: 700;
   line-height: 1.5;

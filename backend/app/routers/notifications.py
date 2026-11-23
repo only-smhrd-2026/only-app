@@ -43,6 +43,7 @@ def list_notifications(user: CurrentUser, db: DB):
                 title=n.title,
                 body=n.body,
                 link_screen=n.link_screen,
+                link_id=n.link_id,
                 sent_at=n.sent_at,
                 read_at=n.read_at,
             )

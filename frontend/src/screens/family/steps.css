@@ -1,18 +1,71 @@
-/* 단계 화면 공통 (목업 ④ '진행 막대 + 아래 고정 버튼', 11/14) — 오늘 한 장 FDIARY_001~003, 추억 올리기 UPLOAD_001~003 이 같이 쓴다.
-   틀(FamilyFrame)의 .fam-body 가 스크롤 칸이라, 화면을 그 높이만큼 채워 아래 버튼이 늘 바닥에 붙게 한다.
-   <main className="st"> <div className="st-prog"><i style={{width:'33%'}}/></div> <div className="st-body">…</div> <div className="st-cta">…</div> */
+/* 가족 하위 화면 공통 (11/23 시안 설계자료/목업_1120/src/family.css 의 .picker·.fseg·.finput·.flabel·.note·.grid3·.thumb·.f-foot)
+   — 오늘 소식 FDIARY_001, 추억 사진 올리기 UPLOAD_001~003, 사진첩 PHOTO_001 이 같이 쓴다.
+   색은 틀(components/FamilyFrame.css)의 꿀 노랑·크림 변수(시안 이름)만 쓴다.
+   틀의 .fam-body 가 스크롤 칸이라, 화면을 그 높이만큼 채워 아래 버튼이 늘 바닥에 붙게 한다.
+   <main className="st"> <div className="st-body">…</div> <div className="st-cta">…</div> */
 .st { min-height:100%; display:flex; flex-direction:column; }
-.st-prog { position:sticky; top:0; z-index:2; flex:none; height:3px; background:#ece9f4; }
-.st-prog i { display:block; height:100%; background:var(--primary); border-radius:0 3px 3px 0; }
-.st-body { flex:1; display:flex; flex-direction:column; gap:12px; padding:16px 0 24px; }
+.st-body { flex:1; display:flex; flex-direction:column; gap:12px; padding:4px var(--gut) 24px; }
 
-/* 단계 제목 — '1/3 · 사진 고르기' + 큰 제목 + 한 줄 */
-.st-head { padding:2px var(--gut) 4px; }
-.fam .st-step { margin:0 0 2px; color:var(--primary); font-size:15px; font-weight:700; }
-.st-head h1 { font-size:25px; font-weight:800; letter-spacing:-.04em; }
-.fam .st-lead { margin-top:2px; color:var(--text-2); font-size:15px; }
+/* 화면 제목 — 시안 하위 막대의 '제목 + 작은 단계 글자' */
+.st-head h1 { font-size:20px; font-weight:800; letter-spacing:-.03em; line-height:1.3; }
+.fam .st-step { color:var(--ink3); font-size:13px; font-weight:600; }
+.st-head h2 { margin-top:4px; font-size:17px; font-weight:800; letter-spacing:-.02em; }
 
-/* 아래 고정 버튼 — 한 개면 꽉 차게, 두 개면 오른쪽(.st-wide)이 두 배 */
-.st-cta { position:sticky; bottom:0; z-index:2; flex:none; display:flex; gap:8px; padding:10px var(--gut) 12px; background:var(--surface); border-top:1px solid var(--line); }
+/* 아래 고정 버튼 — 한 개면 꽉 차게, 두 개면 오른쪽(.st-wide)이 두 배, .st-cta--col 은 위아래로 */
+.st-cta { position:sticky; bottom:0; z-index:2; flex:none; display:flex; gap:8px; padding:10px var(--gut) 14px; background:var(--bg); box-shadow:0 -1px 0 var(--line); }
 .st-cta .fam-btn { flex:1; }
 .st-cta .st-wide { flex:2; }
+.st-cta--col { flex-direction:column; box-shadow:none; }
+
+/* 사진 창을 여는 칸 — 진짜 input 은 보이지 않게 두고(키보드로는 닿게) label 전체를 누르면 열린다 */
+.st-file { position:absolute; width:1px; height:1px; opacity:0; overflow:hidden; }
+.st-picker:focus-within, .st-add:focus-within, .st-again:focus-within { outline:3px solid var(--acc); outline-offset:2px; }
+.st-picker { position:relative; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; width:100%; min-height:150px; padding:20px; border:1.5px solid var(--edge); border-radius:20px; background:var(--soft); color:var(--ink); font-size:17px; font-weight:800; text-align:center; cursor:pointer; }
+.st-picker .fam-ic { width:34px; height:34px; color:var(--acc); }
+.st-picker small { font-size:13px; font-weight:400; color:var(--ink3); }
+.st-picker--slim { flex-direction:row; min-height:64px; padding:12px 16px; gap:10px; }
+.st-picker--slim .fam-ic { width:26px; height:26px; }
+.st-picker--slim small { margin-left:auto; }
+/* [사진 고르기]·[사진 찍기] 나란히 (11/23 사용자) — 고르기는 노랑, 찍기는 흰 바탕 */
+.st-pickers { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.st-pickers .st-picker { min-height:140px; padding:16px 10px; }
+.st-pickers--slim .st-picker { min-height:60px; padding:10px 12px; justify-content:center; }
+.st-picker--cam { background:var(--surf); }
+.st-pickers-note { grid-column:1 / -1; font-size:13px; color:var(--ink3); }
+.st-adds { display:grid; grid-template-rows:1fr 1fr; gap:6px; height:100%; aspect-ratio:1; }
+.st-adds .st-add { height:auto; aspect-ratio:auto; flex-direction:row; gap:4px; }
+.st-add--cam { background:var(--surf); }
+
+/* 사진 3열 — 칸은 정사각형으로 채운다(가족 화면). 크게 볼 때는 자르지 않는다 */
+.st-grid { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; }
+.st-thumb { position:relative; display:block; width:100%; aspect-ratio:1; padding:0; border:0; border-radius:14px; overflow:hidden; background:var(--line); cursor:pointer; }
+.st-thumb img { display:block; width:100%; height:100%; object-fit:cover; }
+/* 누르는 곳은 44px, 보이는 동그라미는 26px — 안쪽 여백에는 배경을 칠하지 않는다(background-clip) */
+.st-rm { position:absolute; top:0; right:0; width:44px; height:44px; padding:9px; border:0; border-radius:999px; display:grid; place-items:center; background:rgba(30,18,8,.72); background-clip:content-box; color:#fff; font-size:18px; line-height:1; cursor:pointer; }
+.st-rm:focus-visible { outline-offset:-9px; }
+.st-add { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; height:100%; aspect-ratio:1; box-sizing:border-box; border:1.5px solid var(--edge); border-radius:14px; background:var(--soft); color:var(--acc); font-size:13px; font-weight:700; cursor:pointer; }
+.st-add .fam-ic { width:22px; height:22px; }
+
+/* 이름표·입력 칸·글자 수 */
+.st-label { font-size:15px; font-weight:700; }
+.st-label small { margin-left:4px; font-weight:400; color:var(--ink3); font-size:13px; }
+.st-input { box-sizing:border-box; width:100%; min-height:48px; padding:11px 14px; border:1.5px solid var(--ink3); border-radius:14px; background:var(--surf); color:var(--ink); font:16px/1.5 var(--font); resize:none; }
+.st-input:focus { outline:3px solid var(--acc); outline-offset:1px; }
+.st-input::placeholder { color:var(--ink3); }
+.st-input:disabled { background:var(--bg); color:var(--ink2); }
+.st-count { align-self:flex-end; margin-top:-8px; font-size:13px; color:var(--ink3); }
+
+/* 고르는 칩 — 눌린 것은 진하게 (시안 .fseg) */
+.st-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.st-chip { flex:none; display:inline-flex; align-items:center; gap:5px; min-height:44px; padding:0 14px; border:1.5px solid var(--ink3); border-radius:22px; background:var(--surf); color:var(--ink2); font-size:15px; font-weight:600; cursor:pointer; }
+.st-chip[aria-pressed="true"] { border-color:var(--ink); background:var(--ink); color:var(--surf); font-weight:700; }
+.st-chip:disabled { cursor:default; opacity:.6; }
+.st-chip .fam-ic, .st-chip .elder-ic { width:18px; height:18px; }
+
+/* 아이콘 + 안내 한 줄 */
+.fam .st-note { display:flex; gap:8px; align-items:flex-start; color:var(--ink2); font-size:15px; }
+.st-note .fam-ic { flex:none; width:18px; height:18px; margin-top:2px; color:var(--acc); }
+.st-note a, .st-link { color:var(--acc); font-weight:700; text-decoration:underline; }
+.fam .st-dim { color:var(--ink2); }
+.fam .st-hint { color:var(--ink2); font-size:15px; text-align:center; }
+.fam .st-body .fam-error { margin:0; }

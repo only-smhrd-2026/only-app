@@ -1,12 +1,13 @@
 /**
  * ELDER_DIARY_004 — 지난 일기 (D60, FR-DI-004). 일기 쓰기 화면(ELDER_DIARY_001)의 [지난 일기]에서 온다.
- * 내가 올린 일기를 최신순으로 쭉 보여 준다 — 이 목록만 사진첩처럼 스크롤한다. 카드를 누르면 화면 가득 크게 보여 주고 읽어 준다.
+ * 내가 올린 일기를 최신순으로 쭉 보여 준다(11/23 시안 e-diary-past) — 이 목록만 사진첩처럼 스크롤한다. 줄을 누르면 화면 가득 크게 보여 주고 읽어 준다.
  * 크게 본 화면은 [닫기]나 폰의 뒤로 키로 닫힌다(<dialog>). 글 상자를 누르면 다시 읽는다. 회상 질문은 없다.
  */
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { MOOD_LABEL, type DiaryListOut, type DiaryOut } from '../../api/types'
 import ElderPhoto from '../../components/ElderPhoto'
+import { ElderStop } from '../../components/ElderUi'
 import MoodIcon from '../../components/MoodIcon'
 import type { ElderNavState } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
@@ -45,36 +46,34 @@ export default function ELDER_DIARY_004() {
 
   return (
     <main className="elder elder-past">
-      <h1 className="elder-text elder-text--lg">지난 일기</h1>
+      <h1>지난 일기</h1>
       {loading ? (
         <p className="elder-text" role="status">잠시만요…</p>
       ) : error ? (
-        <>
-          <p className="elder-text" role="alert">
-            {errorMessage}
-          </p>
-          {error.code !== 'DEVICE_REQUIRED' && <button className="elder-btn" onClick={reload}>다시 보기</button>}
-        </>
+        <ElderStop text={errorMessage} onRetry={error.code !== 'DEVICE_REQUIRED' ? reload : undefined} />
       ) : count === 0 ? (
-        <p className="elder-text">{EMPTY}</p>
+        <p className="elder-sub">{EMPTY}</p>
       ) : (
-        <div className="elder-past-list">
-          {data?.diaries.map((d) => (
-            <button key={d.diary_id} type="button" className="elder-past-card" onClick={() => show(d)}>
-              <span className="elder-past-thumb">
-                {d.illustration_url ? <img src={d.illustration_url} alt="" loading="lazy" decoding="async" /> : <MoodIcon mood={d.mood} />}
-              </span>
-              <span>
-                {day(d.posted_at)}
-                <small><MoodIcon mood={d.mood} />{MOOD_LABEL[d.mood]}</small>
-              </span>
-            </button>
-          ))}
-        </div>
+        <>
+          <p className="elder-sub">보고 싶은 일기를 눌러 주세요.</p>
+          <div className="elder-col elder-past-list">
+            {data?.diaries.map((d) => (
+              <button key={d.diary_id} type="button" className="elder-btn elder-btn--secondary elder-past-item" onClick={() => show(d)}>
+                {d.illustration_url
+                  ? <img src={d.illustration_url} alt="" loading="lazy" decoding="async" />
+                  : <span className="elder-past-noimg"><MoodIcon mood={d.mood} /></span>}
+                <span>
+                  {day(d.posted_at)}
+                  <small><MoodIcon mood={d.mood} /> {MOOD_LABEL[d.mood]}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
       )}
       <dialog
         ref={view}
-        className="elder-past-view"
+        className="elder-cover elder-past-view"
         aria-label="일기 크게 보기"
         onClose={(e) => {
           // 안에 든 사진 크게 보기(ElderPhoto 의 dialog)가 닫힐 때도 이 이벤트가 올라온다 — 이 창이 닫힐 때만 비운다
@@ -85,15 +84,15 @@ export default function ELDER_DIARY_004() {
       >
         {open && (
           <>
-            <div className="elder-who"><span>{day(open.posted_at)}</span></div>
+            <h1>{day(open.posted_at)}</h1>
             {open.illustration_url ? (
               <ElderPhoto src={open.illustration_url} alt={open.illustration_type === 'PHOTO' ? '일기 사진' : '그림일기 그림'} />
             ) : (
-              <div className="elder-photo-box elder-mood-pic"><MoodIcon mood={open.mood} /></div>
+              <div className="elder-photo-box elder-photo-box--grow elder-mood-pic"><MoodIcon mood={open.mood} /></div>
             )}
             <DiaryPaper key={open.diary_id} body={open.body} onRead={() => read(open)} />
-            <div className="elder-mood"><MoodIcon mood={open.mood} />그날 기분 · {MOOD_LABEL[open.mood]}</div>
-            <button type="button" className="elder-btn elder-btn--secondary elder-bottom" onClick={() => view.current?.close()}>닫기</button>
+            <p className="elder-moodline"><MoodIcon mood={open.mood} />그날 기분 · {MOOD_LABEL[open.mood]}</p>
+            <button type="button" className="elder-btn elder-btn--secondary" onClick={() => view.current?.close()}>닫기</button>
           </>
         )}
       </dialog>

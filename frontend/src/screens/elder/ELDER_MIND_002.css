@@ -1,0 +1,17 @@
+/* ELDER_MIND_002 기억력 놀이 — elder.css 변수만 쓴다 (11/23 시안 .memw·.memc) */
+.mem-words { display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+.mem-words span {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  border-radius: 22px;
+  background: var(--elder-card);
+  box-shadow: var(--elder-sh1);
+  font-size: var(--elder-font-size-lg);
+  font-weight: 800;
+}
+.mem-words i, .mem-choices i { font-style: normal; font-size: 44px; }
+.mem-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-content: center; }
+.mem-choices .elder-btn { flex-direction: column; gap: 2px; min-height: 96px; }
+.mem-grow { flex: 1; }

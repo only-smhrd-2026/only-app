@@ -56,6 +56,8 @@ class User(Base):
     terms_agreed_at: Mapped[datetime | None] = mapped_column(TS)
     created_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
     last_login_at: Mapped[datetime | None] = mapped_column(TS)
+    # 폰 알림을 끈 묶음 DIARY·WEEKLY·CARE (11/23). 급한 알림은 끌 수 없다 — services/push.py 가 본다
+    push_muted: Mapped[list[str]] = mapped_column(JSONB, server_default=text("'[]'"))
 
 
 class FamilyRoom(Base):
@@ -124,6 +126,7 @@ class Photo(Base):
     object_key: Mapped[str] = mapped_column(String(255))
     thumb_key: Mapped[str | None] = mapped_column(String(255))
     taken_at: Mapped[date | None] = mapped_column(Date)
+    taken_year: Mapped[int | None] = mapped_column(SmallInteger)  # 찍은 날이 없을 때 가족이 고른 연도 (11/23)
     source: Mapped[str] = mapped_column(String(12))  # FAMILY | ELDER_CAMERA | FAMILY_DIARY
     caption: Mapped[str | None] = mapped_column(String(100))
     people_note: Mapped[str | None] = mapped_column(String(100))
@@ -273,20 +276,22 @@ class Notification(Base):
     title: Mapped[str] = mapped_column(String(60))
     body: Mapped[str | None] = mapped_column(String(200))
     link_screen: Mapped[str | None] = mapped_column(String(30))
+    link_id: Mapped[int | None] = mapped_column(BigInteger)  # 11/23 일기 알림(DIARY_POSTED·ELDER_REPLY) = diary_id
     sent_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
     read_at: Mapped[datetime | None] = mapped_column(TS)
 
 
 class MoodCheck(Base):
-    """마음 체크 결과 (D56). 어르신이 8문항을 다 답했을 때만 1줄, 가족방·날짜당 1줄."""
+    """마음 체크 결과 (D56, 11/23 종류 늘림). 끝까지 답했을 때만 1줄, 가족방·날짜·종류마다 1줄."""
 
     __tablename__ = "mood_checks"
-    __table_args__ = (UniqueConstraint("room_id", "check_date", name="uq_mood_checks_room_id_check_date"),)
+    __table_args__ = (UniqueConstraint("room_id", "check_date", "kind", name="uq_mood_checks_room_id_check_date_kind"),)
     check_id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
     room_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("family_rooms.room_id"))
     check_date: Mapped[date] = mapped_column(Date)
-    answers: Mapped[list[int]] = mapped_column(JSONB)  # 문항 순서대로 0~3, 8칸 (0~3 은 코드가 검사)
-    total: Mapped[int] = mapped_column(SmallInteger)  # 0~24. 화면에 점수를 보이지 않는다 (NFR-DE-003)
+    kind: Mapped[str] = mapped_column(String(8), server_default="PHQ8")  # PHQ8|PHQ9|UCLA3|GAD7|SMCQ|MEMGAME
+    answers: Mapped[list[int]] = mapped_column(JSONB)  # 화면이 보낸 값 그대로. 칸 수·범위는 schemas/mood.py 가 검사
+    total: Mapped[int] = mapped_column(SmallInteger)  # 공식 채점 합 0~27. 화면에 점수를 보이지 않는다 (NFR-DE-003)
     level: Mapped[str] = mapped_column(String(5))  # USUAL | DOWN | HARD
     created_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
 
@@ -319,6 +324,8 @@ class UrgentAlert(Base):
     )  # [제가 연락했어요] 처음 누른 가족
     acked_at: Mapped[datetime | None] = mapped_column(TS)
     reminded_at: Mapped[datetime | None] = mapped_column(TS)  # 확인이 없어 한 번 더 알린 시각
+    missed_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.user_id"))  # 11/23 '안 받으세요'
+    missed_at: Mapped[datetime | None] = mapped_column(TS)
 
 
 class CareDay(Base):

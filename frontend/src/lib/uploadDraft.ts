@@ -53,7 +53,7 @@ export function restoreUploadText(userId: number) {
 }
 
 /** 남긴 글만 지운다(메모리는 그대로). UPLOAD_002 에서 한 방이라도 올라가면 부른다 — 새로고침 뒤 같은 글로
- *  이미 받은 방에 또 보내지 않게 (FDIARY 의 forgetFamilyDiaryText 와 같은 이유) */
+ *  이미 받은 방에 또 보내지 않게 */
 export function forgetUploadText() {
   try {
     sessionStorage.removeItem(KEY)
@@ -73,7 +73,7 @@ export function saveUploadText() {
 }
 
 /** 사진 자체가 문제일 때 서버가 주는 코드 (routers/photos.py) — 어느 가족방에 보내도 같은 답이라 남은 방에는 보내지 않는다.
- * 추억 올리기 UPLOAD_002 와 가족 일기 FDIARY_003 이 같이 쓴다 */
+ * 추억 올리기 UPLOAD_002 가 쓴다 */
 export const PHOTO_PROBLEMS = ['BAD_IMAGE', 'IMAGE_TOO_LARGE', 'PHOTO_TOO_BIG', 'TOO_MANY_PHOTOS']
 
 /** UPLOAD_002 → UPLOAD_003 이 보낸 결과를 주고받는 곳. 가족방 목록 순서, 성공한 곳은 서버가 준 사진도 같이 담긴다.

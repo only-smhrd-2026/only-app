@@ -11,7 +11,7 @@
 
 /* 할머니 폰 */
 .gr-dev { display:flex; align-items:center; gap:12px; padding:4px 12px 16px 16px; }
-.gr-dev-ic { flex:none; width:44px; height:44px; border-radius:14px; display:grid; place-items:center; background:#f0eef5; color:var(--text-3); }
+.gr-dev-ic { flex:none; width:44px; height:44px; border-radius:14px; display:grid; place-items:center; background:var(--bg2); color:var(--text-3); }
 .gr-dev-ic.on { background:var(--t4); color:var(--t4e); }
 .gr-dev > div { flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.4; }
 .gr-dev b { font-size:15.5px; }
@@ -37,7 +37,7 @@
 .gr-member > div { flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.35; }
 .gr-member b { font-size:15px; }
 .gr-member small { font-size:15px; color:var(--text-3); }
-.gr-me { margin-right:12px; padding:1px 7px; border-radius:999px; background:#f0eef5; color:var(--text-2); font-size:11px; font-style:normal; font-weight:800; letter-spacing:0; }
+.gr-me { margin-right:12px; padding:1px 7px; border-radius:999px; background:var(--bg2); color:var(--text-2); font-size:11px; font-style:normal; font-weight:800; letter-spacing:0; }
 .gr-more { font-size:22px; font-weight:800; line-height:1; color:var(--text-2); }
 .gr-link { display:flex; align-items:center; gap:8px; margin:0 16px 14px; padding:4px 4px 4px 12px; border-radius:12px; background:var(--tint-2); font-size:15px; color:var(--text-2); }
 .gr-link span { flex:1; }
@@ -47,7 +47,7 @@
 .gr-chip { display:inline-flex; align-items:center; height:44px; padding:0 14px; border:0; border-radius:999px; background:var(--tint-2); color:var(--text-2); font-size:15px; font-weight:600; }
 .gr-chip.on { background:var(--tint); color:var(--primary); font-weight:800; }
 .fam .gr-sheet-text { margin:0 12px 14px; font-size:15px; line-height:1.5; color:var(--text-2); }
-.fam .gr-warn { display:flex; align-items:center; gap:6px; margin:0 12px 12px; padding:10px 12px; border-radius:12px; background:#fdecee; color:#b4232a; font-size:15px; }
+.fam .gr-warn { display:flex; align-items:center; gap:6px; margin:0 12px 12px; padding:10px 12px; border-radius:12px; background:var(--rec-soft); color:var(--rec); font-size:15px; }
 .gr-warn .fam-ic { flex:none; width:16px; height:16px; }
 .gr-to-upload { display:block; margin:-6px 4px 6px; }
 .fam .gr-url { margin:0 12px 12px; padding:10px 12px; border-radius:12px; background:var(--tint-2); color:var(--text-2); font-size:15px; line-height:1.5; word-break:break-all; user-select:all; }
@@ -66,4 +66,33 @@
 .gr-opt-danger b { color:var(--danger); }
 
 /* 바꾼 뒤 잠깐 뜨는 한 줄 (GROUP_004 와 같은 모양). 탭 화면이라 아래 탭(약 66px) 위로 띄운다 */
-.gr-snack { position:fixed; left:50%; bottom:calc(80px + env(safe-area-inset-bottom,0px)); z-index:7; transform:translateX(-50%); width:max-content; max-width:calc(100% - 32px); padding:12px 16px; border-radius:14px; background:#1f1b2e; color:#fff; font-size:15px; line-height:1.4; animation:fam-fade .18s; }
+.gr-snack { position:fixed; left:50%; bottom:calc(80px + env(safe-area-inset-bottom,0px)); z-index:7; transform:translateX(-50%); width:max-content; max-width:calc(100% - 32px); padding:12px 16px; border-radius:14px; background:var(--ink); color:#fff; font-size:15px; line-height:1.4; animation:fam-fade .18s; }
+
+/* 11/23 시안 f-room — tsx 가 새로 쓴 클래스(카드 안 여백·줄·단계·세그먼트). 카드 안은 위아래로 쌓고 줄 사이에 1px 선 */
+.gr-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; } /* 화면 읽기에만 */
+.gr-card { display:flex; flex-direction:column; gap:10px; padding:16px; }
+.gr-card h2 { font-size:17px; font-weight:800; letter-spacing:-.02em; }
+.gr-card.gr-dev { flex-direction:row; align-items:center; padding:14px 16px; }
+.gr-card .gr-dev { padding:0; }
+.gr-steps3 { list-style:none; margin:0; padding:0; counter-reset:step; display:flex; flex-direction:column; gap:12px; }
+.gr-steps3 li { counter-increment:step; display:grid; grid-template-columns:28px 1fr; column-gap:10px; line-height:1.4; }
+.gr-steps3 li::before { content:counter(step); grid-row:span 2; display:grid; place-items:center; width:28px; height:28px; border-radius:50%; background:var(--soft); color:var(--acc); font-size:14px; font-weight:800; }
+.gr-steps3 b { font-size:15px; }
+.fam .gr-lock { display:flex; align-items:flex-start; gap:8px; color:var(--text-2); font-size:14px; }
+.gr-lock .fam-ic { width:18px; height:18px; margin-top:2px; color:var(--acc); }
+.gr-banner { display:flex; align-items:center; gap:12px; min-height:56px; padding:12px 16px; color:var(--text); text-decoration:none; }
+.gr-banner b { flex:1; font-size:16px; }
+.gr-sq { flex:none; display:grid; place-items:center; width:40px; height:40px; border-radius:12px; background:var(--soft); color:var(--acc); }
+.gr-members-card { gap:2px; }
+.gr-members-card .gr-h-row { padding-right:0; margin-bottom:4px; }
+.gr-setrow { display:flex; align-items:center; gap:12px; min-height:52px; padding:8px 0; border-top:1px solid var(--line); }
+.gr-h-row + .gr-setrow, .gr-owner-note + .gr-setrow { border-top:0; }
+.gr-set > span { flex:1; font-size:15px; }
+.gr-set > b { font-size:15px; font-weight:600; color:var(--text-2); }
+.gr-grow { flex:1; min-width:0; }
+.gr-grow b { font-size:15px; }
+.gr-seg { display:flex; flex-direction:column; gap:8px; padding:12px 0 4px; border-top:1px solid var(--line); }
+.fam .gr-label { font-size:15px; font-weight:700; }
+.gr-seg .gr-font-prev { color:var(--text); font-weight:700; line-height:1.3; }
+.gr-withdraw { align-self:center; display:inline-flex; align-items:center; color:var(--text-3); text-decoration:underline; }
+.gr-dev .fam-tag { align-self:flex-start; } /* 연결됨 꼬리표는 글자 폭만 */

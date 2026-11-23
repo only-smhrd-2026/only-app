@@ -37,7 +37,7 @@ CHECK_WAS = {"USUAL": "평소와 비슷했어요", "DOWN": "조금 가라앉으�
 CARE_SAID = {"OK": "괜찮다고", "SAME": "아직 편치 않다고", "DENY": "그런 적 없다고"}  # 오늘의 안부에 하신 답
 # 가족에게 간 알림 (notifications.kind → 문장). 위급 알림은 urgent_alerts 로 따로 센다
 NOTICE_TEXT = {
-    "MOOD_LOW_2D": "'전화 한 통 드려 보세요' 알림이 {n}번 갔어요.",
+    "MOOD_LOW_2D": "'안부 전화 어떠세요?' 알림이 {n}번 갔어요.",  # 알림 제목 (routers/mood.LOW_DAYS_TITLE, 11/23)
     "NO_RECORD_2D": "이틀 동안 기록이 없어 알림이 {n}번 갔어요.",
 }
 
@@ -178,7 +178,11 @@ def changes(db: Session, row: WeeklySummary) -> list[dict[str, str]]:
     # ④ 마음 체크 — 그 주(월~일)에 하신 것과 그 앞의 것
     checks = db.execute(
         select(MoodCheck.check_date, MoodCheck.level)
-        .where(MoodCheck.room_id == room_id, MoodCheck.check_date <= week + timedelta(days=6))
+        .where(
+            MoodCheck.room_id == room_id,
+            MoodCheck.kind.in_(("PHQ8", "PHQ9")),  # 가족에게는 마음 체크(PHQ)만 보인다 (11/23)
+            MoodCheck.check_date <= week + timedelta(days=6),
+        )
         .order_by(MoodCheck.check_date.desc())
         .limit(2)
     ).all()

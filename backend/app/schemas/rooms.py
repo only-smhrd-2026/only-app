@@ -80,6 +80,7 @@ class InviteStatusOut(BaseModel):
     elder_name: str
     expires_at: datetime
     valid: bool
+    inviter_name: str | None = None  # 11/23 초대한 사람 — 링크를 누가 만들었는지는 저장하지 않아 방장 이름
 
 
 class InviteAcceptIn(BaseModel):

@@ -1,58 +1,96 @@
 /**
- * ELDER_MOOD_002 — 마음 체크 8문항 (D56·D66). 한 번에 하나씩 읽어 주고 보기 4개로 답한다.
- * 끝에는 서버가 준 한마디 — 높게 답한 문항 하나를 쉬운 말로 받아 드리고 고맙다고 한다(11/18 멘토링 '본인도 알 수 있게').
- * 점수·단계 이름은 어르신께 보이지 않는다(가족 홈 마음 카드에 3단계 문장으로만). 한마디가 없으면 평소 인사.
- * 답은 8개를 다 골라야 서버에 간다. 도중에 나가면 저장하지 않는다(다음 날 홈에서 다시 권한다).
- * 문항·보기 글은 lib/moodCheck.ts 한 곳 — 바꾸면 mp3 도 다시 만든다.
+ * ELDER_MOOD_002 — 마음 체크 (D56·D66 → 11/23 시안 e-mood). 체크 5가지(PHQ-8·PHQ-9·UCLA-3·GAD-7·SMCQ) 공통 화면.
+ * 종류는 앞 화면이 넘긴 state.kind(홈 초대·ELDER_MIND_001) 또는 주소 ?kind=, 없으면 PHQ-8. 문항·보기 글은 lib/moodCheck.ts 한 곳.
+ *
+ * 한 번에 한 문항: 위에 진행 점 + '3 / 8' + [그만할래요], 심심이, 질문 말풍선(누르면 다시 읽음), 아래 보기(원래 칸 수 그대로).
+ *   - 문항이 뜬 뒤 첫 0.8초 누름은 무시(두 번 눌림), 고른 답은 0.7초 보여 준 뒤 다음 문항으로(안 눌린 줄 알고 또 누르지 않게) — D51 ⑥.
+ *   - 갤럭시 뒤로 키 = 앞 질문: 문항마다 방문 기록(history state 의 q)을 하나씩 쌓아서, 뒤로 키가 앞 문항으로 돌아간다.
+ *   - [그만할래요]·도중에 나가면 저장하지 않는다(다음에 홈에서 다시 권한다).
+ * 끝: 서버가 준 얼굴·제목·덧붙임만(점수 없음, NFR-DE-003) + [내 마음으로]·[홈으로]. 끝난 뒤 뒤로 키 = 홈(끝난 흐름을 다시 시작하지 않게).
+ * PHQ-9 9번이 0 보다 크면 서버가 가족에게 급한 알림을 보내지만, 화면·소리는 알렸다고 말하지 않는다(서버 say = 위로 한마디).
  */
 import { useEffect, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { MoodCheckIn, MoodCheckSavedOut } from '../../api/types'
+import type { MoodCheckIn, MoodCheckSavedOut, MoodKind } from '../../api/types'
+import { Bub } from '../../components/ElderUi'
+import Sim from '../../components/Sim'
 import { useLive, type ElderNavState } from '../../hooks/useElderSession'
 import { say, stopSpeaking } from '../../lib/audio'
-import { MOOD_ANSWERS, MOOD_ITEMS, MOOD_PROMPT } from '../../lib/moodCheck'
+import { CHECKS, checkKind, ordinal } from '../../lib/moodCheck'
+import './ELDER_MOOD_002.css'
 
-const TAP_GAP_MS = 600 // 보기 버튼이 같은 자리에 있어서, 두 번 눌림이 다음 문항의 답이 되지 않게
+const READY_MS = 800 // 문항이 뜬 뒤 이만큼은 답이 안 눌린다
+const PICKED_MS = 700 // 고른 답을 보여 주는 시간
+const THANKS = '말씀해 주셔서 고마워요.'
+
+type MoodNavState = ElderNavState & { kind?: MoodKind; q?: number }
 
 export default function ELDER_MOOD_002() {
   const nav = useNavigate()
-  const { home } = (useLocation().state ?? {}) as ElderNavState
+  const loc = useLocation()
+  const [params] = useSearchParams()
+  const st = (loc.state ?? {}) as MoodNavState
+  const [kind] = useState(() => checkKind(st.kind ?? params.get('kind')))
+  const [home] = useState(st.home)
+  const check = CHECKS[kind]
+  const n = check.items.length
   const speed = Number(home?.settings.tts_speed) || 0.9
   const live = useLive()
+  const q = st.q ?? 0 // 지금 문항 번호 — 방문 기록에 있어서 뒤로 키가 줄인다
   const [answers, setAnswers] = useState<number[]>([])
+  const k = Math.min(q, answers.length, n - 1) // 새로고침으로 답이 비었으면 앞에서부터
+  const [picked, setPicked] = useState<{ k: number; v: number }>()
   const [step, setStep] = useState<'asking' | 'saving' | 'failed' | 'done'>('asking')
+  const [result, setResult] = useState<MoodCheckSavedOut>()
   const [error, setError] = useState<string>()
-  const [saying, setSaying] = useState(false)
-  const [thanks, setThanks] = useState<string>(MOOD_PROMPT.moodThanks) // 끝 인사 — 서버가 한마디를 주면 그것으로
-  const sayingTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const tappedAt = useRef(0)
-  const k = answers.length
-  const item = MOOD_ITEMS[k] as string | undefined // 8개를 다 답하면 undefined
+  const readyAt = useRef(0)
+  const pickTimer = useRef<number | undefined>(undefined)
+  const endQ = useRef(-1) // 다 답했을 때의 q — 그 뒤 뒤로 키가 오면 홈으로
+  const item = check.items[k]
+
+  // 새로고침으로 답을 잃었는데 기록이 중간 문항이면 첫 문항 기록으로 바꿔 둔다(뒤로 키가 엉뚱한 문항으로 가지 않게)
+  useEffect(() => {
+    if (q > 0 && answers.length === 0) nav(loc.pathname + loc.search, { replace: true, state: { ...st, q: 0 } })
+    // 처음 한 번만
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 문항을 읽는다: '세 번째 질문이에요.' 다음 질문. 읽는 중에 답하면 끊긴다
+  useEffect(() => {
+    if (step !== 'asking') return
+    readyAt.current = Date.now() + READY_MS
+    let on = true
+    void say(ordinal(k), speed).then((ok) => on && ok && say(item, speed))
+    return () => {
+      on = false
+      stopSpeaking()
+    }
+  }, [k, item, step, speed])
+
+  // 뒤로 키: 고르는 중이던 답은 버린다. 다 답한 뒤면 홈으로
+  useEffect(() => {
+    window.clearTimeout(pickTimer.current)
+    setPicked(undefined)
+    if (step !== 'asking' && endQ.current !== q) nav('/elder', { replace: true })
+  }, [q, step, nav])
+
+  useEffect(() => () => window.clearTimeout(pickTimer.current), [])
 
   useEffect(() => {
-    if (step === 'done') void say(thanks, speed)
-    else if (step === 'asking' && item) void say(item, speed) // 읽는 중에 답하면 끊기고 다음 문항을 읽는다
+    if (step !== 'done' || !result) return
+    void say(result.say ?? `${THANKS} ${result.title}. ${result.sub}`.trim(), speed)
     return () => stopSpeaking()
-  }, [item, step, speed, thanks])
-
-  useEffect(() => () => clearTimeout(sayingTimer.current), [])
-
-  function replay(text: string) {
-    void say(text, speed)
-    setSaying(true)
-    clearTimeout(sayingTimer.current)
-    sayingTimer.current = setTimeout(() => setSaying(false), 1_400)
-  }
+  }, [step, result, speed])
 
   async function save(all: number[]) {
     setStep('saving')
     setError(undefined)
     try {
-      const body: MoodCheckIn = { answers: all }
+      const body: MoodCheckIn = { kind, answers: all }
       const saved = await api<MoodCheckSavedOut>('/api/elder/mood-check', { body })
       if (!live.current) return
-      setThanks(saved.say ?? MOOD_PROMPT.moodThanks)
+      setResult(saved)
       setStep('done')
     } catch (e) {
       if (!live.current) return
@@ -63,52 +101,79 @@ export default function ELDER_MOOD_002() {
     }
   }
 
-  function answer(value: number) {
-    if (step !== 'asking' || !item || Date.now() - tappedAt.current < TAP_GAP_MS) return
-    tappedAt.current = Date.now()
-    const next = [...answers, value]
-    setAnswers(next)
-    if (next.length === MOOD_ITEMS.length) void save(next)
+  function answer(v: number) {
+    if (step !== 'asking' || picked || Date.now() < readyAt.current) return
+    stopSpeaking()
+    setPicked({ k, v })
+    const next = [...answers.slice(0, k), v]
+    pickTimer.current = window.setTimeout(() => {
+      if (!live.current) return
+      setPicked(undefined)
+      setAnswers(next)
+      if (next.length === n) {
+        endQ.current = q
+        void save(next)
+      } else nav(loc.pathname + loc.search, { state: { ...st, q: k + 1 } })
+    }, PICKED_MS)
   }
 
-  const speaker = (
-    <svg className="elder-spk" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 9.5v5h3.2L12 18.5v-13L7.2 9.5z" />
-      <path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.3 6.3a8 8 0 0 1 0 11.4" />
-    </svg>
-  )
-  const paper = (text: string) => (
-    <button type="button" className={`elder-paper${saying ? ' elder-saying' : ''}`} onClick={() => replay(text)}>
-      <span>{text}</span>
-      {speaker}
-    </button>
-  )
+  const toMind = () => nav('/elder/mind', { replace: true, state: { home } })
+  const toHome = () => nav('/elder', { replace: true })
 
+  if (step === 'done' && result)
+    return (
+      <main className="elder elder--fit">
+        <div className="elder-grow elder-center">
+          <span className="elder-face mood-face" aria-hidden="true">{result.face}</span>
+          <h1>{result.title}</h1>
+          {result.sub && <p className="elder-sub">{result.sub}</p>}
+          <p className="elder-sub">{THANKS} 결과는 내 마음에서 다시 볼 수 있어요.</p>
+        </div>
+        <button type="button" className="elder-btn" onClick={toMind}>내 마음으로</button>
+        <button type="button" className="elder-btn elder-btn--secondary" onClick={toHome}>홈으로</button>
+      </main>
+    )
+
+  if (step !== 'asking')
+    return (
+      <main className="elder elder--fit">
+        <p className="elder-text" role={error ? 'alert' : 'status'}>{error ?? '잠시만요…'}</p>
+        {step === 'failed' && (
+          <>
+            <button type="button" className="elder-btn elder-bottom" onClick={() => void save(answers)}>다시 보내기</button>
+            <button type="button" className="elder-btn elder-btn--secondary" onClick={toHome}>홈으로</button>
+          </>
+        )}
+      </main>
+    )
+
+  const shown = picked?.k === k ? picked.v : undefined
   return (
     <main className="elder elder--fit">
-      {step === 'done' ? (
-        <>
-          {paper(thanks)}
-          <button className="elder-btn elder-bottom" onClick={() => nav('/elder', { replace: true })}>홈으로</button>
-        </>
-      ) : step === 'asking' && item ? (
-        <>
-          <div className="elder-steps" role="img" aria-label={`${MOOD_ITEMS.length}개 중 ${k + 1}번째`}>
-            {MOOD_ITEMS.map((_, n) => <i key={n} className={n <= k ? 'on' : undefined} />)}
-          </div>
-          {paper(item)}
-          <div className="elder-answers">
-            {MOOD_ANSWERS.map((label, value) => (
-              <button key={label} type="button" className="elder-chip" onClick={() => answer(value)}>{label}</button>
-            ))}
-          </div>
-        </>
-      ) : (
-        <>
-          <p className="elder-text" role={error ? 'alert' : 'status'}>{error ?? '잠시만요…'}</p>
-          {step === 'failed' && <button className="elder-btn elder-bottom" onClick={() => void save(answers)}>다시 보내기</button>}
-        </>
-      )}
+      <h1 className="elder-sr">{check.name}</h1>
+      <div className="mood-top">
+        <div className="elder-steps" role="img" aria-label={`${n}가지 가운데 ${k + 1}번째`}>
+          {check.items.map((_, i) => <i key={i} className={i <= k ? 'on' : undefined} />)}
+        </div>
+        <span className="elder-eyebrow" aria-hidden="true">{k + 1} / {n}</span>
+        <button type="button" className="elder-btn elder-btn--secondary elder-btn--sm" onClick={toHome}>그만할래요</button>
+      </div>
+      <Sim face="hello" size={150} className="elder-simflex" />
+      <Bub text={item} speed={speed} className="elder-bub--long elder-bub--up" />
+      <div className="elder-answers">
+        {check.answers.map((label, v) => (
+          <button
+            key={label}
+            type="button"
+            className={`elder-chip${shown === v ? ' elder-btn--on' : ''}`}
+            aria-pressed={shown === v}
+            onClick={() => answer(v)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="elder-sr" aria-live="polite">{shown !== undefined ? `${check.answers[shown]}, 골랐어요` : ''}</p>
     </main>
   )
 }

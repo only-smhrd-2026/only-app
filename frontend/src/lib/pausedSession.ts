@@ -10,6 +10,9 @@ const RESUME_MS = 30 * 60_000
 
 export type Paused = { id: string; kind: SessionKind; at: number }
 
+/** 이어서 연 대화의 첫마디 — 지금 질문 앞에 붙여 읽는다 (11/23 시안 talkBefore) */
+export const RESUME_LEAD = '아까 하던 이야기를 이어서 할게요.'
+
 export function savePaused(p: Paused) {
   try {
     localStorage.setItem(KEY, JSON.stringify(p))
