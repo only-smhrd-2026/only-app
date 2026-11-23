@@ -1,47 +1,70 @@
 /**
- * VoiceSession — 말하기 왕복 상태기계 + 말풍선 대화 화면 (설계안 3절, D5/D6/D48 → 11/12 새 모양 D52). 홍진성 담당.
+ * VoiceSession — 말하기 왕복 상태기계 + 대화 화면 (설계안 3절, D5/D6/D48 → 11/23 시안 e-talk·e-diary-talk·e-care). 홍진성 담당.
  *
- *   WAITING ─[말하기]→ (IDLE: 마이크 준비) → RECORDING(≤60초, 진동·삐·남은 시간) ─[다 말했어요]→ TRANSCRIBING(/api/stt)
- *     → HEARD(들은 말이 내 말풍선으로 뜨고 옆에 작은 [다시] 2초 — 안 누르면 보냄)
- *     → THINKING(/turns, 4초 안내·8초 '조금만요'·15초 포기 → '잠깐 문제가 있네요' 낭독 + /end ERROR) → SPEAKING → WAITING …
- *   신뢰도가 낮으면 서버가 확인 질문('제가 ○○ 라고 들었어요…', 칩 [맞아요]/[다시 말할게요])을 AI 말풍선으로 준다.
- *   '맞아요'는 말로 해도 칩으로 눌러도 서버가 들은 문장을 답으로 저장한다(D52 ③, D33 을 바꿈). [다시 말할게요] 칩은 바로 녹음.
- *   글로 쓰기(D52 ⑤): 자판 단추 → 입력 칸(500자) → [보내기]. 쓴 글은 [다시] 없이 TEXT 로 보낸다. 쓰는 동안은 20초 무응답 대신 2분.
- *   다시 듣기 = AI 말풍선 누르기. [다시 듣기]·[그만할래요] 버튼은 없다 — "그만할래" 라고 말하거나 뒤로 키 (D51 ⑥).
- *   회상 6번(일기 3번)이면 서버가 ENDED 를 주고 onEnded 로 올린다. WAITING 에서 20초 무조작이면 event=NO_RESPONSE (서버 3단계).
- *   추천 답변은 늘 2개(모자라면 기본 칩으로 채움, D52 ④). 일기 기분 칩만 4개(D75).
- *   버튼만(칩) 모드: 가족 설정 BUTTON·마이크 못 씀·STT 실패 2번 연속·[다시] 2번 연속·STT 하루 상한 (FR-VS-006, D48).
- *   끝까지 못 들려주면(자동 재생 막힘·전화벨) TAP: [눌러서 들어 보세요] (D48).
+ * 모양(11/23): 위에 사진(흰 종이, 자르지 않음, 누르면 크게 — ElderPhoto. 사진이 없으면 큰 심심이) · 가운데 '지금 질문 카드' 하나
+ * (심심이 표정이 단계마다 바뀜, 상태 글에 주어 — '심심이가 말하는 중'·'할머니 말씀 듣는 중', 카드를 누르면 다시 들음) ·
+ * 아래 받침(답 칩 2개 · [눌러서 말하기] · [글자로]). 말풍선이 쌓이는 기록은 없다. 스크롤 없이 한 화면 — 사진이 줄어든다.
+ *
+ *   SPEAKING ─(끝까지 읽음)→ WAITING ─[눌러서 말하기]→ IDLE(마이크 준비) → RECORDING(≤60초) ─[다 말했어요]→ TRANSCRIBING(/api/stt)
+ *     → THINKING(/turns, 8초 '조금만요' 소리) → SPEAKING …
+ *   끼어들기: SPEAKING 중에도 답 칩·말하기·글자로가 눌린다 — 말을 멈추고 바로 받는다 (11/23 시안).
+ *   [다 말했어요]: 첫 0.9초 누름은 무시(손 떨림 두 번 누름), 녹음이 1.5초보다 짧으면 보내지 않고 '잘 못 들었어요'.
+ *   들은 말 확인: 신뢰도가 낮으면 서버가 확인 질문(칩 [맞아요]/[다시 말할게요], coach.CONFIRM_SUGGESTIONS)을 준다 →
+ *   들은 말을 크게 + 큰 [맞아요]/[다시 말할게요] (시안 check). '맞아요'는 서버가 들은 문장을 답으로 저장한다(D52 ③).
+ *   말할 차례: 10초 뒤 소리로 다시 안내(NUDGE). 20초 무응답이면 지금처럼 서버에 NO_RESPONSE(서버 3단계 — 다시 묻기 → 칩만 → 끝).
+ *   서버가 다시 물은 뒤 10초에 또 안내하므로 시안의 '10초·30초 안내'와 같아지고, 무응답으로 끝나는 시간(3×20초)은 그대로다.
+ *   [글자로](D52 ⑤): 화면 위쪽 판에 입력 칸 + [보내기], [말로 할게요]로 닫음. 쓰는 동안은 무응답을 2분으로 센다.
+ *   연결 끊김(/turns 15초 넘김·망 오류): 대화를 끝내지 않는다 → '하신 말씀은 그대로 있어요' + [다시 연결하기]/[나중에 할게요].
+ *   다시 연결하면 서버 대화를 먼저 읽어, 답이 이미 들어갔으면 그 다음 질문을, 아니면 같은 답을 다시 보낸다(두 번 저장 안 되게).
+ *   [나중에 할게요]는 대화를 끝내지 않고(lib/pausedSession 에 남은 채) 홈으로 — 홈의 '이어서'로 30분 안에 잇는다.
+ *   위로(D94 바꿈, 11/23): 힘든 말씀 뒤에도 서버가 대화를 끝내지 않고 위로 턴(AiOut.care)을 준다 → 심심이 웃는 얼굴(엄지·인사 없음),
+ *   전화 버튼 없음, 끝 단추는 [조금 쉴게요]. 몸 위급이면 서버가 urgent='BODY' 로 [119 전화하기]를 띄우게 한다(11/19, 그대로).
+ *   일기 기분 칩 4개(D75): 얼굴과 함께 2×2. 속상했어요·쓸쓸했어요는 한마디 알아 드린 뒤 보낸다(11/23 시안 MOOD_ACK).
+ *   버튼만(칩) 모드: 가족 설정 BUTTON·마이크 못 씀·STT 실패 2번 연속·[다시 말할게요] 2번 연속·STT 하루 상한 (FR-VS-006, D48).
+ *   끝까지 못 들려주면(자동 재생 막힘·전화벨) TAP: 카드에 '눌러서 들어 보세요' (D48).
  *   화면이 숨으면(전화·홈 버튼·화면 끔) 녹음·소리·타이머를 멈추고, 돌아오면 지금 질문부터 다시 읽는다. 30분이 넘었으면 끝낸다.
- *   뒤로 키(D52 ⑥): 화면을 떠나도 서버 대화는 마지막 턴 뒤 30분 살아 있다. 대화 번호를 기기에 적어 두고(lib/pausedSession),
- *   다시 열면(새로고침·홈의 '이어서') 서버가 준 지난 말(history)을 말풍선으로 보이고 그 질문부터 다시 읽는다. 끝나면 지운다.
+ *   이어서(D52 ⑥): 화면을 떠나도 서버 대화는 마지막 턴 뒤 30분 살아 있다. 대화 번호를 기기에 적어 두고(lib/pausedSession),
+ *   다시 열면(새로고침·홈의 '이어서') '아까 하던 이야기를 이어서 할게요.' 뒤에 그 질문부터 다시 읽는다. 끝나면 지운다.
  * 화면을 벗어나면(언마운트) alive=false 로 모든 후속 동작(타이머·재생·요청 뒤 처리)을 멈춘다.
- * 서버 STT/TTS 가 mock 이면 전사는 고정 문장, 읽기는 speechSynthesis — 흐름 확인용.
  */
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { AiOut, EndReason, SessionOut, SttOut, TurnIn, TurnOut } from '../../api/types'
+import type { AiOut, EndReason, SessionGetOut, SessionOut, SttOut, TurnIn, TurnOut } from '../../api/types'
 import { cue, PROMPT, say, startRecording, stopSpeaking, type Recorder } from '../../lib/audio'
-import { clearPaused, savePaused } from '../../lib/pausedSession'
+import { clearPaused, RESUME_LEAD, savePaused } from '../../lib/pausedSession'
+import ElderPhoto from '../ElderPhoto'
+import Sim, { type SimFace } from '../Sim'
 import './VoiceSession.css'
 
-type Phase = 'IDLE' | 'RECORDING' | 'TRANSCRIBING' | 'HEARD' | 'THINKING' | 'SPEAKING' | 'WAITING' | 'TAP' | 'ENDED'
-type Bubble = { id: number; who: 'AI' | 'ME'; text: string; b64?: string | null }
+type Phase = 'IDLE' | 'RECORDING' | 'TRANSCRIBING' | 'THINKING' | 'SPEAKING' | 'WAITING' | 'TAP' | 'OFFLINE' | 'ENDED'
 
 const RECORD_MS = 60_000
-const REDO_MS = 2_000 // 들은 말 옆 [다시] (D52 ③)
-const WAIT_MS = 20_000
+const READY_MS = 900 // [다 말했어요] 첫 0.9초는 무시 — [눌러서 말하기]를 두 번 톡톡 누르면 바로 끝나지 않게 (시안)
+// 이보다 짧은 녹음은 STT 에 보내지 않고 '잘 못 들었어요'. 시안은 2초 — '네' 한마디(누르고 말하고 누르기 약 1.5초)는 받으려고 줄였다
+const SHORT_MS = 1_500
+const NUDGE_MS = 10_000 // 말할 차례에 아무것도 안 누르면 소리로 다시 안내 (시안 10초·30초, 위 머리말)
+const WAIT_MS = 20_000 // 무응답 → 서버 NO_RESPONSE (그대로)
 const TYPE_MS = 120_000 // 글을 쓰는 동안은 무응답을 늦게 센다 (마지막으로 글자를 바꾼 뒤 2분)
-const SLOW_MS = 4_000
 const VERY_SLOW_MS = 8_000
 const GIVE_UP_MS = 15_000
 const RESUME_MS = 30 * 60_000 // 서버 SESSION_RESUME_MIN — 넘으면 서버가 이미 끝낸 대화
-const MAX_RETRY = 2 // [다시] 연속 (FR-VS-006 '2회 연속' — 답을 보내면 0)
+const MAX_RETRY = 2 // [다시 말할게요] 연속 (FR-VS-006 '2회 연속' — 답을 보내면 0)
 const MAX_STT_FAIL = 2 // /api/stt 실패 연속 (장애·말소리 없음·시간 초과·망 오류 — 전사되면 0)
 const MAX_TEXT = 500 // 서버 TurnIn.text 상한
+const YES_CHIP = '맞아요'
 const REDO_CHIP = '다시 말할게요' // 서버 확인 질문의 칩(coach.CONFIRM_SUGGESTIONS) — 말할 수 있으면 보내지 않고 바로 녹음
 const DEFAULT_CHIPS = ['네', '잘 모르겠어요'] // 모델 칩이 모자랄 때 (FR-VS-003)
 const MAX_CHIPS = 2 // 추천 답변은 늘 2개 (11/12 사용자, D52 ④). 서버는 그대로 3개까지 줄 수 있다
+const NUDGE = "말씀하시려면 아래 큰 '눌러서 말하기' 버튼을 눌러 주세요." // 11/23 시안 — 색 이름은 안 씀
+const OFFLINE = '연결이 잠깐 끊겼어요. 하신 말씀은 그대로 있어요.' // 11/23 시안
+// 일기 기분 칩 (D75, 서버 coach 의 기분 질문 칩) → 얼굴 · 속상·쓸쓸은 보내기 전에 한마디 (11/23 시안)
+const MOODS: Record<string, { face: string; ack?: string }> = {
+  좋았어요: { face: '😊' },
+  '그저 그랬어요': { face: '😐' },
+  속상했어요: { face: '😢', ack: '속상하셨군요. 말씀해 주셔서 고마워요.' },
+  쓸쓸했어요: { face: '😔', ack: '쓸쓸하셨군요. 말씀해 주셔서 고마워요.' },
+}
 
 const ERROR_AI: AiOut = {
   text: PROMPT.error,
@@ -55,27 +78,27 @@ const ERROR_AI: AiOut = {
 const ICONS = {
   mic: (
     <>
-      <rect x="9" y="2.5" width="6" height="11.5" rx="3" />
-      <path d="M5 11a7 7 0 0 0 14 0M12 18v3.5" />
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
     </>
   ),
-  stop: <rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor" />,
+  stop: <rect x="6" y="6" width="12" height="12" rx="3" fill="currentColor" stroke="none" />,
   keyboard: (
     <>
       <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
-      <path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 14h8" />
+      <path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M7.5 14h9" />
     </>
   ),
   redo: (
     <>
-      <path d="M4.5 12a7.5 7.5 0 1 0 2.6-5.7" />
-      <path d="M4 4.5V9h4.5" />
+      <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4.5 9" />
+      <path d="M4.5 4.5V9H9" />
     </>
   ),
   spk: (
     <>
-      <path d="M4 9.5v5h3.2L12 18.5v-13L7.2 9.5z" />
-      <path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.3 6.3a8 8 0 0 1 0 11.4" />
+      <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" />
+      <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
     </>
   ),
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
@@ -107,50 +130,51 @@ function chipsFor(a: AiOut): string[] {
   for (const d of DEFAULT_CHIPS) if (two.length < MAX_CHIPS && !two.includes(d)) two.push(d)
   return two
 }
-
-const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
+const isMoodAsk = (a: AiOut) => a.suggestions.length > 3 && a.suggestions.every((s) => s in MOODS)
+const isConfirm = (a: AiOut) => a.question_type !== 'CLOSING' && a.suggestions.includes(REDO_CHIP)
 
 type Props = {
   sessionId: string
   initial: SessionOut
-  history?: TurnOut[] // 이어서 할 때 서버가 준 지난 말 (마지막 질문 포함)
+  history?: TurnOut[] // 서버에서 다시 읽은 대화(새로고침·'이어서')면 있다 — 첫 질문 앞에 '아까 하던 이야기를…'
   speed: number
   inputMode: 'VOICE' | 'BUTTON'
+  who: string // 어르신 호칭 — '할머니 말씀 듣는 중'
+  title: string // 화면 읽기용 제목 ('회상 대화'·'일기 대화')
+  photo?: { src: string; alt: string } // 없으면 사진 자리에 큰 심심이
   onEnded: (result: SessionOut) => void
-  endAction?: { label: string; onClick: () => void } // 끝난 뒤 아래 단추 (회상 '다 들었어요')
+  onDone: () => void // 끝난 뒤 [다 들었어요]·[조금 쉴게요]
+  onMore?: () => void // 끝난 뒤 [더 이야기할래요] (회상만)
   maxTurns?: number // 회상 4 (서버 MAX_TURNS, D79), 일기 3 (서버 DIARY_TURNS). 진행 숫자는 11/12 뺐다 — 받기만 함
 }
 
-export default function VoiceSession({ sessionId, initial, history, speed, inputMode, onEnded, endAction }: Props) {
-  const nextId = useRef(0)
-  // 지난 말풍선 (이어서). 마지막 질문은 시작할 때 present 가 새로 붙이므로 여기서는 뺀다
-  const [bubbles, setBubbles] = useState<Bubble[]>(() => {
-    const past = [...(history ?? [])]
-    if (past.at(-1)?.speaker === 'AI' && past.at(-1)?.text === initial.ai.text) past.pop()
-    return past.map((t) => ({ id: ++nextId.current, who: t.speaker === 'AI' ? 'AI' : 'ME', text: t.text }))
-  })
+export default function VoiceSession(props: Props) {
+  const { sessionId, initial, history, speed, inputMode, who, title, photo, onEnded, onDone, onMore } = props
+  const nav = useNavigate()
   const [phase, setPhase] = useState<Phase>('IDLE')
   const [ai, setAi] = useState<AiOut>(initial.ai)
+  const [closing, setClosing] = useState(initial.state === 'ENDED') // 지금 질문이 마무리 인사(서버가 끝낸 대화)
   const [locked, setLocked] = useState(initial.input_locked || inputMode === 'BUTTON')
-  const [note, setNote] = useState<string>()
-  const [left, setLeft] = useState(0) // 녹음 남은 초
+  const [note, setNote] = useState<string>() // 카드에 질문 대신 잠깐 보이는 말 (잘 못 들었어요·기분 한마디 등)
+  const [lead, setLead] = useState<string>() // 이어서 연 대화의 첫마디
+  const [me, setMe] = useState<string>() // 방금 보낸(들은) 내 말 — 생각하는 중·끊김·확인 질문에서만 보인다
   const [typing, setTyping] = useState(false)
   const [draft, setDraft] = useState('')
-  const [heardId, setHeardId] = useState<number>() // [다시] 를 보이는 내 말풍선
-  const [lastAiId, setLastAiId] = useState<number>()
-  const [urgent, setUrgent] = useState(initial.urgent) // 몸 위급으로 끝난 대화 — [119 전화하기] (11/19 응급)
-  const logRef = useRef<HTMLDivElement>(null)
+  const [urgent, setUrgent] = useState(initial.urgent) // 몸 위급 — [119 전화하기] (11/19 응급)
   const recorder = useRef<Recorder | null>(null)
-  const heard = useRef<{ id: number; r: SttOut } | null>(null) // [다시] 를 기다리는 들은 말
+  const recAt = useRef(0) // 녹음 시작 시각 (첫 0.9초·너무 짧은 녹음)
+  const lockedRef = useRef(locked) // 타이머 안에서 읽는 버튼만 모드
   const retries = useRef(0)
   const sttFails = useRef(0)
   const timers = useRef<number[]>([])
   const alive = useRef(false)
   const last = useRef(initial) // 지금 질문 — 자동 재생 막힘·돌아왔을 때 다시 읽는다
-  const seq = useRef(0) // 읽기·녹음 차례 번호: 화면이 숨거나 다시 읽으면 앞 차례의 뒤 처리를 버린다
+  const seq = useRef(0) // 읽기·녹음 차례 번호: 끼어들기·화면 숨김·다시 읽기면 앞 차례의 뒤 처리를 버린다
   const away = useRef(document.hidden) // 화면이 숨은 동안 (전화·홈 버튼·화면 끔)
   const awayAt = useRef(0)
   const sending = useRef(false) // /turns 응답을 기다리는 중 (두 번 보내지 않게)
+  const pending = useRef<TurnIn | null>(null) // 끊겼을 때 다시 보낼 답
+  const offline = useRef(false)
   const over = useRef(false) // 끝내는 중·끝남 — 뒤늦은 응답·복귀를 무시
   const lock = useRef<WakeLockSentinel | null>(null)
   const wantLock = useRef(false)
@@ -163,18 +187,9 @@ export default function VoiceSession({ sessionId, initial, history, speed, input
     timers.current.forEach(clearTimeout)
     timers.current = []
   }
-
-  function add(who: Bubble['who'], text: string, b64?: string | null) {
-    const id = ++nextId.current
-    setBubbles((xs) => [...xs, { id, who, text, b64 }])
-    return id
-  }
-  /** [다시] 를 기다리던 들은 말을 거둔다 (안 보낸 말이라 말풍선도 지운다) */
-  function dropHeard() {
-    const id = heard.current?.id
-    if (id !== undefined) setBubbles((xs) => xs.filter((x) => x.id !== id))
-    heard.current = null
-    setHeardId(undefined)
+  function setLock(on: boolean) {
+    lockedRef.current = on
+    setLocked(on)
   }
 
   /** 화면 켜 두기. 숨으면 브라우저가 풀고, 다시 기다릴 때 또 잡는다. 아무도 안 누르는 TAP·끝 화면에서는 놓는다 */
@@ -207,51 +222,46 @@ export default function VoiceSession({ sessionId, initial, history, speed, input
     return { ...initial, ai: aiOut, state: 'ENDED', end_reason, turn_no: last.current.turn_no }
   }
 
-  /** 화면이 정한 끝인사를 말풍선과 소리로 알리고 끝낸다 (FR-VS-004 'AI 말은 TTS 와 자막을 동시에'). */
+  /** 화면이 정한 끝인사를 카드와 소리로 알리고 끝낸다 (FR-VS-004 'AI 말은 TTS 와 자막을 동시에'). */
   async function sayBye(a: AiOut, reason: EndReason | null) {
     over.current = true
     clearTimers()
     setAi(a)
     setNote(undefined)
-    setPhase('ENDED')
-    setLastAiId(add('AI', a.text))
+    setLead(undefined)
+    setClosing(true)
+    setPhase('SPEAKING')
     if (alive.current && !away.current) await say(a.text, speed) // 늘 끝난다: mp3 가 3초 안에 안 나오면 기기 목소리(상한 15초)
     if (alive.current) endWith(ended(a, reason))
   }
 
-  /** 질문을 보이고 읽는다. fresh=false 면 같은 질문을 다시 읽기만 (돌아옴·눌러서 듣기·말풍선 누르기) */
-  async function present(r: SessionOut, fresh = true) {
+  /** 질문을 보이고 읽는다. fresh=false 면 같은 질문을 다시 읽기만 (돌아옴·카드 누르기). first = 이어서 연 대화의 첫마디 */
+  async function present(r: SessionOut, fresh = true, first?: string) {
     if (!alive.current || over.current) return
     const my = ++seq.current
-    clearTimers() // 다시 듣기: 기다리던 20초 무응답을 멈추고 다 읽은 뒤 새로 센다
+    clearTimers() // 다시 듣기: 기다리던 무응답을 멈추고 다 읽은 뒤 새로 센다
     last.current = r
     if (r.urgent) setUrgent(r.urgent) // 마무리 말을 읽는 동안에도 119 버튼이 바로 보이게
     setAi(r.ai)
-    setNote(undefined) // 4초 '조금만 기다려 주세요'·실패 안내는 새 질문에서 지운다 (남으면 어르신이 기다리기만 함)
-    if (fresh) setLastAiId(add('AI', r.ai.text, r.ai.audio_b64))
-    if (r.input_locked) setLocked(true)
+    setClosing(r.state === 'ENDED')
+    setNote(undefined)
+    if (fresh) {
+      setLead(first)
+      if (!isConfirm(r.ai)) setMe(undefined) // 지난 답은 다음 질문 밑에 남기지 않는다. 확인 질문은 들은 말을 크게 보인다
+    }
+    if (r.input_locked) setLock(true)
     if (away.current) return // 숨어 있으면 돌아와서 이 질문부터 읽는다
     setPhase('SPEAKING')
-    const heardIt = await say(r.ai.text, speed, r.ai.audio_b64)
+    let heardIt = first ? await say(first, speed) : true
+    if (!alive.current || over.current || my !== seq.current) return
+    if (heardIt) heardIt = await say(r.ai.text, speed, r.ai.audio_b64)
     if (!alive.current || over.current || my !== seq.current) return
     if (!heardIt) {
       wake(false) // 아무도 안 누르면 화면이 꺼지게
-      return setPhase('TAP') // 버튼을 누르면 그 터치로 다시 읽는다 (D48)
+      return setPhase('TAP') // 카드를 누르면 그 터치로 다시 읽는다 (D48)
     }
     if (r.state === 'ENDED') return endWith(r)
     startWaiting()
-  }
-
-  /** AI 말풍선을 누르면 그 말을 다시 읽는다. 지금 질문이면 present 와 같다 (D51 ⑥ 다시 듣기) */
-  async function replay(b: Bubble) {
-    if (over.current) return void say(b.text, speed, b.b64) // 끝난 뒤에도 다시 들을 수 있다
-    if (phase !== 'WAITING' && phase !== 'TAP') return
-    if (b.id === lastAiId) return present(last.current, false)
-    const my = ++seq.current
-    clearTimers()
-    setPhase('SPEAKING')
-    await say(b.text, speed, b.b64)
-    if (alive.current && !over.current && my === seq.current) startWaiting()
   }
 
   function startWaiting() {
@@ -259,42 +269,59 @@ export default function VoiceSession({ sessionId, initial, history, speed, input
     clearTimers()
     setPhase('WAITING')
     wake(true)
+    const a = last.current.ai
+    if (!lockedRef.current && !isMoodAsk(a) && !isConfirm(a)) later(NUDGE_MS, () => void say(NUDGE, speed))
     later(WAIT_MS, () => sendTurn({ input_type: 'BUTTON', event: 'NO_RESPONSE' }))
+  }
+
+  /** 카드에 잠깐 보이고 읽어 준다. 다 읽으면 카드는 다시 질문으로 */
+  function tell(msg: string) {
+    setNote(msg)
+    void say(msg, speed).then(() => alive.current && setNote((n) => (n === msg ? undefined : n)))
   }
 
   /** 이 대화는 버튼(칩)만 — 까닭을 글·소리로 알리고 기다린다 (FR-VS-006). */
   function buttonsOnly(msg: string) {
-    setLocked(true)
-    setNote(msg)
-    void say(msg, speed) // 기다리지 않는다: 칩을 누르면 바로 보낸다
+    setLock(true)
+    tell(msg) // 기다리지 않는다: 칩을 누르면 바로 보낸다
     startWaiting()
   }
 
-  /** 칩·글로 쓴 답: 내 말풍선을 붙이고 바로 보낸다 ([다시] 없음) */
+  /** 칩·글로 쓴 답을 바로 보낸다 */
   function answer(text: string, input_type: TurnIn['input_type']) {
-    if (!alive.current || over.current || sending.current) return // 두 번 눌러도 말풍선·전송은 한 번
-    add('ME', text)
+    if (!alive.current || over.current || sending.current) return // 두 번 눌러도 전송은 한 번
+    setMe(text)
     void sendTurn({ text, input_type })
   }
 
-  function onChip(c: string) {
-    if (phase !== 'WAITING') return
+  async function onChip(c: string) {
+    if (!canAnswer) return
     if (c === REDO_CHIP && !locked) return redo() // 확인 질문에 '아니요' — 서버를 거치지 않고 바로 다시 말한다
-    answer(c, ai.choice_mode === 'TWO_BUTTONS' ? 'BUTTON' : 'CHIP')
+    const input = ai.choice_mode === 'TWO_BUTTONS' ? 'BUTTON' : 'CHIP'
+    const ack = isMoodAsk(ai) ? MOODS[c]?.ack : undefined
+    if (!ack) return answer(c, input)
+    if (note === ack) return // 같은 기분을 또 누름 — 한마디를 읽는 중
+    // 속상·쓸쓸: 한마디 알아 드린 뒤 보낸다. 읽는 동안 다른 기분을 누르면 그것으로 바뀐다
+    const my = ++seq.current
+    clearTimers()
+    setNote(ack)
+    setPhase('SPEAKING')
+    await say(ack, speed)
+    if (!alive.current || over.current || my !== seq.current) return
+    answer(c, input)
   }
 
   async function sendTurn(body: TurnIn) {
     if (!alive.current || over.current || sending.current) return // 타이머와 터치가 겹쳐도 한 번만
     sending.current = true
+    seq.current += 1 // 끼어들기: 읽던 질문의 뒤 처리(기다리기 시작)를 버린다
     clearTimers()
-    stopSpeaking() // 안내를 읽는 중에 답했으면 끊는다
+    stopSpeaking() // 질문·안내를 읽는 중에 답했으면 끊는다
     setNote(undefined)
-    setHeardId(undefined)
-    heard.current = null
     setTyping(false)
     setPhase('THINKING')
-    if (body.text) retries.current = 0 // 답을 보냈으면 [다시] 연속이 끊긴다
-    later(SLOW_MS, () => setNote('조금만 기다려 주세요.'))
+    pending.current = body
+    if (body.text) retries.current = 0 // 답을 보냈으면 [다시 말할게요] 연속이 끊긴다
     later(VERY_SLOW_MS, () => void say(PROMPT.slow, speed)) // 고정 안내도 서버와 같은 목소리 mp3 (D48)
     const ctrl = new AbortController()
     const giveUp = window.setTimeout(() => ctrl.abort(), GIVE_UP_MS) // 화면이 숨어도 포기는 하도록 timers 와 따로
@@ -311,35 +338,64 @@ export default function VoiceSession({ sessionId, initial, history, speed, input
     if (!alive.current || over.current) return
     if (r) {
       stopSpeaking() // 8초 안내 낭독 중이었으면 끊고 답을 읽는다
+      pending.current = null
       if (r.state !== 'ENDED') savePaused({ id: sessionId, kind: initial.kind, at: Date.now() }) // 30분은 마지막 턴부터
       return present(r)
     }
     if (err instanceof ApiError && err.code === 'INPUT_LOCKED') return buttonsOnly(PROMPT.buttons)
     // 이미 끝난 대화(30분 지남·다른 곳에서 끝냄)는 오류가 아니다: 서버에 남은 종료 사유로 인사하고 끝낸다
     if (err instanceof ApiError && err.code === 'SESSION_ENDED') return finish('NO_RESPONSE', PROMPT.thanks)
-    // 15초 초과·네트워크 오류: 서버에 ERROR 로 끝내 달라고 한다 (하루 3회면 서버가 가족에게 알림).
-    // 응답만 잃고 서버는 이미 끝냈을 수 있다(마지막 답 → COMPLETED·LIMIT). 그때는 서버가 돌려준 종료 사유를 따른다
-    // — 일기는 COMPLETED 여야 확인 화면으로 가서 남는다.
-    over.current = true
+    // 15초 초과·망 오류(11/23 바꿈): 예전처럼 /end ERROR 로 끝내지 않는다 — 한 말은 서버에 그대로 있고, 다시 이어 갈 수 있다
+    goOffline()
+  }
+
+  function goOffline() {
+    offline.current = true
+    seq.current += 1
+    clearTimers()
     stopSpeaking()
+    wake(false)
     setNote(undefined)
-    setPhase('ENDED')
-    const end = await api<{ end_reason: EndReason | null }>(`/api/elder/sessions/${sessionId}/end`, {
-      body: { reason: 'ERROR' },
-      signal: AbortSignal.timeout(5_000), // 망이 죽었으면 오래 매달리지 않는다
-    }).catch(() => null)
-    if (!alive.current) return
-    if (end?.end_reason === 'COMPLETED' || end?.end_reason === 'LIMIT') {
-      return sayBye({ ...ERROR_AI, text: PROMPT.thanks }, end.end_reason)
+    setPhase('OFFLINE')
+    if (!away.current) void say(OFFLINE, speed)
+  }
+
+  /** [다시 연결하기]: 서버 대화를 먼저 읽는다. 답이 이미 들어갔으면(응답만 잃음) 그 뒤 질문을, 아니면 같은 답을 다시 보낸다 */
+  async function reconnect() {
+    if (!offline.current) return
+    offline.current = false
+    stopSpeaking()
+    setPhase('THINKING')
+    let s: SessionGetOut
+    try {
+      s = await api<SessionGetOut>(`/api/elder/sessions/${sessionId}`, { signal: AbortSignal.timeout(GIVE_UP_MS) })
+    } catch {
+      if (alive.current && !over.current) goOffline()
+      return
     }
-    return sayBye(ERROR_AI, 'ERROR')
+    if (!alive.current || over.current) return
+    if (!s.last_ai) return goOffline() // 질문이 없는 대화 — 일어나지 않지만, 버튼은 남긴다
+    const body = pending.current
+    if (s.state === 'ENDED' || s.turn_no !== last.current.turn_no || !body) {
+      pending.current = null
+      const { session_id, kind, photo_url, state, end_reason, turn_no, input_locked } = s
+      return present({ session_id, kind, photo_url, ai: s.last_ai, state, end_reason, turn_no, input_locked })
+    }
+    void sendTurn(body)
+  }
+
+  /** [나중에 할게요]: 대화를 끝내지 않고 홈으로. 대화 번호는 기기에 남아 홈에서 '이어서' (30분 안) */
+  function pauseForLater() {
+    stopSpeaking()
+    nav('/elder', { replace: true })
   }
 
   async function beginRecording() {
     clearTimers()
-    stopSpeaking()
+    stopSpeaking() // 끼어들기: 읽던 질문을 멈춘다
     setNote(undefined) // '잘 못 들었어요' 안내가 녹음 중에 남지 않게
-    setPhase('IDLE') // 마이크 준비 동안 [말하기]를 꺼서 녹음 두 번 시작·칩 동시 전송을 막는다
+    setTyping(false)
+    setPhase('IDLE') // 마이크 준비 동안 버튼을 꺼서 녹음 두 번 시작·칩 동시 전송을 막는다
     const my = ++seq.current
     let rec: Recorder
     try {
@@ -354,14 +410,15 @@ export default function VoiceSession({ sessionId, initial, history, speed, input
     }
     recorder.current = rec
     cue() // 지금부터 듣는다는 신호 — 준비 중에 한 말은 녹음되지 않는다 (FR-VS-001)
+    recAt.current = Date.now()
     setPhase('RECORDING')
-    const endAt = Date.now() + RECORD_MS
-    const tick = () => {
-      setLeft(Math.max(0, Math.ceil((endAt - Date.now()) / 1000)))
-      later(1_000, tick)
-    }
-    tick()
     later(RECORD_MS, finishRecording)
+  }
+
+  /** [다 말했어요] — 첫 0.9초는 무시 */
+  function stopTap() {
+    if (Date.now() - recAt.current < READY_MS) return
+    void finishRecording()
   }
 
   async function finishRecording() {
@@ -370,8 +427,22 @@ export default function VoiceSession({ sessionId, initial, history, speed, input
     recorder.current = null
     if (!rec) return
     const my = seq.current
+    if (Date.now() - recAt.current < SHORT_MS) {
+      // 너무 짧음 — 말을 못 담았다. STT 를 부르지 않고(실패로 세지 않음) 같은 질문에 다시 말하게 한다
+      rec.stop().catch(() => {})
+      tell(PROMPT.notHeard)
+      return startWaiting()
+    }
     setPhase('TRANSCRIBING')
-    const blob = await rec.stop()
+    let blob: Blob
+    try {
+      blob = await rec.stop()
+    } catch {
+      // 녹음기가 멈추다 실패 — '듣는 중'에 멈춰 있지 않게 같은 질문에 다시 말하게 한다
+      if (!alive.current || my !== seq.current) return
+      tell(PROMPT.notHeard)
+      return startWaiting()
+    }
     if (!alive.current || my !== seq.current) return
     const form = new FormData()
     form.append('audio', blob, 'speech.webm')
@@ -379,12 +450,9 @@ export default function VoiceSession({ sessionId, initial, history, speed, input
       const r = await api<SttOut>('/api/stt', { form, signal: AbortSignal.timeout(GIVE_UP_MS) }) // 망이 멈춰도 15초면 다시 말하기로
       if (!alive.current || my !== seq.current) return
       sttFails.current = 0
-      // 들은 말 = 내 말풍선 + [다시] 2초. 안 누르면 보낸다. 신뢰도가 낮으면 서버가 확인 질문을 준다 (D52 ③)
-      const id = add('ME', r.transcript)
-      heard.current = { id, r }
-      setHeardId(id)
-      setPhase('HEARD')
-      later(REDO_MS, () => sendTurn({ text: r.transcript, input_type: 'VOICE', stt_confidence: r.confidence }))
+      // 들은 말을 바로 보낸다. 신뢰도가 낮으면 서버가 확인 질문을 준다 (D52 ③)
+      setMe(r.transcript)
+      void sendTurn({ text: r.transcript, input_type: 'VOICE', stt_confidence: r.confidence })
     } catch (e) {
       if (!alive.current || my !== seq.current) return
       // 429(분당·하루 상한)는 서버 문장을 읽는다. 하루 상한이면 이 대화는 버튼만 (D46)
@@ -392,40 +460,55 @@ export default function VoiceSession({ sessionId, initial, history, speed, input
       sttFails.current += 1
       if (e instanceof ApiError && e.code === 'STT_DAILY_LIMIT') return buttonsOnly(e.message)
       if (sttFails.current >= MAX_STT_FAIL) return buttonsOnly(PROMPT.buttons)
-      const msg = e instanceof ApiError && e.status === 429 ? e.message : PROMPT.notHeard
-      setNote(msg)
-      void say(msg, speed) // 기다리지 않는다: [말하기]를 누르면 녹음 전에 stopSpeaking 이 끊는다
+      tell(e instanceof ApiError && e.status === 429 ? e.message : PROMPT.notHeard)
       startWaiting()
     }
   }
 
-  /** [다시] (들은 말 옆) · 확인 질문의 [다시 말할게요]: 들은 말을 버리고 바로 다시 녹음. 2번 연속이면 버튼만 */
+  /** 확인 질문의 [다시 말할게요]: 들은 말을 버리고 바로 다시 녹음. 2번 연속이면 버튼만 */
   function redo() {
     clearTimers()
-    dropHeard()
+    setMe(undefined)
     retries.current += 1
     if (retries.current >= MAX_RETRY) return buttonsOnly(PROMPT.buttons)
     void beginRecording()
   }
 
-  /** 글로 쓰기 (D52 ⑤). 쓰는 동안은 20초 대신 마지막으로 고친 뒤 2분이 지나야 무응답 */
+  /** 글자로 (D52 ⑤). 쓰는 동안은 20초 대신 마지막으로 고친 뒤 2분이 지나야 무응답 */
   function typeTimer() {
     clearTimers()
     later(TYPE_MS, () => sendTurn({ input_type: 'BUTTON', event: 'NO_RESPONSE' }))
   }
   function openTyping() {
-    if (phase !== 'WAITING') return
+    if (!canAnswer) return
+    seq.current += 1 // 읽던 질문의 뒤 처리(20초 무응답 시작)를 버린다
     stopSpeaking()
+    setPhase('WAITING')
     setTyping(true)
     typeTimer()
+  }
+  function closeTyping() {
+    setTyping(false)
+    setDraft('')
+    startWaiting()
   }
   function submitTyping(e: FormEvent) {
     e.preventDefault()
     const text = draft.trim().slice(0, MAX_TEXT)
+    if (!text) return // 쓴 말이 없으면 판을 그대로 둔다
     setDraft('')
     setTyping(false)
-    if (text) answer(text, 'TEXT') // 직접 쓴 글은 [다시] 없이 바로 보낸다
-    else startWaiting()
+    answer(text, 'TEXT') // 직접 쓴 글은 확인 없이 바로 보낸다
+  }
+
+  /** 카드 누르기 = 다시 듣기 (D51 ⑥). 듣는 중에는 안 눌린다 */
+  function replayCard() {
+    if (over.current || phase === 'ENDED') return void say(line, speed, line === ai.text ? ai.audio_b64 : null)
+    if (phase === 'WAITING' || phase === 'TAP' || phase === 'SPEAKING') {
+      if (typing) return void say(ai.text, speed, ai.audio_b64)
+      return void present(last.current, false)
+    }
+    if (phase === 'THINKING' || phase === 'OFFLINE') void say(line, speed)
   }
 
   /** 화면이 대화를 끝낸다: 서버에 알리고(5초까지) 끝인사. 30분 넘게 떠났다 돌아옴 · 이미 끝난 대화 */
@@ -434,7 +517,7 @@ export default function VoiceSession({ sessionId, initial, history, speed, input
     clearTimers()
     stopSpeaking()
     setNote(undefined)
-    setPhase('ENDED') // 응답을 기다리는 동안 다른 버튼이 눌리지 않게
+    setPhase('THINKING') // 응답을 기다리는 동안 다른 버튼이 눌리지 않게
     const rec = recorder.current
     recorder.current = null
     if (rec) await rec.stop().catch(() => {})
@@ -446,7 +529,7 @@ export default function VoiceSession({ sessionId, initial, history, speed, input
     return sayBye({ ...ERROR_AI, text }, r?.end_reason ?? reason)
   }
 
-  /** 화면이 숨으면(전화·홈 버튼·화면 끔) 녹음·소리·타이머를 멈춘다. 하던 녹음·안 보낸 들은 말은 버린다 (FR-VS-004). */
+  /** 화면이 숨으면(전화·홈 버튼·화면 끔) 녹음·소리·타이머를 멈춘다. 하던 녹음은 버린다 (FR-VS-004). */
   function leave() {
     if (away.current) return
     away.current = true
@@ -457,14 +540,14 @@ export default function VoiceSession({ sessionId, initial, history, speed, input
     clearTimers()
     recorder.current?.stop().catch(() => {})
     recorder.current = null
-    dropHeard()
+    setTyping(false)
   }
 
-  /** 돌아오면 지금 질문부터 다시 읽는다. 답을 보내는 중이었으면 응답이 와서 읽는다. 30분이 넘었으면 끝낸다(공통 기준: 넘으면 홈). */
+  /** 돌아오면 지금 질문부터 다시 읽는다. 답을 보내는 중·끊김이면 그대로. 30분이 넘었으면 끝낸다(공통 기준: 넘으면 홈). */
   function comeBack() {
     if (!away.current) return
     away.current = false
-    if (over.current || sending.current) return
+    if (over.current || sending.current || offline.current) return
     if (Date.now() - awayAt.current > RESUME_MS) return void finish('NO_RESPONSE', PROMPT.thanks)
     void present(last.current, false)
   }
@@ -474,7 +557,7 @@ export default function VoiceSession({ sessionId, initial, history, speed, input
     awayAt.current = Date.now() // 숨은 채로 열렸으면 이때부터 센다 (0 이면 돌아오자마자 '30분 지남'으로 끝남)
     if (initial.state !== 'ENDED') savePaused({ id: sessionId, kind: initial.kind, at: Date.now() })
     // 한 틱 미뤄 시작: StrictMode 의 가짜 언마운트가 이 타이머를 지워서 첫 질문은 한 번만 읽힌다
-    const start = window.setTimeout(() => present(initial), 0)
+    const start = window.setTimeout(() => present(initial, true, history ? RESUME_LEAD : undefined), 0)
     const onShow = () => (document.hidden ? leave() : comeBack())
     document.addEventListener('visibilitychange', onShow)
     return () => {
@@ -491,144 +574,270 @@ export default function VoiceSession({ sessionId, initial, history, speed, input
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 말이 붙으면 말풍선 칸만 맨 아래로 (화면·버튼은 그대로, D52 ①)
-  useEffect(() => {
-    const el = logRef.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [bubbles, phase, note])
+  const mood = isMoodAsk(ai)
+  const confirm = isConfirm(ai)
+  const care = !!ai.care
+  // 말하는 중에도 답할 수 있다(끼어들기). 마무리 인사·끊김·생각하는 중에는 안 된다
+  const canAnswer = (phase === 'WAITING' || phase === 'SPEAKING' || phase === 'TAP') && !closing
+  const line = phase === 'OFFLINE' ? OFFLINE : (note ?? (lead ? `${lead} ${ai.text}` : ai.text))
 
-  const chips = phase === 'ENDED' ? [] : chipsFor(ai)
-  const canAnswer = phase === 'WAITING' && !typing
+  // 심심이 표정 (시안 talkHtml pose). 위로 중에는 웃는 얼굴만 — 손 흔들기·엄지는 쓰지 않는다
+  const face: SimFace =
+    phase === 'RECORDING' || phase === 'IDLE'
+      ? 'curious'
+      : phase === 'THINKING' || phase === 'TRANSCRIBING' || phase === 'OFFLINE'
+        ? 'ask'
+        : phase === 'SPEAKING' || care
+          ? 'smile'
+          : phase === 'ENDED'
+            ? 'thumbs'
+            : confirm
+              ? 'curious'
+              : 'hello'
 
-  let talk: ReactNode
-  if (phase === 'ENDED') {
-    talk = endAction && (
-      <button className="vs-talk" onClick={endAction.onClick}>
-        <Icon name="check" />
-        {endAction.label}
-      </button>
+  let status: ReactNode
+  if (phase === 'RECORDING')
+    status = (
+      <span className="vs-status vs-status--rec">
+        <i className="vs-recdot" />
+        {who} 말씀 듣는 중
+      </span>
     )
-  } else if (phase === 'TAP') {
-    talk = (
-      <button className="vs-talk" onClick={() => present(last.current, false)}>
+  else if (phase === 'THINKING' || phase === 'TRANSCRIBING')
+    status = (
+      <span className="vs-status">
+        심심이가 생각하는 중
+        <span className="vs-dots" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>
+      </span>
+    )
+  else if (phase === 'SPEAKING')
+    status = (
+      <span className="vs-status">
+        <span className="vs-bars" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+          <i />
+        </span>
+        심심이가 말하는 중
+      </span>
+    )
+  else if (phase === 'OFFLINE')
+    status = (
+      <span className="vs-status">
+        <Icon name="redo" />
+        잠깐 끊겼어요
+      </span>
+    )
+  else if (phase === 'TAP')
+    status = (
+      <span className="vs-status">
+        <Icon name="spk" />
         눌러서 들어 보세요
-      </button>
+      </span>
     )
-  } else if (phase === 'RECORDING') {
-    // 처음 1초는 끔: [말하기]를 두 번 톡톡 누르면 빈 녹음이 STT 실패로 세어진다
-    talk = (
-      <button className="vs-talk vs-rec" onClick={finishRecording} disabled={left >= RECORD_MS / 1000}>
-        <Icon name="stop" />
-        다 말했어요 <small>{mmss(left)}</small>
-      </button>
+  else if (phase === 'IDLE') status = <span className="vs-status">잠깐만요</span>
+  else if (phase === 'ENDED' || closing) status = <span className="vs-status">꼬마심심이</span>
+  else if (confirm) status = <span className="vs-status">이렇게 들었어요</span>
+  else if (mood || locked) status = <span className="vs-status">골라 주세요</span>
+  else
+    status = (
+      <span className="vs-status">
+        <Icon name="mic" />
+        말씀하실 차례예요
+      </span>
     )
-  } else if (locked) {
-    // 버튼만 모드: 칩이 답이고, 글로 쓰기는 남긴다 (말을 못 하는 상황용, D52 ⑤)
-    talk = (
-      <button className="vs-talk vs-ghost" onClick={openTyping} disabled={phase !== 'WAITING'}>
-        <Icon name="keyboard" />
-        글로 쓰기
-      </button>
+
+  let dock: ReactNode
+  if (phase === 'OFFLINE') {
+    dock = (
+      <div className="vs-row">
+        <button type="button" className="vs-key vs-key--p vs-wide" onClick={() => void reconnect()}>
+          <span className="vs-dot">
+            <Icon name="redo" />
+          </span>
+          다시 연결하기
+        </button>
+        <button type="button" className="vs-key" onClick={pauseForLater}>
+          나중에 할게요
+        </button>
+      </div>
+    )
+  } else if (closing) {
+    const done = phase === 'ENDED'
+    dock = (
+      <>
+        <button type="button" className="vs-key vs-key--p" onClick={onDone} disabled={!done}>
+          <span className="vs-dot">
+            <Icon name="check" />
+          </span>
+          {care ? '조금 쉴게요' : '다 들었어요'}
+        </button>
+        {onMore && (
+          <button type="button" className="vs-key" onClick={onMore} disabled={!done}>
+            더 이야기할래요
+          </button>
+        )}
+      </>
+    )
+  } else if (confirm) {
+    dock = (
+      <>
+        {me && <p className="vs-heard">“{me}”</p>}
+        <div className="vs-row">
+          <button type="button" className="vs-key vs-key--p vs-wide" onClick={() => void onChip(YES_CHIP)} disabled={!canAnswer}>
+            <span className="vs-dot">
+              <Icon name="check" />
+            </span>
+            맞아요
+          </button>
+          <button type="button" className="vs-key" onClick={() => void onChip(REDO_CHIP)} disabled={!canAnswer}>
+            다시 말할게요
+          </button>
+        </div>
+      </>
+    )
+  } else if (mood) {
+    dock = (
+      <div className="vs-moods">
+        {chipsFor(ai).map((c) => (
+          <button key={c} type="button" className="vs-key" onClick={() => void onChip(c)} disabled={!canAnswer}>
+            <span className="vs-face" aria-hidden="true">
+              {MOODS[c].face}
+            </span>
+            {c}
+          </button>
+        ))}
+      </div>
     )
   } else {
-    talk = (
+    // 답 버튼 줄은 늘 그 자리에 — 사진 크기가 들썩이지 않게 (시안)
+    dock = (
       <>
-        <button className="vs-talk" onClick={beginRecording} disabled={phase !== 'WAITING'}>
-          {phase === 'WAITING' ? (
-            <>
-              <Icon name="mic" />
-              말하기
-            </>
-          ) : phase === 'SPEAKING' ? (
-            '말하는 중…'
+        <div className="vs-row">
+          {chipsFor(ai).map((c) => (
+            <button key={c} type="button" className="vs-key vs-chip" onClick={() => void onChip(c)} disabled={!canAnswer}>
+              {c}
+            </button>
+          ))}
+        </div>
+        <div className="vs-row">
+          {phase === 'RECORDING' ? (
+            // 듣는 중: 노랑 그대로 + 빨간 점. 남은 시간 숫자는 없다 (60초면 저절로 끝남)
+            <button type="button" className="vs-key vs-key--p vs-rec" onClick={stopTap}>
+              <span className="vs-dot">
+                <Icon name="stop" />
+              </span>
+              다 말했어요
+              <span className="vs-bars" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+                <i />
+              </span>
+            </button>
+          ) : locked ? (
+            // 버튼만 모드: 칩이 답이고, 글자로는 남긴다 (말을 못 하는 상황용, D52 ⑤)
+            <button type="button" className="vs-key" onClick={openTyping} disabled={!canAnswer}>
+              <Icon name="keyboard" />
+              글자로
+            </button>
           ) : (
-            '잠깐만요…'
+            <>
+              <button
+                type="button"
+                className={`vs-key vs-key--p vs-talk${phase === 'WAITING' && !typing ? ' vs-nudge' : ''}`}
+                onClick={() => void beginRecording()}
+                disabled={!canAnswer}
+              >
+                <span className="vs-dot">
+                  <Icon name="mic" />
+                </span>
+                눌러서 말하기
+              </button>
+              <button type="button" className="vs-key vs-sq" onClick={openTyping} disabled={!canAnswer} aria-label="글자로 답하기">
+                <Icon name="keyboard" />
+                <span aria-hidden="true">글자로</span>
+              </button>
+            </>
           )}
-        </button>
-        <button className="vs-key" onClick={openTyping} disabled={phase !== 'WAITING'} aria-label="글로 쓰기">
-          <Icon name="keyboard" />
-        </button>
+        </div>
       </>
     )
   }
 
   return (
     <section className="vs">
-      <div className="vs-log" ref={logRef} aria-live="polite">
-        {bubbles.map((b) =>
-          b.who === 'AI' ? (
-            <button
-              key={b.id}
-              type="button"
-              className={`vs-msg vs-ai${b.id === lastAiId && phase === 'SPEAKING' ? ' vs-saying' : ''}`}
-              onClick={() => void replay(b)}
-            >
-              <span>{b.text}</span>
-              <Icon name="spk" />
-            </button>
-          ) : (
-            <div key={b.id} className="vs-me-row">
-              {b.id === heardId && (
-                <button type="button" className="vs-redo" onClick={redo}>
-                  <Icon name="redo" />
-                  다시
-                </button>
-              )}
-              <p className={`vs-msg vs-me${b.id === heardId ? ' vs-timing' : ''}`}>{b.text}</p>
-            </div>
-          ),
-        )}
-        {phase === 'RECORDING' && <p className="vs-note">듣고 있어요…</p>}
-        {(phase === 'THINKING' || phase === 'TRANSCRIBING') && (
-          <div className="vs-msg vs-ai vs-dots" role="status" aria-label="생각하고 있어요">
-            <i />
-            <i />
-            <i />
-          </div>
-        )}
-        {note && <p className="vs-note">{note}</p>}
-      </div>
-
-      {/* 칩은 기다릴 때만 보이고, 그 밖에는 자리만 남긴다 (손 밑에 다른 버튼이 오지 않게) */}
-      {chips.length > 0 && (
-        <div className="vs-chips" style={{ visibility: canAnswer ? 'visible' : 'hidden' }}>
-          {chips.map((c) => (
-            <button key={c} type="button" className="vs-chip" onClick={() => onChip(c)} disabled={!canAnswer}>
-              {c}
-            </button>
-          ))}
+      <h1 className="vs-sr">{title}</h1>
+      {photo ? (
+        <ElderPhoto className="vs-photo" src={photo.src} alt={photo.alt} />
+      ) : (
+        <div className="vs-hero">
+          <Sim face={face} size={150} />
         </div>
       )}
 
-      {/* 몸이 위급하다는 말로 끝난 대화 (11/19 응급): 전화 앱이 119 를 채운 채 열린다 — 거는 것은 어르신이 한 번 더 누른다 */}
-      {urgent === 'BODY' && (
-        <a className="vs-talk vs-rec vs-urgent" href="tel:119">
-          119 전화하기
-        </a>
-      )}
+      <button type="button" className={`vs-card vs-card--${phase.toLowerCase()}`} onClick={replayCard} disabled={phase === 'RECORDING'}>
+        <span className="vs-who">
+          {photo && <Sim face={face} size={48} />}
+          {status}
+        </span>
+        <span className="vs-line" aria-live="polite">
+          {line}
+        </span>
+        <span className="vs-again">
+          <Icon name="spk" />
+          다시 듣기
+        </span>
+      </button>
 
-      {typing ? (
-        <form className="vs-type" onSubmit={submitTyping}>
-          <input
-            autoFocus
-            type="text"
-            enterKeyHint="send"
-            autoComplete="off"
-            maxLength={MAX_TEXT}
-            placeholder="여기에 써 주세요"
-            aria-label="글로 답하기"
-            value={draft}
-            onChange={(e) => {
-              setDraft(e.target.value)
-              typeTimer()
-            }}
-          />
-          <button type="submit" className="vs-talk">
-            보내기
-          </button>
-        </form>
-      ) : (
-        <div className="vs-say">{talk}</div>
+      {me && !confirm && (phase === 'THINKING' || phase === 'OFFLINE') && <p className="vs-me">{me}</p>}
+
+      <div className="vs-dock">
+        {/* 몸이 위급하다는 말 (11/19 응급): 전화 앱이 119 를 채운 채 열린다 — 거는 것은 어르신이 한 번 더 누른다 */}
+        {urgent === 'BODY' && (
+          <a className="vs-key vs-urgent" href="tel:119">
+            119 전화하기
+          </a>
+        )}
+        {dock}
+      </div>
+
+      {typing && (
+        <>
+          <div className="vs-scrim" onClick={closeTyping} />
+          {/* 자판이 아래를 가리므로 판은 화면 위쪽에, [보내기]는 칸 바로 옆에 (11/23 시안) */}
+          <form className="vs-sheet" role="dialog" aria-modal="true" aria-label="글자로 답하기" onSubmit={submitTyping}>
+            <h2>글자로 답하기</h2>
+            <div className="vs-row">
+              <input
+                autoFocus
+                className="vs-field"
+                type="text"
+                enterKeyHint="send"
+                autoComplete="off"
+                maxLength={MAX_TEXT}
+                placeholder="여기에 써 주세요"
+                aria-label="글자로 답하기"
+                value={draft}
+                onChange={(e) => {
+                  setDraft(e.target.value)
+                  typeTimer()
+                }}
+              />
+              <button type="submit" className="vs-key vs-key--p vs-send">
+                보내기
+              </button>
+            </div>
+            <button type="button" className="vs-key" onClick={closeTyping}>
+              말로 할게요
+            </button>
+          </form>
+        </>
       )}
     </section>
   )

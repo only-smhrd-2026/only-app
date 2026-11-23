@@ -1,58 +1,91 @@
 /*
- * 어르신 화면 규격 (D51, 11/12 멘토링 반영): 기본 글자 24px(L=22·XL=24·XXL=28), 긴 글 22px.
- * 결정 버튼 높이 88px, 대비 7:1. 색·크기는 이 파일의 변수와 공통 클래스로만 쓴다.
- * 글자 크기는 <html data-font="L|XL|XXL"> 로 바꾼다 (ELDER_HOME_001 이 서버 설정으로 지정).
+ * 어르신 화면 규격 (11/23 시안 옮기기 — D51 의 보라·88px 를 바꿈, 시안 설계자료/목업_1120/src/style.css 그대로).
+ * 색: 꿀 노랑 + 크림 바탕 + 코코아 글자(꼬마심심이 색). 으뜸 버튼 = 노랑 그라데이션(brand-hi→brand) + 코코아 글자 + lip 테두리·턱 그림자,
+ * 버금 버튼 = 흰 카드 + edge 테두리 1.5px. 테두리는 누르는 것에만, 말풍선·카드는 그림자(sh1·sh2)만.
+ * 크기: 결정·말하기 버튼 76px · 답 버튼(칩) 56px · 작은 버튼 48px · 모서리 24px. 글자 Pretendard 600/700/800, 자간 -.015em.
+ * 글자 크기 단계는 <html data-font="L|XL|XXL"> = 22·24(기본)·28px, 긴 글은 한 단계 작게 (lib/elderFont 가 서버 설정으로 건다).
+ * 색·크기는 이 파일의 변수(--elder-*)와 공통 클래스로만 쓴다. 가장자리 20 · 사이 12 (4의 배수).
  */
+@font-face { font-family: Pretendard; font-weight: 400; font-display: swap; src: url('/fonts/Pretendard-Regular.subset.woff2') format('woff2'); }
+@font-face { font-family: Pretendard; font-weight: 600; font-display: swap; src: url('/fonts/Pretendard-SemiBold.subset.woff2') format('woff2'); }
+@font-face { font-family: Pretendard; font-weight: 700; font-display: swap; src: url('/fonts/Pretendard-Bold.subset.woff2') format('woff2'); }
+@font-face { font-family: Pretendard; font-weight: 800; font-display: swap; src: url('/fonts/Pretendard-ExtraBold.subset.woff2') format('woff2'); }
+
 :root {
+  --elder-font: Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
   --elder-font-size: 24px;
   --elder-font-size-lg: 30px;
-  --elder-btn-height: 88px;
-  --elder-btn-font: 24px;
-  --elder-gap: 12px;
-  --elder-bg: #ffffff;
-  --elder-fg: #1f1b2e;
-  --elder-primary: #5b3fa8;     /* 흰 글자 대비 7.7:1 */
-  --elder-primary-fg: #ffffff;
-  --elder-radius: 20px;
   --elder-font-size-s: 22px;
   --elder-font-size-long: 22px;
-  --elder-pad: 16px;
-  --elder-edge-w: 2px;
-  --elder-bub-w: 2px;
-  --elder-line: #cfc8e6;
-  --elder-card: #ffffff;
-  --elder-danger: #a11b14;
-  --elder-off: #4a4a4a;
-  --elder-soft: #f4f1fb;
-  --elder-t1: #ece6fb;
-  --elder-t1e: #5b3fa8;
-  --elder-t2: #fde7ef;
-  --elder-t2e: #a8275f;
-  --elder-t3: #fff1cf;
-  --elder-t3e: #8a5a00;
-  --elder-t4: #e2f4e5;
-  --elder-t4e: #1f6b3a;
-  --elder-ai: #ffffff;
-  --elder-ai-e: #958ac2;        /* 누르는 말풍선·글 상자 테두리 — 흰 바탕 대비 3.1:1 (누를 수 있는 것의 테두리는 3:1 이상) */
-  --elder-me: #e7defa;
-  --elder-me-e: #5b3fa8;
-  --elder-me-f: #1f1b2e;
-  --elder-badge: #5b3fa8;
+  --elder-btn-height: 76px;      /* 결정·말하기 버튼 */
+  --elder-chip-height: 56px;     /* 답 버튼 */
+  --elder-sm-height: 48px;       /* 작은 버튼(지난 일기 보기·안 보낼래요) */
+  --elder-btn-font: 24px;
+  --elder-gap: 12px;
+  --elder-pad: 20px;
+  --elder-radius: 24px;
+  --elder-edge-w: 1.5px;
+  --elder-bub-w: 0px;            /* 말풍선은 테두리 없이 그림자만 */
+  /* 색 — 꼬마심심이: 몸의 꿀 노랑 · 눈과 입의 코코아 · 잎의 초록. 바탕은 옅은 크림, 카드는 흰색 */
+  --elder-bg: #f7f3ec;
+  --elder-bg2: #eee8de;
+  --elder-card: #ffffff;         /* = 시안 surf */
+  --elder-fg: #2a1b10;           /* = 시안 ink. 크림 바탕 대비 15:1 */
+  --elder-ink2: #5a4838;
+  --elder-ink3: #74645a;
+  --elder-line: #e7ded1;
+  --elder-edge: #9b8a77;         /* 누르는 것의 테두리 */
+  --elder-primary: #ffc83d;      /* = 시안 brand */
+  --elder-brand-hi: #ffdc78;
+  --elder-primary-fg: #2a1b10;   /* = 시안 on-brand. 노랑 위 코코아 11:1 */
+  --elder-lip: #b87c00;
+  --elder-soft: #fff1c2;
+  --elder-acc: #6b4700;
+  --elder-dot: #ffffff;
+  --elder-glow: #ffe9a8;
+  --elder-danger: #a61b13;       /* = 시안 rec (녹음 점·배지) */
+  --elder-rec-soft: #fce8e6;
+  --elder-rec-ink: #7a120c;
+  --elder-ok: #2f6b2a;
+  --elder-off: #5a4838;          /* 못 누르는 버튼 글자 */
+  --elder-t1: #fff1c2;
+  --elder-t1e: #8a5a12;
+  --elder-t2: #ffe3d8;
+  --elder-t2e: #9a3b1f;
+  --elder-t3: #e2f1d4;
+  --elder-t3e: #3a6a22;
+  --elder-t4: #ddebf7;
+  --elder-t4e: #2a5f8c;
+  --elder-ai: #ffffff;           /* 심심이 말풍선 */
+  --elder-ai-e: #e7ded1;
+  --elder-me: #fff1c2;           /* 내 말 */
+  --elder-me-e: #b87c00;
+  --elder-me-f: #2a1b10;
+  --elder-badge: #a61b13;
   --elder-badge-f: #ffffff;
-  --elder-badge-e: #5b3fa8;
+  --elder-badge-e: #a61b13;
+  --elder-sh1: 0 1px 2px rgba(74, 45, 10, .06), 0 8px 18px -8px rgba(74, 45, 10, .2);
+  --elder-sh2: 0 2px 6px rgba(74, 45, 10, .08), 0 20px 36px -18px rgba(74, 45, 10, .38);
+  --elder-ease: cubic-bezier(.2, .8, .2, 1);
 }
 html[data-font='L'] { --elder-font-size: 22px; --elder-font-size-s: 20px; --elder-btn-font: 22px; --elder-font-size-long: 20px; --elder-font-size-lg: 28px; }
 html[data-font='XXL'] { --elder-font-size: 28px; --elder-font-size-s: 26px; --elder-btn-font: 28px; --elder-font-size-long: 24px; --elder-font-size-lg: 34px; }
 
+/* ───── 화면 틀 ───── */
 .elder {
   position: relative;
-  min-height: 100vh;
-  padding: var(--elder-pad);
+  box-sizing: border-box;
+  min-height: 100dvh;
+  padding: 16px max(var(--elder-pad), env(safe-area-inset-right, 0px)) var(--elder-pad) max(var(--elder-pad), env(safe-area-inset-left, 0px));
   background: var(--elder-bg);
   color: var(--elder-fg);
+  font-family: var(--elder-font);
   font-size: var(--elder-font-size);
-  line-height: 1.35;
+  font-weight: 600;
+  line-height: 1.38;
+  letter-spacing: -.015em;
   word-break: keep-all;
+  -webkit-font-smoothing: antialiased;
   display: flex;
   flex-direction: column;
   gap: var(--elder-gap);
@@ -60,209 +93,306 @@ html[data-font='XXL'] { --elder-font-size: 28px; --elder-font-size-s: 26px; --el
   margin: 0 auto;
 }
 .elder--fit { height: 100dvh; min-height: 0; overflow: hidden; }
-.elder button { font-family: inherit; }
+.elder button, .elder input { font-family: inherit; letter-spacing: inherit; }
+.elder h1, .elder h2, .elder p { margin: 0; }
+.elder h1 { font-size: var(--elder-font-size-lg); font-weight: 800; letter-spacing: -.035em; line-height: 1.24; text-wrap: balance; }
 .elder-text { font-size: var(--elder-font-size); margin: 0; word-break: keep-all; }
-.elder-text--lg { font-size: var(--elder-font-size-lg); font-weight: 700; }
-.elder-btn {
-  min-height: var(--elder-btn-height);
-  width: 100%;
-  font-size: var(--elder-btn-font);
-  font-weight: 800;
-  padding: 4px;
-  line-height: 1.15;
-  text-align: center;
-  border: var(--elder-edge-w) solid var(--elder-primary);
-  border-radius: var(--elder-radius);
-  background: var(--elder-primary);
-  color: var(--elder-primary-fg);
-  cursor: pointer;
-}
-/* 누른 뒤 기다리는 버튼도 대비 7:1 이상 — 흐리게(opacity) 하면 2:1 대로 떨어진다. 회색 #4a4a4a ↔ 흰색 8.9:1 */
-.elder-btn:disabled { background: var(--elder-off); color: var(--elder-primary-fg); border-color: var(--elder-off); cursor: default; }
-.elder-btn--secondary { background: var(--elder-card); color: var(--elder-fg); border-color: var(--elder-fg); border-width: max(3px, var(--elder-edge-w)); }
-.elder-btn--secondary:disabled { background: var(--elder-card); color: var(--elder-off); border-color: var(--elder-off); }
-.elder-chip {
-  min-height: 56px;
-  font-size: var(--elder-font-size-s);
-  font-weight: 700;
-  line-height: 1.15;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: max(2px, var(--elder-edge-w)) solid var(--elder-primary);
-  background: var(--elder-card);
-  color: var(--elder-fg);
-  cursor: pointer;
-}
+.elder-text--lg { font-size: var(--elder-font-size-lg); font-weight: 800; letter-spacing: -.035em; line-height: 1.24; }
+.elder-sub { font-size: var(--elder-font-size-s); color: var(--elder-ink2); text-wrap: pretty; }
+.elder-eyebrow { font-size: var(--elder-font-size-s); font-weight: 700; color: var(--elder-ink2); line-height: 1.2; }
+.elder-sr { position: absolute !important; width: 1px !important; height: 1px !important; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.elder-nb { white-space: nowrap; }
+.elder-grow { flex: 1; min-height: 0; }
+.elder-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; }
+.elder-row { display: flex; gap: 10px; }
+.elder-row > .elder-btn { flex: 1; width: auto; }
+.elder-col { display: flex; flex-direction: column; gap: 10px; }
 .elder-stack { display: flex; flex-direction: column; gap: var(--elder-gap); }
-.elder-photo { width: 100%; max-height: 40vh; object-fit: cover; border-radius: var(--elder-radius); border: 2px solid var(--elder-line); }
+.elder-bottom { margin-top: auto; }
+.elder-face { font-size: 1.25em; line-height: 1; font-family: 'Apple Color Emoji', 'Noto Color Emoji', 'Segoe UI Emoji', sans-serif; }
+.elder-ic { flex: none; width: 1.15em; height: 1.15em; }
 
-.elder-head {
-  flex: none;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -.01em;
-}
-.elder-head svg { width: 40px; height: 40px; color: var(--elder-primary); }
-.elder-tiles {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 12px;
-}
-.elder-tiles--one { grid-template-rows: 1fr; }
-.elder-tile {
+/* ───── 누르는 것 — 으뜸은 꿀 노랑(위가 살짝 밝은 찰흙 느낌), 버금은 흰 카드. 누르면 살짝 들어간다 ───── */
+.elder-btn {
   position: relative;
+  box-sizing: border-box;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 12px;
-  padding: 12px;
-  border: var(--elder-edge-w) solid var(--elder-tile-edge);
+  width: 100%;
+  min-width: 0;
+  min-height: var(--elder-btn-height);
+  padding: 8px 18px;
+  border: var(--elder-edge-w) solid var(--elder-lip);
   border-radius: var(--elder-radius);
-  background: var(--elder-tile-fill);
-  color: var(--elder-fg);
-  font-size: var(--elder-font-size);
-  font-weight: 800;
-  line-height: 1.2;
-  text-align: center;
-  cursor: pointer;
-}
-.elder-tile--1 { --elder-tile-fill: var(--elder-t1); --elder-tile-edge: var(--elder-t1e); }
-.elder-tile--2 { --elder-tile-fill: var(--elder-t2); --elder-tile-edge: var(--elder-t2e); }
-.elder-tile--3 { --elder-tile-fill: var(--elder-t3); --elder-tile-edge: var(--elder-t3e); }
-.elder-tile--4 { --elder-tile-fill: var(--elder-t4); --elder-tile-edge: var(--elder-t4e); }
-.elder-tile--new { border-width: calc(var(--elder-edge-w) + 3px); border-color: var(--elder-new, var(--elder-tile-edge)); }
-.elder-ic { flex: none; width: 1.15em; height: 1.15em; }
-.elder-tile .elder-ic { width: 88px; height: 88px; color: var(--elder-ticon, var(--elder-tile-edge)); stroke-width: 1.6; }
-.elder-badge {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  font-style: normal;
-  font-size: var(--elder-font-size-s);
-  font-weight: 800;
-  line-height: 1;
-  min-width: 38px;
-  padding: 8px 11px;
-  border-radius: 999px;
-  background: var(--elder-badge);
-  color: var(--elder-badge-f);
-  border: 2px solid var(--elder-badge-e);
-}
-.elder-two { flex: none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-/* 가족 소식 [좋아요] (D54·D64): 누르면 채워진 하트 + '보냈어요'. 그 아래는 첫 장 '하트가 왔어요'의 제목과 줄 */
-.elder-like { display: flex; align-items: center; justify-content: center; gap: 8px; }
-.elder-like svg, .elder-hearts-title svg { flex: none; width: 28px; height: 28px; }
-.elder-like[aria-pressed="true"] { background: var(--elder-me); border-color: var(--elder-me-e); color: var(--elder-me-f); }
-.elder-like[aria-pressed="true"] svg, .elder-hearts-title svg { fill: currentColor; }
-/* 제목 위와 버튼 위(.elder-bottom)가 남는 자리를 반씩 나눠 가져, 제목과 글 상자가 세로 가운데에 온다 */
-.elder-hearts-title { flex: none; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: auto; color: var(--elder-primary); }
-.elder-hearts-line { display: block; }
-/* 마음 체크 (D66): 진행 점 8개 · 보기 4개(답 버튼 56px, 세로로 쌓기) · 초대 시트의 하트 */
-.elder-steps { flex: none; display: flex; justify-content: center; gap: 10px; padding-top: 4px; }
-.elder-steps i { width: 14px; height: 14px; border-radius: 50%; background: var(--elder-fg); opacity: .25; } /* 누를 수 없어 테두리 없이 채운 점만 (D51 ④) */
-.elder-steps i.on { opacity: 1; }
-.elder-answers { flex: none; display: grid; gap: 10px; margin-top: auto; }
-.elder-answers .elder-chip { border-radius: var(--elder-radius); border-color: var(--elder-fg); font-weight: 800; }
-.elder-mood-heart { flex: none; align-self: center; width: 44px; height: 44px; color: var(--elder-primary); fill: currentColor; }
-.elder-ask {
-  flex: none;
-  align-self: stretch;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 12px 16px;
-  border: var(--elder-bub-w) solid var(--elder-ai-e);
-  border-radius: 22px;
-  border-bottom-left-radius: 6px;
-  background: var(--elder-ai);
-  color: var(--elder-fg);
-  font-size: var(--elder-font-size);
+  background: linear-gradient(180deg, var(--elder-brand-hi), var(--elder-primary) 62%);
+  color: var(--elder-primary-fg);
+  font-size: var(--elder-btn-font);
   font-weight: 700;
-  line-height: 1.35;
-  text-align: left;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+  text-align: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), 0 10px 20px -10px var(--elder-lip);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .12s var(--elder-ease), background .12s, box-shadow .12s;
 }
-.elder-paper {
-  flex: 0 1 auto;
-  min-height: 0;
-  display: flex;
-  align-items: flex-end;
+.elder-btn:active:not(:disabled) { transform: scale(.97); background: var(--elder-primary); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4); }
+.elder-btn--secondary { border-color: var(--elder-edge); background: var(--elder-card); color: var(--elder-fg); box-shadow: var(--elder-sh1); }
+.elder-btn--secondary:active:not(:disabled) { background: var(--elder-bg2); box-shadow: none; }
+.elder-btn:disabled { border-color: transparent; background: var(--elder-bg2); color: var(--elder-ink2); box-shadow: none; cursor: default; }
+.elder-btn--sm { width: auto; min-height: var(--elder-sm-height); padding: 4px 14px; border-radius: 16px; font-size: 20px; box-shadow: none; }
+.elder-btn--sm .elder-ic { width: 22px; height: 22px; }
+/* 가로로 긴 버튼: 왼쪽 동그란 그림 + 글 + 오른쪽 화살표 */
+.elder-btn--wide { justify-content: flex-start; padding: 8px 16px; text-align: left; }
+.elder-lead { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--elder-soft); color: var(--elder-acc); }
+.elder-lead .elder-ic { width: 26px; height: 26px; }
+.elder-go { margin-left: auto; display: grid; color: var(--elder-ink3); }
+.elder-go .elder-ic { width: 24px; height: 24px; }
+.elder-tick { margin-left: auto; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--elder-fg); color: #fff; }
+.elder-tick .elder-ic { width: 18px; height: 18px; }
+/* 고른 것 (설정 3칸·처음 연결 고르기·사진첩 칩) */
+.elder-btn--on, .elder-btn--on:active:not(:disabled), .elder-chip--on, .elder-chip--on:active:not(:disabled) { border-color: var(--elder-lip); background: var(--elder-primary); color: var(--elder-primary-fg); box-shadow: 0 0 0 3px var(--elder-lip) inset; }
+/* 으뜸 버튼 안의 흰 동그라미 그림 */
+.elder-dot { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--elder-dot); color: var(--elder-fg); }
+.elder-dot .elder-ic { width: 24px; height: 24px; }
+html[data-font='XXL'] .elder-dot { width: 36px; height: 36px; }
+.elder-btn:disabled .elder-dot { background: var(--elder-line); color: var(--elder-ink2); }
+/* 듣는 중: 같은 노란 버튼 그대로, 점만 빨갛게 깜빡 — 화면 폭 빨강은 '전화 끊기'로 읽혀서 */
+.elder-btn--rec .elder-dot { background: var(--elder-danger); color: #fff; animation: elder-blink 1.2s ease-in-out infinite; }
+.elder-chip {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 12px 14px;
-  border: var(--elder-bub-w) solid var(--elder-ai-e);
-  border-radius: var(--elder-radius);
-  background: var(--elder-ai);
-  color: var(--elder-fg);
-  font-size: var(--elder-font-size-long);
-  font-weight: 500;
-  line-height: 1.5;
-  text-align: left;
-  cursor: pointer;
-}
-.elder-spk { flex: none; width: 30px; height: 30px; margin-bottom: 4px; color: var(--elder-ticon, var(--elder-primary)); }
-.elder-saying { box-shadow: 0 0 0 4px var(--elder-ai-e); }
-.elder-photo-box {
-  position: relative;
-  flex: none;
-  height: 140px;
-  border: 2px solid var(--elder-line);
-  border-radius: var(--elder-radius);
-  overflow: hidden;
-  background: #dfe9f0;
-}
-.elder-photo-box--grow { flex: 1 1000 150px; min-height: 110px; height: auto; }
-/* 사진 전체 보기 (D60, components/ElderPhoto): 자르지 않고 찍은 모양 그대로. 칸은 남는 자리를 차지하고, 사진은 그 안에서
-   가장 크게 가운데에 놓인다 — 테두리·둥근 모서리는 칸이 아니라 사진에 붙는다(가로 사진 위아래에 빈 띠가 안 보이게) */
-.elder-photo-box--whole { display: block; width: 100%; padding: 0; font: inherit; border: 0; border-radius: 0; background: none; overflow: visible; cursor: pointer; }
-.elder-photo-box.elder-photo-box--whole > img {
-  margin: auto;
-  width: auto;
-  height: auto;
-  max-width: 100%;
-  max-height: 100%;
-  border: 2px solid var(--elder-ai-e); /* 누를 수 있어 테두리를 진하게 */
-  border-radius: var(--elder-radius);
-}
-/* 대화 화면: 남는 자리를 사진이 다 쓰고, 말풍선이 쌓이면 화면 높이의 36% 까지 줄어든다.
-   36% = 가로 사진(4:3)이 화면 너비를 다 쓰는 높이라, 가로 사진은 대화 내내 같은 크기다 */
-.elder-photo-box--talk { flex: 1 1 0; min-height: 36dvh; }
-/* 사진·그림이 없는 일기: 그림 자리에 기분 얼굴 이모지를 크게 (D75) */
-.elder-mood-pic { display: flex; align-items: center; justify-content: center; background: var(--elder-soft); }
-.elder-mood-pic .elder-ic { width: 96px; height: 96px; }
-.elder-photo-box--whole:focus-visible { outline: 4px solid var(--elder-fg); outline-offset: 4px; }
-/* 크게 보기: 화면 가득, 어두운 바탕. 아무 데나 누르면 닫힌다 */
-.elder-zoom { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 12px; border: 0; outline: 0; background: #14141a; color: #ffffff; }
-.elder-zoom[open] { display: flex; flex-direction: column; gap: 8px; }
-.elder-zoom::backdrop { background: #14141a; }
-.elder-zoom > img { flex: 1; min-height: 0; width: 100%; object-fit: contain; }
-.elder-zoom > p { flex: none; margin: 0; text-align: center; font-size: var(--elder-font-size-s); font-weight: 700; }
-.elder-tag {
-  position: absolute;
-  left: 10px;
-  top: 10px;
-  padding: 5px 12px;
+  min-height: var(--elder-chip-height);
+  padding: 4px 16px;
+  border: var(--elder-edge-w) solid var(--elder-edge);
   border-radius: 999px;
   background: var(--elder-card);
-  border: 2px solid var(--elder-line);
+  color: var(--elder-fg);
   font-size: var(--elder-font-size-s);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.2;
+  cursor: pointer;
 }
-.elder-who { flex: none; display: flex; align-items: baseline; justify-content: space-between; font-weight: 800; }
-.elder-who small { font-size: var(--elder-font-size-s); font-weight: 700; opacity: .8; }
-.elder-mood { flex: none; display: flex; align-items: center; gap: 8px; font-size: var(--elder-font-size-long); font-weight: 700; }
+.elder-chip:active:not(:disabled) { background: var(--elder-bg2); }
+.elder-chip:disabled { border-color: transparent; background: var(--elder-bg2); color: var(--elder-ink2); cursor: default; }
+.elder-btn:focus-visible, .elder-chip:focus-visible, .elder-bub:focus-visible, .elder-tile:focus-visible, .elder-ask:focus-visible, .elder-paper:focus-visible {
+  outline: 3px solid var(--elder-fg);
+  outline-offset: 3px;
+}
 
-.elder-photo-box > img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; }
+/* ───── 꼬마심심이의 말 — 흰 카드, 테두리 없이 그림자. 누르면 다시 들려준다(스피커 표시) ───── */
+.elder-bub, .elder-ask, .elder-paper {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 16px 18px;
+  border: 0;
+  border-radius: var(--elder-radius);
+  background: var(--elder-ai);
+  color: var(--elder-fg);
+  font-size: var(--elder-font-size);
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  text-wrap: pretty;
+  box-shadow: var(--elder-sh1);
+  cursor: pointer;
+  transition: background .12s;
+}
+.elder-bub:active, .elder-ask:active, .elder-paper:active { background: var(--elder-bg2); }
+.elder-bub--long, .elder-paper { font-size: var(--elder-font-size-long); }
+.elder-spk-dot { display: inline-grid; place-items: center; width: 1.3em; height: 1.3em; margin-left: 8px; vertical-align: -.26em; border-radius: 50%; background: var(--elder-soft); color: var(--elder-acc); }
+.elder-spk-dot .elder-ic { width: .74em; height: .74em; }
+.elder-speaking .elder-spk-dot, .elder-saying .elder-spk-dot { background: var(--elder-primary); color: var(--elder-primary-fg); animation: elder-beat .9s ease-in-out infinite; }
+.elder-bub--tail::before { content: ''; position: absolute; left: -6px; bottom: 24px; width: 14px; height: 14px; background: inherit; border-bottom-left-radius: 4px; transform: rotate(45deg); }
+.elder-bub--up::before { content: ''; position: absolute; left: 50%; top: -6px; width: 14px; height: 14px; margin-left: -7px; background: inherit; border-top-left-radius: 4px; transform: rotate(45deg); }
+.elder-bub--down::before { content: ''; position: absolute; left: 50%; bottom: -6px; width: 14px; height: 14px; margin-left: -7px; background: inherit; transform: rotate(45deg); }
+/* 옛 말풍선(.elder-ask·.elder-paper — 마음 체크·일기)의 스피커 그림 */
+.elder-ask, .elder-paper { display: flex; align-items: flex-end; gap: 8px; }
+.elder-spk { flex: none; width: 30px; height: 30px; margin-bottom: 2px; color: var(--elder-acc); }
+.elder-saying { box-shadow: 0 0 0 3px var(--elder-primary), var(--elder-sh1); }
 .elder-paper > span { flex: 1; min-width: 0; align-self: stretch; overflow: hidden; overflow-wrap: anywhere; }
-.elder-tiles > :only-child { grid-column: 1 / -1; }
-.elder-bottom { margin-top: auto; }
-.elder-tile:focus-visible, .elder-ask:focus-visible, .elder-paper:focus-visible { outline: 4px solid var(--elder-fg); outline-offset: 4px; }
+/* 심심이 + 말풍선 한 줄 */
+.elder-greet { display: flex; align-items: flex-end; gap: 10px; }
+.elder-greet > .elder-sim { width: 84px; height: auto; }
+.elder-greet > .elder-bub, .elder-greet > p { flex: 1; }
+.elder-sim { display: block; height: auto; flex: none; pointer-events: none; filter: drop-shadow(0 10px 8px rgba(60, 35, 0, .16)); }
+/* 남는 자리만큼 커지는 꼬마심심이 */
+.elder-simflex { flex: 1 1 0; min-height: 64px; max-height: 168px; width: auto; max-width: 100%; object-fit: contain; align-self: center; }
+.elder-halo { position: relative; display: grid; place-items: center; }
+.elder-halo::before { content: ''; position: absolute; width: 118%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(closest-side, var(--elder-glow), rgba(255, 255, 255, 0)); }
+.elder-halo .elder-sim { position: relative; }
+.elder-wait .elder-sim { animation: elder-bob 1.6s ease-in-out infinite; }
+.elder-pop { animation: elder-pop .5s cubic-bezier(.2, 1.5, .4, 1) both; }
+
+/* 안내 상자 · 보냈어요 · 받침 */
+.elder-info { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 20px; background: var(--elder-bg2); font-size: var(--elder-font-size-s); line-height: 1.4; text-wrap: pretty; }
+.elder-info .elder-ic { width: 30px; height: 30px; margin-top: 2px; }
+.elder-sent-ok { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; margin: 0; padding: 4px 12px; border-radius: 20px; background: var(--elder-soft); font-size: var(--elder-font-size-s); font-weight: 700; }
+.elder-sent-ok .elder-ic { width: 26px; height: 26px; }
+.elder-moodline { display: flex; align-items: center; gap: 8px; font-size: var(--elder-font-size-s); font-weight: 700; color: var(--elder-ink2); }
+.elder-moodline .elder-ic { width: 1.4em; height: 1.4em; }
+.elder-tag { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 4px 12px; border-radius: 999px; background: var(--elder-bg2); font-size: 20px; font-weight: 700; }
+.elder-tag .elder-ic { width: 20px; height: 20px; }
+/* 아래 받침: 누르는 것은 여기 한곳에 모은다(말은 위, 누르는 것은 아래). 늘 화면 맨 아래 */
+.elder-dock {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: auto calc(-1 * var(--elder-pad)) calc(-1 * var(--elder-pad));
+  padding: 14px var(--elder-pad) var(--elder-pad);
+  border-radius: 28px 28px 0 0;
+  background: var(--elder-card);
+  box-shadow: 0 -8px 24px -14px rgba(74, 45, 10, .3);
+}
+.elder-badge {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  box-sizing: border-box;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 9px;
+  display: grid;
+  place-items: center;
+  border-radius: 17px;
+  background: var(--elder-badge);
+  color: var(--elder-badge-f);
+  font-size: 20px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0;
+  box-shadow: 0 0 0 3px var(--elder-bg);
+}
+.elder-av { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--elder-t2); color: var(--elder-t2e); font-weight: 800; }
+/* 기다림 표시 */
+.elder-dots { display: inline-flex; gap: 5px; margin-left: 8px; vertical-align: middle; }
+.elder-dots i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: elder-hop 1s ease-in-out infinite; }
+.elder-dots i:nth-child(2) { animation-delay: .15s; }
+.elder-dots i:nth-child(3) { animation-delay: .3s; }
+.elder-bars { display: inline-flex; align-items: center; gap: 3px; height: 24px; margin-left: 4px; }
+.elder-bars i { width: 4px; height: 100%; border-radius: 2px; background: currentColor; animation: elder-wave .9s ease-in-out infinite; }
+.elder-bars i:nth-child(2) { animation-delay: .15s; }
+.elder-bars i:nth-child(3) { animation-delay: .3s; }
+.elder-bars i:nth-child(4) { animation-delay: .45s; }
+
+/* ───── 아래에서 올라오는 판 ───── */
+.elder-scrim { position: fixed; inset: 0; z-index: 20; background: rgba(17, 12, 8, .5); animation: elder-fade .2s ease-out both; }
+.elder-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 21;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 560px;
+  max-height: 94dvh;
+  margin: 0 auto;
+  overflow-y: auto;
+  padding: 10px 16px calc(22px + env(safe-area-inset-bottom, 0px));
+  border-radius: 30px 30px 0 0;
+  background: var(--elder-bg);
+  color: var(--elder-fg);
+  font-family: var(--elder-font);
+  font-size: var(--elder-font-size);
+  font-weight: 600;
+  line-height: 1.38;
+  letter-spacing: -.015em;
+  animation: elder-up .32s var(--elder-ease) both;
+}
+.elder-sheet::before { content: ''; align-self: center; flex: none; width: 44px; height: 5px; border-radius: 3px; background: var(--elder-line); }
+.elder-sheet h1 { font-size: var(--elder-font-size-lg); font-weight: 800; letter-spacing: -.035em; line-height: 1.24; text-wrap: balance; }
+/* 화면 가득 덮는 판(사진 크게 보고 고르기·지난 일기 한 편) */
+.elder-cover {
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  box-sizing: border-box;
+  padding: 16px var(--elder-pad) var(--elder-pad);
+  border: 0;
+  outline: 0;
+  background: var(--elder-bg);
+  color: var(--elder-fg);
+  font-family: var(--elder-font);
+  font-size: var(--elder-font-size);
+  font-weight: 600;
+  line-height: 1.38;
+  letter-spacing: -.015em;
+}
+.elder-cover[open] { display: flex; flex-direction: column; gap: var(--elder-gap); }
+.elder-cover::backdrop { background: var(--elder-bg); }
+
+/* ───── 사진 (D60, components/ElderPhoto) — 자르지 않고 그대로, 인화지처럼 흰 종이 위에. 종이는 사진 크기에 맞춘다.
+   칸(.elder-photo-box)은 남는 자리를 차지하고, 사진은 그 안에서 가장 크게 가운데 (container 단위로 칸 크기를 안다) ───── */
+.elder-photo-box { position: relative; flex: none; height: 140px; border-radius: 20px; overflow: hidden; background: var(--elder-bg2); }
+.elder-photo-box > img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; }
+.elder-photo-box--grow { flex: 1 1000 150px; min-height: 110px; height: auto; }
+.elder-photo-box--talk { flex: 1 1 0; min-height: 36dvh; }
+.elder-photo-box--whole {
+  container-type: size;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  overflow: visible;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.elder-photo-paper { position: relative; display: block; padding: 8px; border-radius: 20px; background: #fff; box-shadow: var(--elder-sh1); line-height: 0; transition: transform .12s var(--elder-ease); }
+.elder-photo-box--whole:active .elder-photo-paper { transform: scale(.985); }
+.elder-photo-paper > img { display: block; width: auto; height: auto; max-width: calc(100cqw - 16px); max-height: calc(100cqh - 16px); border-radius: 4px; }
+.elder-zoomtag { position: absolute; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 14px 0 12px; border-radius: 22px; background: rgba(255, 255, 255, .94); color: var(--elder-fg); font-size: 20px; font-weight: 700; line-height: 1; box-shadow: 0 2px 8px rgba(0, 0, 0, .25); }
+.elder-zoomtag .elder-ic { width: 22px; height: 22px; }
+.elder-photo-box--whole:focus-visible { outline: 3px solid var(--elder-fg); outline-offset: 3px; }
+/* 사진·그림이 없는 일기: 그림 자리에 기분 얼굴을 크게 (D75) */
+.elder-mood-pic { display: flex; align-items: center; justify-content: center; background: none; }
+.elder-mood-pic .elder-ic { width: 96px; height: 96px; }
+/* 크게 보기: 화면 가득, 어두운 바탕. 아무 데나 누르면 닫힌다 */
+.elder-zoom { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 16px; border: 0; outline: 0; background: #110d0a; color: #ffffff; font-family: var(--elder-font); }
+.elder-zoom[open] { display: flex; flex-direction: column; gap: 10px; }
+.elder-zoom::backdrop { background: #110d0a; }
+.elder-zoom > img { flex: 1; min-height: 0; width: 100%; object-fit: contain; }
+.elder-zoom > p { flex: none; margin: 0; text-align: center; font-size: var(--elder-font-size-s); font-weight: 600; }
+.elder-photo { width: 100%; max-height: 40vh; object-fit: contain; border-radius: 20px; }
+
+/* ───── 마음 체크 (ELDER_MOOD_002 가 쓴다) ───── */
+.elder-steps { flex: none; display: flex; justify-content: center; gap: 10px; padding-top: 4px; }
+.elder-steps i { width: 14px; height: 14px; border-radius: 50%; background: var(--elder-line); }
+.elder-steps i.on { background: var(--elder-fg); }
+.elder-answers { flex: none; display: grid; gap: 10px; margin-top: auto; }
+.elder-answers .elder-chip { border-radius: 20px; min-height: 60px; }
+.elder-two { flex: none; display: grid; grid-template-columns: 1.5fr 1fr; gap: 10px; }
+
+@keyframes elder-blink { 50% { opacity: .25; } }
+@keyframes elder-beat { 50% { transform: scale(1.16); } }
+@keyframes elder-bob { 50% { transform: translateY(-4px); } }
+@keyframes elder-hop { 0%, 60%, 100% { transform: none; } 30% { transform: translateY(-6px); } }
+@keyframes elder-wave { 0%, 100% { transform: scaleY(.3); } 50% { transform: scaleY(1); } }
+@keyframes elder-fade { from { opacity: 0; } }
+@keyframes elder-up { from { transform: translateY(100%); } }
+@keyframes elder-pop { from { opacity: 0; transform: scale(.6) translateY(16px); } }
+@keyframes elder-ring { from { opacity: .95; transform: scale(.97); } to { opacity: 0; transform: scale(1.05); } }
+@media (prefers-reduced-motion: reduce) {
+  .elder-pop, .elder-sheet, .elder-scrim, .elder-wait .elder-sim, .elder-saying .elder-spk-dot, .elder-bars i, .elder-dots i, .elder-btn--rec .elder-dot { animation: none; }
+  .elder-btn, .elder-bub, .elder-photo-paper { transition: none; }
+}
+
+/* 더 갈 수 없을 때(ElderStop) — 심심이 + 가운데 말 + [다시 보기] */
+.elder-stop { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; text-align:center; }
+.elder-stop .elder-btn { align-self:stretch; }

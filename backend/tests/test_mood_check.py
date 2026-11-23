@@ -75,7 +75,14 @@ def test_save_keeps_first_answers_and_consent(client):
     answers = [1, 1, 1, 1, 1, 0, 0, 0]
     response = client.post("/api/elder/mood-check", json={"answers": answers})
     assert response.status_code == 200
-    assert response.json() == {"ok": True, "say": None}  # 높게 답한 문항이 없으면 끝 인사 한마디는 없다 (11/19)
+    # 높게 답한 문항이 없으면 끝 인사 한마디는 없다 (11/19). 결과는 점수 없이 얼굴·말 (11/23)
+    assert response.json() == {
+        "ok": True,
+        "say": None,
+        "face": "😐",
+        "title": "요즘 조금 지치셨어요",
+        "sub": "즐거운 일이 줄었어요.",
+    }
     with SessionLocal() as db:
         checks = db.scalars(select(MoodCheck).where(MoodCheck.room_id == room_id)).all()
         assert len(checks) == 1

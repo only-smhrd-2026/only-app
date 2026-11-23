@@ -142,8 +142,14 @@ def test_reply_is_per_person_and_not_counted_as_emoji(client):
 def test_unheard_reply_is_read_once_and_again_when_changed(client):
     diary_id = _diary(setup_elder(client)["room_id"])
     at = _reply(client, diary_id, "엄마 김치 최고").json()["reactions"][0]["at"]
-    assert _news(client)["hearts"] == [
-        {"diary_id": diary_id, "kind": "REPLY", "name": "테스터", "at": at, "text": "엄마 김치 최고"}
+    hearts = _news(client)["hearts"]
+    on = {
+        "diary_body": "오늘 공원을 걸었어요.",
+        "diary_posted_at": hearts[0]["diary_posted_at"],
+        "diary_thumb_url": None,
+    }
+    assert hearts == [
+        {"diary_id": diary_id, "kind": "REPLY", "name": "테스터", "at": at, "text": "엄마 김치 최고"} | on
     ]
     assert _home_count(client) == 1  # 한마디만 와도 소식 1건
     heart_at = _react(client, diary_id, "HEART").json()["reactions"][0]["at"]

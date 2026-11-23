@@ -1,0 +1,44 @@
+/* PHOTO_001 사진첩 탭 — 11/23 시안 f-post(.banner·.big)·f-photos(.thumb .cap·.fixdot·사진 판). 칩·3열·안내 줄은 steps.css.
+   색은 틀(components/FamilyFrame.css)의 꿀 노랑·크림 변수만. .fam p 의 margin 0 보다 세게 하려고 p 는 .fam 을 앞에 */
+.ph { display:flex; flex-direction:column; gap:12px; padding:4px var(--gut) 28px; }
+.ph .fam-card { margin:0; }
+.ph-row { display:flex; align-items:center; gap:10px; }
+.ph-grow { flex:1; min-width:0; display:flex; flex-direction:column; }
+.ph-grow small { font-size:13px; color:var(--ink2); }
+
+/* 오늘의 한 장 남은 사진 */
+.ph-pool { display:flex; flex-direction:column; gap:8px; padding:16px; box-shadow:0 0 0 1px var(--line); }
+.ph-pool h2 { flex:1; font-size:17px; font-weight:800; letter-spacing:-.02em; }
+.ph-big { font-size:22px; font-weight:800; color:var(--acc); }
+
+/* 두 갈래 — 오늘 소식(연한 노랑) · 추억 사진(흰 카드) */
+
+/* 분류 칩 — 한 줄로 옆으로 넘김. 안쪽 여백은 초점 테두리가 안 잘리게 */
+.ph-seg { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; padding:6px var(--gut) 6px 4px; margin:-6px calc(-1 * var(--gut)) -6px -4px; }
+.ph-seg .st-chip { flex:none; }
+
+/* 달별 묶음 */
+.ph-month { display:flex; flex-direction:column; gap:8px; }
+.ph-month h3 { margin:6px 2px 0; font-size:13px; font-weight:700; color:var(--ink3); }
+.ph-cap { position:absolute; left:6px; bottom:6px; max-width:calc(100% - 12px); padding:2px 8px; border-radius:8px; background:rgba(255,255,255,.94); color:var(--ink); font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ph-cap.done { background:var(--ink); color:var(--surf); }
+.ph-cap.elder { background:var(--brand); color:var(--on-brand); }
+.ph-fix { position:absolute; top:6px; left:6px; padding:2px 7px; border-radius:8px; background:var(--brand); color:var(--on-brand); font-size:11px; font-weight:800; }
+.ph-empty { display:flex; flex-direction:column; align-items:flex-start; gap:10px; padding:18px 16px; }
+
+/* 사진 판 — 크게 볼 때는 자르지 않는다 */
+.ph-sheet { max-height:92dvh; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-left:16px; padding-right:16px; }
+.ph-sheet .fam-grab { margin-bottom:4px; }
+.ph-sheet h2 { margin:0; }
+.ph-pic { border-radius:14px; overflow:hidden; aspect-ratio:4/3; background:var(--line); }
+.ph-pic img { display:block; width:100%; height:100%; object-fit:contain; }
+.ph-tag { display:inline-flex; align-items:center; padding:2px 8px; border-radius:8px; background:var(--soft); color:var(--acc); font-size:13px; font-weight:700; white-space:nowrap; }
+.ph-tag.ok { background:var(--t3); color:var(--t3e); }
+.ph-mini { font-size:13px; color:var(--ink3); }
+.fam .ph-fixnote { padding:12px 14px; border-radius:14px; background:var(--bg); }
+.ph-danger { background:var(--surf); color:var(--rec); box-shadow:0 0 0 1.5px var(--rec); }
+.ph-two { display:flex; gap:10px; }
+.ph-two .fam-btn { flex:1; }
+
+/* 뺀 뒤 잠깐 뜨는 한 줄 — 탭 화면이라 아래 탭(약 66px) 위로 */
+.ph-snack { position:fixed; left:50%; bottom:calc(84px + env(safe-area-inset-bottom,0px)); z-index:7; transform:translateX(-50%); width:max-content; max-width:calc(100% - 32px); padding:12px 16px; border-radius:14px; background:var(--ink); color:var(--surf); font-size:15px; line-height:1.4; }

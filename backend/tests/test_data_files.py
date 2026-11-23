@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from app.config import ROOT
 from app.db import SessionLocal
 from app.models import QuestionBank
+from app.photo_groups import ACTIVITY_GROUP, CATEGORY_GROUP
 
 DATA = ROOT / "data"
 CODE = re.compile(r"^(RM|KH|TN|CM)-[a-z]+-\d{2}$")
@@ -75,11 +76,14 @@ def test_every_photo_gets_a_fallback_question():
     assert len(none_pool) >= 20, "none 사진 공통 풀이 너무 적으면 14일 안에 같은 문제가 반복됨"
 
 
-def test_family_fix_screen_uses_same_activities():
-    """가족 '활동 고치기'(GROUP_004, D73)의 목록이 분류 목록과 같은 글자 — 다르면 고친 활동이 문제 은행과 안 맞는다."""
-    tsx = (ROOT / "frontend" / "src" / "screens" / "family" / "GROUP_004.tsx").read_text("utf-8")
-    listed = re.findall(r"'([^']+)'", tsx.split("const ACTIVITIES = [", 1)[1].split("]", 1)[0])
-    assert listed == load("taxonomy.json")["activity"]
+def test_every_taxonomy_label_has_a_photo_group():
+    """사진첩 분류 칩(app/photo_groups.py, 11/23)이 분류 목록의 모든 활동·주제를 묶는다 — 빠지면 '기타'로 샌다.
+
+    (가족 '활동 고치기' 화면 GROUP_004 는 11/23 사진첩 탭으로 합치며 빠졌다 — 그 목록 대조 검사를 이것으로 바꿈)
+    """
+    tax = load("taxonomy.json")
+    assert set(tax["activity"]) == set(ACTIVITY_GROUP)
+    assert set(tax["category"]) == set(CATEGORY_GROUP)
 
 
 def test_seed_loads_question_bank():

@@ -1,6 +1,10 @@
 """웹 푸시 구독 요청·응답 모양. 구독 요청은 브라우저의 PushSubscription.toJSON() 을 그대로 받는다."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+PushGroup = Literal["DIARY", "WEEKLY", "CARE"]  # 끌 수 있는 폰 알림 묶음 (11/23). 급한 알림은 끌 수 없다
 
 
 class PushKeysIn(BaseModel):
@@ -21,3 +25,9 @@ class PushUnsubscribeIn(BaseModel):
 
 class PushKeyOut(BaseModel):
     public_key: str | None  # 서버 VAPID 공개 키(base64url). null = 이 서버는 푸시를 안 쓴다 → 화면이 알림 카드를 숨긴다
+
+
+class PushPrefs(BaseModel):
+    """폰 알림 종류별 끄기 (11/23) — GET·PUT /push/prefs. 앱 안 알림 목록은 그대로 쌓인다."""
+
+    muted: list[PushGroup] = Field(default_factory=list, max_length=3)

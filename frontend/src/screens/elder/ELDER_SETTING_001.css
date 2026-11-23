@@ -1,0 +1,6 @@
+/* 어르신 설정 (11/23 시안 .setg·.pick3) — 흰 카드 묶음 3개, 묶음마다 고르기 칸. 글자를 아주 키우면 넘쳐서 스크롤된다 */
+.eset-group { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 22px; background: var(--elder-card); box-shadow: var(--elder-sh1); }
+.eset-group h2 { font-size: var(--elder-font-size); font-weight: 800; }
+.eset-pick { display: flex; gap: 8px; }
+.eset-pick .elder-btn { flex: 1; min-height: 64px; padding: 4px 6px; gap: 4px; font-size: var(--elder-font-size-s); }
+.eset-pick .elder-ic { width: 20px; height: 20px; }

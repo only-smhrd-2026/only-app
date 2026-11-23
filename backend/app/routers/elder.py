@@ -1,13 +1,15 @@
-"""어르신 홈·오늘의 한 장·사진첩 (기기 쿠키)."""
+"""어르신 홈·오늘의 한 장·사진첩·설정 (기기 쿠키)."""
 
 import base64
 import logging
 import uuid
 from collections.abc import AsyncIterator
+from datetime import date, datetime, time
+from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import func, select, update
+from sqlalchemy import Date, cast, func, select, update
 from starlette.datastructures import FormData, UploadFile
 from starlette.exceptions import HTTPException
 from starlette.requests import ClientDisconnect
@@ -16,6 +18,7 @@ from app.ai import tts
 from app.config import (
     PHOTO_LIST_LIMIT,
     PICK_SKIP_ALERT,
+    TZ,
     UPLOAD_LOCK_WAIT_SEC,
     UPLOAD_MAX_BYTES,
     now_kst,
@@ -24,8 +27,10 @@ from app.config import (
 from app.deps import DB, CurrentDevice
 from app.errors import ApiError
 from app.models import DailyPick, Diary, FamilyRoom, Photo
+from app.photo_groups import group_of
 from app.routers.devices import notify_family
 from app.routers.diaries import unheard_hearts
+from app.routers.mood import check_due
 from app.routers.photos import _UPLOAD_BODY, _upload_lock, photo_out, to_jpeg
 from app.routers.sessions import load_session
 from app.schemas.common import OkOut
@@ -33,6 +38,7 @@ from app.schemas.elder import (
     AlbumOut,
     AlbumPhotoOut,
     ElderHomeOut,
+    ElderSettingsIn,
     ElderSettingsOut,
     ElderSpeechIn,
     ElderSpeechOut,
@@ -70,13 +76,15 @@ async def _camera_form(request: Request, _: Annotated[None, Depends(_device_firs
         await form.close()
 
 
-@router.post("/photos", response_model=PhotoOut, status_code=201, openapi_extra=_UPLOAD_BODY)
-def camera_photo(device: CurrentDevice, db: DB, form: Annotated[FormData, Depends(_camera_form)]):
-    """카메라 사진을 JPEG 로 저장하고 같은 요청 번호의 재전송은 기존 사진을 돌려준다."""
-    files = [f for f in form.getlist("files") if isinstance(f, UploadFile)]
+def _save_elder_photo(device: CurrentDevice, db: DB, form: FormData, file_field: str, id_field: str) -> Photo:
+    """어르신 기기 사진 한 장을 JPEG 로 저장한다(source ELDER_CAMERA — 오늘의 한 장 후보 아님).
+
+    같은 요청 번호의 재전송은 처음 저장한 사진을 돌려준다. 카메라(/elder/photos)·폰 갤러리(/elder/album)가 같이 쓴다.
+    """
+    files = [f for f in form.getlist(file_field) if isinstance(f, UploadFile)]
     if not files:
         raise ApiError(422, "VALIDATION", "사진을 골라 주세요")
-    raw = form.get("upload_batch_id")
+    raw = form.get(id_field)
     try:
         upload_batch_id = uuid.UUID(str(raw)) if raw else None
     except ValueError:
@@ -94,7 +102,7 @@ def camera_photo(device: CurrentDevice, db: DB, form: Annotated[FormData, Depend
                 .order_by(Photo.photo_id)
             )
             if done:
-                return photo_out(done)
+                return done
         jpeg, taken_at = to_jpeg(photo_file.file.read())
         batch_id = upload_batch_id or uuid.uuid4()
         key = f"rooms/{device.room_id}/{batch_id}/0.jpg"
@@ -111,7 +119,13 @@ def camera_photo(device: CurrentDevice, db: DB, form: Annotated[FormData, Depend
         db.commit()
     finally:
         _upload_lock.release()
-    return photo_out(photo)
+    return photo
+
+
+@router.post("/photos", response_model=PhotoOut, status_code=201, openapi_extra=_UPLOAD_BODY)
+def camera_photo(device: CurrentDevice, db: DB, form: Annotated[FormData, Depends(_camera_form)]):
+    """카메라 사진을 JPEG 로 저장하고 같은 요청 번호의 재전송은 기존 사진을 돌려준다."""
+    return photo_out(_save_elder_photo(device, db, form, "files", "upload_batch_id"))
 
 
 def _greeting(room: FamilyRoom) -> str:
@@ -149,6 +163,16 @@ def home(device: CurrentDevice, db: DB):
             Diary.elder_read_at.is_(None),
         )
     )
+    diary_today = db.scalar(
+        select(Diary.diary_id)
+        .where(
+            Diary.room_id == room.room_id,
+            Diary.author_type == "ELDER",
+            Diary.status == "POSTED",
+            Diary.posted_at >= datetime.combine(today, time.min, tzinfo=TZ),
+        )
+        .limit(1)
+    )
     return ElderHomeOut(
         greeting=_greeting(room),
         elder_name=room.elder_name,
@@ -156,13 +180,29 @@ def home(device: CurrentDevice, db: DB):
         today_pick=today_pick,
         # 못 들은 가족 이모지·한마디가 있으면 몇 개든 소식 1건 — 하트만 온 날에도 가족 소식에 들어갈 계기가 생긴다 (D63)
         unread_family_news=(unread or 0) + (1 if unheard_hearts(db, room.room_id) else 0),
-        settings=ElderSettingsOut(
-            font_size=room.font_size,
-            tts_speed=room.tts_speed,
-            input_mode=room.device_input_mode,
-            tts_voice=room.tts_voice,
-        ),
+        settings=_settings(room),
+        diary_today=diary_today is not None,
+        mood_due=check_due(db, room.room_id),
     )
+
+
+def _settings(room: FamilyRoom) -> ElderSettingsOut:
+    return ElderSettingsOut(
+        font_size=room.font_size, tts_speed=room.tts_speed, input_mode=room.device_input_mode, tts_voice=room.tts_voice
+    )
+
+
+@router.patch("/settings", response_model=ElderSettingsOut)
+def change_settings(body: ElderSettingsIn, device: CurrentDevice, db: DB):
+    """어르신 설정 화면·처음 연결 글자 단계 (ELDER_SETTING_001, 11/23). 보낸 칸만 바꾼다 — 가족방 설정과 같은 칸."""
+    room = db.get(FamilyRoom, device.room_id)
+    changed = body.model_dump(exclude_none=True)
+    if "tts_speed" in changed:
+        changed["tts_speed"] = Decimal(changed["tts_speed"])
+    for name, value in changed.items():
+        setattr(room, name, value)
+    db.commit()
+    return _settings(room)
 
 
 @router.post("/voice", response_model=OkOut)
@@ -257,19 +297,52 @@ def skip(device: CurrentDevice, db: DB, body: PickSkipIn | None = None):
     return OkOut()
 
 
+def _album_out(p: Photo, diary_id: int | None = None) -> AlbumPhotoOut:
+    return AlbumPhotoOut(
+        photo_id=p.photo_id,
+        url=f"/api/media/{p.object_key}",
+        # 찍은 날, 없으면 가족이 고른 연도(그해 1월 1일 — 화면은 지난 해를 연도 탭으로만 본다), 없으면 올린 날 (11/23)
+        taken_at=p.taken_at or (date(p.taken_year, 1, 1) if p.taken_year else p.uploaded_at.astimezone(TZ).date()),
+        caption=p.caption,
+        group=group_of(p),
+        source=p.source,
+        diary_id=diary_id,
+    )
+
+
 @router.get("/album", response_model=AlbumOut)
 def album(device: CurrentDevice, db: DB):
-    """어르신 사진첩 목록 — 가족이 올린 사진만. 어르신이 일기에 찍은 사진(ELDER_CAMERA)은 넣지 않는다:
-    일기 사진은 일기 쓰기 화면의 [지난 일기](GET /elder/diaries)에서 일기와 함께 본다 (D60)."""
+    """어르신 사진첩 — 가족이 올린 사진 + 어르신이 찍거나 고른 사진(ELDER_CAMERA, 일기 사진 포함 — D60 바꿈, 11/23).
+
+    찍은 날(없으면 올린 날) 새것 먼저, PHOTO_LIST_LIMIT 장까지. 일기 사진이면 diary_id 로 그 일기를 알려 준다.
+    """
+    # 찍은 날 → 가족이 고른 연도 → 올린 날. DB 연결이 한국 시간이라 한국 날짜 (S15)
+    day = func.coalesce(Photo.taken_at, func.make_date(Photo.taken_year, 1, 1), cast(Photo.uploaded_at, Date))
     photos = db.scalars(
         select(Photo)
-        .where(Photo.room_id == device.room_id, Photo.status == "ACTIVE", Photo.source == "FAMILY")
-        .order_by(Photo.uploaded_at.desc(), Photo.photo_id.desc())
-        .limit(PHOTO_LIST_LIMIT)  # 순서·상한은 가족 사진 목록(routers/photos.py list_photos)과 같다
+        .where(Photo.room_id == device.room_id, Photo.status == "ACTIVE", Photo.source.in_(["FAMILY", "ELDER_CAMERA"]))
+        .order_by(day.desc(), Photo.uploaded_at.desc(), Photo.photo_id.desc())
+        .limit(PHOTO_LIST_LIMIT)
     ).all()
-    return AlbumOut(
-        photos=[
-            AlbumPhotoOut(photo_id=p.photo_id, url=f"/api/media/{p.object_key}", taken_at=p.taken_at, caption=p.caption)
-            for p in photos
-        ]
+    diaries = dict(
+        db.execute(
+            select(Diary.photo_id, func.max(Diary.diary_id))
+            .where(
+                Diary.room_id == device.room_id,
+                Diary.author_type == "ELDER",
+                Diary.status == "POSTED",
+                Diary.photo_id.in_([p.photo_id for p in photos if p.source == "ELDER_CAMERA"]),
+            )
+            .group_by(Diary.photo_id)
+        ).all()
     )
+    return AlbumOut(photos=[_album_out(p, diaries.get(p.photo_id)) for p in photos])
+
+
+@router.post("/album", response_model=AlbumPhotoOut, status_code=201)
+def album_upload(device: CurrentDevice, db: DB, form: Annotated[FormData, Depends(_camera_form)]):
+    """어르신 사진첩 [+ 사진 올리기] — 폰 갤러리에서 고른 사진 1장 (11/23). multipart file + request_id.
+
+    크기·형식 검사는 카메라 사진과 같고, 같은 request_id 로 두 번 오면 1장. 오늘의 한 장 후보는 아니다(가족 사진만).
+    """
+    return _album_out(_save_elder_photo(device, db, form, "file", "request_id"))

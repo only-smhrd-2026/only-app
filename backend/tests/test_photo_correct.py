@@ -41,6 +41,7 @@ def test_correct_repeat_and_change(client, context, monkeypatch):
         "photo_id",
         "url",
         "taken_at",
+        "taken_year",  # 11/23 찍은 날이 없을 때 가족이 고른 연도
         "caption",
         "people_note",
         "status",
@@ -51,6 +52,9 @@ def test_correct_repeat_and_change(client, context, monkeypatch):
         "ai_scene",
         "corrected_activity",
         "elder_note",  # 어르신이 대화에서 바로잡아 주신 내용 (FR-ME-009)
+        "group",  # 11/23 사진첩 분류 칩 · 올린 사람 · 어르신께 보여 드렸나
+        "uploader_name",
+        "shown",
     }
     assert response.json()["is_mine"] is False  # 이 fixture의 사진은 uploaded_by가 없는 시드형 자료
     with SessionLocal() as db:

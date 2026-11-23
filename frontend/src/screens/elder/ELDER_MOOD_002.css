@@ -1,0 +1,7 @@
+/* ELDER_MOOD_002 마음 체크 — elder.css 변수만 쓴다 (11/23 시안 e-mood) */
+.mood-top { flex: none; display: flex; align-items: center; gap: 10px; }
+/* 기억력 체크는 14칸이라 점을 줄이고 넘치면 다음 줄로 */
+.mood-top .elder-steps { flex: 1; min-width: 0; flex-wrap: wrap; justify-content: flex-start; gap: 6px; padding-top: 0; }
+.mood-top .elder-steps i { width: 12px; height: 12px; }
+.mood-top .elder-btn--sm { flex: none; width: auto; }
+.mood-face { font-size: 110px; }

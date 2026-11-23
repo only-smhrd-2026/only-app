@@ -12,6 +12,7 @@ from app.models import Diary, FamilyRoom, MoodCheck, Notification, TalkSession
 from tests.conftest import make_room, signup
 
 MIGRATION = ROOT / "db" / "migrations" / "20261113_mentoring.sql"
+REDESIGN = ROOT / "db" / "migrations" / "20261123_redesign.sql"  # 1113 의 알림 종류·마음 체크 CHECK 를 바꾼 다음 파일
 
 
 @pytest.fixture
@@ -33,9 +34,9 @@ def _diary(room_id, **kw):
     return Diary(room_id=room_id, request_id=uuid.uuid4(), **base, **kw)
 
 
-def _check(room_id, answers=(0, 1, 0, 2, 0, 0, 1, 0), total=4, level="USUAL"):
+def _check(room_id, answers=(0, 1, 0, 2, 0, 0, 1, 0), total=4, level="USUAL", kind="PHQ8"):
     answers = list(answers) if isinstance(answers, tuple) else answers
-    return MoodCheck(room_id=room_id, check_date=today_kst(), answers=answers, total=total, level=level)
+    return MoodCheck(room_id=room_id, check_date=today_kst(), kind=kind, answers=answers, total=total, level=level)
 
 
 def test_new_values_saved(room_id):
@@ -58,9 +59,10 @@ def test_new_values_saved(room_id):
         pytest.param(lambda r: _session(r, "ANGRY"), id="emotion"),
         pytest.param(lambda r: _notice(r, "MOOD_BAD"), id="kind"),
         pytest.param(lambda r: _diary(r, reactions={"by": "ELDER"}), id="reactions-not-array"),
-        pytest.param(lambda r: _check(r, answers=(0,) * 7), id="answers-7"),
+        # 칸 수는 11/23 부터 종류마다 달라 서버 코드(schemas/mood.py)가 본다 — DB 는 배열인지만
+        pytest.param(lambda r: _check(r, kind="WHO5"), id="mood-kind"),
         pytest.param(lambda r: _check(r, answers={"q1": 0}), id="answers-not-array"),
-        pytest.param(lambda r: _check(r, total=25), id="total"),
+        pytest.param(lambda r: _check(r, total=28), id="total"),
         pytest.param(lambda r: _check(r, level="OK"), id="level"),
     ],
 )
@@ -74,6 +76,8 @@ def test_bad_values_blocked(room_id, bad):
 def test_one_check_per_day(room_id):
     with SessionLocal() as db:
         db.add(_check(room_id))
+        db.commit()
+        db.add(_check(room_id, kind="GAD7", answers=(0,) * 7, total=0))  # 같은 날 다른 종류는 따로 1줄 (11/23)
         db.commit()
         db.add(_check(room_id, total=6, level="DOWN"))
         with pytest.raises(IntegrityError):
@@ -91,4 +95,5 @@ def test_migration_reruns_on_current_schema():
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
         conn.exec_driver_sql(MIGRATION.read_text("utf-8"))
         conn.exec_driver_sql(MIGRATION.read_text("utf-8"))
+        conn.exec_driver_sql(REDESIGN.read_text("utf-8"))  # 서버처럼 다음 파일까지 — 다른 테스트가 새 알림 종류를 쓴다
         assert conn.execute(count).scalar() == before

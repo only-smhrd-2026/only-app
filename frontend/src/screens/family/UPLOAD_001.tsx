@@ -1,18 +1,16 @@
 /**
- * UPLOAD_001 — 추억 올리기 1/3: 사진 고르기 (FR-ME-001, D17, 목업 설계자료/목업_1115_가족 ④ '추억 올리기 1/3').
+ * UPLOAD_001 — 추억 사진 올리기 1/3: 사진 고르기 (FR-ME-001, D17, 11/23 시안 f-upload). 사진첩 탭(PHOTO_001)의 하위 화면(위 ←).
  * 폰 앨범에서 여러 장 골라 [다음] → UPLOAD_002 보낼 분·한마디·올리기 → UPLOAD_003 결과.
- * 진행 막대·아래 버튼은 steps.css, 고른 사진 3열·× 빼기·[더 고르기]는 이 파일의 CSS.
+ * 11/19 에 이 화면 아래 붙였던 사진첩은 11/23 사진첩 탭(PHOTO_001)으로 옮겼다. 모양은 steps.css.
  */
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useNavigationType } from 'react-router-dom'
-import type { PhotoListOut, RoomOut } from '../../api/types'
+import type { RoomOut, UserOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
-import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
 import { fitPhoto, MAX_BYTES } from '../../lib/fitPhoto'
 import { restoreUploadText, uploadDraft } from '../../lib/uploadDraft'
 import './steps.css'
-import './UPLOAD_001.css'
 
 // 서버 config.py 의 UPLOAD_MAX_FILES 와 같게 (용량·화소 상한은 lib/fitPhoto)
 const MAX_FILES = 20
@@ -24,18 +22,17 @@ const originalKey = new WeakMap<File, string>()
 const fileKey = (f: File) => originalKey.get(f) ?? `${f.name}:${f.size}:${f.lastModified}`
 
 /**
- * 고른 사진 3열 격자 (이 화면만 쓴다. Thumb 는 UPLOAD_002·003·FDIARY 도 같이 쓴다).
- * onRemove 를 주면 사진마다 × (빼기), add 를 주면 맨 끝 칸에 그것(이 화면의 [더 고르기])을 놓는다.
+ * 고른 사진 3열 격자. onRemove 를 주면 사진마다 × (빼기), add 를 주면 맨 끝 칸에 그것(이 화면의 [더 고르기])을 놓는다.
  */
 export function PhotoGrid({ files, onRemove, add }: { files: File[]; onRemove?: (i: number) => void; add?: ReactNode }) {
   return (
-    <ul className="upload-grid">
+    <ul className="st-grid">
       {/* 순서 번호를 이름표로 쓰면 × 로 가운데를 뺄 때 뒤 사진이 전부 다시 그려지고 포커스가 다른 사진으로 간다 */}
       {files.map((file, i) => (
-        <li key={fileKey(file)}>
+        <li key={fileKey(file)} className="st-thumb">
           <Thumb file={file} alt={`고른 사진 ${i + 1}`} />
           {onRemove && (
-            <button type="button" className="up-rm" onClick={() => onRemove(i)} aria-label={`${i + 1}번째 사진 빼기`}>
+            <button type="button" className="st-rm" onClick={() => onRemove(i)} aria-label={`고른 사진 ${i + 1} 빼기`}>
               ×
             </button>
           )}
@@ -49,7 +46,7 @@ export function PhotoGrid({ files, onRemove, add }: { files: File[]; onRemove?: 
 /**
  * 사진 한 장 미리보기. 미리보기 주소(URL.createObjectURL)를 이 그림이 직접 만들고, 사라질 때 지운다(안 지우면 사진이 메모리에 남음).
  * 화면이 주소를 한 번만 만들어 두면, 개발 모드(StrictMode)의 '열기→닫기→다시 열기'에서 닫을 때 지운 주소를 다시 써서
- * 뒤로 가기로 돌아온 사진이 깨졌다(그림 폭 0 으로 재현). 열 때마다 새로 만들면 안 깨진다. 가족 일기 FDIARY_001 도 같이 쓴다.
+ * 뒤로 가기로 돌아온 사진이 깨졌다(그림 폭 0 으로 재현). 열 때마다 새로 만들면 안 깨진다. 오늘 소식 FDIARY_001 도 같이 쓴다.
  */
 export function Thumb({ file, alt }: { file: File; alt: string }) {
   const img = useRef<HTMLImageElement>(null)
@@ -62,44 +59,19 @@ export function Thumb({ file, alt }: { file: File; alt: string }) {
 }
 
 /** 폰 사진 창을 여는 칸 — 보이지 않게 두고 감싼 label 전체를 누르면 열린다. HEIC 는 서버가 받지 않는다(D17).
- *  아이폰 Safari 는 이 accept 면 JPEG 로 바꿔 보낸다 */
-function FileInput({ onPick, disabled }: { onPick: (e: ChangeEvent<HTMLInputElement>) => void; disabled: boolean }) {
+ *  아이폰 Safari 는 이 accept 면 JPEG 로 바꿔 보낸다. camera = 바로 카메라로 찍기(11/23 사용자, 한 번에 1장) */
+function FileInput(props: { onPick: (e: ChangeEvent<HTMLInputElement>) => void; disabled: boolean; camera?: boolean }) {
+  const { onPick, disabled, camera } = props
   return (
-    <input className="up-file" type="file" multiple accept="image/jpeg,image/png" onChange={onPick} disabled={disabled} />
-  )
-}
-
-/**
- * 사진첩 (11/19 사용자: '추억 올리기 아래에 사진첩') — 지금 보는 어르신 가족방에 올라와 있는 사진, 최신 먼저.
- * 사진을 누르면 '올린 사진'(GROUP_004)에서 그 사진의 'AI 가 본 것' 판이 열린다 — 활동 고치기·지우기는 거기서.
- * ponytail: 작은 그림(썸네일) 없이 올린 사진 그대로 — 화면에 보일 때만 불러온다(loading=lazy). 수백 장이 되면 썸네일을
- */
-function Album({ room }: { room: RoomOut }) {
-  const to = `/groups/${room.room_id}/photos`
-  const list = useFetch<PhotoListOut>(`/api/rooms/${room.room_id}/photos`)
-  if (list.error) return <p className="up-hint">사진첩을 불러오지 못했어요</p>
-  const photos = list.data?.photos ?? []
-  if (photos.length === 0) return null // 아직 올린 사진이 없으면 위 안내만
-  return (
-    <section className="up-grid up-album" aria-labelledby="up-album-title">
-      <h2 id="up-album-title">
-        사진첩 <small>{list.data?.has_more ? `최근 ${photos.length}장` : `${photos.length}장`}</small>
-      </h2>
-      <ul className="upload-grid">
-        {photos.map((p, i) => (
-          <li key={p.photo_id}>
-            <Link to={to} state={{ open: p.photo_id }} aria-label={p.caption || `${i + 1}번째 사진`}>
-              <img src={p.url} alt="" loading="lazy" />
-            </Link>
-          </li>
-        ))}
-      </ul>
-      {list.data?.has_more && (
-        <Link className="fam-text-btn" to={to}>
-          전체 보기 ›
-        </Link>
-      )}
-    </section>
+    <input
+      className="st-file"
+      type="file"
+      multiple={!camera}
+      capture={camera ? 'environment' : undefined}
+      accept="image/jpeg,image/png"
+      onChange={onPick}
+      disabled={disabled}
+    />
   )
 }
 
@@ -107,7 +79,8 @@ export default function UPLOAD_001() {
   const nav = useNavigate()
   // 로그인·가족방 0개는 사진을 고르기 전에 알린다 (보낼 가족방 고르기는 UPLOAD_002)
   const rooms = useFetch<RoomOut[]>('/api/rooms')
-  const { me, room } = useFamily()
+  // 하위 화면 틀이라 useFamily() 가 없다 → 지금 로그인한 사람을 직접 읽는다
+  const me = useFetch<UserOut>('/api/auth/me')
   // 다음 화면에서 뒤로 가기로 돌아올 때(POP)만 고른 사진과 번호를 되살린다.
   // 링크·버튼으로 들어오면 빈 상태 — 같은 창에서 로그아웃 뒤 다른 계정이 들어와도 앞 사람이 고른 사진이 남지 않게(재현함).
   // ponytail: 다른 계정이 브라우저 뒤로 가기로 여기까지 거슬러 오면 남을 수 있음. 막으려면 로그아웃 때 uploadDraft 비우기(HOME_001)
@@ -164,7 +137,7 @@ export default function UPLOAD_001() {
     setBatchId(crypto.randomUUID()) // 위 onPick 과 같은 이유
   }
 
-  /** 고른 사진을 화면 밖 칸(lib/uploadDraft)에 적는다 — [다음]과 '자세히 ›'(처리방침 갔다 ← 로 돌아와도 그대로) */
+  /** 고른 사진을 화면 밖 칸(lib/uploadDraft)에 적는다 — [다음]과 '자세히'(처리방침 갔다 ← 로 돌아와도 그대로) */
   function saveDraft() {
     // 사진을 통째로 새로 골랐으면 앞 사진에 적은 한마디·사진 속 사람을 비운다 — 새 사진에 붙지 않게.
     // 앞 사진이 한 장이라도 남아 있으면(더하기·빼기만 함) 같은 묶음을 고친 것이라 적은 글을 둔다.
@@ -180,7 +153,7 @@ export default function UPLOAD_001() {
   }
 
   function next() {
-    const userId = me?.user_id
+    const userId = me.data?.user_id
     if (userId !== undefined && uploadDraft.userId !== userId) {
       // 같은 창에서 계정이 바뀌었으면(다른 탭에서 로그인 등) 앞 사람이 쓰던 글을 비운다
       uploadDraft.caption = ''
@@ -193,91 +166,108 @@ export default function UPLOAD_001() {
     nav('/upload/target')
   }
 
-  if (rooms.error?.status === 401) return <Navigate to="/login" replace />
+  if (rooms.error?.status === 401 || me.error?.status === 401) return <Navigate to="/login" replace />
 
   return (
     <main className="st">
-      <div className="st-prog" aria-hidden="true">
-        <i style={{ width: '33.3%' }} />
-      </div>
       <div className="st-body">
         <div className="st-head">
+          <h1>추억 사진 올리기</h1>
           <p className="st-step">1/3 · 사진 고르기</p>
-          <h1>추억 올리기</h1>
-          <p className="st-lead">
-            {files.length > 0 ? `${files.length}장 골랐어요` : '어르신과 이야기할 옛 사진을 골라 주세요'}
-          </p>
         </div>
 
         {rooms.error ? (
           <>
-            <p className="fam-error up-error">{rooms.error.message}</p>
-            <button type="button" className="fam-btn fam-btn--tonal up-retry" onClick={rooms.reload}>
+            <p className="fam-error">{rooms.error.message}</p>
+            <button type="button" className="fam-btn fam-btn--tonal" onClick={rooms.reload}>
               다시 시도
             </button>
           </>
         ) : !rooms.data ? (
-          <p className="up-hint">불러오는 중…</p>
+          <p className="st-hint">불러오는 중…</p>
         ) : rooms.data.length === 0 ? (
-          <p className="up-hint">
-            먼저 가족방을 만들어 주세요 · <Link to="/groups/new">가족방 만들기</Link>
+          <p className="st-hint">
+            먼저 가족방을 만들어 주세요 ·{' '}
+            <Link className="st-link" to="/groups/new">
+              가족방 만들기
+            </Link>
           </p>
         ) : files.length === 0 ? (
-          <>
-            <label className="up-picker">
+          <div className="st-pickers">
+            <label className="st-picker">
               <FileInput onPick={onPick} disabled={preparing} />
-              <span className="up-ring">
-                <FamIcon name="imagePlus" />
-              </span>
-              <b>사진 고르기</b>
-              <small>
-                여러 장 고를 수 있어요 · 한 번에 {MAX_FILES}장까지
-              </small>
+              <FamIcon name="imagePlus" />
+              사진 고르기
+              <small>여러 장 · 한 번에 {MAX_FILES}장까지</small>
             </label>
-            <p className="up-hint">올린 사진은 내일부터 '오늘의 한 장' 후보가 돼요</p>
-          </>
-        ) : (
-          <div className="up-grid">
-            <PhotoGrid
-              files={files}
-              onRemove={remove}
-              add={
-                files.length < MAX_FILES && (
-                  <label className="up-add">
-                    <FileInput onPick={onPick} disabled={preparing} />
-                    <FamIcon name="plus" />
-                    더 고르기
-                  </label>
-                )
-              }
-            />
+            <label className="st-picker st-picker--cam">
+              <FileInput onPick={onPick} disabled={preparing} camera />
+              <FamIcon name="camera" />
+              사진 찍기
+              <small>옛 사진을 찍어도 돼요</small>
+            </label>
           </div>
-        )}
-        {/* 사진 국외 전송 안내 (D71) — 가족방이 있어 사진을 고를 수 있을 때만. 자세히는 처리방침의 '맡기는 곳' */}
-        {!!rooms.data?.length && (
-          <p className="up-hint">
-            사진은 AI가 살펴보도록 미국(Anthropic)으로 보내져요 · <Link to="/policy#vendors" onClick={saveDraft}>자세히 ›</Link>
-          </p>
+        ) : (
+          <PhotoGrid
+            files={files}
+            onRemove={remove}
+            add={
+              files.length < MAX_FILES && (
+                <span className="st-adds">
+                  <label className="st-add">
+                    <FileInput onPick={onPick} disabled={preparing} />
+                    <FamIcon name="plus" />더 고르기
+                  </label>
+                  <label className="st-add st-add--cam">
+                    <FileInput onPick={onPick} disabled={preparing} camera />
+                    <FamIcon name="camera" />더 찍기
+                  </label>
+                </span>
+              )
+            }
+          />
         )}
         {preparing && (
-          <p className="up-hint" role="status">
+          <p className="st-hint" role="status">
             사진을 준비하는 중…
           </p>
         )}
         {error && (
-          <p className="fam-error up-error" role="alert">
+          <p className="fam-error" role="alert">
             {error}
           </p>
         )}
-        {/* 사진첩 — 사진을 고르기 전에만. 국외 전송 안내가 고르기 칸 바로 아래에 남게 그 뒤에 둔다 */}
-        {files.length === 0 && room && <Album room={room} />}
+        {!!rooms.data?.length && (
+          <>
+            <p className="st-note">
+              <FamIcon name="calendar" />
+              <span>올린 사진은 내일부터 '오늘의 한 장' 후보가 돼요</span>
+            </p>
+            {/* 사진 국외 전송 안내 (D71). 자세히는 처리방침의 '맡기는 곳' */}
+            <p className="st-note">
+              <FamIcon name="lock" />
+              <span>
+                사진은 AI가 살펴보도록 미국(Anthropic)으로 보내져요 ·{' '}
+                <Link to="/policy#vendors" onClick={saveDraft}>
+                  자세히
+                </Link>
+              </span>
+            </p>
+          </>
+        )}
       </div>
 
       {/* 가족방 목록이 온 뒤에만 — 뒤로 돌아온 직후 목록을 못 불러왔으면 보낼 곳을 모른 채 넘어가지 않게 */}
-      {files.length > 0 && !!rooms.data?.length && (
+      {!!rooms.data?.length && (
         <div className="st-cta">
-          <button type="button" className="fam-btn fam-btn--primary" onClick={next} disabled={preparing}>
-            다음 · {files.length}장
+          <button
+            type="button"
+            className="fam-btn fam-btn--primary"
+            onClick={next}
+            disabled={preparing || files.length === 0}
+          >
+            다음{files.length > 0 && ` · ${files.length}장`}
+            <FamIcon name="chevRight" />
           </button>
         </div>
       )}

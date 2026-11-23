@@ -1,6 +1,6 @@
 /**
- * UPLOAD_003 — 추억 올리기 3/3: 등록 확인 (FR-ME-001, 목업 설계자료/목업_1115_가족 ④ '추억 올리기 3/3'). 하위 화면(위 ←).
- * UPLOAD_002 가 uploadResult 에 남긴 가족방별 결과를 보여 준다: 보낸 곳·장 수, 다음에 일어날 일 두 줄.
+ * UPLOAD_003 — 추억 사진 올리기 3/3: 올린 결과 (FR-ME-001, 11/23 시안 f-upload-done). 하위 화면(위 ←).
+ * UPLOAD_002 가 uploadResult 에 남긴 가족방별 결과를 보여 준다: 보낸 곳·장 수, 다음에 일어날 일. [사진 더 올리기]는 사진첩 탭으로.
  * 실패한 곳이 있으면 [실패한 곳 다시 보내기] → UPLOAD_002 가 실패한 곳만 골라 같은 사진·같은 번호로 다시 보낸다(D17).
  * 어르신 폰이 아직 연결 전이고 사진이 3장 이상이면(기기 링크 조건) 가족방 탭으로 가는 연결 안내.
  */
@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import type { RoomOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
+import Sim from '../../components/Sim'
 import { useFetch } from '../../hooks/useFetch'
 import { uploadDraft, uploadResult } from '../../lib/uploadDraft'
 import { Thumb } from './UPLOAD_001'
@@ -45,24 +46,34 @@ export default function UPLOAD_003() {
       !room.device_connected &&
       room.photo_count >= LINK_MIN_PHOTOS,
   )
+  // 폰 연결 전인 방 — 연결한 뒤부터 보여 드린다(시안 f-upload-done 한 줄). 위 연결 안내가 있는 방은 빼고
+  const notLinked = (rooms.data ?? []).filter(
+    (room) => ok.some((r) => r.room_id === room.room_id) && !room.device_connected && !toLink.includes(room),
+  )
 
   return (
     <main className="st">
-      <div className="st-prog" aria-hidden="true">
-        <i style={{ width: '100%' }} />
-      </div>
       <div className="st-body">
         {failed.length === 0 ? (
           <div className="up3-result">
-            <span className="up3-ic" aria-hidden="true">
-              <FamIcon name="check" />
-            </span>
-            <h1>사진 {ok[0].photos.length}장을 보냈어요</h1>
-            <p>{okNames}께</p>
+            <Sim face="joy" size={150} />
+            <h1>
+              {ok.map((r) => `${r.name}네`).join(' · ')}에 {ok[0].photos.length}장 올렸어요
+            </h1>
+            <p>
+              내일부터 하루 1장씩 '오늘의 한 장'으로 보여 드려요.
+              <br />
+              보여 드리기 전에는 사진첩에서 뺄 수 있어요.
+            </p>
+            {notLinked.map((room) => (
+              <small key={room.room_id}>
+                {room.elder_name} {room.elder_honorific}네는 폰을 연결한 뒤부터 보여 드려요
+              </small>
+            ))}
           </div>
         ) : (
           <div className="up3-result">
-            <span className="up3-ic up3-ic--warn" aria-hidden="true">
+            <span className="up3-ic" aria-hidden="true">
               !
             </span>
             <h1>{ok.length === 0 ? '보내지 못했어요' : `${failed.length}곳은 못 보냈어요`}</h1>
@@ -93,19 +104,6 @@ export default function UPLOAD_003() {
           </section>
         )}
 
-        {ok.length > 0 && (
-          <section className="fam-card up3-info">
-            <p>
-              <FamIcon name="sparkle" />
-              <span>AI가 10분 안에 사진을 살펴봐요</span>
-            </p>
-            <p>
-              <FamIcon name="calendar" />
-              <span>내일부터 '오늘의 한 장'으로 {okNames}께 보여 드려요</span>
-            </p>
-          </section>
-        )}
-
         {toLink.map((room) => (
           <Link key={room.room_id} className="up3-link" to={`/groups/${room.room_id}/members`}>
             <FamIcon name="phone" />
@@ -118,31 +116,29 @@ export default function UPLOAD_003() {
       </div>
 
       {/* 실패가 남아도 나가는 버튼은 늘 보인다 — 계속 실패하는 가족방(예: 방에서 나가짐)이 있어도 다시 보내기만 누르며 갇히지 않게 */}
-      <div className="st-cta">
-        {failed.length > 0 ? (
-          <>
-            <Link className="fam-btn fam-btn--tonal" to="/">
-              가족 홈으로
-            </Link>
-            <button
-              type="button"
-              className="fam-btn fam-btn--primary st-wide"
-              onClick={() => nav('/upload/target', { replace: true })}
-            >
-              실패한 곳 다시 보내기
-            </button>
-          </>
-        ) : (
-          <>
-            <Link className="fam-btn fam-btn--tonal" to="/upload">
-              사진 더 올리기
-            </Link>
-            <Link className="fam-btn fam-btn--primary" to="/">
-              가족 홈으로
-            </Link>
-          </>
-        )}
-      </div>
+      {failed.length > 0 ? (
+        <div className="st-cta">
+          <Link className="fam-btn fam-btn--tonal" to="/">
+            가족 홈으로
+          </Link>
+          <button
+            type="button"
+            className="fam-btn fam-btn--primary st-wide"
+            onClick={() => nav('/upload/target', { replace: true })}
+          >
+            실패한 곳 다시 보내기
+          </button>
+        </div>
+      ) : (
+        <div className="st-cta st-cta--col">
+          <Link className="fam-btn fam-btn--primary" to="/" replace>
+            가족 홈으로
+          </Link>
+          <Link className="fam-btn fam-btn--tonal" to="/photos" replace>
+            사진 더 올리기
+          </Link>
+        </div>
+      )}
     </main>
   )
 }

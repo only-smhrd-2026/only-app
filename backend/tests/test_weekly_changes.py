@@ -309,7 +309,7 @@ def test_notices_count_once_per_room_however_many_family(client):
         mine = Notification.room_id == room_id, Notification.kind.in_(kinds)
         assert db.scalar(select(func.count()).select_from(Notification).where(*mine)) == 6
     assert _changes(client, room_id) == [
-        ("ALERT", "calm", "'전화 한 통 드려 보세요' 알림이 1번 갔어요."),
+        ("ALERT", "calm", "'안부 전화 어떠세요?' 알림이 1번 갔어요."),  # 11/23 제목 바꿈 (D55② → 계약)
         ("ALERT", "calm", "이틀 동안 기록이 없어 알림이 2번 갔어요."),
     ]
 
@@ -385,7 +385,7 @@ def test_all_lines_in_order_without_banned_words(client):
             " 1번은 괜찮다고, 1번은 아직 편치 않다고, 1번은 그런 적 없다고 하셨어요.",
         ),
         ("ALERT", "calm", "급한 알림이 1번 있었고 테스터님이 연락했어요."),
-        ("ALERT", "calm", "'전화 한 통 드려 보세요' 알림이 1번 갔어요."),
+        ("ALERT", "calm", "'안부 전화 어떠세요?' 알림이 1번 갔어요."),  # 11/23 제목 바꿈 (D55② → 계약)
         ("ALERT", "calm", "이틀 동안 기록이 없어 알림이 2번 갔어요."),
     ]
     assert not [(word, text) for *_, text in lines for word in NEVER if word in text]

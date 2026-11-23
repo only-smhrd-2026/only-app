@@ -89,7 +89,7 @@ CHECK_SAY = {
     "MOOD": "마음이 가라앉는 날이 많으셨군요. 다음에 이야기할 때 또 여쭐게요.",
 }
 CHECK_SAY_TAIL = " 말씀해 주셔서 고마워요."
-CHECK_HARD_TAIL = " 가족에게도 요즘 힘드시다고 알릴게요. 말씀해 주셔서 고마워요."
+CHECK_HARD_TAIL = " 말씀해 주셔서 고마워요. 제가 늘 곁에 있을게요."
 
 
 def _start(day: date) -> datetime:
@@ -105,7 +105,8 @@ def check_topics(answers: list[int]) -> list[str]:
 def check_say(answers: list[int], hard: bool = False) -> str | None:
     """마음 체크 끝 인사. 높게 답한 문항이 없으면 None — 화면이 평소 인사를 한다.
 
-    hard = '많이 힘드신 것 같아요' 단계 — 가족에게도 알린다는 말을 덧붙인다 (그때 가족 알림 1건, routers/mood.py).
+    hard = '많이 힘드신 것 같아요' 단계 — 곁에 있겠다는 위로를 덧붙인다. 가족에게 알린다는 말은 하지 않는다
+    (가족 알림 1건은 그대로 간다, routers/mood.py — 11/23 사용자).
     """
     topics = check_topics(answers)
     if not topics and not hard:
@@ -224,7 +225,13 @@ def _topic(db: Session, room_id: int, today: date, yday: dict[str, Any], past: l
         return again.source, again.topic, again.heard_on
     check = db.execute(
         select(MoodCheck.check_date, MoodCheck.answers)
-        .where(MoodCheck.room_id == room_id, MoodCheck.check_date >= today - timedelta(days=CARE_BASE_DAYS))
+        .where(
+            MoodCheck.room_id == room_id,
+            MoodCheck.kind.in_(
+                ("PHQ8", "PHQ9")
+            ),  # 외로움·걱정·기억력 체크는 문항이 달라 안부 재료로 쓰지 않는다 (11/23)
+            MoodCheck.check_date >= today - timedelta(days=CARE_BASE_DAYS),
+        )
         .order_by(MoodCheck.check_date.desc())
         .limit(1)
     ).first()

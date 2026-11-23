@@ -80,6 +80,8 @@ def test_empty_week(client, context):
         "talked_days": 0,
         "low_days": 0,
         "last_check": None,
+        "other_checks": [],
+        "last_talk_at": None,  # 11/23 마지막 대화 시각
     }
 
 
@@ -97,6 +99,8 @@ def test_talk_days_low_and_window(client, context):
     assert result["days"][-3]["low"] is True
     assert result["talked_days"] == 2
     assert result["low_days"] == 1
+    # 마지막 대화 시각 — 이 가족방에서 어르신이 말한 대화 중 가장 늦게 시작한 것 (11/23)
+    assert datetime.fromisoformat(result["last_talk_at"]) == midnight
 
 
 def test_latest_elder_mood_only(client, context):

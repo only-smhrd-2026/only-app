@@ -19,6 +19,8 @@ class AiOut(BaseModel):
     suggestions: list[str] = Field(default_factory=list, max_length=4)  # 일기 기분 질문만 4개
     choice_mode: ChoiceMode = "CHIPS"
     question_type: QuestionType = "RECALL"
+    # 11/23 힘든 말씀 뒤 위로 중인 턴 (D94 바꿈) — 대화는 이어지고, 화면은 전화 버튼 없이 심심이가 위로하는 얼굴
+    care: bool = False
 
 
 class SessionCreateIn(BaseModel):

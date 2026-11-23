@@ -27,16 +27,27 @@ def _out(room: FamilyRoom) -> DeviceOut:
 
 
 def notify_family(
-    db, room_id: int, kind: str, title: str, body: str | None = None, link: str | None = None, *, to_phone: bool = True
+    db,
+    room_id: int,
+    kind: str,
+    title: str,
+    body: str | None = None,
+    link: str | None = None,
+    *,
+    to_phone: bool = True,
+    link_id: int | None = None,
+    skip_user: int | None = None,
 ):
     """가족 구성원 모두에게 앱 내 알림 1건씩. 일기·주간 이야기·위급 알림은 폰 푸시로도 (services/push.py).
 
     to_phone=False 면 알림 목록에만 남긴다 — 날마다 되풀이되는 알림이 폰을 날마다 울리지 않게
-    (scheduler.no_record_alerts).
+    (scheduler.no_record_alerts). link_id = 누르면 열 것의 번호(일기 알림 = diary_id, 11/23).
+    skip_user = 이 가족은 빼고 (급한 알림 '안 받으세요'를 누른 본인, 11/23).
     """
     uids = db.scalars(
         select(RoomMember.user_id).where(RoomMember.room_id == room_id, RoomMember.removed_at.is_(None))
     ).all()
+    uids = [uid for uid in uids if uid != skip_user]
     for uid in uids:
         db.add(
             Notification(
@@ -47,10 +58,11 @@ def notify_family(
                 title=title,
                 body=body,
                 link_screen=link,
+                link_id=link_id,
             )
         )
     if to_phone:
-        push.queue_family(db, uids, room_id, kind, title, body, link)
+        push.queue_family(db, uids, room_id, kind, title, body, link, link_id)
 
 
 @router.post("/connect", response_model=DeviceOut)

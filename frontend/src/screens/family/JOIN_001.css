@@ -4,15 +4,11 @@
   min-height: 100dvh;
   padding: calc(24px + env(safe-area-inset-top, 0px)) 20px 0;
   gap: 16px;
-  background: var(--surface);
+  background: var(--bg);
 }
-.join-page .join-heading h1 { font-size: 25px; font-weight: 800; letter-spacing: -.04em; }
-.join-page .join-heading p { margin-top: 2px; color: var(--text-2); font-size: 15px; }
-.join-page .join-room { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--r); background: var(--tint-2); }
-.join-page .join-avatar { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--t1); color: var(--t1e); font-weight: 800; }
-.join-page .join-room > div { min-width: 0; line-height: 1.4; overflow-wrap: anywhere; }
-.join-page .join-room strong { font-size: 16px; }
-.join-page .join-room p { color: var(--text-2); font-size: 15px; }
+.join-page .join-heading { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; } /* 시안 f-join — 심심이 + 초대 문장 */
+.join-page .join-heading h1 { margin-top: 8px; font-size: 22px; font-weight: 800; letter-spacing: -.04em; overflow-wrap: anywhere; }
+.join-page .join-heading p { color: var(--text-2); font-size: 15px; }
 .join-page .join-form { flex: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .join-page .join-fields { display: flex; flex-direction: column; gap: 20px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .join-page .join-field { display: flex; flex-direction: column; gap: 8px; font-size: 15px; font-weight: 700; }
@@ -27,19 +23,19 @@
 .join-page .join-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .join-page .join-chip { position: relative; cursor: pointer; }
 .join-page .join-chip input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
-.join-page .join-chip span { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-size: 15px; font-weight: 600; }
-.join-page .join-chip input:checked + span { border-color: var(--primary); background: var(--tint); color: var(--primary); font-weight: 800; }
+.join-page .join-chip span { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; border: 1.5px solid var(--ink3); border-radius: 999px; background: var(--surface); color: var(--text-2); font-size: 15px; font-weight: 600; }
+.join-page .join-chip input:checked + span { border-color: var(--ink); background: var(--ink); color: var(--surface); font-weight: 700; } /* 시안 .fseg 고른 칸 */
 .join-page .join-chip input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 3px; }
 .join-page .join-chip input:disabled + span { cursor: default; opacity: .6; }
 .join-page .join-readout { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 14px; background: var(--tint-2); }
 .join-page .join-readout h2 { display: flex; align-items: center; gap: 6px; color: var(--primary); font-size: 15px; font-weight: 800; }
 .join-page .join-readout svg { flex: none; width: 17px; height: 17px; }
 .join-page .join-readout p { font-size: 15px; overflow-wrap: anywhere; }
-.join-page .join-actions { margin: auto -20px 0; padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); background: var(--surface); }
-.join-page .join-button { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 50px; padding: 12px 16px; border: 0; border-radius: 14px; background: var(--primary); color: var(--on-primary); font-size: 16px; font-weight: 800; text-decoration: none; cursor: pointer; }
+.join-page .join-actions { display: flex; flex-direction: column; gap: 6px; margin: auto -20px 0; padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); background: var(--surface); }
+.join-page .join-button { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 50px; padding: 12px 16px; border: 1.5px solid var(--lip); border-radius: 14px; background: linear-gradient(180deg, var(--brand-hi), var(--brand) 62%); color: var(--on-brand); font-size: 16px; font-weight: 800; text-decoration: none; cursor: pointer; }
 .join-page .join-button:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 .join-page .join-button:disabled { opacity: .45; cursor: default; }
-.join-page .join-button--secondary { background: var(--tint); color: var(--primary); }
+.join-page .join-button--secondary { border-color: var(--edge); background: var(--surface); color: var(--text); }
 .join-page .join-notice { display: flex; flex-direction: column; gap: 16px; }
-.join-page .join-error { color: #b00020; font-size: 15px; overflow-wrap: anywhere; }
+.join-page .join-error { color: var(--rec); font-size: 15px; overflow-wrap: anywhere; text-align: center; }
 .join-page .join-muted { color: var(--text-2); font-size: 15px; }

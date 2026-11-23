@@ -1,8 +1,8 @@
 /**
- * HOME_001 — 가족 홈 (D70, 목업 설계자료/목업_1115_가족 ①②③). 공통 틀(FamilyFrame) 안에서 지금 보는 어르신 한 분의 소식:
- * 마음 카드(한 줄 + 누르면 펼침) → '이번 주 이야기가 도착했어요' 띠(새로 왔고 안 본 동안만) → 날짜별 일기 카드(큰 사진).
- * 아직 시작 전(일기도 대화도 없음)이면 '시작 3단계'. 실시간 반영은 없다 — 홈을 열 때·앱으로 돌아올 때 읽는다(D36).
- * 회상 대화 내용은 여기 없다(주간 이야기로만, R18).
+ * HOME_001 — 가족 홈 (D70, 11/23 시안 f-home '소식 먼저'). 공통 틀(FamilyFrame) 안에서 지금 보는 어르신 한 분의 소식:
+ * 급한 알림 → 한 줄 요약 카드(누르면 7일 칸·돌봄 일지, 오른쪽 전화) → 글쓴이 필터 → 날짜별 일기 카드(첫 일기 바로 아래 주간 띠).
+ * 폰 연결 전이고 아직 아무 소식이 없으면 '폰을 연결해 주세요' 3단계(링크 보내기 → 폰에서 열기 → 홈 화면에 추가).
+ * 실시간 반영은 없다 — 홈을 열 때·앱으로 돌아올 때 읽는다(D36). 회상 대화 내용은 여기 없다(주간 이야기로만, R18).
  */
 import { Fragment, useEffect, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -12,6 +12,7 @@ import {
   type DiaryListOut,
   type DiaryOut,
   type InviteCreatedOut,
+  type InviteKind,
   type MoodWeekOut,
   type Reaction,
   type RoomOut,
@@ -22,6 +23,7 @@ import FamIcon from '../../components/FamIcon'
 import CareCard from '../../components/CareCard'
 import { Avatar } from '../../components/FamilyFrame'
 import MoodIcon from '../../components/MoodIcon'
+import Sim from '../../components/Sim'
 import UrgentCard from '../../components/UrgentCard'
 import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
@@ -35,20 +37,15 @@ const CHECK_TEXT = {
   DOWN: '조금 가라앉으신 편이에요',
   HARD: '많이 힘드신 것 같아요 · 전문 상담을 권해 드려요',
 } as const
+// 그 밖의 체크 이름 (11/23 사용자 — 결과만 보인다)
+const OTHER_NAME = { UCLA3: '외로움 체크', GAD7: '걱정 체크', SMCQ: '기억력 체크', MEMGAME: '기억력 놀이' } as const
 const REACTS = [
   ['HEART', '❤️', '하트'],
   ['SMILE', '😊', '웃음'],
   ['CLAP', '👏', '박수'],
 ] as const
 const WEEK_NO = ['첫째', '둘째', '셋째', '넷째', '다섯째']
-const EMPTY_ART = (
-  <svg viewBox="0 0 120 90" aria-hidden="true">
-    <rect x="16" y="16" width="62" height="50" rx="10" fill="#ece6fb" transform="rotate(-9 47 41)" />
-    <rect x="40" y="20" width="62" height="50" rx="10" fill="#fff" stroke="#cbbdf0" strokeWidth="2" />
-    <circle cx="58" cy="37" r="6" fill="#fde7ef" />
-    <path d="M46 64l16-14 10 8 8-6 16 12z" fill="#e2f4e5" />
-  </svg>
-)
+const PHOTOS_FOR_LINK = 3 // 서버 ELDER_DEVICE_MIN_PHOTOS — 사진 3장이 있어야 폰 연결 링크를 준다
 
 // 'YYYY-MM-DD' 뒤에 T00:00:00 을 붙여야 날짜가 하루 밀리지 않는다
 const day = (ymd: string) => new Date(ymd + 'T00:00:00')
@@ -65,9 +62,12 @@ function dayLabel(d: Date) {
   return monthDay(d)
 }
 
-function hourLabel(hhmmss: string) {
-  const h = Number(hhmmss.slice(0, 2))
-  return h === 0 ? '밤 12시' : h < 12 ? `오전 ${h}시` : h === 12 ? '낮 12시' : `오후 ${h - 12}시`
+/** 마지막 대화 — '오늘 오전 9:24' · '어제 오후 3:05' · '11월 14일 오전 9:12' */
+function talkLabel(iso: string) {
+  const d = new Date(iso)
+  const time = d.toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' })
+  const label = dayLabel(d)
+  return `${label === '오늘' ? '오늘' : label.startsWith('어제') ? '어제' : d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} ${time}`
 }
 
 const INSTALL_LATER_KEY = 'haru.fam.install-later'
@@ -130,48 +130,62 @@ function InstallCard() {
   )
 }
 
-/** 마음 카드 (D55 ④, 목업 ②) — 한 줄 요약 + 누르면 7일 칸·마음 체크 결과. 진단 말·점수는 쓰지 않는다(NFR-DE-003) */
-function MoodCard({ week }: { week: MoodWeekOut }) {
+/**
+ * 한 줄 요약 카드 (11/23 시안 — D67②·D85 를 접어 둠): '오늘 오전 9:24에 이야기하셨어요' + 7일 중 며칠 + 오른쪽 전화.
+ * 누르면 7일 칸 · 안부 한 줄 · 마음 체크 · 돌봄 일지가 펼쳐진다. 진단 말·점수는 쓰지 않는다(NFR-DE-003)
+ */
+function SummaryCard({ room, week, notes }: { room: RoomOut; week: MoodWeekOut; notes: string[] }) {
   const [open, setOpen] = useState(false)
-  const toggle = () => setOpen((o) => !o)
   const check = week.last_check
   const last = week.days.length - 1
+  const who = `${room.elder_name} ${room.elder_honorific}`
   return (
-    <section className={open ? 'fam-card home-mood open' : 'fam-card home-mood'}>
-      <div className="home-mood-row">
-        <button type="button" className="home-mood-main" onClick={toggle} aria-expanded={open}>
-          <b>{week.talked_days ? `${week.talked_days}일 이야기하셨어요` : '이번 주는 아직 이야기를 안 하셨어요'}</b>
-          <small>최근 7일{week.low_days ? ` · 기운 없는 날 ${week.low_days}일` : ''}</small>
+    <section className="fam-card home-sum" aria-label={`${who} 요즘`}>
+      <div className="home-sum-row">
+        <button type="button" className="home-strip" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+          <b>{week.last_talk_at ? `${talkLabel(week.last_talk_at)}에 이야기하셨어요` : '아직 이야기를 나누지 않으셨어요'}</b>
+          <span className="fam-mini">
+            최근 7일 중 {week.talked_days}일{week.low_days ? ` · 기운 없는 날 ${week.low_days}일` : ''}
+          </span>
+          <span className="home-more">
+            7일·돌봄 일지 {open ? '접기' : '보기'}
+            <FamIcon name="chevDown" />
+          </span>
         </button>
         {/* 번호 없이 전화 앱만 연다 — 어르신 번호는 저장하지 않는다(D57) */}
-        <a className="home-round" href="tel:" aria-label="전화 걸기">
+        <a className="home-call" href="tel:" aria-label={`${who}께 전화 걸기`}>
           <FamIcon name="phone" />
         </a>
-        <button type="button" className="home-chev" onClick={toggle} aria-label={open ? '접기' : '펼치기'}>
-          <FamIcon name="chevDown" />
-        </button>
       </div>
       {open && (
-        <div className="home-mood-more">
-          <div className="home-week">
-            {week.days.map((d, i) => (
-              <div key={d.date} className={`home-day${d.low ? ' low' : ''}${i === last ? ' today' : ''}`}>
-                <b>{i === last ? '오늘' : day(d.date).toLocaleDateString('ko-KR', { weekday: 'short' })}</b>
-                <i className={d.talked ? 'on' : undefined} />
-                {d.diary_mood ? <MoodIcon mood={d.diary_mood} /> : <s>–</s>}
-              </div>
+        <>
+          {notes.map((line) => (
+            <a key={line} className="home-callnote" href="tel:">
+              <FamIcon name="phone" />
+              <span>
+                {line} <u>전화하기</u>
+              </span>
+            </a>
+          ))}
+          <ol className="home-week" aria-label="최근 7일">
+            {week.days.map((d, i) => {
+              const s = d.low ? 'low' : d.talked ? 'on' : 'off'
+              return (
+                <li key={d.date} className={i === last ? 'today' : undefined}>
+                  <Dot s={s} />
+                  <span>{i === last ? '오늘' : day(d.date).toLocaleDateString('ko-KR', { weekday: 'short' })}</span>
+                  <span className="home-sr">{WORD[s]}</span>
+                </li>
+              )
+            })}
+          </ol>
+          <p className="fam-mini home-legend">
+            {(['on', 'low', 'off'] as const).map((s) => (
+              <span key={s}>
+                <Dot s={s} />
+                {WORD[s]}
+              </span>
             ))}
-          </div>
-          <p className="home-legend">
-            <span>
-              <i />
-              이야기한 날
-            </span>
-            <span>얼굴 = 일기 기분</span>
-            <span>
-              <em />
-              기운 없는 말씀이 있던 날
-            </span>
           </p>
           {check && (
             <p className="home-check">
@@ -184,68 +198,73 @@ function MoodCard({ week }: { week: MoodWeekOut }) {
               </span>
             </p>
           )}
-          <a className="fam-btn fam-btn--primary fam-btn--block" href="tel:">
-            <FamIcon name="phone" />
-            전화 한 통 드리기
-          </a>
-          <p className="home-fine">
-            진단이 아니에요. 대화·일기·마음 체크에서 느껴진 것을 쉬운 말로 알려 드리고, 하신 말씀을 그대로 전하지는
-            않아요.
-          </p>
+          {week.other_checks.map((o) => (
+            <p key={o.kind} className="home-check">
+              <span aria-hidden="true">{o.face}</span>
+              <span>
+                <b>
+                  {day(o.check_date).getMonth() + 1}/{day(o.check_date).getDate()} {OTHER_NAME[o.kind]}
+                </b>{' '}
+                · {o.title}
+              </span>
+            </p>
+          ))}
+          <CareCard roomId={room.room_id} />
           {/* 마음 알림 안내 (D55 — 처리방침 확정 11/17) */}
-          <p className="home-fine">
-            기운 없는 말씀이 잦거나 위급한 말씀을 하시면 가족 모두에게 전화 한 통 알림을 보내요 ·{' '}
+          <p className="fam-mini">
+            진단이 아니에요. 기운 없는 말씀이 잦거나 위급한 말씀을 하시면 가족 모두에게 전화 한 통 알림을 보내요 ·{' '}
             <Link to="/policy#mood">자세히 ›</Link>
           </p>
-        </div>
+        </>
       )}
     </section>
   )
 }
 
-/** '○월 ○째 주 이야기가 도착했어요' 띠 — 그 주를 주간 이야기 화면에서 열어 보기 전까지만 (목업 ②, lib/weeklySeen) */
-function WeeklyBanner({ room }: { room: RoomOut }) {
-  const nav = useNavigate()
-  const { data, reload } = useFetch<WeeklyOut>(`/api/rooms/${room.room_id}/weekly`) // 아직 없으면 404 → 띠 없음
-  // 설치형 앱으로 돌아오면 새 주간 이야기가 왔는지 다시 읽는다
-  useEffect(() => {
-    const onShow = () => {
-      if (document.visibilityState !== 'visible') return
-      reload()
-    }
-    document.addEventListener('visibilitychange', onShow)
-    return () => document.removeEventListener('visibilitychange', onShow)
-  }, [reload])
+const WORD = { on: '이야기한 날', low: '기운 없는 날', off: '기록 없음' } as const
+function Dot({ s }: { s: keyof typeof WORD }) {
+  return (
+    <span className={`home-dot ${s}`} aria-hidden="true">
+      {s === 'on' && <FamIcon name="check" />}
+      {s === 'low' && <i />}
+    </span>
+  )
+}
 
+/** '○월 ○째 주 이야기가 도착했어요' 띠 — 그 주를 주간 이야기 화면에서 열어 보기 전까지만 (lib/weeklySeen) */
+function WeeklyBanner({ room, data }: { room: RoomOut; data: WeeklyOut | null }) {
+  const nav = useNavigate()
   if (!data || weeklySeen(room.room_id) === data.week_start) return null
   const d = day(data.week_start)
   const cards = data.qa_list.length
   return (
-    <button type="button" className="home-banner" onClick={() => nav(`/weekly/${room.room_id}`)}>
-      <span className="home-banner-ic">
+    <button type="button" className="fam-card home-banner" onClick={() => nav(`/weekly/${room.room_id}`)}>
+      <span className="home-sq">
         <FamIcon name="calendar" />
       </span>
       <span className="home-banner-txt">
         <b>
           {d.getMonth() + 1}월 {WEEK_NO[Math.floor((d.getDate() - 1) / 7)]} 주 이야기가 도착했어요
         </b>
-        <small>
+        <span className="fam-mini">
           {cards ? `이야기 카드 ${cards}장 · ` : ''}이야기한 날 {data.memory_days}일
-        </small>
+        </span>
       </span>
-      <FamIcon name="chevRight" className="home-banner-chev" />
+      <FamIcon name="chevRight" />
     </button>
   )
 }
 
-/** 일기 카드 (목업 ②) — 큰 사진(자르지 않음, 11/14 사용자) · 글 세 줄. 누르면 일기 상세로 간다 */
+/** 일기 카드 — 큰 사진(자르지 않음, 11/14 사용자) · 글 세 줄. 누르면 일기 상세로 간다 */
 function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserOut; onChange: (d: DiaryOut) => void }) {
   const [busy, setBusy] = useState(false)
   const elder = d.author_type === 'ELDER'
   const name = elder ? `${room.elder_name} ${room.elder_honorific}` : (d.author_name ?? '가족')
-  const sub = elder ? `${clock(d.posted_at)} · 일기` : [d.author_nickname, clock(d.posted_at), '오늘 한 장'].filter(Boolean).join(' · ')
-  const mine = d.reactions.find((r) => r.by === 'FAMILY' && r.user_id === me.user_id)?.kind
+  const sub = elder ? `${clock(d.posted_at)} · 일기` : [d.author_nickname, clock(d.posted_at), '오늘 소식'].filter(Boolean).join(' · ')
+  const mine = d.reactions.find((r) => r.by === 'FAMILY' && r.kind !== 'REPLY' && r.user_id === me.user_id)?.kind
   const liked = d.reactions.some((r) => r.by === 'ELDER' && r.kind === 'LIKE')
+  const elderReply = d.reactions.some((r) => r.by === 'ELDER' && r.kind === 'REPLY')
+  const to = `/diaries/${d.diary_id}`
 
   // 가족 이모지 (D54·#145): on = '이 상태로 만들어 줘'. 다른 이모지를 누르면 바꿔 끼우고, 켜진 것을 누르면 끈다
   async function react(kind: Reaction['kind']) {
@@ -259,75 +278,74 @@ function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserO
     }
   }
 
-  const text = <span className="home-clamp">{d.body}</span>
   return (
     <article className="fam-card home-post">
-      <Link className="home-post-link" to={`/diaries/${d.diary_id}`} state={{ familyDiaryOrder: true }}>
+      <Link className="home-post-link" to={to} state={{ familyDiaryOrder: true }}>
         <header className="home-post-h">
           <Avatar name={elder ? room.elder_name : name} />
           <div className="home-post-who">
             <b>
               {name}
-              {!d.read_by_me && <i className="home-new">새 일기</i>}
+              {!d.read_by_me && <i className="fam-tag">새 일기</i>}
             </b>
-            <small>{sub}</small>
+            <span className="fam-mini">{sub}</span>
           </div>
           <span className="home-post-mood">
             <MoodIcon mood={d.mood} />
             {MOOD_LABEL[d.mood]}
           </span>
         </header>
-        {d.illustration_url ? (
-          <>
-            <div className="home-post-photo">
-              <img src={d.illustration_url} alt={d.illustration_type === 'AI_DRAWING' ? '그림일기 그림' : '일기 사진'} loading="lazy" />
-              {d.illustration_type === 'AI_DRAWING' && (
-                <span className="home-tag">
-                  <FamIcon name="sparkle" />
-                  그림일기
-                </span>
-              )}
-            </div>
-            <p className="home-post-text">
-              {text}
-            </p>
-          </>
-        ) : (
-          <p className="home-post-only">
-            {text}
-          </p>
+        {d.illustration_url && (
+          <div className="home-post-photo">
+            <img src={d.illustration_url} alt={d.illustration_type === 'AI_DRAWING' ? '그림일기 그림' : '일기 사진'} loading="lazy" />
+            {d.illustration_type === 'AI_DRAWING' && (
+              <span className="home-tag">
+                <FamIcon name="sparkle" />
+                그림일기
+              </span>
+            )}
+          </div>
         )}
+        <p className="home-post-text">
+          <span className="home-clamp">{d.body}</span>
+        </p>
       </Link>
       <footer className="home-post-f">
         {elder ? (
-          <div className="home-reacts">
-            {REACTS.map(([kind, emoji, label]) => {
-              const n = d.reactions.filter((r) => r.by === 'FAMILY' && r.kind === kind).length
-              const on = mine === kind
-              return (
-                <button
-                  type="button"
-                  key={kind}
-                  className={on ? 'home-react on' : 'home-react'}
-                  onClick={() => react(kind)}
-                  disabled={busy}
-                  aria-pressed={on}
-                  aria-label={n ? `${label} ${n} 개` : label}
-                >
-                  {emoji}
-                  {n > 0 && <span>{n}</span>}
-                </button>
-              )
-            })}
-          </div>
+          <>
+            <div className="home-reacts">
+              {REACTS.map(([kind, emoji, label]) => {
+                const n = d.reactions.filter((r) => r.by === 'FAMILY' && r.kind === kind).length
+                const on = mine === kind
+                return (
+                  <button
+                    type="button"
+                    key={kind}
+                    className="home-react"
+                    onClick={() => react(kind)}
+                    disabled={busy}
+                    aria-pressed={on}
+                    aria-label={n ? `${label} ${n} 개` : label}
+                  >
+                    <span aria-hidden="true">{emoji}</span>
+                    {n > 0 && <span>{n}</span>}
+                  </button>
+                )
+              })}
+            </div>
+            <Link className="fam-text-btn home-say" to={to} state={{ familyDiaryOrder: true }}>
+              한마디 남기기
+            </Link>
+          </>
         ) : d.read_by_elder ? (
           <p className="home-heard">
             <FamIcon name="check" />
             {room.elder_honorific}
-            {iga(room.elder_honorific)} 들으셨어요{liked ? ' · 좋아요를 보내셨어요' : ''}
+            {iga(room.elder_honorific)} 들으셨어요
+            {elderReply ? ' · 말로 답하셨어요' : liked ? ' · 좋아요를 보내셨어요' : ''}
           </p>
         ) : (
-          <p className="home-heard not">아직 안 들으셨어요</p>
+          <p className="fam-mini">아직 안 들으셨어요</p>
         )}
       </footer>
     </article>
@@ -337,120 +355,149 @@ function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserO
 function Empty({ room }: { room: RoomOut }) {
   return (
     <div className="home-empty">
-      {EMPTY_ART}
+      <Sim face="smile" size={96} />
       <b>아직 소식이 없어요</b>
-      <p>
-        {room.elder_honorific} 일기와 가족이 쓴 '오늘 한 장'이 여기에 모여요
-      </p>
+      <p>{room.elder_honorific} 일기와 가족이 쓴 '오늘 소식'이 여기에 모여요</p>
     </div>
   )
 }
 
-/** 처음 홈 '시작 3단계' (목업 ③, 11/14 사용자) — 사진 3장(기기 링크 조건과 같은 셈) → 어르신 폰 연결 → 첫 이야기 */
+/** 링크 만들고 폰 공유 창으로 보내기 — 공유 창이 없으면 복사, 둘 다 안 되면 주소를 보여 준다 */
+function useShareLink(room: RoomOut) {
+  const [link, setLink] = useState<{ kind: InviteKind; url: string; sent: boolean }>()
+  const [note, setNote] = useState<string>()
+  const [busy, setBusy] = useState<InviteKind>()
+  async function share(kind: InviteKind) {
+    setBusy(kind)
+    setNote(undefined)
+    try {
+      const created = await api<InviteCreatedOut>(`/api/rooms/${room.room_id}/invites`, { body: { kind } })
+      const text =
+        kind === 'ELDER_DEVICE'
+          ? `${room.elder_honorific} 폰에서 이 링크를 열어 주세요 — 하루한장`
+          : `${room.elder_name} ${room.elder_honorific}네 가족방에 초대해요 — 하루한장`
+      let sent = false
+      if (navigator.share) {
+        sent = await navigator.share({ text, url: created.url }).then(
+          () => true,
+          () => false,
+        )
+      } else if (navigator.clipboard) {
+        sent = await navigator.clipboard.writeText(created.url).then(
+          () => true,
+          () => false,
+        )
+        if (sent) setNote('링크를 복사했어요 · 붙여 넣어 보내 주세요')
+      }
+      setLink({ kind, url: created.url, sent })
+    } catch (e) {
+      setNote(e instanceof ApiError ? e.message : '링크를 만들지 못했어요. 다시 해 주세요')
+    } finally {
+      setBusy(undefined)
+    }
+  }
+  return { link, note, busy, share }
+}
+
+/**
+ * 폰 연결 전 가족방 (11/23 시안 homeEmpty): 연결 링크 보내기 → 폰에서 열기 → 홈 화면에 추가.
+ * 서버는 사진이 3장 이상이어야 기기 링크를 준다 → 3장 전이면 '사진 올리기' 띠를 먼저, 이유를 한 줄로.
+ */
 function StartHome({ room, reloadRooms }: { room: RoomOut; reloadRooms: () => void }) {
   const nav = useNavigate()
-  const [link, setLink] = useState<InviteCreatedOut | null>(null)
-  const [sent, setSent] = useState(false) // 공유 창에서 보냈거나 복사함 — 공유 창을 닫았으면 '만들었어요'
-  const [note, setNote] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
+  const { link, note, busy, share } = useShareLink(room)
   const hon = room.elder_honorific
   const photos = room.photo_count
+  const ready = photos >= PHOTOS_FOR_LINK
 
-  // 사진 올리기 탭에서 돌아오면 사진 수가 바뀌어 있다 → 이 화면이 뜰 때마다 가족방을 다시 읽는다
+  // 사진첩에서 사진을 올리고 돌아오면 사진 수가 바뀌어 있다 → 이 화면이 뜰 때마다 가족방을 다시 읽는다
   useEffect(() => {
     reloadRooms()
   }, [reloadRooms])
 
-  async function sendLink() {
-    setBusy(true)
-    setNote(null)
-    try {
-      const created = await api<InviteCreatedOut>(`/api/rooms/${room.room_id}/invites`, { body: { kind: 'ELDER_DEVICE' } })
-      setLink(created)
-      if (navigator.share) {
-        await navigator
-          .share({ text: `${hon} 폰에서 이 링크를 열어 주세요 — 하루한장`, url: created.url })
-          .then(() => setSent(true))
-          .catch(() => {})
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(created.url)
-        setSent(true)
-        setNote('링크를 복사했어요')
-      }
-    } catch (e) {
-      setNote((e as ApiError).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const connected = room.device_connected
-  const step2 = connected ? 'done' : photos < 3 ? 'lock' : 'now'
+  const upload = (
+    <button type="button" className={ready ? 'fam-card home-banner plain' : 'fam-card home-banner'} onClick={() => nav('/upload')}>
+      <span className="home-sq">
+        <FamIcon name="image" />
+      </span>
+      <span className="home-banner-txt">
+        <b>{ready ? '추억 사진 먼저 올려 두기' : `추억 사진 ${PHOTOS_FOR_LINK}장 올리기`}</b>
+        <span className="fam-mini">
+          {ready
+            ? '연결하자마자 사진 보며 이야기할 수 있어요'
+            : `사진이 ${PHOTOS_FOR_LINK}장 있어야 ${hon} 폰을 연결할 수 있어요 · 지금 ${photos}장`}
+        </span>
+      </span>
+      <FamIcon name="chevRight" />
+    </button>
+  )
+  const sentDevice = link?.kind === 'ELDER_DEVICE' ? link : undefined
   return (
     <main className="fam-stack">
       <InstallCard />
-      <section className="fam-card home-start">
-        <h2>하루한장을 시작해 볼까요?</h2>
-        <p className="home-lead">
-          {room.elder_name} {hon}와 첫 이야기를 나누기까지 3단계예요
-        </p>
-        <ol className="home-steps">
-          <li className={photos >= 3 ? 'done' : 'now'}>
-            <span className="home-num">{photos >= 3 ? <FamIcon name="check" /> : '1'}</span>
-            <div>
-              <b>추억 사진 3장 올리기</b>
-              <small>{photos >= 3 ? `${photos}장을 올렸어요` : `${photos}/3장 · 사진만 고르면 돼요`}</small>
-              {photos < 3 && (
-                <span className="home-bar-p">
-                  <i style={{ width: `${(photos / 3) * 100}%` }} />
-                </span>
-              )}
-            </div>
-            {photos < 3 && (
-              <button type="button" className="fam-btn fam-btn--primary fam-btn--sm" onClick={() => nav('/upload')}>
-                사진 올리기
-              </button>
-            )}
+      {!ready && upload}
+      <section className="fam-card home-connect">
+        <div className="home-connect-h">
+          <span className="fam-av fam-tone-a" aria-hidden="true">
+            <Sim face="hello" size={40} />
+          </span>
+          <div>
+            <b>
+              {room.elder_name} {hon} 폰을 연결해 주세요
+            </b>
+            <p className="fam-mini">연결하면 오늘의 한 장과 가족 소식이 {hon} 폰으로 가요</p>
+          </div>
+        </div>
+        <ol className="home-steps3">
+          <li>
+            <b>연결 링크 보내기</b>
+            <span className="fam-mini">카카오톡으로 {hon}께 보내요</span>
           </li>
-          <li className={step2}>
-            <span className="home-num">{connected ? <FamIcon name="check" /> : '2'}</span>
-            <div>
-              <b>{hon} 폰 연결하기</b>
-              <small>
-                {connected
-                  ? '연결됐어요'
-                  : photos < 3
-                    ? '사진 3장을 올리면 열려요'
-                    : !room.is_owner
-                      ? '방장이 링크를 보내면 연결돼요'
-                      : sent
-                        ? `링크를 보냈어요 · ${hon} 폰에서 열면 연결돼요`
-                        : link
-                          ? `링크를 만들었어요 · 아래 주소를 ${hon} 폰에서 열면 돼요`
-                          : `${hon} 폰에서 링크를 열면 돼요 · 24시간`}
-              </small>
-              {link && !connected && <span className="home-link">{link.url}</span>}
-              {note && <small>{note}</small>}
-            </div>
-            {step2 === 'lock' && <FamIcon name="lock" className="home-lk" />}
-            {step2 === 'now' && room.is_owner && (
-              <button type="button" className="fam-btn fam-btn--primary fam-btn--sm" onClick={sendLink} disabled={busy}>
-                {link ? '다시 보내기' : '링크 보내기'}
-              </button>
-            )}
+          <li>
+            <b>{hon} 폰에서 링크 열기</b>
+            <span className="fam-mini">[시작하기] → 마이크 '허용' · 곁에 계시면 같이 눌러 드려요</span>
           </li>
-          <li className={connected ? 'now' : 'lock'}>
-            <span className="home-num">3</span>
-            <div>
-              <b>첫 이야기 기다리기</b>
-              <small>
-                매일 {hourLabel(room.memory_time)}에 {hon}께 사진을 들고 찾아가요
-              </small>
-            </div>
+          <li>
+            <b>홈 화면에 추가</b>
+            <span className="fam-mini">크롬 메뉴 ⋮ → 홈 화면에 추가 · 다음부터 아이콘 하나로 열려요</span>
           </li>
         </ol>
+        {!ready ? (
+          <p className="home-lock">
+            <FamIcon name="lock" />
+            추억 사진을 {PHOTOS_FOR_LINK}장 올리면 연결 링크를 보낼 수 있어요
+          </p>
+        ) : !room.is_owner ? (
+          <p className="fam-mini">방장이 연결 링크를 보내면 연결돼요</p>
+        ) : (
+          <button type="button" className="fam-btn fam-btn--primary" onClick={() => share('ELDER_DEVICE')} disabled={!!busy}>
+            {sentDevice ? '연결 링크 다시 보내기' : '연결 링크 보내기'}
+          </button>
+        )}
+        {sentDevice && (
+          <p className="fam-mini" role="status">
+            {sentDevice.sent ? `링크를 보냈어요 · ${hon} 폰에서 열면 연결돼요 · 24시간` : `주소를 길게 눌러 복사해 보내 주세요`}
+          </p>
+        )}
+        {sentDevice && !sentDevice.sent && <p className="home-link">{sentDevice.url}</p>}
+        {note && <p className="fam-mini" role="status">{note}</p>}
       </section>
-      <Empty room={room} />
+      {ready && upload}
+      {room.is_owner && (
+        <button type="button" className="fam-card home-banner plain" onClick={() => share('FAMILY')} disabled={!!busy}>
+          <span className="home-sq">
+            <FamIcon name="family" />
+          </span>
+          <span className="home-banner-txt">
+            <b>다른 가족 초대하기</b>
+            <span className="fam-mini">
+              {link?.kind === 'FAMILY' && link.sent ? '초대 링크를 보냈어요 · 7일 동안 쓸 수 있어요' : '형제·손주와 함께 소식을 받아요'}
+            </span>
+          </span>
+          <FamIcon name="chevRight" />
+        </button>
+      )}
+      {link?.kind === 'FAMILY' && !link.sent && <p className="home-link home-link--out">{link.url}</p>}
     </main>
   )
 }
@@ -459,10 +506,15 @@ function NoRoom() {
   const nav = useNavigate()
   return (
     <main className="fam-stack">
-      <section className="fam-card home-start">
-        <h2>하루한장을 시작해 볼까요?</h2>
+      <section className="fam-card home-connect">
+        <div className="home-connect-h">
+          <span className="fam-av fam-tone-a" aria-hidden="true">
+            <Sim face="hello" size={40} />
+          </span>
+          <b>하루한장을 시작해 볼까요?</b>
+        </div>
         <p className="home-lead">어르신 한 분마다 가족방을 하나 만들어요. 가족에게 초대 링크를 받았다면 그 링크를 열어 주세요.</p>
-        <button type="button" className="fam-btn fam-btn--primary fam-btn--block" onClick={() => nav('/groups/new')}>
+        <button type="button" className="fam-btn fam-btn--primary" onClick={() => nav('/groups/new')}>
           가족방 만들기
         </button>
       </section>
@@ -473,6 +525,7 @@ function NoRoom() {
 function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloadRooms: () => void }) {
   const diaries = useFetch<DiaryListOut>(`/api/rooms/${room.room_id}/diaries`)
   const mood = useFetch<MoodWeekOut>(`/api/rooms/${room.room_id}/mood-week`)
+  const weekly = useFetch<WeeklyOut>(`/api/rooms/${room.room_id}/weekly`) // 아직 없으면 404 → 띠·안부 한 줄 없음
   // 이모지로 바뀐 일기. 다시 읽은 목록이 오면 버린다(서버가 이미 반영)
   const [edits, setEdits] = useState<{ base?: DiaryListOut; byId: Record<number, DiaryOut> }>({ byId: {} })
   const [older, setOlder] = useState<{
@@ -488,16 +541,18 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
   // 설치형 앱은 다시 열어도 화면이 새로 뜨지 않는다 → 앱으로 돌아올 때마다 다시 읽는다
   const reloadDiaries = diaries.reload
   const reloadMood = mood.reload
+  const reloadWeekly = weekly.reload
   useEffect(() => {
     const onShow = () => {
       if (document.visibilityState !== 'visible') return
       setOlder(undefined)
       reloadDiaries()
       reloadMood()
+      reloadWeekly()
     }
     document.addEventListener('visibilitychange', onShow)
     return () => document.removeEventListener('visibilitychange', onShow)
-  }, [reloadDiaries, reloadMood])
+  }, [reloadDiaries, reloadMood, reloadWeekly])
 
   const base = diaries.data
   const byId = edits.base === base ? edits.byId : {}
@@ -539,7 +594,9 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
         : current)
     }
   }
-  if (items.length === 0 && mood.data.talked_days === 0) return <StartHome room={room} reloadRooms={reloadRooms} />
+  if (!room.device_connected && items.length === 0 && mood.data.talked_days === 0) {
+    return <StartHome room={room} reloadRooms={reloadRooms} />
+  }
 
   // 날짜별로 묶는다 (목록은 최신 순)
   const groups: [string, DiaryOut[]][] = []
@@ -549,15 +606,17 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
     if (last && last[0] === label) last[1].push(d)
     else groups.push([label, [d]])
   }
+  // 안부 한 줄(D67②) — 가장 최근 주간 이야기의 것만, 그 주를 아직 안 봤을 때
+  const latestWeek = weekly.data && weekly.data.next_week_start === null ? weekly.data : null
+  const notes = latestWeek && weeklySeen(room.room_id) !== latestWeek.week_start ? (latestWeek.notes?.lines ?? []) : []
+  const banner = <WeeklyBanner room={room} data={latestWeek} />
   return (
     <main className="fam-stack">
       <UrgentCard roomId={room.room_id} who={`${room.elder_name} ${room.elder_honorific}`} />
       <InstallCard />
-      <MoodCard week={mood.data} />
-      <CareCard roomId={room.room_id} />
-      <WeeklyBanner room={room} />
+      <SummaryCard room={room} week={mood.data} notes={notes} />
       {items.length > 0 && (
-        <div className="home-filter" role="group" aria-label="글쓴이로 일기 거르기">
+        <div className="fam-seg home-filter" role="group" aria-label="누가 쓴 일기">
           {(
             [
               ['ALL', '전체'],
@@ -565,32 +624,30 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
               ['FAMILY', '가족'],
             ] as const
           ).map(([key, label]) => (
-            <button
-              type="button"
-              key={key}
-              className={who === key ? 'home-chip on' : 'home-chip'}
-              onClick={() => setWho(key)}
-              aria-pressed={who === key}
-            >
+            <button type="button" key={key} className="fam-chip" onClick={() => setWho(key)} aria-pressed={who === key}>
               {label}
             </button>
           ))}
         </div>
       )}
-      {groups.map(([label, ds]) => (
+      {groups.map(([label, ds], gi) => (
         <Fragment key={label}>
           <h3 className="home-day-h">{label}</h3>
-          {ds.map((d) => (
-            <Post key={d.diary_id} d={d} room={room} me={me} onChange={update} />
+          {ds.map((d, i) => (
+            <Fragment key={d.diary_id}>
+              <Post d={d} room={room} me={me} onChange={update} />
+              {gi === 0 && i === 0 && banner}
+            </Fragment>
           ))}
         </Fragment>
       ))}
+      {groups.length === 0 && banner}
       {items.length > 0 && shown.length === 0 && <p className="home-none">아직 이 일기가 없어요</p>}
       {page?.error && <p className="fam-error" role="alert">{page.error}</p>}
       {hasMore && items.length > 0 && (
         <button
           type="button"
-          className="fam-btn fam-btn--tonal fam-btn--block"
+          className="fam-btn home-older"
           onClick={loadMore}
           disabled={page?.busy || diaries.loading}
           aria-busy={page?.busy ?? false}

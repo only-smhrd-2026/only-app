@@ -169,7 +169,14 @@ def test_unheard_hearts_in_family_news_and_home_count(client):
     assert _news(client) == {"diaries": [], "hearts": [], "has_more": False}
     assert _home_count(client) == 0
     at = _react(client, diary_id, "HEART").json()["reactions"][0]["at"]
-    assert _news(client)["hearts"] == [{"diary_id": diary_id, "kind": "HEART", "name": "테스터", "at": at}]
+    hearts = _news(client)["hearts"]
+    # 11/23 어느 일기에 왔는지 — 일기 앞 40자·올린 시각·사진(없으면 null)
+    on = {
+        "diary_body": "오늘 공원을 걸었어요.",
+        "diary_posted_at": hearts[0]["diary_posted_at"],
+        "diary_thumb_url": None,
+    }
+    assert hearts == [{"diary_id": diary_id, "kind": "HEART", "name": "테스터", "at": at} | on]
     assert _home_count(client) == 1  # 가족 일기가 없어도 하트가 오면 소식 1건
     _diary(room_id, "FAMILY")
     assert _home_count(client) == 2  # 안 들은 가족 일기 1 + 하트 1건(몇 개든)

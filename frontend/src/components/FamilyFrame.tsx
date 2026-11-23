@@ -1,8 +1,10 @@
 /**
  * 가족 화면 공통 틀 (D70 — 목업 설계자료/목업_1115_가족, 11/14 사용자 '실제 상용화되는 서비스 앱처럼'):
- * 위 막대(지금 보는 어르신 + 바꾸기 · 알림 종) · 본문 · 아래 탭 5개. 탭 첫 화면(App.tsx 의 TAB_SCREENS)만 이 안에 들어온다.
+ * 위 막대(지금 보는 어르신 + 바꾸기 · 알림 종) · 본문 · 아래 탭(11/23 사용자: 홈·사진첩·[+]·주간 이야기·가족방 —
+ * 가운데 노란 [+] 는 화면이 아니라 '오늘 소식 보내기·추억 사진 올리기' 판을 연다).
+ * 탭 첫 화면(App.tsx 의 TAB_SCREENS)만 이 안에 들어온다.
  * 가족방이 여럿이면 위 막대 이름을 눌러 바꾸고, 모든 탭이 그분 기준이다. 고른 분은 폰에 적어 둔다(다시 열어도 같은 분).
- * 로그아웃은 바꾸기 판 맨 아래(목업에 자리가 없어 11/14 사용자가 고름).
+ * 로그아웃은 바꾸기 판 맨 아래 큰 글자 버튼(11/23 시안).
  */
 import { useEffect, useState } from 'react'
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -43,16 +45,25 @@ export function Avatar({ name, small }: { name: string; small?: boolean }) {
   )
 }
 
-// 주간 이야기·가족방 탭은 지금 보는 분의 방. 가족방 탭은 월요일 팀이 구성원·설정 한 화면으로 바꾼다(목업 ⑥)
+// 주간 이야기·가족방 탭은 지금 보는 분의 방. 가운데는 탭이 아니라 [+] — 오늘 소식·추억 사진 올리기 판 (11/23 사용자)
 function tabs(roomId: number | null): [string, string, FamIconName][] {
   const inRoom = (path: string) => (roomId ? path.replace(':id', String(roomId)) : '/groups/new')
   return [
     ['/', '홈', 'home'],
-    ['/upload', '추억 올리기', 'imagePlus'],
-    ['/fdiary', '오늘 한 장', 'pencil'],
+    ['/photos', '사진첩', 'image'],
     [inRoom('/weekly/:id'), '주간 이야기', 'calendar'],
     [inRoom('/groups/:id/members'), '가족방', 'family'],
   ]
+}
+function Tab([to, label, icon]: [string, string, FamIconName]) {
+  return (
+    <NavLink key={label} to={to} end={to === '/'} className={({ isActive }) => (isActive ? 'fam-tab on' : 'fam-tab')}>
+      <span className="fam-pill">
+        <FamIcon name={icon} />
+      </span>
+      {label}
+    </NavLink>
+  )
 }
 /**
  * 하위 화면 틀 (D70, 목업 '하위 화면에만 위 ←') — 탭 밖 가족 화면(App.tsx 의 SUB_SCREENS). 제목은 각 화면의 것을 그대로 쓴다.
@@ -87,6 +98,7 @@ export default function FamilyFrame() {
   const noti = useFetch<NotificationListOut>(me.data ? '/api/notifications' : null)
   const [picked, setPicked] = useState(savedRoom)
   const [sheet, setSheet] = useState(false)
+  const [add, setAdd] = useState(false) // 가운데 [+] 판
 
   // 설치형 앱은 다시 열어도 화면이 새로 뜨지 않는다 → 돌아올 때마다 가족방(폰 연결·사진 수)·알림 수를 다시 읽는다
   const reloadRooms = rooms.reload
@@ -113,6 +125,11 @@ export default function FamilyFrame() {
   const inPath = Number(pathname.match(ROOM_IN_PATH)?.[2]) || null
   const room = list.find((r) => r.room_id === (inPath ?? picked)) ?? list[0] ?? null
   const unread = noti.data?.unread ?? 0
+  const hon = room ? `${room.elder_name} ${room.elder_honorific}` : '어르신'
+  const go = (to: string) => {
+    setAdd(false)
+    nav(to)
+  }
 
   function pick(roomId: number) {
     setPicked(roomId)
@@ -135,7 +152,7 @@ export default function FamilyFrame() {
       <header className="fam-bar">
         {room ? (
           <button type="button" className="fam-switch" onClick={() => setSheet(true)} aria-haspopup="dialog">
-            <Avatar name={room.elder_name} small />
+            <Avatar name={room.elder_name} />
             <span>
               {room.elder_name} {room.elder_honorific}네
             </span>
@@ -144,12 +161,11 @@ export default function FamilyFrame() {
         ) : (
           <b className="fam-brand">하루한장</b>
         )}
-        <span className="fam-grow" />
         <button
           type="button"
           className="fam-icon-btn"
           onClick={() => nav('/notifications')}
-          aria-label={unread ? `알림 ${unread}개` : '알림'}
+          aria-label={unread ? `알림, 안 읽은 것 ${unread}개` : '알림'}
         >
           <FamIcon name="bell" />
           {unread > 0 && <i className="fam-badge">{unread > 99 ? '99+' : unread}</i>}
@@ -165,53 +181,75 @@ export default function FamilyFrame() {
       </div>
 
       <nav className="fam-tabs" aria-label="메뉴">
-        {tabs(room?.room_id ?? null).map(([to, label, icon]) => (
-          <NavLink key={label} to={to} end={to === '/'} className={({ isActive }) => (isActive ? 'fam-tab on' : 'fam-tab')}>
-            <span className="fam-pill">
-              <FamIcon name={icon} />
-            </span>
-            {label}
-          </NavLink>
-        ))}
+        {tabs(room?.room_id ?? null).slice(0, 2).map(Tab)}
+        <button type="button" className="fam-plus" onClick={() => setAdd(true)} aria-haspopup="dialog" aria-label="올리기 — 오늘 소식·추억 사진">
+          <span>
+            <FamIcon name="plus" />
+          </span>
+        </button>
+        {tabs(room?.room_id ?? null).slice(2).map(Tab)}
       </nav>
+
+      {add && (
+        <>
+          <button type="button" className="fam-scrim" aria-label="닫기" onClick={() => setAdd(false)} />
+          <div className="fam-sheet" role="dialog" aria-modal="true" aria-label="무엇을 올릴까요?" onKeyDown={(e) => e.key === 'Escape' && setAdd(false)}>
+            <span className="fam-grab" />
+            <h2>무엇을 올릴까요?</h2>
+            <button type="button" className="fam-opt" onClick={() => go('/fdiary')} autoFocus>
+              <span className="fam-add">
+                <FamIcon name="pencil" />
+              </span>
+              <span>
+                <b>오늘 소식 보내기</b>
+                <small>오늘 사진 1장과 한마디 · {hon}께 읽어 드려요</small>
+              </span>
+              <FamIcon name="chevRight" />
+            </button>
+            <button type="button" className="fam-opt" onClick={() => go('/upload')}>
+              <span className="fam-add">
+                <FamIcon name="imagePlus" />
+              </span>
+              <span>
+                <b>추억 사진 올리기</b>
+                <small>옛 사진 여러 장 · 하루 1장씩 '오늘의 한 장'으로 보여 드려요</small>
+              </span>
+              <FamIcon name="chevRight" />
+            </button>
+          </div>
+        </>
+      )}
 
       {sheet && room && (
         <>
           <button type="button" className="fam-scrim" aria-label="닫기" onClick={() => setSheet(false)} />
-          <div className="fam-sheet" role="dialog" aria-label="누구 소식을 볼까요?">
+          <div className="fam-sheet" role="dialog" aria-modal="true" aria-label="누구 소식을 볼까요?" onKeyDown={(e) => e.key === 'Escape' && setSheet(false)}>
             <span className="fam-grab" />
             <h2>누구 소식을 볼까요?</h2>
             {list.map((r) => {
               const on = r.room_id === room.room_id
               return (
-                <button type="button" key={r.room_id} className={on ? 'fam-opt on' : 'fam-opt'} onClick={() => pick(r.room_id)}>
+                <button type="button" key={r.room_id} className={on ? 'fam-opt on' : 'fam-opt'} onClick={() => pick(r.room_id)} autoFocus={on}>
                   <Avatar name={r.elder_name} />
                   <span>
                     <b>
                       {r.elder_name} {r.elder_honorific}
                     </b>
                     <small>
-                      구성원 {r.member_count}명 · {r.device_connected ? '기기 연결됨' : '기기 연결 전'}
+                      구성원 {r.member_count}명 · {r.device_connected ? '폰 연결됨' : '폰 연결 전'}
                     </small>
                   </span>
                   {on && <FamIcon name="check" className="fam-ok" />}
                 </button>
               )
             })}
-            <button type="button" className="fam-opt" onClick={() => nav('/groups/new')}>
-              <span className="fam-add">
-                <FamIcon name="plus" />
-              </span>
-              <span>
-                <b>새 가족방 만들기</b>
-              </span>
+            <button type="button" className="fam-btn" onClick={() => nav('/groups/new')}>
+              <FamIcon name="plus" />새 가족방 만들기
             </button>
-            <p className="fam-me">
-              {me.data?.name} 님 ·
-              <button type="button" className="fam-text-btn" onClick={logout}>
-                로그아웃
-              </button>
-            </p>
+            <button type="button" className="fam-btn fam-btn--text fam-logout" onClick={logout}>
+              로그아웃
+            </button>
+            {me.data && <p className="fam-me">{me.data.name} 님으로 로그인했어요</p>}
           </div>
         </>
       )}

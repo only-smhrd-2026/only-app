@@ -31,7 +31,7 @@ def _upload(client, content=None, **kwargs):
     )
 
 
-def test_upload_media_and_diary_but_not_in_album(client):
+def test_upload_media_diary_and_album(client):
     setup_elder(client)
     r = _upload(client)
     assert r.status_code == 201, r.text
@@ -39,8 +39,10 @@ def test_upload_media_and_diary_but_not_in_album(client):
     with SessionLocal() as db:
         stored = db.get(Photo, photo["photo_id"])
         assert stored.source == "ELDER_CAMERA" and stored.uploaded_by is None
-    # 일기에 찍은 사진은 사진첩에 넣지 않는다 — 지난 일기에서 일기와 함께 본다 (D60)
-    assert photo["photo_id"] not in [p["photo_id"] for p in client.get("/api/elder/album").json()["photos"]]
+    # 어르신이 찍은 사진도 어르신 사진첩에 (D60 바꿈, 11/23). 일기로 올리기 전이라 diary_id 는 없다
+    listed = {p["photo_id"]: p for p in client.get("/api/elder/album").json()["photos"]}
+    assert (listed[photo["photo_id"]]["source"], listed[photo["photo_id"]]["diary_id"]) == ("ELDER_CAMERA", None)
+    assert listed[photo["photo_id"]]["taken_at"] == str(now_kst().date())  # 찍은 날이 없으면 올린 날
     media = client.get(photo["url"])
     assert media.status_code == 200 and media.headers["content-type"] == "image/jpeg"
     r = client.post(
@@ -154,3 +156,42 @@ def test_same_batch_in_another_room_is_a_new_photo(client):
     second = _upload(client, data=batch).json()
     assert second_room != first_room and second["photo_id"] != first["photo_id"]
     assert f"/rooms/{second_room}/" in second["url"]
+
+
+# ---------------------------------------------------------------- 11/23 어르신 사진첩 [+ 사진 올리기] (폰 갤러리)
+def _gallery(client, request_id, content=None):
+    files = [("file", ("g.jpg", _jpeg() if content is None else content, "image/jpeg"))]
+    return client.post("/api/elder/album", files=files, data={"request_id": request_id})
+
+
+def test_gallery_photo_saved_once_and_listed(client):
+    room_id = setup_elder(client)["room_id"]
+    request_id = str(uuid.uuid4())
+    first = _gallery(client, request_id)
+    assert first.status_code == 201, first.text
+    again = _gallery(client, request_id)  # 두 번 누름 — 같은 사진 1장
+    assert again.status_code == 201 and again.json()["photo_id"] == first.json()["photo_id"]
+    out = first.json()
+    assert (out["source"], out["diary_id"], out["group"]) == ("ELDER_CAMERA", None, "ETC")
+    with SessionLocal() as db:
+        assert (
+            db.scalar(
+                select(func.count()).select_from(Photo).where(Photo.room_id == room_id, Photo.source == "ELDER_CAMERA")
+            )
+            == 1
+        )
+    assert out["photo_id"] in [p["photo_id"] for p in client.get("/api/elder/album").json()["photos"]]
+    assert _gallery(client, str(uuid.uuid4()), b"not an image").status_code == 400  # 형식 검사는 카메라와 같다
+    client.cookies.delete("device")
+    assert _gallery(client, str(uuid.uuid4())).status_code == 401
+
+
+def test_album_talk_opens_on_elder_photo(client):
+    """어르신 사진첩의 일기·갤러리 사진으로도 [이 사진으로 이야기하기] — 같은 방 사진이면 연다 (11/23)."""
+    setup_elder(client)
+    photo_id = _gallery(client, str(uuid.uuid4())).json()["photo_id"]
+    r = client.post(
+        "/api/elder/sessions", json={"session_id": str(uuid.uuid4()), "kind": "ALBUM", "photo_id": photo_id}
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["photo_url"].endswith(".jpg")

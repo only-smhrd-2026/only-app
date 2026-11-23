@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 
 from app.ai import coach, llm
 from app.ai.schemas import CoachTurn, DiaryTurn
-from app.config import STT_FAIL_LOCK
+from app.config import COMFORT_TURNS, STT_FAIL_LOCK
 from app.db import SessionLocal
 from app.models import Diary, Notification, TalkSession, UrgentAlert
 from tests.conftest import setup_elder
@@ -45,8 +45,8 @@ def test_unsure_voice_with_risk_words_is_not_read_back(client):
     ctx = setup_elder(client)
     sid = _start(client, ctx)
     out = _unsure(client, sid, "요즘은 정말 죽고 싶어요")
-    # 되묻지 않는다("제가 '죽고 싶어요' 라고 들었어요" 금지) — 바로 위급 마무리 + 가족 알림
-    assert (out["state"], out["ai"]["text"]) == ("ENDED", coach.RISK_CLOSING.text)
+    # 되묻지 않는다("제가 '죽고 싶어요' 라고 들었어요" 금지) — 바로 위로 + 가족 알림 (11/23 대화는 이어 간다)
+    assert (out["state"], out["ai"]["text"], out["ai"]["care"]) == ("CONTINUE", coach.COMFORT_LINES[0], True)
     assert _count(ctx["room_id"], "MOOD_URGENT") == 1 and _alert_kinds(ctx["room_id"]) == ["MOOD"]
     with SessionLocal() as db:
         said = db.get(TalkSession, uuid.UUID(sid)).turns[-2]
@@ -67,7 +67,7 @@ def test_locked_voice_with_risk_words_is_still_urgent(client):
     for _ in range(STT_FAIL_LOCK):
         _unsure(client, sid, "어 그게 뭐더라")
     out = _unsure(client, sid, "요즘은 정말 죽고 싶어요")
-    assert (out["state"], out["ai"]["text"]) == ("ENDED", coach.RISK_CLOSING.text)
+    assert (out["state"], out["ai"]["care"]) == ("CONTINUE", True)
     assert _count(ctx["room_id"], "MOOD_URGENT") == 1 and _alert_kinds(ctx["room_id"]) == ["MOOD"]
 
 
@@ -106,12 +106,15 @@ def test_diary_low_signal_is_recorded_and_talk_goes_on(client, monkeypatch):
         assert session.emotion_flag == "LOW" and session.turns[-1]["signal"] == "LOW"  # 내일 안부의 재료
 
 
-def test_diary_risk_signal_closes_without_a_diary(client, monkeypatch):
+def test_diary_risk_signal_comforts_then_closes_without_a_diary(client, monkeypatch):
     monkeypatch.setattr(llm, "call_json", _diary_signal("RISK"))
     ctx = setup_elder(client)
     sid = _start(client, ctx, kind="DIARY")
     out = _say(client, sid, "나는 이제 짐만 돼, 빨리 가야지")  # 낱말 안전망에는 안 걸리는 돌려 말하기
-    assert (out["state"], out["end_reason"], out["ai"]["text"]) == ("ENDED", "USER_STOP", coach.RISK_CLOSING.text)
+    assert (out["state"], out["ai"]["care"]) == ("CONTINUE", True)  # 11/23 끝내지 않고 위로
+    for _ in range(COMFORT_TURNS):
+        out = _say(client, sid, "그냥 그래")
+    assert (out["state"], out["end_reason"], out["ai"]["text"]) == ("ENDED", "USER_STOP", coach.COMFORT_CLOSING.text)
     assert _count(ctx["room_id"], "MOOD_URGENT") == 1 and _alert_kinds(ctx["room_id"]) == ["MOOD"]
     with SessionLocal() as db:
         assert db.scalar(select(Diary.diary_id).where(Diary.room_id == ctx["room_id"])) is None
@@ -133,7 +136,8 @@ def test_hard_mood_check_tells_family_once(client):
     ctx = setup_elder(client)
     answers = [3, 3, 3, 3, 0, 0, 0, 0]  # 합 12 → '많이 힘드신 것 같아요'
     said = client.post("/api/elder/mood-check", json={"answers": answers}).json()["say"]
-    assert said.endswith("가족에게도 요즘 힘드시다고 알릴게요. 말씀해 주셔서 고마워요.")
+    # 위로만 — 가족에게 알린다는 말은 하지 않는다 (11/23 사용자). 가족 알림은 그대로 1건
+    assert said.endswith("말씀해 주셔서 고마워요. 제가 늘 곁에 있을게요.") and "가족" not in said
     assert _count(ctx["room_id"], "MOOD_LOW_2D") == 1
     client.post("/api/elder/mood-check", json={"answers": answers})  # 같은 날 다시 보내도 알림은 1건
     assert _count(ctx["room_id"], "MOOD_LOW_2D") == 1

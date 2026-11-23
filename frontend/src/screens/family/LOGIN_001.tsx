@@ -6,6 +6,7 @@ import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react
 import { api, ApiError } from '../../api/client'
 import type { KakaoPendingOut, ProvidersOut, UserOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
+import Sim from '../../components/Sim'
 import { useFetch } from '../../hooks/useFetch'
 import { clearFamilyDiaryDraft } from '../../lib/familyDiaryDraft'
 import { clearUploadDraft } from '../../lib/uploadDraft'
@@ -112,13 +113,7 @@ export default function LOGIN_001() {
           </div>
         )}
         <header className="login-brand">
-          <svg className="login-logo" viewBox="0 0 40 40" aria-hidden="true">
-            <g transform="rotate(-8 20 20)">
-              <rect x="6" y="9" width="28" height="22" rx="5" fill="currentColor" />
-              <circle cx="14.5" cy="16.5" r="3" fill="var(--surface)" />
-              <path d="M9 27l8-7 5 4.5 4-3 5 5.5z" fill="var(--surface)" />
-            </g>
-          </svg>
+          <Sim face="hello" size={120} />
           <h1>하루한장</h1>
           <p>가족 사진 한 장으로<br />매일 어르신께 말을 걸어요</p>
         </header>
@@ -130,7 +125,7 @@ export default function LOGIN_001() {
             <button className="login-button" type="button" onClick={() => changeScreen('login')}>
               이메일로 시작하기
             </button>
-            <button className="login-button login-button--kakao" type="button" onClick={startKakao}>
+            <button className={`login-button login-button--kakao${providers.data?.kakao ? ' on' : ''}`} type="button" onClick={startKakao}>
               {providers.data?.kakao ? '카카오로 시작하기' : '카카오로 시작하기 · 준비 중'}
             </button>
             {kakaoNotice && <p className="login-notice" role="status">카카오 로그인은 준비 중이에요. 이메일로 시작해 주세요.</p>}

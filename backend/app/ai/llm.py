@@ -28,7 +28,7 @@ PROMPTS_DIR = ROOT / "backend" / "app" / "ai" / "prompts"
 # 시도당 시간 상한(초). 말하기 턴은 화면이 15초에 포기하므로 6초 × 최대 2번(검증 재시도) 안에 끝나야
 # 고정 문장으로라도 대화가 이어진다(D14). 일기 초안은 확인 화면이 기다리므로 15초 × 최대 2번 (D36).
 # 가족 일기 질문(D58)·어제 이야기 첫 질문(D77)도 화면에서 바로 기다린다
-TURN_PROMPTS = {"memory_coach", "diary_buddy", "family_buddy", "story_question"}
+TURN_PROMPTS = {"memory_coach", "diary_buddy", "family_buddy", "story_question", "comfort"}
 FAMILY_PROMPTS = {"family_buddy", "family_draft"}  # 가족이 부르는 것 — 하루 몫을 따로 센다 (LLM_FAMILY_PER_DAY)
 TURN_TIMEOUT_SEC = 6.0
 OTHER_TIMEOUT_SEC = 15.0

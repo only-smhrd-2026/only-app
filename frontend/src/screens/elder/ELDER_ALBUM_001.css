@@ -1,51 +1,56 @@
-.elder-album {
-  overflow-wrap: anywhere;
+/* 어르신 사진첩 (11/23 시안 .alb·.mtabs·.chips·.ahero·.agrid.three). 이 화면만 스크롤한다 (D51) */
+.alb { min-height: 100dvh; }
+.alb > h1 { flex: none; }
+/* 달 탭 — 아래 줄 + 고른 달은 노란 밑줄. 달이 많으면 옆으로 민다 */
+.alb-months { flex: none; display: flex; gap: 4px; overflow-x: auto; border-bottom: 2px solid var(--elder-line); scrollbar-width: none; }
+.alb-months button {
+  flex: 1 0 auto;
+  min-height: 52px;
+  margin-bottom: -2px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 4px solid transparent;
+  background: none;
+  color: var(--elder-ink2); /* ink3 은 크림 바탕에서 5.1:1 — 어르신 7:1 규칙 */
+  font-size: var(--elder-font-size-s);
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
 }
-
-.elder-album > .elder-text {
-  flex: none;
+.alb-months button[aria-selected='true'] { color: var(--elder-fg); border-bottom-color: var(--elder-primary); }
+.alb-months button:focus-visible { outline: 3px solid var(--elder-fg); outline-offset: -3px; }
+/* 분류 칩 — 화면 끝까지 옆으로 민다 */
+.alb-chips { flex: none; display: flex; gap: 8px; overflow-x: auto; margin: 0 calc(-1 * var(--elder-pad)); padding: 2px var(--elder-pad); scrollbar-width: none; }
+.alb-chips .elder-chip { flex: none; min-height: 48px; }
+/* 그 달 대표 사진 — 크게, 아래 어둡게 깔고 달 이름 */
+.alb-hero { position: relative; flex: none; height: 220px; padding: 0; overflow: hidden; border: 0; border-radius: var(--elder-radius); background: var(--elder-bg2); box-shadow: var(--elder-sh2); cursor: pointer; }
+.alb-hero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.alb-hero::after { content: ''; position: absolute; inset: auto 0 0; height: 55%; background: linear-gradient(to top, rgba(17, 12, 8, .7), rgba(17, 12, 8, 0)); }
+.alb-hero > span { position: absolute; left: 16px; right: 16px; bottom: 14px; z-index: 1; display: flex; flex-direction: column; color: #fff; font-size: 18px; font-weight: 700; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.alb-hero b { font-size: 34px; font-weight: 800; letter-spacing: -.04em; line-height: 1.1; }
+/* 나머지 3열 — 맨 앞 칸은 [+ 사진 올리기] */
+.alb-grid { flex: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding-bottom: 6px; }
+.alb-grid > button { position: relative; aspect-ratio: 1; padding: 0; overflow: hidden; border: 0; border-radius: 12px; background: var(--elder-bg2); box-shadow: var(--elder-sh1); cursor: pointer; transition: transform .12s var(--elder-ease); }
+.alb-grid > button:active:not(:disabled) { transform: scale(.96); }
+.alb-grid img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.alb-grid > .alb-up {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: var(--elder-edge-w) dashed var(--elder-lip);
+  background: var(--elder-soft);
+  color: var(--elder-acc);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.15;
+  box-shadow: none;
 }
-
-.elder-album-grid {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  /* 남는 높이를 사진이 나눠 쓰고, 사진이 많으면 정사각형 크기부터 목록 안에서 스크롤한다. */
-  grid-auto-rows: minmax(calc((min(100vw, 560px) - 2 * var(--elder-pad) - var(--elder-gap)) / 2), 1fr);
-  gap: var(--elder-gap);
-  padding: 4px;
-}
-
-.elder-album-photo {
-  min-width: 0;
-  min-height: 0;
-  padding: 0;
-  overflow: hidden;
-  border: 4px solid var(--elder-fg);
-  background: var(--elder-card);
-}
-
-.elder-album-photo img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  font-size: var(--elder-font-size);
-  color: var(--elder-fg);
-}
-
-.elder-album-photo:disabled {
-  border-color: var(--elder-off);
-}
-
-/* 기다리는 동안만 모래시계 — 오늘 횟수를 다 써서 잠긴 사진은 기본 커서 */
-.elder-album-grid[aria-busy='true'] .elder-album-photo {
-  cursor: wait;
-}
-
-.elder-album .elder-btn:focus-visible {
-  outline: 4px solid var(--elder-primary);
-  outline-offset: 4px;
-}
+.alb-up .elder-ic { width: 34px; height: 34px; }
+.alb-up:disabled { cursor: default; }
+.alb-tag { position: absolute; right: 6px; top: 6px; z-index: 1; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, .92); color: var(--elder-fg); font-size: 14px; font-style: normal; font-weight: 800; }
+.alb-hero:focus-visible, .alb-grid > button:focus-visible { outline: 3px solid var(--elder-fg); outline-offset: 3px; }
+.alb-none { min-height: 160px; }
+.alb-center { text-align: center; }
+@media (prefers-reduced-motion: reduce) { .alb-grid > button { transition: none; } }

@@ -7,9 +7,10 @@ from sqlalchemy import func, select
 
 from app.ai import coach, llm
 from app.ai.schemas import CoachTurn, has_risk_words
-from app.config import now_kst
+from app.config import COMFORT_TURNS, now_kst
 from app.db import SessionLocal
 from app.models import Notification, TalkSession
+from app.routers import sessions
 from tests.conftest import setup_elder
 
 
@@ -96,13 +97,14 @@ def test_low_is_recorded_and_talk_goes_on(client, monkeypatch):
     assert _notes(ctx["room_id"], "MOOD_URGENT") == 0 and _notes(ctx["room_id"], "MOOD_LOW_2D") == 0  # 하루뿐
 
 
-def test_risk_by_model_alerts_family_once_and_closes(client, monkeypatch):
+def test_risk_by_model_alerts_family_once_and_comforts(client, monkeypatch):
     monkeypatch.setattr(llm, "call_json", _signal(2, "RISK"))
     ctx = setup_elder(client)
     sid = _start(client, ctx)
     r = _say(client, sid, "다 귀찮고 힘들어")
-    assert r["state"] == "ENDED" and r["end_reason"] == "COMPLETED"
-    assert r["ai"]["text"] == coach.RISK_CLOSING.text and r["ai"]["suggestions"] == []
+    # 11/23 (D94 바꿈): 끝내지 않고 위로를 잇는다. 가족에게 알렸다는 말은 하지 않는다
+    assert (r["state"], r["ai"]["care"], r["turn_no"]) == ("CONTINUE", True, 1)
+    assert "알렸" not in r["ai"]["text"] and "가족" not in r["ai"]["text"]
     assert _row(sid)[0] == "RISK"
     assert _notes(ctx["room_id"], "MOOD_URGENT") == 1  # 가족 1명 = 1건
     with SessionLocal() as db:  # 알림에 대화 내용이 들어가지 않는다
@@ -110,12 +112,19 @@ def test_risk_by_model_alerts_family_once_and_closes(client, monkeypatch):
         assert "귀찮" not in (n.title + (n.body or ""))
 
 
-def test_risk_words_close_even_when_model_says_nothing(client):
+def test_risk_words_comfort_even_when_model_says_nothing(client):
     ctx = setup_elder(client)  # mock 모델은 늘 NONE — 낱말 안전망만으로 잡는다
     sid = _start(client, ctx)
     r = _say(client, sid, "요즘은 그냥 죽고 싶어")
-    assert r["state"] == "ENDED" and r["ai"]["text"] == coach.RISK_CLOSING.text and _row(sid)[0] == "RISK"
-    assert _notes(ctx["room_id"], "MOOD_URGENT") == 1
+    assert (r["state"], r["ai"]["text"], r["ai"]["care"]) == ("CONTINUE", coach.COMFORT_LINES[0], True)
+    assert _row(sid)[0] == "RISK" and _notes(ctx["room_id"], "MOOD_URGENT") == 1
+    # 위로 말을 COMFORT_TURNS 번 — 질문으로 돌아가지 않고, 같은 말을 또 해도 알림은 1건
+    for n in range(2, COMFORT_TURNS + 1):
+        r = _say(client, sid, "죽고 싶어")
+        assert (r["state"], r["ai"]["care"], r["ai"]["text"]) == ("CONTINUE", True, coach.COMFORT_LINES[n - 1])
+    r = _say(client, sid, "고마워")
+    assert (r["state"], r["end_reason"], r["ai"]["text"]) == ("ENDED", "COMPLETED", coach.COMFORT_CLOSING.text)
+    assert r["ai"]["care"] is True and _notes(ctx["room_id"], "MOOD_URGENT") == 1
 
     sid2 = _start(client, ctx, "ALBUM")
     r = _say(client, sid2, "손주들 보면 좋아 죽겠어")
@@ -126,7 +135,10 @@ def test_risk_in_diary_is_not_saved_as_diary(client):
     ctx = setup_elder(client)
     sid = _start(client, ctx, "DIARY")
     r = _say(client, sid, "살기 싫어")
-    assert r["state"] == "ENDED" and r["end_reason"] == "USER_STOP" and _row(sid)[0] == "RISK"
+    assert r["state"] == "CONTINUE" and r["ai"]["care"] is True and _row(sid)[0] == "RISK"
+    for _ in range(COMFORT_TURNS):
+        r = _say(client, sid, "응")
+    assert r["state"] == "ENDED" and r["end_reason"] == "USER_STOP"  # 위로 끝 — 일기로 남기지 않는다
     assert _notes(ctx["room_id"], "MOOD_URGENT") == 1
 
 
@@ -167,3 +179,13 @@ def test_private_request_marks_session(client, monkeypatch):
     sid = _start(client, ctx)
     r = _say(client, sid, "이건 애들한테 말하지 마")
     assert r["state"] == "CONTINUE" and _row(sid) == ("NONE", True)
+
+
+def test_comfort_is_not_cut_by_the_time_limit(client, monkeypatch):
+    """위로 중에는 5분 상한으로 끊지 않는다 — 위로 턴 수(COMFORT_TURNS)로만 끝난다 (11/23)."""
+    ctx = setup_elder(client)
+    sid = _start(client, ctx)
+    assert _say(client, sid, "살기 싫어")["ai"]["care"] is True
+    monkeypatch.setattr(sessions, "MAX_SESSION_SEC", 0)
+    r = _say(client, sid, "그냥 힘들어")
+    assert (r["state"], r["ai"]["care"]) == ("CONTINUE", True)

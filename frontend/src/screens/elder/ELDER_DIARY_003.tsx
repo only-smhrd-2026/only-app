@@ -1,15 +1,17 @@
 /**
- * ELDER_DIARY_003 — 일기 확인·그림일기 (FR-DI-004/005, D36·D51·D53). [네, 올려요]를 눌러야만 게시.
- * 사진 없는 일기는 서버가 그림까지 그린 뒤 초안을 주므로 여기서 그림을 보고 올린다. 그림이 실패하면 글만.
- * 같은 화면에서는 같은 request_id → 응답을 못 받아 다시 눌러도 한 번만 올라간다. [다시 말할래요]는 새 대화(사진 유지).
- * 그림·누르면 다시 읽는 글 상자·기분·하단 버튼을 공통 클래스로 한 화면에 배치한다. 기다림·실패 안내도 읽는다.
+ * ELDER_DIARY_003 — 일기 확인·그림일기 (FR-DI-004/005, D36·D53 — 11/23 시안 e-diary-check).
+ * '가족에게 보낼까요?' → [네, 보내요]를 눌러야만 게시 → '가족에게 보냈어요'. 보낸 뒤 뒤로 키는 홈(이 주소를 '보냄'으로 바꿔 둔다 —
+ * 대화는 앞 화면들이 replace 로 와서 기록에 남지 않는다). 사진 없는 일기는 서버가 그림까지 그린 뒤 초안을 준다. 그림이 실패하면 기분 얼굴.
+ * 같은 화면에서는 같은 request_id → 응답을 못 받아 다시 눌러도 한 번만 올라간다. [다시 말할게요]는 새 대화(사진 유지).
  */
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import { MOOD_LABEL, type DiaryOut, type DraftOut, type SessionOut } from '../../api/types'
 import ElderPhoto from '../../components/ElderPhoto'
+import { Dots, IC } from '../../components/ElderUi'
 import MoodIcon from '../../components/MoodIcon'
+import Sim from '../../components/Sim'
 import { useLive, type ElderNavState } from '../../hooks/useElderSession'
 import { playBase64, say, speak, stopSpeaking } from '../../lib/audio'
 import './ELDER_DIARY_003.css'
@@ -46,10 +48,7 @@ export function DiaryPaper({ body, onRead, saying = false }: { body: string; onR
         <span className="diary-paper-window">
           <span ref={text} className="diary-paper-pages" style={{ transform: `translateX(-${page * 100}%)` }}>{body}</span>
         </span>
-        <svg className="elder-spk" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M4 9.5v5h3.2L12 18.5v-13L7.2 9.5z" />
-          <path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.3 6.3a8 8 0 0 1 0 11.4" />
-        </svg>
+        <span className="elder-spk-dot" aria-hidden="true">{IC.spk}</span>
       </button>
       {count > 1 && (
         <div className="diary-pages" aria-label="일기 글 넘기기">
@@ -66,8 +65,9 @@ export function DiaryPaper({ body, onRead, saying = false }: { body: string; onR
 const DRAFT_MS = 60_000
 const SLOW_MS = 8_000 // 이만큼 기다리면 소리로 한 번 안내 (VoiceSession 과 같은 규칙)
 const FINAL = ['DIARY_NOT_READY', 'DIARY_POSTED', 'SESSION_NOT_FOUND'] // 다시 해 봐도 안 되는 것
-// 서버 diaries._speech 와 같은 문장 (서버 TTS 음성이 없을 때 브라우저가 읽는다)
-const readAloud = (d: DraftOut) => `${d.body} 오늘 기분은 ${MOOD_LABEL[d.mood]}. 이대로 올릴까요?`
+// 서버 TTS 음성(audio_b64)이 없을 때 읽는 문장 — 서버 diaries._speech 와 같게 둔다
+const readAloud = (d: DraftOut) => `${d.body} 오늘 기분은 ${MOOD_LABEL[d.mood]}. 가족에게 보낼까요?`
+const SENT = '가족에게 보냈어요.'
 
 type Phase = 'WRITING' | 'READY' | 'POSTING' | 'POSTED' | 'FAILED'
 
@@ -77,15 +77,16 @@ export default function ELDER_DIARY_003() {
   const loc = useLocation()
   const live = useLive()
   const [home] = useState((loc.state as ElderNavState | null)?.home)
+  const sentBefore = !!(loc.state as { posted?: boolean } | null)?.posted // 보낸 뒤 새로고침
   const speed = Number(home?.settings.tts_speed) || 0.9
-  const [requestId] = useState(() => crypto.randomUUID()) // '네, 올려요' 멱등 키
-  const [againId] = useState(() => crypto.randomUUID()) // '다시 말할래요' 새 대화 (두 번 눌러도 하나)
+  const [requestId] = useState(() => crypto.randomUUID()) // '네, 보내요' 멱등 키
+  const [againId] = useState(() => crypto.randomUUID()) // '다시 말할게요' 새 대화 (두 번 눌러도 하나)
   const [draft, setDraft] = useState<DraftOut>()
-  const [phase, setPhase] = useState<Phase>('WRITING')
+  const [phase, setPhase] = useState<Phase>(sentBefore ? 'POSTED' : 'WRITING')
   const [note, setNote] = useState<string>()
   const [retryable, setRetryable] = useState(false)
   const [posted, setPosted] = useState(false) // 이미 올린 대화 (새로고침 등) → [홈으로]만
-  const [leaving, setLeaving] = useState(false) // [다시 말할래요] 처리 중 → 다른 버튼 막기
+  const [leaving, setLeaving] = useState(false) // [다시 말할게요] 처리 중 → 다른 버튼 막기
   const [attempt, setAttempt] = useState(0)
   const [saying, setSaying] = useState(false)
   const sayingTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -102,6 +103,7 @@ export default function ELDER_DIARY_003() {
 
   // 초안 받기. 새로고침·[다시 해 보기]에도 서버가 30분 동안 같은 초안을 준다 (그림을 두 번 그리지 않음)
   useEffect(() => {
+    if (sentBefore) return
     let alive = true
     const ctrl = new AbortController()
     const timer = window.setTimeout(() => ctrl.abort(), DRAFT_MS)
@@ -125,19 +127,20 @@ export default function ELDER_DIARY_003() {
       ctrl.abort()
       window.clearTimeout(timer)
     }
-  }, [sessionId, attempt])
+  }, [sessionId, attempt, sentBefore])
 
-  // 오래 걸리면 소리로 한 번 안내. 화면이 바뀌면 끊는다
+  // 쓰는 동안 안내를 읽고, 오래 걸리면 한 번 더. 화면이 바뀌면 끊는다
   useEffect(() => {
     if (phase !== 'WRITING') return
-    const t = window.setTimeout(() => speak('일기를 쓰고 있어요. 조금만 기다려 주세요.', speed), SLOW_MS)
+    void speak('일기를 쓰고 있어요. 조금만 기다려 주세요.', speed)
+    const t = window.setTimeout(() => speak('조금만 기다려 주세요.', speed), SLOW_MS)
     return () => {
       window.clearTimeout(t)
       stopSpeaking()
     }
   }, [phase, speed])
 
-  // 본문·기분을 읽어 주고 "이대로 올릴까요?" (서버 TTS 음성이 있으면 그것, 없으면 브라우저 TTS)
+  // 본문·기분을 읽어 주고 "가족에게 보낼까요?" (서버 TTS 음성이 있으면 그것, 없으면 고른 목소리)
   useEffect(() => {
     if (!draft) return
     if (draft.audio_b64) playBase64(draft.audio_b64, speed).catch(() => speak(readAloud(draft), speed))
@@ -145,12 +148,18 @@ export default function ELDER_DIARY_003() {
     return () => stopSpeaking()
   }, [draft, speed])
 
-  // 실패 안내도 읽어 준다 (성공 "가족들한테 보냈어요"처럼)
+  // 실패 안내도 읽어 준다
   useEffect(() => {
     if (!note) return
     stopSpeaking() // 아직 읽던 본문과 겹치지 않게
     speak(note, speed)
   }, [note, speed])
+
+  useEffect(() => {
+    if (phase !== 'POSTED') return
+    void speak(SENT, speed)
+    return () => stopSpeaking()
+  }, [phase, speed])
 
   function retry() {
     setPhase('WRITING')
@@ -160,6 +169,7 @@ export default function ELDER_DIARY_003() {
 
   async function post() {
     if (!draft || phase === 'POSTING' || leaving) return
+    stopSpeaking()
     setPhase('POSTING')
     setNote(undefined)
     try {
@@ -176,9 +186,10 @@ export default function ELDER_DIARY_003() {
       }
       return
     }
-    stopSpeaking()
+    if (!live.current) return
     setPhase('POSTED')
-    if (live.current) speak('가족들한테 보냈어요.', speed)
+    // 이 주소를 '보냄'으로 바꿔 둔다 — 새로고침해도 보낸 화면, 뒤로 키는 그 앞(홈)으로. 같은 일기를 또 쓰지 않게
+    nav(loc.pathname, { replace: true, state: { home, posted: true } })
   }
 
   async function again() {
@@ -190,10 +201,10 @@ export default function ELDER_DIARY_003() {
       const s = await api<SessionOut>('/api/elder/sessions', {
         body: { session_id: againId, kind: 'DIARY', photo_id: draft?.photo_id ?? undefined },
       })
-      if (!live.current) return // 기다리다 [홈으로]·뒤로 가기로 떠났으면 끌고 가지 않는다
+      if (!live.current) return // 기다리다 뒤로 가기로 떠났으면 끌고 가지 않는다
       nav(`/elder/diary/${againId}`, { replace: true, state: { session: s, home, photoUrl } })
     } catch (e) {
-      setNote((e as Error).message)
+      setNote(e instanceof ApiError ? e.message : '연결이 잠깐 끊겼어요. 다시 눌러 주세요.')
       setLeaving(false)
     }
   }
@@ -202,62 +213,70 @@ export default function ELDER_DIARY_003() {
 
   if (phase === 'WRITING')
     return (
-      <main className="elder elder--fit">
-        <p className="elder-text elder-text--lg">일기를 쓰고 있어요.</p>
-        <p className="elder-text">조금만 기다려 주세요.</p>
+      <main className="elder elder--fit elder-center">
+        <div className="elder-halo elder-wait"><Sim face="smile" size={150} className="elder-sim" /></div>
+        <h1>일기를 쓰고 있어요<Dots /></h1>
+        <p className="elder-sub">조금만 기다려 주세요.</p>
       </main>
     )
 
   if (phase === 'POSTED')
     return (
       <main className="elder elder--fit">
-        <p className="elder-text elder-text--lg">가족들한테 보냈어요.</p>
-        <button className="elder-btn" onClick={goHome}>홈으로</button>
+        <div className="elder-grow elder-center">
+          <div className="elder-halo elder-pop"><Sim face="joy" size={170} className="elder-sim" /></div>
+          <h1>가족에게 보냈어요</h1>
+          <p className="elder-sub">가족이 읽으면 알려 드릴게요.</p>
+        </div>
+        <button type="button" className="elder-btn" onClick={goHome}>홈으로</button>
       </main>
     )
 
   if (phase === 'FAILED' || !draft)
     return (
       <main className="elder elder--fit">
-        <p className="elder-text">{note}</p>
-        {retryable && <button className="elder-btn" onClick={retry} disabled={leaving}>다시 해 보기</button>}
+        <div className="elder-grow elder-center">
+          <Sim face="ask" size={150} className="elder-sim" />
+          <p className="elder-text" role="alert">{note}</p>
+        </div>
+        {retryable && <button type="button" className="elder-btn" onClick={retry} disabled={leaving}>다시 해 보기</button>}
         {!posted && (
-          <button className="elder-btn elder-btn--secondary" onClick={again} disabled={leaving}>
-            {leaving ? '잠시만요…' : '다시 말할래요'}
+          <button type="button" className="elder-btn elder-btn--secondary" onClick={again} disabled={leaving}>
+            {leaving ? '잠시만요…' : '다시 말할게요'}
           </button>
         )}
-        <button className="elder-btn elder-btn--secondary" onClick={goHome}>홈으로</button>
+        <button type="button" className="elder-btn elder-btn--secondary" onClick={goHome}>홈으로</button>
       </main>
     )
 
+  const busy = phase === 'POSTING' || leaving
   return (
     <main className="elder elder--fit diary-confirm">
+      <h1>가족에게 보낼까요?</h1>
       {draft.illustration_type === 'PHOTO' && draft.illustration_url && (
         <ElderPhoto src={draft.illustration_url} alt="오늘 찍은 사진" />
       )}
       {draft.illustration_type === 'AI_DRAWING' && draft.illustration_b64 && (
-        <div className="diary-drawing">
-          <ElderPhoto src={`data:image/jpeg;base64,${draft.illustration_b64}`} alt="그림일기 그림" />
-          <span className="diary-drawing-label">그림일기 · AI 그림</span>
-        </div>
+        <ElderPhoto src={`data:image/jpeg;base64,${draft.illustration_b64}`} alt="그림일기 그림" />
       )}
-      {draft.illustration_type === 'NONE' && (
+      {draft.illustration_type === 'AI_DRAWING' && draft.illustration_b64 && <span className="elder-tag">{IC.pen}그림일기 · AI 그림</span>}
+      {(draft.illustration_type === 'NONE' || (draft.illustration_type === 'AI_DRAWING' && !draft.illustration_b64)) && (
         <div className="elder-photo-box elder-photo-box--grow elder-mood-pic">
           <MoodIcon mood={draft.mood} />
         </div>
       )}
       <DiaryPaper key={draft.body} body={draft.body} onRead={readDraft} saying={saying} />
-      <div className="elder-mood">
+      <p className="elder-moodline">
         <MoodIcon mood={draft.mood} />
         오늘 기분 · {MOOD_LABEL[draft.mood]}
-      </div>
+      </p>
       {note && <p className="elder-text" role="alert">{note}</p>}
-      <div className="elder-two elder-bottom">
-        <button className="elder-btn" onClick={post} disabled={phase === 'POSTING' || leaving}>
-          {phase === 'POSTING' ? '보내는 중…' : '네, 올려요'}
+      <div className="elder-two">
+        <button type="button" className="elder-btn" onClick={post} disabled={busy}>
+          {phase === 'POSTING' ? '보내는 중…' : '네, 보내요'}
         </button>
-        <button className="elder-btn elder-btn--secondary" onClick={again} disabled={phase === 'POSTING' || leaving}>
-          {leaving ? '잠시만요…' : '다시 말할래요'}
+        <button type="button" className="elder-btn elder-btn--secondary" onClick={again} disabled={busy}>
+          {leaving ? '잠시만요…' : <>다시<wbr /> 말할게요</>}
         </button>
       </div>
     </main>

@@ -1,4 +1,8 @@
-/** HOME_002 — 일기 상세. 하위 화면 틀의 ←를 쓰고, 열람 기록은 이 화면을 열 때만 남긴다(D36). */
+/**
+ * HOME_002 — 일기 상세 (11/23 시안 f-detail). 하위 화면 틀의 ←를 쓰고, 열람 기록은 이 화면을 열 때만 남긴다(D36).
+ * 추천 한마디는 누르면 입력 칸만 채우고 [보내기]는 따로(D91 바꿈 — 한 번 눌러 '곧 갈게요' 같은 약속이 실수로 가지 않게).
+ * 가족 일기에 어르신이 말로 답하신 한 줄(reactions 의 by ELDER·kind REPLY)을 보여 준다.
+ */
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
@@ -14,7 +18,7 @@ const REACTS = [
   ['SMILE', '😊', '웃음'],
   ['CLAP', '👏', '박수'],
 ] as const
-// 한마디 (11/19): 추천 답은 누르면 바로 보낸다. 글자 수는 서버 config.REPLY_MAX 와 같은 값
+// 한마디 (11/19): 추천 답은 누르면 입력 칸만 채운다(11/23). 글자 수는 서버 config.REPLY_MAX 와 같은 값
 const REPLY_PICKS = ['보고 싶어요', '곧 갈게요', '잘 읽었어요', '사랑해요']
 const REPLY_MAX = 40
 
@@ -60,7 +64,8 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
   const room = rooms.data?.find((r) => r.room_id === d?.room_id)
   // 내 이모지 칸 — 내 한마디(REPLY) 칸은 따로라 여기서 뺀다
   const mine = d?.reactions.find((r) => r.by === 'FAMILY' && r.kind !== 'REPLY' && r.user_id === me.data?.user_id)?.kind
-  const replies = d?.reactions.filter((r) => r.kind === 'REPLY') ?? []
+  const replies = d?.reactions.filter((r) => r.by === 'FAMILY' && r.kind === 'REPLY') ?? []
+  const elderReply = d?.reactions.find((r) => r.by === 'ELDER' && r.kind === 'REPLY')
   const myReply = replies.find((r) => r.user_id === me.data?.user_id)
 
   useEffect(() => {
@@ -213,14 +218,14 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
   return (
     <main className="fam-stack diary-detail">
       <h1 className="diary-detail-title">일기 상세</h1>
-      <article className="fam-card diary-detail-card">
+      <article className="diary-detail-card">
         <header className="diary-detail-head">
           <Avatar name={elder ? room.elder_name : name} />
           <div className="diary-detail-who">
             <b>{name}</b>
             <small>
               <time dateTime={d.posted_at}>{postedAt(d.posted_at)}</time>
-              {!elder && d.author_nickname ? ` · ${d.author_nickname}` : ''} · {elder ? '일기' : '오늘 한 장'}
+              {!elder && d.author_nickname ? ` · ${d.author_nickname}` : ''} · {elder ? '일기' : '오늘 소식'}
             </small>
           </div>
         </header>
@@ -242,9 +247,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
           </div>
         )}
         <p className="diary-detail-text">{d.body}</p>
-        <div className="diary-detail-chips">
-          <span className="diary-detail-chip"><MoodIcon mood={d.mood} />기분 · {MOOD_LABEL[d.mood]}</span>
-        </div>
+        <p className="diary-detail-mood"><MoodIcon mood={d.mood} />일기 기분 · {MOOD_LABEL[d.mood]}</p>
         {elder && (
           <div className="diary-detail-reactions" role="group" aria-label="가족 이모지" aria-busy={busy}>
             {REACTS.map(([kind, emoji, label]) => {
@@ -254,7 +257,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
                 <button
                   type="button"
                   key={kind}
-                  className={`diary-detail-react${on ? ' on' : ''}`}
+                  className="diary-detail-react"
                   onClick={() => react(kind)}
                   disabled={busy}
                   aria-pressed={on}
@@ -271,16 +274,16 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
           <p className="diary-detail-note" role="alert">이모지를 보내지 못했어요. 연결을 확인하고 다시 눌러 주세요.</p>
         )}
         {elder && (
-          <section className="diary-detail-reply" aria-labelledby="diary-reply-title" aria-busy={busy}>
+          <section className="fam-card diary-detail-reply" aria-labelledby="diary-reply-title" aria-busy={busy}>
             <h2 id="diary-reply-title">한마디 남기기</h2>
-            <p className="diary-detail-reply-hint">
-              {room.elder_honorific}께 가족 소식에서 읽어 드려요. 한 일기에 하나, 새로 보내면 바뀌어요.
-            </p>
             {replies.length > 0 && (
               <ul className="diary-detail-replies">
                 {replies.map((r) => (
                   <li key={r.user_id}>
-                    <span><b>{r === myReply ? '내 한마디' : (r.name ?? '가족')}:</b> {r.text}</span>
+                    <span>
+                      <small>{r === myReply ? '내 한마디' : (r.name ?? '가족')}</small>
+                      <b>{r.text}</b>
+                    </span>
                     {r === myReply && (
                       <button type="button" className="fam-text-btn" disabled={busy} onClick={removeReply}>지우기</button>
                     )}
@@ -288,27 +291,45 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
                 ))}
               </ul>
             )}
-            <div className="diary-detail-reply-picks" role="group" aria-label="추천 한마디">
+            <div className="fam-seg" role="group" aria-label="추천 한마디 — 누르면 칸에 들어가요">
               {REPLY_PICKS.map((pick) => (
-                <button type="button" key={pick} className="fam-btn fam-btn--tonal fam-btn--sm" disabled={busy} onClick={() => sendReply(pick)}>
+                <button type="button" key={pick} className="fam-chip" disabled={busy} onClick={() => setDraft(pick)} aria-pressed={draft === pick}>
                   {pick}
                 </button>
               ))}
             </div>
             <form className="diary-detail-reply-form" onSubmit={(e) => { e.preventDefault(); void sendReply(draft) }}>
               <input
+                className="fam-input"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 maxLength={REPLY_MAX}
-                placeholder="직접 쓰기"
+                placeholder={`직접 쓰기 (${REPLY_MAX}자까지)`}
                 aria-label={`한마디 직접 쓰기, ${REPLY_MAX}자까지`}
                 enterKeyHint="send"
+                autoComplete="off"
               />
-              <button type="submit" className="fam-btn fam-btn--primary fam-btn--sm" disabled={busy || !draft.trim()}>보내기</button>
-              <small aria-hidden="true">{draft.length}/{REPLY_MAX}</small>
+              <button type="submit" className="fam-btn fam-btn--primary" disabled={busy || !draft.trim()}>보내기</button>
             </form>
             {replyError && <p className="diary-detail-reply-note" role="alert">{replyError}</p>}
-            {replySent && <p className="diary-detail-reply-note" role="status">{name}께 읽어 드릴게요.</p>}
+            <p className="fam-note" role={replySent ? 'status' : undefined}>
+              <FamIcon name="speaker" />
+              <span>
+                {replySent ? `보냈어요 · ${name}께 읽어 드릴게요.` : `${room.elder_honorific}께 가족 소식에서 읽어 드려요. 한 일기에 하나, 새로 보내면 바뀌어요.`}
+              </span>
+            </p>
+          </section>
+        )}
+        {!elder && elderReply && (
+          <section className="diary-detail-elder-reply" aria-label="어르신 답장">
+            <p className="fam-note">
+              <FamIcon name="speaker" />
+              <span>
+                {room.elder_honorific}
+                {iga(room.elder_honorific)} 말로 답하셨어요
+              </span>
+            </p>
+            <p className="diary-detail-quote">“{elderReply.text}”</p>
           </section>
         )}
         {!elder && (
@@ -324,16 +345,12 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
       </article>
       {(recent !== undefined || past !== undefined) && (
         <nav className="diary-detail-nav" aria-label="일기 넘기기">
-          {recent !== undefined && (
-            <button type="button" className="fam-btn fam-btn--tonal" onClick={() => openDiary(recent)}>
-              ← 최근 일기
-            </button>
-          )}
-          {past !== undefined && (
-            <button type="button" className="fam-btn fam-btn--tonal diary-detail-past" onClick={() => openDiary(past)}>
-              지난 일기 →
-            </button>
-          )}
+          <button type="button" className="fam-btn fam-btn--sm" disabled={past === undefined} onClick={() => past !== undefined && openDiary(past)}>
+            ‹ 지난 일기
+          </button>
+          <button type="button" className="fam-btn fam-btn--sm" disabled={recent === undefined} onClick={() => recent !== undefined && openDiary(recent)}>
+            최근 일기 ›
+          </button>
         </nav>
       )}
       {hasPicture && (

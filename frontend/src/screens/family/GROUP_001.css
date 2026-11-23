@@ -21,8 +21,8 @@
 .newroom-choice { margin:0; padding:0; border:0; }
 .newroom-choice > legend { padding:0; margin-bottom:9px; }
 .newroom-chips { display:flex; flex-wrap:wrap; gap:8px; }
-.newroom-chip { position:relative; display:inline-flex; align-items:center; min-height:44px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:var(--surface); color:var(--text); font-size:15px; font-weight:600; cursor:pointer; }
-.newroom-chip:has(input:checked) { background:var(--tint); border-color:var(--primary); color:var(--primary); font-weight:800; }
+.newroom-chip { position:relative; display:inline-flex; align-items:center; min-height:44px; padding:0 14px; border:1.5px solid var(--ink3); border-radius:999px; background:var(--surface); color:var(--text-2); font-size:15px; font-weight:600; cursor:pointer; }
+.newroom-chip:has(input:checked) { background:var(--ink); border-color:var(--ink); color:var(--surface); font-weight:700; } /* 시안 .fseg 고른 칸 */
 .newroom-chip:has(input:focus-visible) { outline:2px solid var(--primary); outline-offset:3px; }
 .newroom-chip input { position:absolute; opacity:0; width:1px; height:1px; margin:0; padding:0; border:0; }
 .newroom-field > input { width:100%; min-width:0; border:1px solid var(--line); border-radius:14px; background:var(--surface); padding:12px 14px; font-size:16px; line-height:1.55; color:var(--text); }

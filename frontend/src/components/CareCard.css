@@ -1,11 +1,12 @@
-/* 가족 홈 돌봄 일지 — 색은 FamilyFrame.css 변수(글자 대비 4.5:1 이상: --text-2 6.6:1 · --primary 7.7:1 · --danger 5.3:1) */
-.care { padding:14px 16px; display:flex; flex-direction:column; gap:10px; }
-.care h2 { margin:0; display:flex; align-items:baseline; gap:8px; font-size:16px; letter-spacing:-.02em; }
-.care h2 small, .care-day > small { font-size:14px; font-weight:400; color:var(--text-2); }
-.care-day { display:flex; flex-direction:column; gap:6px; }
-.care-day + .care-day { border-top:1px solid var(--line); padding-top:10px; }
-.care-day ul { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:4px; font-size:15px; line-height:1.45; color:var(--text); }
-.care-day li { display:flex; gap:8px; }
-.care-day li b { flex:none; width:60px; color:var(--primary); font-weight:700; }
-.care-day--care > small { color:var(--danger); font-weight:700; }
-.care .fam-text-btn { align-self:flex-start; padding-left:0; } /* 누르는 곳 44px 는 공통 fam-text-btn */
+/* 가족 홈 돌봄 일지 — 11/23 시안 careHead·careLog(.kv). 색은 FamilyFrame.css 변수 */
+.care { display:flex; flex-direction:column; gap:12px; }
+.care-head { display:flex; align-items:center; gap:10px; }
+.care-head > div { flex:1; min-width:0; }
+.care-title { display:flex; align-items:center; gap:8px; }
+.care-title h2 { flex:1; font-size:17px; font-weight:800; letter-spacing:-.02em; line-height:1.35; }
+.care-kv { display:grid; grid-template-columns:auto 1fr; gap:8px 12px; margin:0; font-size:15px; line-height:1.5; }
+.care-kv dt { padding-top:1px; color:var(--text-3); font-size:13px; font-weight:700; white-space:nowrap; }
+.care-kv dd { margin:0; }
+.care-kv-row { display:contents; }
+.care-more { display:flex; flex-direction:column; gap:6px; }
+.care .care-toggle { align-self:flex-start; margin:-6px 0 -8px -10px; }

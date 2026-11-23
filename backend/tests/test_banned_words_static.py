@@ -72,6 +72,35 @@ def fixed_text_paths():
     return paths
 
 
+def _strings(path):
+    if path.suffix == ".py":
+        return python_strings(path)
+    if path.suffix == ".json":
+        return json_strings(json.loads(path.read_text("utf-8")))
+    return typescript_strings(path)
+
+
+def _elder_facing(relative: str) -> bool:
+    return (
+        "screens/elder/" in relative
+        or "components/VoiceSession/" in relative
+        or relative.endswith(("lib/audio.ts", "lib/moodCheck.ts"))
+        or relative.startswith("backend/app/ai/")
+        or relative
+        in {
+            "backend/app/routers/elder.py",
+            "backend/app/routers/sessions.py",
+            "backend/app/routers/diaries.py",
+            "backend/app/routers/mood.py",
+            "backend/app/routers/stt.py",
+            "backend/app/routers/devices.py",
+            "backend/app/services/care.py",
+            "backend/app/deps.py",
+            "backend/app/errors.py",
+        }
+    )
+
+
 @pytest.mark.parametrize(
     "path",
     [
@@ -85,30 +114,8 @@ def fixed_text_paths():
 def test_fixed_user_text_has_no_banned_words(path):
     hits = []
     relative = path.relative_to(ROOT).as_posix()
-    if path.suffix == ".py":
-        strings = python_strings(path)
-    elif path.suffix == ".json":
-        strings = json_strings(json.loads(path.read_text("utf-8")))
-    else:
-        strings = typescript_strings(path)
-    elder = (
-        "screens/elder/" in relative
-        or "components/VoiceSession/" in relative
-        or relative.endswith(("lib/audio.ts", "lib/moodCheck.ts"))
-        or relative.startswith("backend/app/ai/")
-        or relative
-        in {
-            "backend/app/routers/elder.py",
-            "backend/app/routers/sessions.py",
-            "backend/app/routers/diaries.py",
-            "backend/app/routers/mood.py",
-            "backend/app/routers/stt.py",
-            "backend/app/routers/devices.py",
-            "backend/app/deps.py",
-            "backend/app/errors.py",
-        }
-    )
-    for line, value in strings:
+    elder = _elder_facing(relative)
+    for line, value in _strings(path):
         if (relative, value) in EXCEPTIONS:
             continue
         words = [word for word in BANNED_WORDS if word in value]
@@ -116,6 +123,21 @@ def test_fixed_user_text_has_no_banned_words(path):
             words.append("실패")
         if words:
             hits.append(f"{relative}:{line} ({', '.join(words)})")
+    assert not hits, "\n".join(hits)
+
+
+def test_elder_never_hears_family_was_told():
+    """어르신께 '가족에게 알렸어요·알릴게요'라고 하지 않는다 — 가족 알림은 그대로 간다 (11/23 사용자, D94 바꿈).
+
+    처음 연결 때의 동의 안내('힘든 말씀을 하시면 가족에게도 알려요')는 고지라 '알려'로 남는다.
+    """
+    hits = [
+        f"{path.relative_to(ROOT).as_posix()}:{line}"
+        for path in fixed_text_paths()
+        if _elder_facing(path.relative_to(ROOT).as_posix())
+        for line, value in _strings(path)
+        if "알렸" in value or "알릴게" in value
+    ]
     assert not hits, "\n".join(hits)
 
 

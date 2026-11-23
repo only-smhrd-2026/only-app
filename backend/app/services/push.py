@@ -32,13 +32,30 @@ from sqlalchemy.orm import Session
 
 from app.config import PUSH_JWT_SEC, PUSH_TIMEOUT_SEC, PUSH_TTL_SEC, now_kst, settings
 from app.db import SessionLocal
-from app.models import PushSubscription
+from app.models import PushSubscription, User
 
 log = logging.getLogger("app.push")
 
 # 가족 알림 중 푸시로도 보내는 것 (FR-NT-003 일기·주간 이야기 + 11/19 마음 알림 2종·이틀째 기록 없음).
 # 나머지는 알림 목록에만
-FAMILY_KINDS = ("DIARY_POSTED", "WEEKLY_READY", "MOOD_URGENT", "MOOD_LOW_2D", "NO_RECORD_2D")
+FAMILY_KINDS = (
+    "DIARY_POSTED",
+    "WEEKLY_READY",
+    "MOOD_URGENT",
+    "MOOD_LOW_2D",
+    "NO_RECORD_2D",
+    "ELDER_REPLY",
+    "URGENT_MISSED",
+)
+# 가족이 끌 수 있는 묶음 (11/23, users.push_muted). 표에 없는 종류(급한 알림 MOOD_URGENT·URGENT_MISSED)는 늘 보낸다.
+# 끈 묶음도 앱 안 알림 목록 줄은 그대로 생긴다 — 폰만 안 울린다
+MUTE_GROUP = {
+    "DIARY_POSTED": "DIARY",
+    "ELDER_REPLY": "DIARY",
+    "WEEKLY_READY": "WEEKLY",
+    "MOOD_LOW_2D": "CARE",
+    "NO_RECORD_2D": "CARE",
+}
 # '이틀째 기록 없음'은 알림 제목에 어르신 이름이 들어 있다 — 폰(잠금 화면)에는 이름 없는 이 제목으로 보낸다 (D94)
 NO_RECORD_TITLE = "이틀째 기록이 없어요. 전화 한 통 드려 보세요"
 # 푸시에는 어떤 알림이든 제목만 싣는다 — 마음 알림의 body 에는 어르신 이름과 '많이 힘드심·몸이 불편'이 들어 있어
@@ -50,7 +67,7 @@ ELDER_PUSH = {
 }
 # 가족 알림의 link_screen → 누르면 열리는 주소. 가족 홈은 그 어르신의 홈이 열리게 가족방 번호를 붙인다
 # (화면 lib/push.ts 가 읽는다 — 알림 목록 NOTI_001 에서 눌렀을 때와 같게). 표에 없으면 앱 첫 주소
-_FAMILY_URL = {"HOME_001": "/?room={room_id}", "WEEKLY_001": "/weekly/{room_id}"}
+_FAMILY_URL = {"HOME_001": "/?room={room_id}", "WEEKLY_001": "/weekly/{room_id}", "HOME_002": "/diaries/{link_id}"}
 
 # 서버가 사용자가 준 주소로 POST 하게 되므로(SSRF) 알려진 푸시 서비스의 https 주소만 받고, 보낸다.
 PUSH_HOSTS = ("fcm.googleapis.com", "updates.push.services.mozilla.com")  # 크롬·삼성 인터넷·엣지 / 파이어폭스
@@ -191,18 +208,38 @@ def _drop_queued(session: Session, transaction) -> None:
 
 
 def queue_family(
-    db: Session, user_ids: list[int], room_id: int, kind: str, title: str, body: str | None, link: str | None
+    db: Session,
+    user_ids: list[int],
+    room_id: int,
+    kind: str,
+    title: str,
+    body: str | None,
+    link: str | None,
+    link_id: int | None = None,
 ) -> None:
     """가족 알림 1건을 그 가족들의 브라우저에 예약한다 — 푸시로 보내는 종류만 (routers/devices.notify_family 가 부른다).
 
     body 는 푸시에 넣지 않는다 — 일기 알림은 일기 글이고, 마음 알림은 어르신 이름과 상태가 들어 있다(잠금 화면).
+    그 묶음을 끈 가족(users.push_muted)은 건너뛴다 (11/23).
     """
     if kind not in FAMILY_KINDS or not user_ids:
         return
-    urgent = kind == "MOOD_URGENT"
+    group = MUTE_GROUP.get(kind)
+    if group:
+        with db.no_autoflush:  # 부른 쪽이 막 넣은 알림 줄을 여기서 내보내지 않는다(scripts/demo_data 가 db.new 로 셈)
+            muted = set(
+                db.scalars(select(User.user_id).where(User.user_id.in_(user_ids), User.push_muted.contains([group])))
+            )
+        user_ids = [uid for uid in user_ids if uid not in muted]
+        if not user_ids:
+            return
+    urgent = kind in ("MOOD_URGENT", "URGENT_MISSED")
+    url = _FAMILY_URL.get(link or "", "/start")
+    if "{link_id}" in url and link_id is None:  # 번호 없는 일기 알림(옛 줄)은 가족 홈으로
+        url = _FAMILY_URL["HOME_001"]
     payload = {
         "title": NO_RECORD_TITLE if kind == "NO_RECORD_2D" else title,
-        "url": _FAMILY_URL.get(link or "", "/start").format(room_id=room_id),
+        "url": url.format(room_id=room_id, link_id=link_id),
         "tag": f"{kind}-{room_id}",
     }
     _queue(db, PushSubscription.user_id.in_(user_ids), payload, urgent=urgent)
