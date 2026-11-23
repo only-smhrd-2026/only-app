@@ -49,14 +49,15 @@
 .fam-body .fam-skin { min-height:0; background:transparent; }
 
 /* 아래 탭 (11/23 사용자 — 홈·사진첩·[+]·주간 이야기·가족방). 고른 탭은 노랑 알약 (아이폰 홈 막대만큼 아래 여백) */
-.fam-tabs { flex:none; display:grid; grid-template-columns:repeat(5,1fr); align-items:start; padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px)); background:var(--surface); box-shadow:0 -1px 0 var(--line); }
+.fam-tabs { position:relative; z-index:2; flex:none; display:grid; grid-template-columns:repeat(5,1fr); align-items:start; padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px)); background:var(--surface); box-shadow:0 -1px 0 var(--line); }
 .fam-tab { display:flex; flex-direction:column; align-items:center; gap:2px; min-height:52px; padding:4px 0 2px; color:var(--text-3); font-size:13px; font-weight:600; letter-spacing:-.04em; white-space:nowrap; text-decoration:none; transition:transform .08s ease-out; }
 .fam-tab:active { transform:scale(.96); }
 .fam-pill { width:52px; height:30px; display:grid; place-items:center; border-radius:15px; transition:background .15s; }
 .fam-tab .fam-ic { width:23px; height:23px; }
 .fam-tab.on { color:var(--text); font-weight:800; }
 .fam-tab.on .fam-pill { background:var(--brand); color:var(--on-brand); }
-/* 가운데 [+] — 탭 줄 위로 반쯤 떠 있는 노란 동그라미 (오늘 소식·추억 사진 올리기 판을 연다) */
+/* 가운데 [+] — 탭 줄 위로 반쯤 떠 있는 노란 동그라미 (오늘 소식·추억 사진 올리기 판을 연다).
+   탭 줄은 z-index 2 — 아이폰 Safari 는 스크롤 본문(.fam-body)을 위에 그려 동그라미 윗부분이 잘렸다 (11/23) */
 .fam-plus { display:grid; justify-items:center; min-height:52px; border:0; background:none; padding:0; cursor:pointer; }
 .fam-plus > span { display:grid; place-items:center; width:58px; height:58px; margin-top:-22px; border:1.5px solid var(--lip); border-radius:50%; background:linear-gradient(180deg,var(--brand-hi),var(--brand) 62%); color:var(--on-brand); box-shadow:0 0 0 4px var(--surface),var(--sh2); transition:transform .08s ease-out; }
 .fam-plus .fam-ic { width:28px; height:28px; stroke-width:2.6; }
