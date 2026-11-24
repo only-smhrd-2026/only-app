@@ -300,13 +300,18 @@ export default function ELDER_FAMILY_001() {
   useEffect(() => () => clearTimeout(sayingTimer.current), [])
 
   /** 가족 목소리를 처음부터 튼다. 다시 누르면 멈춘다 */
+  const playSeq = useRef(0) // 마지막으로 시작한 재생만 '다 들음'을 표시한다
+  const manual = useRef(false) // 이 장에서 재생 줄을 눌렀다 — 안내가 끊겨 끝나도 저절로 다시 틀지 않는다
   async function playFamily(url: string) {
+    const my = ++playSeq.current
     setPlaying(true)
     await playVoice(url)
-    if (live.current) setPlaying(false)
+    if (live.current && my === playSeq.current) setPlaying(false)
   }
   function toggleFamily(url: string) {
+    manual.current = true
     if (!playing) return void playFamily(url)
+    playSeq.current++
     stopSpeaking()
     setPlaying(false)
   }
@@ -316,10 +321,12 @@ export default function ELDER_FAMILY_001() {
   useEffect(() => {
     if (!voice?.audio_url) return
     let here = true
+    manual.current = false
     const who = voice.name || '가족'
     const url = voice.audio_url
     void speak(`${who}${josa(who, '이', '가')} ${day(voice.diary_posted_at)} 일기에 목소리로 답장을 보냈어요.`, speed).then((heard) => {
-      if (here && heard) void playFamily(url) // 자동 재생이 막혔으면(heard false) 재생 줄을 누르면 된다
+      // 자동 재생이 막혔으면(heard false) 재생 줄을 누르면 된다. 안내 중에 눌렀으면 이미 튼다
+      if (here && heard && !manual.current) void playFamily(url)
     })
     return () => {
       here = false
