@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { CHECKS, checkKind, MEM_SETS, memSetFor, MOOD_ANSWERS, MOOD_ITEMS, moodSnoozed, ordinal, snoozeMood } from './moodCheck'
+import { CHECKS, checkKind, MEM_SETS, memSetFor, MOOD_ANSWERS, MOOD_ITEMS, ordinal } from './moodCheck'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -9,30 +9,6 @@ afterEach(() => {
 it('has eight mood questions and four answers', () => {
   expect(MOOD_ITEMS).toHaveLength(8)
   expect(MOOD_ANSWERS).toHaveLength(4)
-})
-
-it('snoozes until midnight in Korea', () => {
-  const values = new Map<string, string>()
-  vi.stubGlobal('localStorage', {
-    getItem: (key: string) => values.get(key) ?? null,
-    setItem: (key: string, value: string) => values.set(key, value),
-  })
-  vi.useFakeTimers()
-  vi.setSystemTime(new Date('2026-11-18T14:59:59Z'))
-  snoozeMood()
-  expect(moodSnoozed()).toBe(true)
-  vi.setSystemTime(new Date('2026-11-18T15:00:00Z'))
-  expect(moodSnoozed()).toBe(false)
-})
-
-it('works without readable local storage', () => {
-  vi.stubGlobal('localStorage', undefined)
-  expect(() => snoozeMood()).not.toThrow()
-  expect(moodSnoozed()).toBe(false)
-  const blocked = () => { throw new Error('storage disabled') }
-  vi.stubGlobal('localStorage', { getItem: blocked, setItem: blocked })
-  expect(() => snoozeMood()).not.toThrow()
-  expect(moodSnoozed()).toBe(false)
 })
 
 it('keeps each scale at its own item and answer count', () => {

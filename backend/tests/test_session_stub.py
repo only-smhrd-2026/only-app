@@ -41,7 +41,7 @@ def test_max_turns_then_ended(client):
         f"/api/elder/sessions/{sid}/turns", json={"text": "네", "input_type": "VOICE", "stt_confidence": 0.9}
     )
     body = last.json()
-    assert body["state"] == "ENDED" and body["end_reason"] == "COMPLETED" and body["turn_no"] == MAX_TURNS == 4
+    assert body["state"] == "ENDED" and body["end_reason"] == "COMPLETED" and body["turn_no"] == MAX_TURNS == 5
     assert body["ai"]["question_type"] == "CLOSING"
 
     assert client.post(f"/api/elder/sessions/{sid}/turns", json={"text": "또", "input_type": "CHIP"}).status_code == 409

@@ -5,6 +5,7 @@
 import { useEffect, type ComponentType } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import type { DeviceOut } from './api/types'
+import { ElderBackFrame } from './components/ElderUi'
 import FamilyFrame, { SubFrame } from './components/FamilyFrame'
 import { useFetch } from './hooks/useFetch'
 import NotYet from './screens/NotYet'
@@ -107,6 +108,9 @@ function Start() {
 // 가족 탭 첫 화면 4개(11/23 시안: 홈·사진첩·주간 이야기·가족방)는 공통 틀(위 막대·아래 탭, D70) 안에 들어간다
 const TAB_SCREENS = new Set(['HOME_001', 'PHOTO_001', 'WEEKLY_001', 'GROUP_002'])
 // 그 밖의 가족 화면은 위 ← 만 있는 하위 화면 틀(D70). 로그인·참여는 틀 없이(목업 '설계서대로')
+// 위 [← 뒤로]가 없는 어르신 화면 — 홈(오늘의 한 장·마음 체크 초대도 홈 화면)과 기기 연결. 나머지 어르신 화면은 ElderBackFrame (D97)
+const ELDER_NO_BACK = new Set(['ELDER_HOME_001', 'ELDER_TODAY_001', 'ELDER_MOOD_001', 'ELDER_CONNECT_001'])
+const isElderBacked = (s: { id: string }) => s.id.startsWith('ELDER_') && !ELDER_NO_BACK.has(s.id)
 const SUB_SCREENS = new Set(['GROUP_001', 'HOME_002', 'UPLOAD_001', 'UPLOAD_002', 'UPLOAD_003', 'FDIARY_001', 'NOTI_001', 'ACCOUNT_001'])
 const route = ({ id, path, title, Screen }: ScreenDef) => (
   <Route key={id} path={path} element={Screen ? <Screen /> : <NotYet id={id} title={title} />} />
@@ -117,7 +121,8 @@ export default function App() {
     <Routes>
       <Route element={<FamilyFrame />}>{SCREENS.filter((s) => TAB_SCREENS.has(s.id)).map(route)}</Route>
       <Route element={<SubFrame />}>{SCREENS.filter((s) => SUB_SCREENS.has(s.id)).map(route)}</Route>
-      {SCREENS.filter((s) => !TAB_SCREENS.has(s.id) && !SUB_SCREENS.has(s.id)).map(route)}
+      <Route element={<ElderBackFrame />}>{SCREENS.filter(isElderBacked).map(route)}</Route>
+      {SCREENS.filter((s) => !TAB_SCREENS.has(s.id) && !SUB_SCREENS.has(s.id) && !isElderBacked(s)).map(route)}
       <Route path="/start" element={<Start />} />
       {/* 11/23 옛 주소 — 올린 사진·가족 일기 쓰기·확인은 사진첩·오늘 소식으로 합쳐짐 */}
       <Route path="/groups/:roomId/photos" element={<Navigate to="/photos" replace />} />

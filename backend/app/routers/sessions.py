@@ -1,14 +1,14 @@
 """회상·일기 대화 세션 — 음성 왕복 걷는 해골 (초석 원안 D). 계약은 schemas/sessions.py.
 
 턴 정의: AI 질문 1 + 어르신 답 1 = 1턴. sessions.turn_count = 지금까지 낸 AI 질문 수
-(만들 때 1, 최대 MAX_TURNS=4, D79 — 11/18 실사용 전 6). 그날 첫 회상 대화가 지난 대화의 이야기로 시작하면
-그 질문도 4번 안에 든다(첫 AI 턴의 fact_id — 코치에 넘기는 사진 질문 번호만 하나씩 밀린다, AI-07 D77·D79).
+(만들 때 1, 최대 MAX_TURNS=5, D97 — 11/24 전 4·11/18 전 6). 그날 첫 회상 대화가 지난 대화의 이야기로 시작하면
+그 질문도 5번 안에 든다(첫 AI 턴의 fact_id — 코치에 넘기는 사진 질문 번호만 하나씩 밀린다, AI-07 D77·D79).
 생각 문제는 늘 끝에서 두 번째(QUIZ_TURN, 어제 이야기 질문도 세는 순번).
-마지막(4번째) 답을 받으면 AI 가 마무리 인사(CLOSING) 를 하고 state=ENDED, end_reason=COMPLETED.
-kind=DIARY(일기 대화)는 질문 3개(DIARY_TURNS)로 끝난다. 초안·그림일기·게시는 routers/diaries.py (D36).
+마지막(5번째) 답을 받으면 AI 가 마무리 인사(CLOSING) 를 하고 state=ENDED, end_reason=COMPLETED.
+kind=DIARY(일기 대화)는 질문 5개(DIARY_TURNS)로 끝난다. 초안·그림일기·게시는 routers/diaries.py (D36).
 kind=ALBUM(사진첩)은 질문 2개(ALBUM_TURNS)로 끝난다 (FR-ME-008).
 턴은 sessions.turns JSON 배열에 한 칸씩 (D38). turn_no 는 순번 (1=AI, 2=ELDER, 3=AI …).
-서버가 지키는 상한: 4턴(회상), 5분(대화한 시간 — 보류는 빼고 잼), 무응답 3단계, 저신뢰 2회 → input_locked (D5, D8).
+서버가 지키는 상한: 5턴(회상), 5분(대화한 시간 — 보류는 빼고 잼), 무응답 3단계, 저신뢰 2회 → input_locked (D5, D8).
 마지막 턴 뒤 30분이 지나면 끝난 대화로 본다 (보류 30분 복귀 — 뒤로 키로 나갔다 '이어서', D52 ⑥).
 저신뢰 음성은 저장하지 않고 확인 질문을 하며 그 문장을 메모리에 맡겨 둔다.
 다음 답이 '맞아요'(말·칩)면 맡긴 문장을 답으로 저장하고, '다시 말할게요·아니요'면 원래 질문을 다시,
@@ -159,7 +159,7 @@ def _turn_times(session: TalkSession) -> list[datetime]:
 def _story_offset(session: TalkSession) -> int:
     """첫 AI 질문이 지난 대화의 이야기(fact_id)면 1 — 코치에 넘기는 사진 질문 번호가 하나씩 밀린다 (D77).
 
-    최대 질문 수·문제 차례는 밀리지 않는다 — 어제 이야기 질문도 MAX_TURNS 4번 안에 든다 (D79)."""
+    최대 질문 수·문제 차례는 밀리지 않는다 — 어제 이야기 질문도 MAX_TURNS 5번 안에 든다 (D79·D97)."""
     first = session.turns[0] if session.turns else {}
     return 1 if first.get("fact_id") or first.get("care") else 0  # 오늘의 안부(돌봄 루프)도 같은 자리
 
@@ -195,8 +195,8 @@ def _ask(
     if session.kind == "DIARY":
         if end is None:
             reply = coach.diary_question(ctx, turn_no)
-            # 일기 동무 AI 가 직전 답에서 본 신호 (11/19 S3) — 2번째 질문을 만들 때만 온다(1번은 어르신 말 전,
-            # 3번 기분 질문과 고정 문장에는 없다). 위급이면 회상 대화와 같은 코드 문장으로 마무리
+            # 일기 동무 AI 가 직전 답에서 본 신호 (11/19 S3) — 2~4번째 질문을 만들 때만 온다(1번은 어르신 말 전,
+            # 5번 기분 질문과 고정 문장에는 없다). 위급이면 회상 대화와 같은 코드 문장으로 마무리
             if any(t["speaker"] == "ELDER" for t in ctx.turns):
                 signal = getattr(reply, "signal", "NONE")
             reply = coach.URGENT_CLOSINGS.get(signal, reply)
@@ -207,7 +207,7 @@ def _ask(
     else:
         # 문제 차례는 어제 이야기 질문도 세는 순번 — 늘 끝에서 두 번째라 마지막은 사진 이야기로 끝난다 (D79)
         picked = quiz.pick(db, session) if session.kind == "MEMORY" and turn_no == QUIZ_TURN else None
-        # 최대 질문 수도 넘긴다(AI 가 몇 번째인지 알고 말하게) — 사진첩 2, 오늘의 한 장 4(어제 이야기가 있으면 3)
+        # 최대 질문 수도 넘긴다(AI 가 몇 번째인지 알고 말하게) — 사진첩 2, 오늘의 한 장 5(어제 이야기가 있으면 4)
         reply, signal, private = coach.next_question(ctx, turn_no - off, picked, _max_turns(session) - off)
         # 출제 기록: 은행 원문이면 그 code, AI 가 쓴 생각 문제면 GEN-유형 (D72). 마무리로 바뀐 턴은 기록 없음
         code = quiz.record_code(picked, reply.text) if picked and signal not in coach.ENDING_SIGNALS else None
@@ -728,7 +728,7 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
     if _comforted(session):  # 위로 중 — 질문으로 돌아가지 않고 위로를 잇는다 (11/23)
         return _comfort(db, session, room)
     ctx = coach_context(db, room, session)
-    if session.turn_count >= _max_turns(session):  # 마지막 답(회상 4번째·일기 3번째) → 마무리 인사 후 종료
+    if session.turn_count >= _max_turns(session):  # 마지막 답(회상·일기 5번째) → 마무리 인사 후 종료
         reply, signal = _ask(db, session, ctx, end="COMPLETED")
         if signal == "RISK":
             return _comfort(db, session, room)

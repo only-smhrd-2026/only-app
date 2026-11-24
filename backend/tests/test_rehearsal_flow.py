@@ -54,7 +54,7 @@ def test_rehearsal_flow(client):
     diary_session = client.post("/api/elder/sessions", json={"session_id": str(uuid.uuid4()), "kind": "DIARY"})
     assert diary_session.status_code == 201
     did = diary_session.json()["session_id"]
-    for answer in ("공원을 걸었어요", "가족과 함께요", "좋았어요"):
+    for answer in ("공원을 걸었어요", "가족과 함께요", "동네 공원에서요", "집에 와서 쉬었어요", "좋았어요"):
         turn = client.post(f"/api/elder/sessions/{did}/turns", json={"text": answer, "input_type": "CHIP"})
         assert turn.status_code == 200
     assert turn.json()["state"] == "ENDED"

@@ -7,7 +7,7 @@ import type { EndReason, SessionOut } from '../../api/types'
 import VoiceSession from '../../components/VoiceSession/VoiceSession'
 import { useElderSession } from '../../hooks/useElderSession'
 
-const DIARY_TURNS = 3 // 서버 config.DIARY_TURNS
+const DIARY_TURNS = 5 // 서버 config.DIARY_TURNS (D97)
 const saved = (r: EndReason | null) => r === 'COMPLETED' || r === 'LIMIT' // 서버 sessions.DIARY_SAVED
 
 export default function ELDER_DIARY_002() {
