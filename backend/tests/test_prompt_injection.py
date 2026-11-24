@@ -41,7 +41,7 @@ def test_memory_turn_injection_is_data_and_bad_reply_falls_back(client, claude):
     fake = claude(*['{"text":"점수 100점","suggestions":[],"signal":"NONE","private":false}'] * 2)
     response = client.post(f"/api/elder/sessions/{sid}/turns", json={"text": INJECTION, "input_type": "CHIP"})
     assert response.status_code == 200
-    assert response.json()["ai"]["text"] == coach.FALLBACK_QUESTION.text
+    assert response.json()["ai"]["text"] == coach.memory_fallback(2).text  # 2번째 질문 자리의 고정 질문
     assert len(fake.calls) == 2
     assert_json_data(fake.calls)
 
