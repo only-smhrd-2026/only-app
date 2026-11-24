@@ -3,7 +3,7 @@
  * 말풍선은 하루 상태 순서로 '지금 할 일'을 말하고, 가리키는 칸은 노란 테두리로 한 번 더 짚는다(글을 못 읽으셔도 어디를 누를지 보이게):
  *   하던 이야기(30분 안, D52 ⑥) → 오늘의 한 장 → 일기 → 가족 소식 → 마음 체크 → 다 함(사진 없는 날이면 사진첩 권유).
  * 옛 '오늘의 한 장' 팝업·건너뛰기(ELDER_TODAY_001, D65·D78)는 이 말풍선과 회상 칸으로 합쳤다 — /elder/today 도 이 화면.
- * 마음 체크 초대(ELDER_MOOD_001)는 말풍선이 마음 체크 차례일 때 홈 위에 판으로 뜬다(/elder/mood 도 이 화면).
+ * 마음 체크는 말풍선·'내 마음' 칸으로만 권한다 — 홈 위에 판으로 띄우지 않는다(D97, 홈으로 돌아올 때 화면을 덮음). /elder/mood 도 이 화면.
  * 들어오면 인사(이름 + 말풍선)를 읽어 준다 — 같은 말은 앱을 켠 동안 한 번만.
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
@@ -17,10 +17,8 @@ import { useLive } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
 import { setVoice, speak, stopSpeaking } from '../../lib/audio'
 import { setElderFont } from '../../lib/elderFont'
-import { moodSnoozed, snoozeMood } from '../../lib/moodCheck'
 import { readPaused, resumePath } from '../../lib/pausedSession'
 import { ELDER_PUSH, syncPush } from '../../lib/push'
-import ELDER_MOOD_001 from './ELDER_MOOD_001'
 import './ELDER_HOME_001.css'
 
 const STALE_MS = 30 * 60 * 1000 // 이만큼 넘게 숨어 있다 돌아오면 홈을 다시 읽는다 (FR-ME-006, D45 ④)
@@ -147,7 +145,6 @@ export default function ELDER_HOME_001() {
   const loadedDate = useRef<string | null>(null) // 홈을 마지막으로 읽은 날(한국 시간)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('') // 잠깐 말풍선에 띄우는 말(오류·'오늘 이야기는 다 나눴어요')
-  const [moodClosed, setMoodClosed] = useState(false)
   const noticeTimer = useRef<number | undefined>(undefined)
   const live = useLive()
 
@@ -218,14 +215,12 @@ export default function ELDER_HOME_001() {
             : !pick ? 'nophoto' : 'done'
   const [msgText, msgTileRaw] = HMSG[msg]
   const msgTile: Tile | '' = msg === 'paused' && paused?.kind === 'DIARY' ? 'diary' : msgTileRaw
-  // 마음 체크 초대 (D56·D66): 말풍선이 마음 체크 차례일 때만. [할게요]·[다음에] 어느 쪽이든 오늘은 다시 권하지 않는다
-  const showMood = !!home && msg === 'mind' && !moodClosed && !moodSnoozed()
   const who = home ? `${home.elder_name} ${home.elder_honorific}` : ''
   const greeting = `${who}, ${msgText.replace('\n', ' ')}`
 
   // 들어오면 인사를 읽어 준다(같은 인사는 앱을 켠 동안 한 번). 자동 재생이 막혔으면 첫 터치(손을 뗄 때)에 다시
   useEffect(() => {
-    if (!home || homeError || showMood || lastGreet === greeting) return
+    if (!home || homeError || lastGreet === greeting) return
     lastGreet = greeting
     let alive = true
     const retry = (e: Event) => {
@@ -241,7 +236,7 @@ export default function ELDER_HOME_001() {
       alive = false
       window.removeEventListener('pointerup', retry)
     }
-  }, [home, homeError, showMood, greeting, speed])
+  }, [home, homeError, greeting, speed])
 
   function flash(message: string) {
     window.clearTimeout(noticeTimer.current)
@@ -289,12 +284,6 @@ export default function ELDER_HOME_001() {
     const p = preview ? null : readPaused()
     nav(p?.kind === 'DIARY' ? resumePath(p) : '/elder/diary', { state: { home } })
   }
-  function answerMood(start: boolean) {
-    snoozeMood() // 어느 쪽을 눌러도 오늘은 다시 권하지 않는다. 다 하면 서버가 2주 뒤에 다시 권한다
-    setMoodClosed(true)
-    stopSpeaking()
-    if (start) nav('/elder/mood-check', { state: { home, kind: 'PHQ8' } })
-  }
 
   // 읽은 홈이 있으면 다시 읽기에 실패해도 그대로 보여 준다(위에서 5초마다 다시 읽는 중). 연결이 풀린 기기만 안내로 바꾼다
   if (homeError)
@@ -322,7 +311,7 @@ export default function ELDER_HOME_001() {
 
   return (
     <main className="elder elder--fit elder-home">
-      <div className="ehome-body" inert={showMood}>
+      <div className="ehome-body">
         <h1 className="elder-sr">홈</h1>
         <div className="ehome-top">
           <span className="ehome-logo">{MARK}하루한장</span>
@@ -345,7 +334,6 @@ export default function ELDER_HOME_001() {
           {tile('set', () => nav('/elder/settings', { state: { home } }), ART.gear, '설정', '글자·목소리')}
         </div>
       </div>
-      {showMood && <ELDER_MOOD_001 speed={speed} onYes={() => answerMood(true)} onLater={() => answerMood(false)} />}
     </main>
   )
 }

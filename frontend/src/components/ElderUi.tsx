@@ -3,6 +3,7 @@
  * 모양은 elder.css(.elder-ic·.elder-bub·.elder-spk-dot). 꾸밈 그림이라 화면 읽기에는 안 읽힌다.
  */
 import { useState, type ReactNode } from 'react'
+import { Outlet, useNavigate } from 'react-router-dom'
 import { speak } from '../lib/audio'
 import Sim from './Sim'
 
@@ -36,6 +37,7 @@ export const IC = {
   plus: I(<path d="M12 5v14M5 12h14" />, 2.6),
   pen: I(<><path d="M4 20l1-4.5L16.5 4a2 2 0 0 1 3 3L8 18.5z" /><path d="M14.5 6l3 3" /></>),
   people: I(<><circle cx="9" cy="9" r="3.2" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" /><circle cx="17" cy="10" r="2.5" /><path d="M16 14.6a4.5 4.5 0 0 1 4.8 4.4" /></>),
+  back: I(<path d="M15 5l-7 7 7 7" />, 2.6),
   redo: I(<><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4.5 9" /><path d="M4.5 4.5V9H9" /></>),
 }
 
@@ -77,5 +79,24 @@ export function Bub({ text, speed, className = '', disabled }: { text: string; s
         <span className="elder-spk-dot" aria-hidden="true">{IC.spk}</span>
       </span>
     </button>
+  )
+}
+
+/**
+ * 어르신 하위 화면 틀 — 위 [← 뒤로] (D97, 11/24 실사용: 아이폰 홈 화면 앱에는 시스템 뒤로가 없어 막다른 화면이 생김).
+ * 갤럭시 아래 뒤로 키와 똑같이 history.back — 화면마다 걸린 popstate(마음 체크 이전 문항·팝업 닫기·대화 보류 저장)가 그대로 돈다.
+ * 앱 안에서 온 곳이 없으면(바로 열었음·알림) 어르신 홈으로. 가족 SubFrame 과 같은 식(history.state.idx).
+ */
+export function ElderBackFrame() {
+  const nav = useNavigate()
+  const back = () => ((window.history.state?.idx ?? 0) > 0 ? nav(-1) : nav('/elder', { replace: true }))
+  return (
+    <div className="elder-backed">
+      <button type="button" className="elder-btn elder-btn--secondary elder-btn--sm elder-back" onClick={back} aria-label="뒤로">
+        {IC.back}
+        <span aria-hidden="true">뒤로</span>
+      </button>
+      <Outlet />
+    </div>
   )
 }
