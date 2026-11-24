@@ -99,6 +99,7 @@ type Sheet =
   | { t: 'invite'; kind: InviteKind }
   | { t: 'member'; m: MemberOut }
   | { t: 'kick'; m: MemberOut }
+  | { t: 'owner'; m: MemberOut }
   | { t: 'unlink' }
   | { t: 'leave' }
   | { t: 'set'; s: SetDef }
@@ -162,13 +163,13 @@ function RoomTab() {
   /** 글로 고치기 판 — 지금 값을 넣어 둔 채 연다 */
   const openText = (s: TextSheet, value: string) => (setText(value), open(s))
 
-  /** 서버에 바꾸기를 보내고 → 다시 읽고 → 판을 닫고 → 한 줄 알림. 두 번 눌러도 한 번만 (busy) */
-  async function change(path: string, done: string, after: () => void) {
+  /** 서버에 바꾸기를 보내고(body 가 있으면 POST, 없으면 DELETE) → 다시 읽고 → 판을 닫고 → 한 줄 알림. 두 번 눌러도 한 번만 (busy) */
+  async function change(path: string, done: string, after: () => void, body?: unknown) {
     if (busy) return
     setBusy(true)
     setError(undefined)
     try {
-      await api(path, { method: 'DELETE' })
+      await api(path, body === undefined ? { method: 'DELETE' } : { body })
       after()
       setSheet(undefined)
       setNote(done)
@@ -640,6 +641,15 @@ function RoomTab() {
                   </span>
                 </button>
                 {/* 방장(=내 줄)은 내보낼 수 없다 — 서버도 CANNOT_REMOVE_OWNER 로 거절 */}
+                {/* 방장 넘기기 (D98) — 넘긴 나는 보통 가족으로 남는다 */}
+                {!sheet.m.is_owner && (
+                  <button type="button" className="fam-opt" onClick={() => open({ t: 'owner', m: sheet.m })}>
+                    <span>
+                      <b>방장 넘기기</b>
+                      <small>넘기면 나는 보통 가족이 돼요</small>
+                    </span>
+                  </button>
+                )}
                 {!sheet.m.is_owner && (
                   <button type="button" className="fam-opt gr-opt-danger" onClick={() => open({ t: 'kick', m: sheet.m })}>
                     <span>
@@ -672,6 +682,38 @@ function RoomTab() {
                     }
                   >
                     내보내기
+                  </button>
+                </div>
+              </>
+            )}
+            {sheet.t === 'owner' && (
+              <>
+                <h2>{sheet.m.name}님에게 방장을 넘길까요?</h2>
+                <p className="gr-sheet-text">
+                  새 방장이 초대 링크, {hon} 폰 연결, 구성원 내보내기, {hon} 설정을 맡아요. 나는 보통 가족으로 남고, 내가 다시
+                  가져올 수는 없어요.
+                </p>
+                <div className="gr-cta gr-cta-two">
+                  <button type="button" className="fam-btn fam-btn--tonal" onClick={close}>
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    className="fam-btn fam-btn--primary"
+                    disabled={busy}
+                    onClick={() =>
+                      change(
+                        `/api/rooms/${roomId}/owner`,
+                        `${sheet.m.name}님이 이제 방장이에요`,
+                        () => {
+                          members.reload()
+                          reloadAll()
+                        },
+                        { user_id: sheet.m.user_id },
+                      )
+                    }
+                  >
+                    넘기기
                   </button>
                 </div>
               </>
@@ -797,6 +839,7 @@ function sheetLabel(s: Sheet, hon: string) {
   if (s.t === 'invite') return '초대하기'
   if (s.t === 'member') return `${s.m.name} 더 보기`
   if (s.t === 'kick') return `${s.m.name}님 내보내기`
+  if (s.t === 'owner') return `${s.m.name}님에게 방장 넘기기`
   if (s.t === 'set') return s.s.name
   if (s.t === 'leave') return '가족방 나가기'
   if (s.t === 'text') return s.k === 'nickname' ? `${s.m.name}님 호칭 고치기` : `${TEXTS[s.k].name} 고치기`
