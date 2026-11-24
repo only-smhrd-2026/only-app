@@ -89,7 +89,8 @@ def test_owner_hands_over_and_stays_as_member(client):
     assert (r.status_code, r.json()["code"]) == (403, "NOT_OWNER")
     assert client.post(f"/api/rooms/{room_id}/leave").status_code == 200  # 방장이 아니라 나갈 수 있다
     login(client, member)
-    assert _transfer(client, room_id, owner["user_id"]).json()["code"] == "MEMBER_NOT_FOUND"  # 나간 사람에게는 못 넘긴다
+    r = _transfer(client, room_id, owner["user_id"])  # 나간 사람에게는 못 넘긴다
+    assert r.json()["code"] == "MEMBER_NOT_FOUND"
 
 
 def test_transfer_to_self_or_non_member_is_refused(client):

@@ -231,9 +231,10 @@ def remove_member(room_id: int, user_id: int, user: CurrentUser, db: DB):
 
 @router.post("/{room_id}/owner", response_model=RoomOut)
 def transfer_owner(room_id: int, body: OwnerTransferIn, user: CurrentUser, db: DB):
-    """방장 넘기기 (D98). 받을 사람은 이 방의 다른 활동 구성원, 넘긴 사람은 보통 구성원으로 남는다. 되돌리기는 새 방장만.
+    """방장 넘기기 (D98). 받을 사람은 이 방의 다른 활동 구성원, 넘긴 사람은 보통 구성원으로 남는다.
 
-    잠그는 순서는 탈퇴(account.py)와 같이 가족방 → 구성원 — 두 번 눌러도 한 번만 넘기고, 받을 사람이 그사이 나가지 못한다.
+    되돌리기는 새 방장만 할 수 있다. 잠그는 순서는 탈퇴(account.py)와 같이 가족방 → 구성원 —
+    두 번 눌러도 한 번만 넘기고, 받을 사람이 그사이 나가지 못한다.
     """
     room = require_owner(room_id, user, db)
     db.refresh(room, with_for_update=True)
