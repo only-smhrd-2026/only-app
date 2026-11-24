@@ -64,10 +64,10 @@ def test_bad_reply_text_is_422(client, text):
     assert _stored(diary_id) == []
 
 
-def test_reply_only_on_elder_diary_in_my_room(client):
+def test_reply_only_in_my_room_and_not_on_my_own_diary(client):
     room_id = setup_elder(client)["room_id"]
     elder_diary, family_diary = _diary(room_id), _diary(room_id, "FAMILY")
-    r = _reply(client, family_diary, "잘 읽었어요")  # 가족 일기에는 못 남긴다
+    r = _reply(client, family_diary, "잘 읽었어요")  # 내가 쓴 가족 일기에는 못 남긴다 (D98)
     assert (r.status_code, r.json()["code"]) == (400, "REPLY_NOT_ALLOWED")
     assert _unreply(client, family_diary).status_code == 204  # 지울 것이 없을 뿐
     gone = _diary(room_id, status="DELETED")
@@ -136,6 +136,30 @@ def test_reply_is_per_person_and_not_counted_as_emoji(client):
     }
     assert _unreply(client, diary_id).status_code == 204  # 내 것(손주)만 지운다
     assert [(r["kind"], r.get("text")) for r in _stored(diary_id)] == [("HEART", None), ("REPLY", "잘 읽었어요")]
+
+
+def test_reply_on_family_diary_stays_between_family(client):
+    """가족 일기에 다른 가족이 한마디 (D98). 가족 화면에는 보이고, 어르신 가족 소식에는 나오지 않는다."""
+    room_id = setup_elder(client)["room_id"]
+    family_diary = _diary(room_id, "FAMILY")  # 방장(테스터)이 쓴 일기
+    _join(client, room_id)  # 여기부터 손주
+    r = _reply(client, family_diary, "엄마 사진 좋아요")
+    assert r.status_code == 200, r.text
+    (reply,) = r.json()["reactions"]
+    assert (reply["by"], reply["kind"], reply["name"], reply["text"]) == ("FAMILY", "REPLY", "손주", "엄마 사진 좋아요")
+    r = _react(client, family_diary, "HEART")  # 가족 일기 이모지는 그대로 막혀 있다
+    assert (r.status_code, r.json()["code"]) == (409, "REACTION_NOT_ALLOWED")
+
+    news = _news(client)  # 어르신 기기: 일기는 나오지만 가족끼리 한마디는 빠진다
+    assert [d["diary_id"] for d in news["diaries"]] == [family_diary]
+    assert news["diaries"][0]["reactions"] == []
+    assert news["hearts"] == []
+    assert _home_count(client) == 1  # 안 들은 가족 일기 1건뿐 — 한마디로 늘지 않는다
+    r = client.post(f"/api/elder/diaries/{family_diary}/like", json={"on": True})  # 어르신 응답에도 빠진다
+    assert [(c["by"], c["kind"]) for c in r.json()["reactions"]] == [("ELDER", "LIKE")]
+    assert [c["kind"] for c in client.get(f"/api/diaries/{family_diary}").json()["reactions"]] == ["LIKE", "REPLY"]
+    assert _unreply(client, family_diary).status_code == 204
+    assert [c["by"] for c in _stored(family_diary)] == ["ELDER"]
 
 
 # ---------------------------------------------------------------- 어르신 가족 소식 첫 장

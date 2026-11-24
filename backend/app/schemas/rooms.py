@@ -110,6 +110,12 @@ class PermissionsIn(BaseModel):
     perm_notification: bool | None = None
 
 
+class OwnerTransferIn(BaseModel):
+    """방장 넘기기 (D98). 받을 사람 = 이 가족방의 다른 구성원."""
+
+    user_id: int
+
+
 class RoomSettingsIn(BaseModel):
     """원격 설정 FR-AD-003. 보낸 칸만 바꾼다."""
 

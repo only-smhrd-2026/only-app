@@ -41,5 +41,16 @@ class PhotoListOut(BaseModel):
     waiting_count: int = 0  # 11/23 오늘의 한 장으로 아직 안 쓴 가족 사진 수('남은 사진 N장')
 
 
+class PhotoNoteIn(BaseModel):
+    """사진 한 장 설명 고치기 (D98). 보낸 칸만 바꾸고, null·빈 글이면 지운다.
+
+    검사는 올리기와 같다(routers/photos.py 의 _note·_year).
+    """
+
+    caption: str | None = None
+    people_note: str | None = None
+    taken_year: int | None = None
+
+
 class PhotoCorrectIn(BaseModel):
     corrected_activity: str = Field(max_length=20)
