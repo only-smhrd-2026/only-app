@@ -198,7 +198,14 @@ def _anthropic(
                 timeout=timeout,
             )
         except anthropic.APIError as e:  # 400 도 여기 — 크레딧 부족도 400 이라 '다시 해도 같다'로 보지 않는다
-            log.warning("llm api error prompt=%s attempt=%d type=%s", prompt_name, attempt, type(e).__name__)
+            # API 오류 문장도 남긴다(11/24: 크레딧 부족이 type 만으로는 안 보였다). 요청 글은 안 들어간다 (D15)
+            log.warning(
+                "llm api error prompt=%s attempt=%d type=%s msg=%.200s",
+                prompt_name,
+                attempt,
+                type(e).__name__,
+                getattr(e, "message", ""),
+            )
             raise LlmError(type(e).__name__) from e
         tokens += response.usage.input_tokens + response.usage.output_tokens
         if response.stop_reason == "refusal":
