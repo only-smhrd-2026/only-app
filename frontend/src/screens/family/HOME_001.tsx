@@ -25,6 +25,7 @@ import { Avatar } from '../../components/FamilyFrame'
 import MoodIcon from '../../components/MoodIcon'
 import Sim from '../../components/Sim'
 import UrgentCard from '../../components/UrgentCard'
+import VoicePlay from '../../components/VoicePlay'
 import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
 import { getInstallState, promptInstall, subscribeInstallPrompt } from '../../lib/installPrompt'
@@ -267,7 +268,7 @@ function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserO
   const elderReply = d.reactions.some((r) => r.by === 'ELDER' && r.kind === 'REPLY')
   const to = `/diaries/${d.diary_id}`
   // 한마디(가족·어르신 답) — 카드에는 마지막 두 개만, 더 있으면 그 자리에서 펼친다 (11/24 실사용 두 번)
-  const replies = d.reactions.filter((r) => r.kind === 'REPLY' && r.text)
+  const replies = d.reactions.filter((r) => r.kind === 'REPLY' && (r.text || r.audio_url)) // 목소리 답장은 자막이 비어도 (D99)
   const [allReplies, setAllReplies] = useState(false)
 
   // 가족 이모지 (D54·#145): on = '이 상태로 만들어 줘'. 다른 이모지를 누르면 바꿔 끼우고, 켜진 것을 누르면 끈다
@@ -357,7 +358,7 @@ function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserO
           {(allReplies ? replies : replies.slice(-2)).map((r) => (
             <li key={`${r.by}${r.user_id ?? ''}`}>
               <b>{r.by === 'ELDER' ? `${room.elder_name} ${room.elder_honorific}` : (r.name ?? '가족')}</b>
-              {r.text}
+              {r.audio_url && <VoicePlay url={r.audio_url} sec={r.audio_sec} />} {r.text}
             </li>
           ))}
           {replies.length > 2 && (

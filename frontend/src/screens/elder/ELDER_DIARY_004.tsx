@@ -11,7 +11,7 @@ import { ElderStop } from '../../components/ElderUi'
 import MoodIcon from '../../components/MoodIcon'
 import type { ElderNavState } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
-import { speak, stopSpeaking } from '../../lib/audio'
+import { playVoice, speak, stopSpeaking } from '../../lib/audio'
 import { DiaryPaper } from './ELDER_DIARY_003'
 import './ELDER_DIARY_004.css'
 
@@ -21,8 +21,8 @@ const KIND_WORD: Record<string, string> = { HEART: '하트', SMILE: '웃음', CL
 /** 가족이 이 일기에 보낸 것 — '큰딸 · 하트', '손주 · ‘보고 싶어요’' (11/24 실사용: 가족 소식에서 한 번 듣고 나면 다시 볼 곳이 없었다) */
 const familyLines = (d: DiaryOut) =>
   d.reactions
-    .filter((r) => r.by === 'FAMILY' && (r.kind === 'REPLY' ? r.text : KIND_WORD[r.kind]))
-    .map((r) => `${r.name ?? '가족'} · ${r.kind === 'REPLY' ? `‘${r.text}’` : KIND_WORD[r.kind]}`)
+    .filter((r) => r.by === 'FAMILY' && (r.kind === 'REPLY' ? r.text || r.audio_url : KIND_WORD[r.kind]))
+    .map((r) => `${r.name ?? '가족'} · ${r.kind !== 'REPLY' ? KIND_WORD[r.kind] : r.audio_url ? '목소리 답장' : `‘${r.text}’`}`)
 const day = (iso: string) => new Date(iso).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })
 const EMOJI: Record<string, string> = { HEART: '❤️', SMILE: '😊', CLAP: '👏' } // 가족 홈(HOME_001 REACTS)과 같은 그림
 
@@ -30,7 +30,7 @@ const EMOJI: Record<string, string> = { HEART: '❤️', SMILE: '😊', CLAP: '�
 function FamilyMarks({ d }: { d: DiaryOut }) {
   const fam = d.reactions.filter((r) => r.by === 'FAMILY')
   const marks = fam.filter((r) => EMOJI[r.kind])
-  const replies = fam.filter((r) => r.kind === 'REPLY' && r.text)
+  const replies = fam.filter((r) => r.kind === 'REPLY' && (r.text || r.audio_url))
   return (
     <div className="elder-past-fam" aria-label="가족이 보낸 마음">
       {marks.length > 0 && (
@@ -46,6 +46,12 @@ function FamilyMarks({ d }: { d: DiaryOut }) {
       {replies.map((r) => (
         <p key={r.user_id ?? r.at} className="elder-past-reply">
           <b>{r.name ?? '가족'}</b>
+          {/* 가족 목소리 답장 (D99) — 누르면 그 목소리를 다시 틀어 드린다 */}
+          {r.audio_url && (
+            <button type="button" className="elder-chip elder-past-play" onClick={() => void playVoice(r.audio_url!)}>
+              ▶ 목소리 듣기{r.audio_sec ? ` ${r.audio_sec}초` : ''}
+            </button>
+          )}
           {r.text}
         </p>
       ))}

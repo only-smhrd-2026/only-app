@@ -14,7 +14,7 @@ import { Bars, Bub, Dots, ElderStop, IC } from '../../components/ElderUi'
 import Sim from '../../components/Sim'
 import { useLive, type ElderNavState } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
-import { cue, micBlockedTip, speak, startRecording, stopSpeaking, type Recorder } from '../../lib/audio'
+import { cue, micBlockedTip, playVoice, speak, startRecording, stopSpeaking, type Recorder } from '../../lib/audio'
 import './ELDER_FAMILY_001.css'
 
 const KIND_WORD = { HEART: '하트', SMILE: '웃음', CLAP: '박수' } as const
@@ -22,6 +22,7 @@ const NO_NEWS = '오늘은 새 소식이 없어요.'
 const AGAIN_GUIDE = '지난 소식 다시 듣기를 누르면 다시 읽어 드려요.'
 const REPLY_ASK = '하실 말씀을 해 주세요.'
 const REPLY_MS = 60_000 // 답장 녹음 상한 — 대화 녹음과 같게
+const BARS = [30, 55, 80, 45, 95, 60, 35, 75, 50, 85, 40, 65, 30, 55] // 목소리 재생 줄의 꾸밈 막대(높이 %) — 실제 파형 아님
 
 /** 받침이 있으면 앞의 조사, 없으면 뒤의 조사 — '큰딸이'·'손주가', '웃음을'·'하트를' */
 function josa(word: string, withFinal: string, without: string) {
@@ -264,7 +265,13 @@ export default function ELDER_FAMILY_001() {
   const reading = useRef(false)
   const sayingTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const hearts = !heartsHeard && data?.hearts.length ? data.hearts : undefined
-  const cards = hearts ? groupHearts(hearts) : []
+  // 가족 목소리 답장(D99)은 한 장씩 먼저 틀어 드리고, 이모지·글 한마디는 그 뒤 모아 둔 한 장에 (11/24 사용자 그림)
+  const [heartPage, setHeartPage] = useState(0)
+  const [playing, setPlaying] = useState(false)
+  const voices = hearts?.filter((h) => h.audio_url) ?? []
+  const cards = hearts ? groupHearts(hearts.filter((h) => !h.audio_url)) : []
+  const heartPages = voices.length + (cards.length ? 1 : 0)
+  const voice = hearts ? voices[heartPage] : undefined // 없으면 모아 둔 장
   const heartsTitle = `가족이 ${home?.elder_honorific ? `${home.elder_honorific} ` : ''}일기를 읽었어요`
   const heartsText = cards.flatMap((c) => c.whos.map((w) => reactLine(c, w))).join(' ')
   // 지난 소식을 받는 동안은 '새 소식이 없어요'를 읽지 않는다 — 받은 뒤 문장이 바뀌면 두 번 읽게 된다
@@ -280,7 +287,7 @@ export default function ELDER_FAMILY_001() {
   // 사진이 없는 가족 일기는 '사진 일기'라고 읽지 않는다 (D64)
   const message = waiting ? undefined : error
     ? error.code === 'DEVICE_REQUIRED' ? '가족이 보낸 연결 링크를 먼저 열어 주세요.' : error.message
-    : hearts ? `${heartsTitle}. ${heartsText}`
+    : hearts ? (voice ? undefined : `${heartsTitle}. ${heartsText}`) // 목소리 장은 아래 따로 읽고 튼다
       : diary ? `${sender}${josa(sender, '이', '가')} ${diary.illustration_url ? '사진 일기' : '일기'}를 보냈어요. 읽어 드릴게요. ${diary.body}`
         : !data ? undefined
           : canAgain ? `${NO_NEWS} ${AGAIN_GUIDE}` : NO_NEWS
@@ -291,6 +298,37 @@ export default function ELDER_FAMILY_001() {
   }, [message, diary?.diary_id, speed])
 
   useEffect(() => () => clearTimeout(sayingTimer.current), [])
+
+  /** 가족 목소리를 처음부터 튼다. 다시 누르면 멈춘다 */
+  async function playFamily(url: string) {
+    setPlaying(true)
+    await playVoice(url)
+    if (live.current) setPlaying(false)
+  }
+  function toggleFamily(url: string) {
+    if (!playing) return void playFamily(url)
+    stopSpeaking()
+    setPlaying(false)
+  }
+
+  // 목소리 장: "큰딸이 11월 24일 일기에 목소리로 답장을 보냈어요." 를 읽고 바로 그 목소리를 틀어 드린다 (D99)
+  const voiceKey = voice?.at
+  useEffect(() => {
+    if (!voice?.audio_url) return
+    let here = true
+    const who = voice.name || '가족'
+    const url = voice.audio_url
+    void speak(`${who}${josa(who, '이', '가')} ${day(voice.diary_posted_at)} 일기에 목소리로 답장을 보냈어요.`, speed).then((heard) => {
+      if (here && heard) void playFamily(url) // 자동 재생이 막혔으면(heard false) 재생 줄을 누르면 된다
+    })
+    return () => {
+      here = false
+      stopSpeaking()
+      setPlaying(false)
+    }
+    // 장이 바뀔 때만 (voice 는 받은 목록의 같은 칸)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceKey])
 
   function replay(text: string) {
     void speak(text, speed)
@@ -327,6 +365,7 @@ export default function ELDER_FAMILY_001() {
 
   function heardHearts() {
     if (!hearts) return
+    if (heartPage < heartPages - 1) return setHeartPage((p) => p + 1) // 받은 반응의 다음 장 — 들음 표시는 마지막 장에서
     // 읽어 드린 마지막 반응까지만 '들음' — 그사이에 온 것은 다음에 읽어 드린다 (D63)
     void send('/api/elder/hearts/heard', { until: hearts[hearts.length - 1].at }, () => {
       if (data!.diaries.length) setHeartsHeard(true)
@@ -373,7 +412,43 @@ export default function ELDER_FAMILY_001() {
   if (waiting) body = <p className="elder-text" role="status">잠시만요…</p>
   else if (error)
     body = <ElderStop text={message} onRetry={error.code !== 'DEVICE_REQUIRED' ? reload : undefined} />
-  else if (hearts)
+  else if (voice?.audio_url) {
+    // 가족 목소리 답장 한 장 (D99, 11/24 사용자 그림): 보낸 사람 · 재생 줄(누르면 다시 듣기/멈춤) · 받아 적은 자막
+    const who = voice.name || '가족'
+    const url = voice.audio_url
+    body = (
+      <>
+        <h1 className="elder-sr">가족 목소리 답장</h1>
+        <div className="family-sender">
+          <span className="elder-av family-av" aria-hidden="true">{who[0]}</span>
+          <span><b>{who}</b><small>{day(voice.diary_posted_at)} 일기에 답장을 보냈어요</small></span>
+          {voices.length > 1 && <span className="family-page">{heartPage + 1} / {voices.length}</span>}
+        </div>
+        <div className="elder-grow family-voice-wrap">
+          <button
+            type="button"
+            className={`family-voice${playing ? ' on' : ''}`}
+            onClick={() => toggleFamily(url)}
+            aria-label={playing ? '목소리 멈추기' : `${who} 목소리 듣기`}
+          >
+            <span className="family-voice-dot" aria-hidden="true">{playing ? IC.stop : <span className="family-voice-tri" />}</span>
+            <span className="family-voice-bars" aria-hidden="true">
+              {BARS.map((h, i) => <i key={i} style={{ height: `${h}%` }} />)}
+            </span>
+            {voice.audio_sec ? <b>{voice.audio_sec}초</b> : null}
+          </button>
+          {voice.text && <p className="elder-paper family-voice-cap">{voice.text}</p>}
+        </div>
+        {readError && <p className="elder-text" role="alert">{readError}</p>}
+        <div className="elder-dock">
+          <button type="button" className="elder-btn" disabled={busy} onClick={heardHearts}>
+            <span className="elder-dot">{IC.next}</span>
+            {busy ? '잠시만요…' : heartPage < heartPages - 1 || data!.diaries.length ? '다음 소식' : '홈으로'}
+          </button>
+        </div>
+      </>
+    )
+  } else if (hearts)
     body = (
       <>
         <h1>{heartsTitle}</h1>

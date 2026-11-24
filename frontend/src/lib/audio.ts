@@ -234,6 +234,32 @@ export function speakText(text: string): string {
     .trim()
 }
 
+/**
+ * 가족 목소리 답장 틀기 (D99) — 받은 소리를 그대로(말 속도 1.0, 가족 목소리라 늦추지 않는다). 끝까지 들려줬으면 true.
+ * 주소를 재생기에 바로 넣지 않고 받아서 튼다: 아이폰 사파리는 부분 받기(Range)를 못 하는 주소는 재생을 거부한다.
+ */
+export async function playVoice(url: string): Promise<boolean> {
+  stopSpeaking()
+  const my = gen
+  let blob: Blob
+  try {
+    const r = await fetch(url, { credentials: 'same-origin' })
+    if (!r.ok) return false
+    blob = await r.blob()
+  } catch {
+    return false
+  }
+  if (my !== gen) return true // 받는 사이 멈췄다(다음 화면·다른 소리)
+  const src = URL.createObjectURL(blob)
+  try {
+    return await play(src, 1)
+  } catch {
+    return false
+  } finally {
+    URL.revokeObjectURL(src)
+  }
+}
+
 /** 화면 글 읽기 — say 와 같다(고른 목소리, 안 되면 기기 목소리). 화면들이 쓰던 이름이라 남겨 둔다 (D78). */
 export function speak(text: string, rate = 0.9): Promise<boolean> {
   return say(text, rate)

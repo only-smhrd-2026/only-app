@@ -36,6 +36,9 @@
 .diary-detail-replies li > span { flex:1; min-width:0; display:flex; flex-direction:column; overflow-wrap:anywhere; }
 .diary-detail-replies small { color:var(--text-3); font-size:13px; }
 .diary-detail-replies .fam-text-btn { flex:none; }
+.diary-detail-replies .fam-voice { align-self:flex-start; margin:2px 0; }
+/* 목소리 답장 녹음을 마친 뒤 — 들어 보기 · 보내기 · 다시 녹음 (D99) */
+.diary-detail-take { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 .diary-detail-reply-form { display:flex; gap:8px; }
 .diary-detail-reply-form .fam-input { flex:1; }
 /* 어르신이 말로 하신 답 (11/23) */
