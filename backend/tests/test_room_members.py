@@ -65,3 +65,45 @@ def test_outsider_missing_room_and_logged_out(client):
         assert response.json()["code"] == "ROOM_NOT_FOUND"
     client.cookies.clear()
     assert client.get(f"/api/rooms/{room_id}/members").status_code == 401
+
+
+# ---------------------------------------------------------------- 방장 넘기기 (D98)
+def _transfer(client, room_id, user_id):
+    return client.post(f"/api/rooms/{room_id}/owner", json={"user_id": user_id})
+
+
+def test_owner_hands_over_and_stays_as_member(client):
+    owner = signup(client)
+    room_id = make_room(client)["room_id"]
+    member = join(client, room_id)
+    login(client, owner)
+    r = _transfer(client, room_id, member["user_id"])
+    assert r.status_code == 200, r.text
+    assert r.json()["is_owner"] is False
+    assert {m["user_id"]: m["is_owner"] for m in client.get(f"/api/rooms/{room_id}/members").json()} == {
+        owner["user_id"]: False,
+        member["user_id"]: True,
+    }
+    assert client.post(f"/api/rooms/{room_id}/invites", json={"kind": "FAMILY"}).status_code == 403  # 이제 보통 구성원
+    r = _transfer(client, room_id, owner["user_id"])  # 스스로 되찾지 못한다
+    assert (r.status_code, r.json()["code"]) == (403, "NOT_OWNER")
+    assert client.post(f"/api/rooms/{room_id}/leave").status_code == 200  # 방장이 아니라 나갈 수 있다
+    login(client, member)
+    r = _transfer(client, room_id, owner["user_id"])  # 나간 사람에게는 못 넘긴다
+    assert r.json()["code"] == "MEMBER_NOT_FOUND"
+
+
+def test_transfer_to_self_or_non_member_is_refused(client):
+    owner = signup(client)
+    room_id = make_room(client)["room_id"]
+    member = join(client, room_id)
+    outsider = signup(client)
+    login(client, owner)
+    r = _transfer(client, room_id, owner["user_id"])
+    assert (r.status_code, r.json()["code"]) == (400, "ALREADY_OWNER")
+    for target in (outsider["user_id"], 999999):
+        r = _transfer(client, room_id, target)
+        assert (r.status_code, r.json()["code"]) == (404, "MEMBER_NOT_FOUND")
+    assert client.delete(f"/api/rooms/{room_id}/members/{member['user_id']}").status_code == 200
+    assert _transfer(client, room_id, member["user_id"]).json()["code"] == "MEMBER_NOT_FOUND"  # 내보낸 사람
+    assert [m["is_owner"] for m in client.get(f"/api/rooms/{room_id}/members").json()] == [True]

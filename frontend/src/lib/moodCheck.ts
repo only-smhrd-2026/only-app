@@ -133,25 +133,3 @@ export function memSetFor(now = Date.now()): MemSet {
   const day = Math.floor((now + 9 * 3_600_000) / 86_400_000) // KST 날짜 번호
   return MEM_SETS[day % MEM_SETS.length]
 }
-
-// [다음에]를 누르거나 하다가 나가면 그날은 다시 권하지 않고 다음 날 다시 권한다 (D66). 서버는 기억하지 않는다
-const KEY = 'haru.moodLater'
-const kstToday = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }) // 2026-11-14
-
-/** 오늘은 그만 권한다 */
-export function snoozeMood() {
-  try {
-    localStorage.setItem(KEY, kstToday())
-  } catch {
-    // 사생활 보호 모드 등 — 기억만 못 한다(홈을 새로 열 때 다시 권함)
-  }
-}
-
-/** 오늘 이미 권했는지 */
-export function moodSnoozed() {
-  try {
-    return localStorage.getItem(KEY) === kstToday()
-  } catch {
-    return false
-  }
-}

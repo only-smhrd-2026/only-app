@@ -55,7 +55,7 @@ export default function ELDER_MIND_001() {
   const start = (kind: CheckKind) => nav('/elder/mood-check', { state: { home, kind } })
 
   return (
-    <main className="elder">
+    <main className="elder mind-page">
       <h1>내 마음</h1>
       {now && (
         <button type="button" className="mind-now" onClick={() => void say(nowSay, speed)}>

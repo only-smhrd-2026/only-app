@@ -171,10 +171,10 @@ export default function UPLOAD_002() {
   const sent = Object.keys(results).length > 0
   const locked = busy || retry // 보내는 중·한 번 보낸 묶음(다시 보내기)은 글을 못 고친다 (아래 form 주석)
 
-  // 사람 칩 — 내 가족방 구성원을 한 번씩(user_id), 가족방 목록 순서
+  // 사람 칩 — 고른 가족방 구성원만 한 번씩(user_id), 가족방 목록 순서 (11/24: 안 고른 방 사람이 보이던 것)
   const people = new Map<number, string>()
-  for (const r of list) for (const m of members[r.room_id] ?? []) if (!people.has(m.user_id)) people.set(m.user_id, m.name)
-  const membersReady = list.every((r) => r.room_id in members)
+  for (const r of checked) for (const m of members[r.room_id] ?? []) if (!people.has(m.user_id)) people.set(m.user_id, m.name)
+  const membersReady = checked.every((r) => r.room_id in members)
 
   /** 이 가족방에 보낼 '사진 속 사람' 한 줄 — 고른 사람은 그 방 호칭(없으면 이름), 끝에 직접 쓴 글.
    *  그 방 구성원이 아닌 사람(구성원 목록을 못 읽은 방 포함)은 뺀다 — 다른 가족방 사람의 이름이 이 방에 가지 않게 */
@@ -347,7 +347,7 @@ export default function UPLOAD_002() {
         )}
 
         <label className="st-label" htmlFor="up2-caption">
-          한마디 <small>선택 · 고른 {draft.files.length}장에 모두 붙어요</small>
+          한마디 <small>선택 · 고른 {draft.files.length}장에 모두 붙어요. 한 장씩은 나중에 사진첩에서 고쳐요</small>
         </label>
         <textarea
           id="up2-caption"

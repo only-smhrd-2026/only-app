@@ -10,9 +10,9 @@
 /* 켜고 끄는 스위치 — 켜짐은 앱 강조색, 꺼짐은 회색 (상태는 aria-checked 로도) */
 .noti-switch { flex:none; position:relative; width:52px; height:32px; margin:6px 0; padding:0; border:1.5px solid var(--edge); border-radius:16px; background:var(--bg2); }
 .noti-switch i { position:absolute; top:3px; left:3px; width:23px; height:23px; border-radius:50%; background:var(--surface); box-shadow:0 1px 2px rgba(30,18,8,.3); transition:transform .15s; }
-.noti-switch[aria-checked='true'] { border-color:var(--lip); background:var(--brand); }
-.noti-switch[aria-checked='true'] i { transform:translateX(20px); }
-.noti-switch:disabled { opacity:.6; }
+.noti-set[aria-checked='true'] .noti-switch { border-color:var(--lip); background:var(--brand); }
+.noti-set[aria-checked='true'] .noti-switch i { transform:translateX(20px); }
+.noti-set:disabled .noti-switch { opacity:.6; }
 .noti-rooms { margin:0 var(--gut); }
 .noti-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 var(--gut); color:var(--text-3); font-size:13px; font-weight:700; }
 .noti-group { display:flex; flex-direction:column; gap:12px; }

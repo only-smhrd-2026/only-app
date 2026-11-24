@@ -17,6 +17,12 @@ import './ELDER_DIARY_004.css'
 
 const GUIDE = '지난 일기예요. 보고 싶은 일기를 눌러 주세요.'
 const EMPTY = '아직 쓴 일기가 없어요.'
+const KIND_WORD: Record<string, string> = { HEART: '하트', SMILE: '웃음', CLAP: '박수' }
+/** 가족이 이 일기에 보낸 것 — '큰딸 · 하트', '손주 · ‘보고 싶어요’' (11/24 실사용: 가족 소식에서 한 번 듣고 나면 다시 볼 곳이 없었다) */
+const familyLines = (d: DiaryOut) =>
+  d.reactions
+    .filter((r) => r.by === 'FAMILY' && (r.kind === 'REPLY' ? r.text : KIND_WORD[r.kind]))
+    .map((r) => `${r.name ?? '가족'} · ${r.kind === 'REPLY' ? `‘${r.text}’` : KIND_WORD[r.kind]}`)
 const day = (iso: string) => new Date(iso).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })
 
 export default function ELDER_DIARY_004() {
@@ -36,7 +42,11 @@ export default function ELDER_DIARY_004() {
     return () => stopSpeaking()
   }, [count, errorMessage, speed])
 
-  const read = (d: DiaryOut) => void speak(`${day(d.posted_at)} 일기예요. ${d.body} 그날 기분은 ${MOOD_LABEL[d.mood]}.`, speed)
+  const read = (d: DiaryOut) => {
+    const lines = familyLines(d)
+    const fam = lines.length ? ` 가족이 보낸 마음이에요. ${lines.map((l) => l.replace(' · ', ', ')).join('. ')}.` : ''
+    void speak(`${day(d.posted_at)} 일기예요. ${d.body} 그날 기분은 ${MOOD_LABEL[d.mood]}.${fam}`, speed)
+  }
 
   function show(d: DiaryOut) {
     setOpen(d)
@@ -92,6 +102,11 @@ export default function ELDER_DIARY_004() {
             )}
             <DiaryPaper key={open.diary_id} body={open.body} onRead={() => read(open)} />
             <p className="elder-moodline"><MoodIcon mood={open.mood} />그날 기분 · {MOOD_LABEL[open.mood]}</p>
+            {familyLines(open).length > 0 && (
+              <ul className="elder-past-fam" aria-label="가족이 보낸 마음">
+                {familyLines(open).map((l, i) => <li key={i}>{l}</li>)}
+              </ul>
+            )}
             <button type="button" className="elder-btn elder-btn--secondary" onClick={() => view.current?.close()}>닫기</button>
           </>
         )}

@@ -69,10 +69,9 @@ MODEL_CHIP_MAX = 6  # 추천 답변은 빈칸을 빼고 6자 이내 (384px 화�
 
 
 def check_model_chips(v: list[str]) -> list[str]:
-    out = check_chips(v)
-    if any(len(s.replace(" ", "")) > MODEL_CHIP_MAX for s in out):
-        raise ValueError(f"추천 답변은 빈칸을 빼고 {MODEL_CHIP_MAX}자 이내")
-    return out
+    """긴 추천 답은 빼고 남긴다 — 질문까지 버리지 않게 (11/24: haiku-4.5 가 '점심을 먹었어요' 7자로 두 번 다 탈락).
+    모자란 칸은 화면이 기본 답으로 채운다(VoiceSession chipsFor)."""
+    return [s for s in check_chips(v) if len(s.replace(" ", "")) <= MODEL_CHIP_MAX]
 
 
 def _urgent_text(data):

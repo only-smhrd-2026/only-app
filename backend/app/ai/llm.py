@@ -171,7 +171,9 @@ def _anthropic(
         raise LlmError("ANTHROPIC_API_KEY 가 없습니다 (.env)")
     # SDK 재시도는 끈다: 기본값(재시도 2회, Retry-After 만큼 대기)이면 멈춘 호출 하나가 위 시간 상한을 훌쩍 넘긴다.
     # API 오류·시간 초과는 바로 LlmError → 호출자가 고정 문장(턴)이나 글만 초안(일기)으로 이어 간다.
-    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY, max_retries=0)
+    client = anthropic.Anthropic(
+        api_key=settings.ANTHROPIC_API_KEY, base_url=settings.ANTHROPIC_BASE_URL or None, max_retries=0
+    )
     timeout = timeout or (TURN_TIMEOUT_SEC if prompt_name in TURN_PROMPTS else OTHER_TIMEOUT_SEC)
     system = load_prompt(prompt_name)
     user: Any = json.dumps(data, ensure_ascii=False)
@@ -198,7 +200,14 @@ def _anthropic(
                 timeout=timeout,
             )
         except anthropic.APIError as e:  # 400 도 여기 — 크레딧 부족도 400 이라 '다시 해도 같다'로 보지 않는다
-            log.warning("llm api error prompt=%s attempt=%d type=%s", prompt_name, attempt, type(e).__name__)
+            # API 오류 문장도 남긴다(11/24: 크레딧 부족이 type 만으로는 안 보였다). 요청 글은 안 들어간다 (D15)
+            log.warning(
+                "llm api error prompt=%s attempt=%d type=%s msg=%.200s",
+                prompt_name,
+                attempt,
+                type(e).__name__,
+                getattr(e, "message", ""),
+            )
             raise LlmError(type(e).__name__) from e
         tokens += response.usage.input_tokens + response.usage.output_tokens
         if response.stop_reason == "refusal":

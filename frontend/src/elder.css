@@ -144,6 +144,10 @@ html[data-font='XXL'] { --elder-font-size: 28px; --elder-font-size-s: 26px; --el
 .elder-btn:disabled { border-color: transparent; background: var(--elder-bg2); color: var(--elder-ink2); box-shadow: none; cursor: default; }
 .elder-btn--sm { width: auto; min-height: var(--elder-sm-height); padding: 4px 14px; border-radius: 16px; font-size: 20px; box-shadow: none; }
 .elder-btn--sm .elder-ic { width: 22px; height: 22px; }
+/* 어르신 하위 화면 위 [← 뒤로] (D97) — 화면 위 여백(16)을 버튼 자리만큼 늘려 내용과 겹치지 않게. 팝업(z 20·21)이 위를 덮는다 */
+.elder-backed { position: relative; max-width: 560px; margin: 0 auto; }
+.elder-backed > .elder { padding-top: 68px; }
+.elder-back { position: absolute; top: 10px; left: var(--elder-pad); z-index: 10; gap: 2px; padding-left: 8px; }
 /* 가로로 긴 버튼: 왼쪽 동그란 그림 + 글 + 오른쪽 화살표 */
 .elder-btn--wide { justify-content: flex-start; padding: 8px 16px; text-align: left; }
 .elder-lead { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--elder-soft); color: var(--elder-acc); }

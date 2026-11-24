@@ -380,7 +380,7 @@ export default function ELDER_FAMILY_001() {
             <button key={c.diary_id} type="button" className="family-react" onClick={() => replay(c.whos.map((w) => reactLine(c, w)).join(' '))}>
               <span className="family-rdiary">
                 {c.thumb && <img src={c.thumb} alt="" />}
-                <span><small>{day(c.at)} 쓴 일기</small>{c.body}</span>
+                <span><small>{day(c.at)} 쓴 일기</small><span className="family-rbody">{c.body}</span></span>
               </span>
               {c.whos.map((w) => (
                 <span key={w.who + (w.reply ?? '')} className="family-rwho">

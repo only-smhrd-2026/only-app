@@ -2,15 +2,18 @@
  * HOME_002 — 일기 상세 (11/23 시안 f-detail). 하위 화면 틀의 ←를 쓰고, 열람 기록은 이 화면을 열 때만 남긴다(D36).
  * 추천 한마디는 누르면 입력 칸만 채우고 [보내기]는 따로(D91 바꿈 — 한 번 눌러 '곧 갈게요' 같은 약속이 실수로 가지 않게).
  * 가족 일기에 어르신이 말로 답하신 한 줄(reactions 의 by ELDER·kind REPLY)을 보여 준다.
+ * 한마디는 가족 일기에도 남긴다(D98, 쓴 사람은 빼고) — 가족끼리만 보이고 어르신께는 읽어 드리지 않는다.
+ * [🎤 말로] 는 말을 글자로 바꿔 칸에 넣기만 한다(D98). 녹음은 저장하지 않고, 고친 뒤 [보내기]는 그대로.
  */
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import { MOOD_LABEL, type DiaryOut, type Reaction, type RoomOut, type UserOut } from '../../api/types'
+import { MOOD_LABEL, type DiaryOut, type Reaction, type RoomOut, type SttOut, type UserOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
 import { Avatar } from '../../components/FamilyFrame'
 import MoodIcon from '../../components/MoodIcon'
 import { useFetch } from '../../hooks/useFetch'
+import { startRecording, type Recorder } from '../../lib/audio'
 import './HOME_002.css'
 
 const REACTS = [
@@ -21,6 +24,7 @@ const REACTS = [
 // 한마디 (11/19): 추천 답은 누르면 입력 칸만 채운다(11/23). 글자 수는 서버 config.REPLY_MAX 와 같은 값
 const REPLY_PICKS = ['보고 싶어요', '곧 갈게요', '잘 읽었어요', '사랑해요']
 const REPLY_MAX = 40
+const VOICE_MS = 20_000 // 말로 한마디 녹음 상한 — 40자면 몇 초
 
 const postedAt = (iso: string) =>
   new Date(iso).toLocaleString('ko-KR', {
@@ -58,6 +62,10 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string>()
   const deleteRequest = useRef(false)
+  const recorder = useRef<Recorder | undefined>(undefined)
+  const live = useRef(true)
+  const [voice, setVoice] = useState<'start' | 'rec' | 'stt'>()
+  const [voiceError, setVoiceError] = useState<string>()
   const deleteSheet = useRef<HTMLDialogElement>(null)
   const cancelDelete = useRef<HTMLButtonElement>(null)
   const d = edit?.base === diary.data ? edit?.data : diary.data
@@ -67,6 +75,16 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
   const replies = d?.reactions.filter((r) => r.by === 'FAMILY' && r.kind === 'REPLY') ?? []
   const elderReply = d?.reactions.find((r) => r.by === 'ELDER' && r.kind === 'REPLY')
   const myReply = replies.find((r) => r.user_id === me.data?.user_id)
+
+  // 화면을 떠나면 마이크를 끈다
+  useEffect(() => {
+    const rec = recorder
+    live.current = true
+    return () => {
+      live.current = false
+      void rec.current?.stop()
+    }
+  }, [])
 
   useEffect(() => {
     if (deleteOpen) {
@@ -109,10 +127,42 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
     }
   }
 
-  // 한마디 남기기 (11/19). 한 사람 1개 — 새로 보내면 서버가 바꿔 끼우고 어르신께 다시 읽어 드린다
+  // 말로 한마디 (D98): 한 번 누르면 녹음, 다시 누르면 /api/stt 로 글자를 받아 칸에 넣는다. 보내기는 사람이 한다
+  async function toggleVoice() {
+    if (voice === 'start' || voice === 'stt') return
+    const r = recorder.current
+    if (!r) {
+      setVoice('start')
+      setVoiceError(undefined)
+      try {
+        const started = await startRecording(VOICE_MS)
+        if (!live.current) return void started.stop()
+        recorder.current = started
+        setVoice('rec')
+      } catch {
+        setVoice(undefined)
+        setVoiceError('마이크를 쓸 수 없어요. 마이크 허락을 확인해 주세요.')
+      }
+      return
+    }
+    recorder.current = undefined
+    setVoice('stt')
+    try {
+      const form = new FormData()
+      form.append('audio', await r.stop(), 'speech.webm')
+      const { transcript } = await api<SttOut>('/api/stt', { form })
+      if (live.current) setDraft(transcript.trim().slice(0, REPLY_MAX))
+    } catch (e) {
+      if (live.current) setVoiceError(e instanceof ApiError ? e.message : '잘 못 들었어요. 다시 말해 주세요.')
+    } finally {
+      if (live.current) setVoice(undefined)
+    }
+  }
+
+  // 한마디 남기기 (11/19). 한 사람 1개 — 새로 보내면 서버가 바꿔 끼우고 어르신 일기면 어르신께 다시 읽어 드린다
   async function sendReply(text: string) {
     const clean = text.trim()
-    if (!d || !diary.data || d.author_type !== 'ELDER' || busy || !clean) return
+    if (!d || !diary.data || d.is_mine || busy || !clean) return
     if (clean === myReply?.text) {
       setDraft('') // 이미 남긴 글 그대로 — 서버가 다시 읽어 드리지 않으니 보내지 않는다
       return
@@ -273,9 +323,9 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
         {elder && reactionError && (
           <p className="diary-detail-note" role="alert">이모지를 보내지 못했어요. 연결을 확인하고 다시 눌러 주세요.</p>
         )}
-        {elder && (
+        {(!d.is_mine || replies.length > 0) && (
           <section className="fam-card diary-detail-reply" aria-labelledby="diary-reply-title" aria-busy={busy}>
-            <h2 id="diary-reply-title">한마디 남기기</h2>
+            <h2 id="diary-reply-title">{d.is_mine ? '가족 한마디' : '한마디 남기기'}</h2>
             {replies.length > 0 && (
               <ul className="diary-detail-replies">
                 {replies.map((r) => (
@@ -291,33 +341,51 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
                 ))}
               </ul>
             )}
-            <div className="fam-seg" role="group" aria-label="추천 한마디 — 누르면 칸에 들어가요">
-              {REPLY_PICKS.map((pick) => (
-                <button type="button" key={pick} className="fam-chip" disabled={busy} onClick={() => setDraft(pick)} aria-pressed={draft === pick}>
-                  {pick}
+            {!d.is_mine && (
+              <>
+                <div className="fam-seg" role="group" aria-label="추천 한마디 — 누르면 칸에 들어가요">
+                  {REPLY_PICKS.map((pick) => (
+                    <button type="button" key={pick} className="fam-chip" disabled={busy} onClick={() => setDraft(pick)} aria-pressed={draft === pick}>
+                      {pick}
+                    </button>
+                  ))}
+                </div>
+                <form className="diary-detail-reply-form" onSubmit={(e) => { e.preventDefault(); void sendReply(draft) }}>
+                  <input
+                    className="fam-input"
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    maxLength={REPLY_MAX}
+                    placeholder={`직접 쓰기 (${REPLY_MAX}자까지)`}
+                    aria-label={`한마디 직접 쓰기, ${REPLY_MAX}자까지`}
+                    enterKeyHint="send"
+                    autoComplete="off"
+                  />
+                  <button type="submit" className="fam-btn fam-btn--primary" disabled={busy || !!voice || !draft.trim()}>보내기</button>
+                </form>
+                <button
+                  type="button"
+                  className="fam-btn fam-btn--tonal fam-btn--sm"
+                  onClick={toggleVoice}
+                  disabled={busy || voice === 'start' || voice === 'stt'}
+                  aria-pressed={voice === 'rec'}
+                >
+                  {voice === 'rec' ? '■ 다 말했어요' : voice === 'stt' ? '글자로 바꾸는 중…' : <><span aria-hidden="true">🎤</span> 말로 쓰기</>}
                 </button>
-              ))}
-            </div>
-            <form className="diary-detail-reply-form" onSubmit={(e) => { e.preventDefault(); void sendReply(draft) }}>
-              <input
-                className="fam-input"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                maxLength={REPLY_MAX}
-                placeholder={`직접 쓰기 (${REPLY_MAX}자까지)`}
-                aria-label={`한마디 직접 쓰기, ${REPLY_MAX}자까지`}
-                enterKeyHint="send"
-                autoComplete="off"
-              />
-              <button type="submit" className="fam-btn fam-btn--primary" disabled={busy || !draft.trim()}>보내기</button>
-            </form>
-            {replyError && <p className="diary-detail-reply-note" role="alert">{replyError}</p>}
-            <p className="fam-note" role={replySent ? 'status' : undefined}>
-              <FamIcon name="speaker" />
-              <span>
-                {replySent ? `보냈어요 · ${name}께 읽어 드릴게요.` : `${room.elder_honorific}께 가족 소식에서 읽어 드려요. 한 일기에 하나, 새로 보내면 바뀌어요.`}
-              </span>
-            </p>
+                {voice === 'rec' && <p className="fam-note" role="status">듣고 있어요. 다 말하면 한 번 더 눌러 주세요.</p>}
+                {voiceError && <p className="diary-detail-reply-note" role="alert">{voiceError}</p>}
+                {replyError && <p className="diary-detail-reply-note" role="alert">{replyError}</p>}
+                <p className="fam-note" role={replySent ? 'status' : undefined}>
+                  <FamIcon name={elder ? 'speaker' : 'family'} />
+                  <span>
+                    {elder
+                      ? replySent ? `보냈어요 · ${name}께 읽어 드릴게요.` : `${room.elder_honorific}께 가족 소식에서 읽어 드려요. 한 일기에 하나, 새로 보내면 바뀌어요.`
+                      : replySent ? '보냈어요 · 가족 모두에게 보여요.' : '가족 모두에게 보여요. 한 일기에 하나, 새로 보내면 바뀌어요.'}
+                  </span>
+                </p>
+                {replySent && <Link className="fam-btn fam-btn--tonal fam-btn--sm" to="/">홈으로</Link>}
+              </>
+            )}
           </section>
         )}
         {!elder && elderReply && (

@@ -6,7 +6,7 @@
  * 링크 주소(토큰)는 이 화면 state 에만 둔다 (D16 — localStorage·console 금지). 서버는 토큰을 저장하지 않아 나가면 다시 못 본다.
  */
 import { useEffect, useState } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type {
   InviteCreatedOut,
@@ -23,6 +23,7 @@ import Sim from '../../components/Sim'
 import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
 import { PROMPT, say, stopSpeaking } from '../../lib/audio'
+import { logout } from '../../lib/logout'
 import './GROUP_002.css'
 
 // ── 할머니 화면 설정 (목업 ⑥ 설정 판, D74). 일기 시간은 넣지 않음(11/13 결정). 이름·부르는 말은 아래 TEXTS(글로 고치기)
@@ -99,6 +100,7 @@ type Sheet =
   | { t: 'invite'; kind: InviteKind }
   | { t: 'member'; m: MemberOut }
   | { t: 'kick'; m: MemberOut }
+  | { t: 'owner'; m: MemberOut }
   | { t: 'unlink' }
   | { t: 'leave' }
   | { t: 'set'; s: SetDef }
@@ -133,6 +135,7 @@ export default function GROUP_002() {
 
 function RoomTab() {
   const { roomId } = useParams()
+  const nav = useNavigate()
   const { me, reloadRooms } = useFamily()
   // 이 탭을 열 때마다 새로 읽는다 — 갤럭시를 연결하고 돌아오면 '연결됐어요', 사진을 올리고 오면 사진 수가 바뀐다
   const rooms = useFetch<RoomOut[]>('/api/rooms')
@@ -162,13 +165,13 @@ function RoomTab() {
   /** 글로 고치기 판 — 지금 값을 넣어 둔 채 연다 */
   const openText = (s: TextSheet, value: string) => (setText(value), open(s))
 
-  /** 서버에 바꾸기를 보내고 → 다시 읽고 → 판을 닫고 → 한 줄 알림. 두 번 눌러도 한 번만 (busy) */
-  async function change(path: string, done: string, after: () => void) {
+  /** 서버에 바꾸기를 보내고(body 가 있으면 POST, 없으면 DELETE) → 다시 읽고 → 판을 닫고 → 한 줄 알림. 두 번 눌러도 한 번만 (busy) */
+  async function change(path: string, done: string, after: () => void, body?: unknown) {
     if (busy) return
     setBusy(true)
     setError(undefined)
     try {
-      await api(path, { method: 'DELETE' })
+      await api(path, body === undefined ? { method: 'DELETE' } : { body })
       after()
       setSheet(undefined)
       setNote(done)
@@ -347,6 +350,18 @@ function RoomTab() {
             <p className="fam-mini">
               {room.device_last_seen_at ? `마지막으로 연 때 · ${seenLabel(room.device_last_seen_at)}` : `${hon} 폰에서 하루한장이 열려요`}
             </p>
+            {/* 11/24: 어르신 폰에서 마이크가 막히면 그 폰이 알려 온다(lib/audio → PATCH /devices/me/permissions) — 켜는 길을 가족에게.
+                ponytail: 아래 순서는 아직 실기기로 확인 전 — 갤럭시·아이폰에서 눌러 보고 글을 맞출 것 */}
+            {room.device_perm_mic === false && (
+              <div className="gr-mic" role="note">
+                <b className="gr-danger">{hon} 폰 마이크가 꺼져 있어요</b>
+                <p className="fam-mini">말로 일기를 쓰려면 {hon} 폰에서 마이크를 허용해 주세요</p>
+                <ul className="fam-mini">
+                  <li>갤럭시(크롬 앱·홈 화면 앱): 주소창 왼쪽 자물쇠(또는 ⋮ → 설정 → 사이트 설정) → 마이크 → 허용</li>
+                  <li>아이폰: 설정 앱 → Safari → 마이크 → 허용 (또는 Safari 주소창 '가가' → 웹사이트 설정 → 마이크)</li>
+                </ul>
+              </div>
+            )}
           </div>
         </section>
       ) : (
@@ -544,6 +559,10 @@ function RoomTab() {
             이 가족방 나가기
           </button>
         )}
+        {/* 로그아웃 — 바꾸기 판에만 있어 못 찾았다(11/24 실사용). 탈퇴보다 잘 보이게, 보통 버튼 */}
+        <button type="button" className="fam-btn" onClick={() => logout(nav)}>
+          로그아웃
+        </button>
         {/* 회원 탈퇴 화면(ACCOUNT_001)으로 — 방장도 여기서 간다(방장 넘기기는 그 화면이 묻는다) */}
         <Link className="fam-text-btn gr-withdraw" to="/account/withdraw">
           회원 탈퇴
@@ -640,6 +659,15 @@ function RoomTab() {
                   </span>
                 </button>
                 {/* 방장(=내 줄)은 내보낼 수 없다 — 서버도 CANNOT_REMOVE_OWNER 로 거절 */}
+                {/* 방장 넘기기 (D98) — 넘긴 나는 보통 가족으로 남는다 */}
+                {!sheet.m.is_owner && (
+                  <button type="button" className="fam-opt" onClick={() => open({ t: 'owner', m: sheet.m })}>
+                    <span>
+                      <b>방장 넘기기</b>
+                      <small>넘기면 나는 보통 가족이 돼요</small>
+                    </span>
+                  </button>
+                )}
                 {!sheet.m.is_owner && (
                   <button type="button" className="fam-opt gr-opt-danger" onClick={() => open({ t: 'kick', m: sheet.m })}>
                     <span>
@@ -672,6 +700,38 @@ function RoomTab() {
                     }
                   >
                     내보내기
+                  </button>
+                </div>
+              </>
+            )}
+            {sheet.t === 'owner' && (
+              <>
+                <h2>{sheet.m.name}님에게 방장을 넘길까요?</h2>
+                <p className="gr-sheet-text">
+                  새 방장이 초대 링크, {hon} 폰 연결, 구성원 내보내기, {hon} 설정을 맡아요. 나는 보통 가족으로 남고, 내가 다시
+                  가져올 수는 없어요.
+                </p>
+                <div className="gr-cta gr-cta-two">
+                  <button type="button" className="fam-btn fam-btn--tonal" onClick={close}>
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    className="fam-btn fam-btn--primary"
+                    disabled={busy}
+                    onClick={() =>
+                      change(
+                        `/api/rooms/${roomId}/owner`,
+                        `${sheet.m.name}님이 이제 방장이에요`,
+                        () => {
+                          members.reload()
+                          reloadAll()
+                        },
+                        { user_id: sheet.m.user_id },
+                      )
+                    }
+                  >
+                    넘기기
                   </button>
                 </div>
               </>
@@ -797,6 +857,7 @@ function sheetLabel(s: Sheet, hon: string) {
   if (s.t === 'invite') return '초대하기'
   if (s.t === 'member') return `${s.m.name} 더 보기`
   if (s.t === 'kick') return `${s.m.name}님 내보내기`
+  if (s.t === 'owner') return `${s.m.name}님에게 방장 넘기기`
   if (s.t === 'set') return s.s.name
   if (s.t === 'leave') return '가족방 나가기'
   if (s.t === 'text') return s.k === 'nickname' ? `${s.m.name}님 호칭 고치기` : `${TEXTS[s.k].name} 고치기`

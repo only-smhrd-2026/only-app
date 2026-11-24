@@ -296,7 +296,7 @@ export type Heart = {
   name: string | null
   at: string
   text?: string
-  diary_body: string // 11/23 어느 일기에 — 앞 40자
+  diary_body: string // 11/23 어느 일기에 — 일기 글 전체(11/24, 화면이 두 줄로 줄임)
   diary_posted_at: string
   diary_thumb_url: string | null
 }

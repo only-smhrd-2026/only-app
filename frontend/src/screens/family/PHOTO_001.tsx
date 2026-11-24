@@ -84,6 +84,10 @@ export default function PHOTO_001() {
   return <Album key={room.room_id} room={room} />
 }
 
+// UPLOAD_002 와 같게 — 서버 UPLOAD_MAX_NOTE_CHARS(100), 1940년부터 올해까지
+const MAX_NOTE = 100
+const YEARS = Array.from({ length: new Date().getFullYear() - 1939 }, (_, i) => new Date().getFullYear() - i)
+
 type Page = { photos: PhotoOut[]; hasMore: boolean; waiting: number; loading?: boolean } // loading = 칩을 바꿔 다시 받는 중
 
 function Album({ room }: { room: RoomOut }) {
@@ -97,6 +101,8 @@ function Album({ room }: { room: RoomOut }) {
   const [busy, setBusy] = useState(false)
   const [sheetError, setSheetError] = useState('')
   const [note, setNote] = useState('')
+  // [설명 고치기] 판 (D98) — 올릴 때 묶음에 같은 글이 붙으니 한 장씩 여기서
+  const [edit, setEdit] = useState<{ caption: string; people: string; year: string }>()
   // 칩을 바꾸는 사이 늦게 온 '더 보기' 답을 버리려고 — 첫 쪽을 새로 부를 때마다 바뀐다
   const gen = useRef(0)
 
@@ -162,9 +168,28 @@ function Album({ room }: { room: RoomOut }) {
     setBusy(false)
   }
 
+  async function saveNote(p: PhotoOut) {
+    if (busy || !edit) return
+    setBusy(true)
+    setSheetError('')
+    try {
+      const body: Record<string, string | number | null> = { caption: edit.caption.trim() || null, people_note: edit.people.trim() || null }
+      if (!p.taken_at) body.taken_year = edit.year ? Number(edit.year) : null // 찍은 날이 있는 사진은 언제쯤을 안 받는다
+      const out = await api<PhotoOut>(`/api/rooms/${room.room_id}/photos/${p.photo_id}`, { method: 'PATCH', body })
+      setPage((pg) => pg && { ...pg, photos: pg.photos.map((x) => (x.photo_id === out.photo_id ? out : x)) })
+      setEdit(undefined)
+      setNote('설명을 고쳤어요')
+    } catch (e) {
+      setSheetError(e instanceof ApiError ? e.message : '고치지 못했어요. 다시 해 주세요')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const n = page?.waiting
   const cur = open && page?.photos.find((p) => p.photo_id === open.id)
-  const close = () => !busy && (setOpen(undefined), setSheetError(''))
+  const close = () => !busy && (setOpen(undefined), setEdit(undefined), setSheetError(''))
+  const canEdit = cur && cur.source === 'FAMILY' && (cur.is_mine || room.is_owner) // 서버와 같은 규칙: 올린 사람·방장
 
   return (
     <main className="ph">
@@ -250,7 +275,7 @@ function Album({ room }: { room: RoomOut }) {
         </>
       )}
 
-      {cur && !open?.del && (
+      {cur && !open?.del && !edit && (
         <>
           <button type="button" className="fam-scrim" aria-label="닫기" onClick={close} />
           <div className="fam-sheet ph-sheet" role="dialog" aria-modal="true" aria-label="사진 자세히" onKeyDown={(e) => e.key === 'Escape' && close()}>
@@ -275,6 +300,22 @@ function Album({ room }: { room: RoomOut }) {
                 <br />
                 {cur.caption}
               </p>
+            )}
+            {cur.people_note && (
+              <p>
+                <small className="ph-mini">사진 속 사람</small>
+                <br />
+                {cur.people_note}
+              </p>
+            )}
+            {canEdit && (
+              <button
+                type="button"
+                className="fam-btn fam-btn--tonal"
+                onClick={() => (setSheetError(''), setEdit({ caption: cur.caption ?? '', people: cur.people_note ?? '', year: cur.taken_year ? String(cur.taken_year) : '' }))}
+              >
+                설명 고치기
+              </button>
             )}
             {/* 어르신이 대화에서 바로잡아 주신 말 (FR-ME-009) — 다음 대화는 이 말을 따른다 */}
             {cur.elder_note && (
@@ -301,6 +342,78 @@ function Album({ room }: { room: RoomOut }) {
             <button type="button" className="fam-btn fam-btn--tonal" onClick={close} autoFocus>
               닫기
             </button>
+          </div>
+        </>
+      )}
+
+      {cur && edit && (
+        <>
+          <button type="button" className="fam-scrim" aria-label="닫기" onClick={() => !busy && setEdit(undefined)} />
+          <div
+            className="fam-sheet ph-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="설명 고치기"
+            aria-busy={busy}
+            onKeyDown={(e) => e.key === 'Escape' && !busy && setEdit(undefined)}
+          >
+            <span className="fam-grab" />
+            <h2>설명 고치기</h2>
+            <p className="st-dim">이 사진 한 장에만 붙어요. {hon}
+              {josa(hon, '과', '와')} 이야기할 때 AI가 참고해요</p>
+            <label className="st-label" htmlFor="ph-caption">
+              한마디
+            </label>
+            <textarea
+              id="ph-caption"
+              className="st-input"
+              rows={2}
+              value={edit.caption}
+              maxLength={MAX_NOTE}
+              disabled={busy}
+              onChange={(e) => setEdit({ ...edit, caption: e.target.value })}
+              autoFocus
+            />
+            <label className="st-label" htmlFor="ph-people">
+              사진 속 사람
+            </label>
+            <input
+              id="ph-people"
+              className="st-input"
+              value={edit.people}
+              maxLength={MAX_NOTE}
+              placeholder="예) 큰딸, 손주"
+              disabled={busy}
+              onChange={(e) => setEdit({ ...edit, people: e.target.value })}
+            />
+            {!cur.taken_at && (
+              <>
+                <label className="st-label" htmlFor="ph-year">
+                  언제쯤 사진인가요?
+                </label>
+                <select id="ph-year" className="st-input" value={edit.year} disabled={busy} onChange={(e) => setEdit({ ...edit, year: e.target.value })}>
+                  <option value="">모르겠어요</option>
+                  {YEARS.map((y) => (
+                    <option key={y} value={y}>
+                      {y}년쯤
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+            {sheetError && (
+              <p className="fam-error" role="alert">
+                {sheetError}
+              </p>
+            )}
+            <div className="ph-two">
+              <button type="button" className="fam-btn fam-btn--tonal" disabled={busy} onClick={() => (setSheetError(''), setEdit(undefined))}>
+                취소
+              </button>
+              <button type="button" className="fam-btn fam-btn--primary" disabled={busy} onClick={() => saveNote(cur)}>
+                {busy ? '저장 중…' : '저장'}
+              </button>
+            </div>
           </div>
         </>
       )}

@@ -20,9 +20,10 @@ TZ = ZoneInfo("Asia/Seoul")
 DEV_JWT_SECRET = "dev-only-jwt-secret-change-me-before-deploy-0000"
 
 # 상한값은 설정 테이블 대신 상수 (D8)
-# 회상 AI 질문 수(어제 이야기 질문 포함): 사진 2 → 문제 1 → 사진 1 (D79, 11/18 전 6·11/12 전 8). DB CHECK 0~8
-MAX_TURNS = 4
-DIARY_TURNS = 3  # 일기 대화 질문 수: 뭐 하셨어요 → 누구랑 → 기분은 (FR-DI-003)
+# 회상 AI 질문 수(어제 이야기 질문 포함): 사진 3 → 문제 1 → 사진 1 (D97, 11/24 전 4·11/18 전 6·11/12 전 8). DB CHECK 0~8
+MAX_TURNS = 5
+# 일기 대화 질문 수: 뭐 하셨어요 → 아직 안 나온 것 3번(누구랑·어디서·그다음 …) → 기분은 (FR-DI-003, D97 — 11/24 전 3)
+DIARY_TURNS = 5
 DIARY_DRAFT_MIN = 30  # 일기 초안 유지 시간 (FR-DI-004)
 QUIZ_TURN = MAX_TURNS - 1  # 끝에서 두 번째 AI 질문이 생각 문제 — 어제 이야기 질문도 세는 순번 (FR-AI-002, D42·D79)
 QUIZ_PER_DAY = 2  # 가족방 하루 문제 상한 (FR-AI-002 '하루 1~2문제'). 세션당은 1개
@@ -99,7 +100,8 @@ STT_RATE_PER_MIN = 20  # 같은 IP 의 /api/stt 분당 상한. 대화 한 번(5�
 SPEECH_MAX_CHARS = 200  # 한 번에 받는 글자 수 — 200자 합성 약 5초(tts.py 실측). 넘으면 422 → 화면이 기기 목소리로
 SPEECH_RATE_PER_MIN = 30  # 같은 가족방 분당 상한 — 넘으면 소리 없이(null) 돌려줘 화면이 기기 목소리로 읽는다
 # 서버 전체 하루 상한 — 돈이 드는 호출(rtzr·google·anthropic)만 세고 한국 자정에 0 (D46 ⑨). 가입은 누구나 된다.
-# 회상 대화 1번 ≈ Claude 9·TTS 10·STT 최대 16번. 300 이면 하루 대화 20~30번 — 11/27 검증판 배포 때 다시 정함
+# 회상 대화 1번 ≈ Claude 6·TTS 6·STT 5(되묻기까지 최대 10)번, 일기 대화 1번 ≈ Claude 5·TTS 6·STT 4~5번 (D97).
+# 300 이면 하루 회상+일기 한 쌍 약 25번(TTS 12번이 먼저 찬다, D97 전 약 33번) — 11/27 검증판 배포 때 다시 정함
 STT_PER_DAY = 300  # 리턴제로. 넘으면 429 → 화면이 그 문장을 읽고 버튼으로
 TTS_PER_DAY = 300  # Google. 넘으면 브라우저 목소리 (D5, 가족 알림 없음)
 LLM_PER_DAY = 300  # Claude call_json 1번(검증 재시도 포함 최대 2요청). 넘으면 고정 문장 (D14)
@@ -157,6 +159,8 @@ class Settings(BaseSettings):
     SCHEDULER_ENABLED: bool = True
 
     ANTHROPIC_API_KEY: str = ""
+    # 비우면 Anthropic 직접. MonoRouter: https://monogpt.kr/api/monorouter/v1/anthropic (11/24, 키 mr_anthropic_…)
+    ANTHROPIC_BASE_URL: str = ""
     LLM_PROVIDER: str = "mock"  # mock | anthropic
     LLM_MODEL: str = "claude-haiku-5-5"
     STT_PROVIDER: str = "mock"  # mock | rtzr | ...

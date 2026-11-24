@@ -10,3 +10,5 @@
 
 /* 일기 한 편 크게 보기 — 화면 가득(.elder-cover), 스크롤 없이 한 화면. [닫기]나 폰의 뒤로 키로 닫힌다 */
 .elder-past-view > .elder-photo-box { flex: 1 0 24dvh; min-height: 88px; } /* 글이 짧으면 남는 자리를 다 쓰고, 길어도 24% 는 지킨다 */
+/* 가족이 보낸 하트·한마디 (11/24) — 길면 이 칸만 스크롤, 화면은 그대로 한 화면 */
+.elder-past-fam { flex: 0 1 auto; min-height: 0; max-height: 22dvh; overflow-y: auto; margin: 0; padding: 10px 14px; border-radius: 16px; background: var(--elder-bg2); list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: var(--elder-font-size-s); font-weight: 600; line-height: 1.35; }

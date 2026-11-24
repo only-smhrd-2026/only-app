@@ -28,6 +28,7 @@ import UrgentCard from '../../components/UrgentCard'
 import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
 import { getInstallState, promptInstall, subscribeInstallPrompt } from '../../lib/installPrompt'
+import { logout } from '../../lib/logout'
 import { weeklySeen } from '../../lib/weeklySeen'
 import './HOME_001.css'
 
@@ -265,6 +266,8 @@ function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserO
   const liked = d.reactions.some((r) => r.by === 'ELDER' && r.kind === 'LIKE')
   const elderReply = d.reactions.some((r) => r.by === 'ELDER' && r.kind === 'REPLY')
   const to = `/diaries/${d.diary_id}`
+  // 한마디(가족·어르신 답) — 카드에는 마지막 두 개만, 더 있으면 상세로 (11/24 실사용: 홈에서 한마디가 안 보였다)
+  const replies = d.reactions.filter((r) => r.kind === 'REPLY' && r.text)
 
   // 가족 이모지 (D54·#145): on = '이 상태로 만들어 줘'. 다른 이모지를 누르면 바꿔 끼우고, 켜진 것을 누르면 끈다
   async function react(kind: Reaction['kind']) {
@@ -348,6 +351,23 @@ function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserO
           <p className="fam-mini">아직 안 들으셨어요</p>
         )}
       </footer>
+      {replies.length > 0 && (
+        <ul className="home-replies">
+          {replies.slice(-2).map((r) => (
+            <li key={`${r.by}${r.user_id ?? ''}`}>
+              <b>{r.by === 'ELDER' ? `${room.elder_name} ${room.elder_honorific}` : (r.name ?? '가족')}</b>
+              {r.text}
+            </li>
+          ))}
+          {replies.length > 2 && (
+            <li>
+              <Link className="home-replies-more" to={to} state={{ familyDiaryOrder: true }}>
+                한마디 {replies.length}개 모두 보기
+              </Link>
+            </li>
+          )}
+        </ul>
+      )}
     </article>
   )
 }
@@ -518,6 +538,10 @@ function NoRoom() {
           가족방 만들기
         </button>
       </section>
+      {/* 가족방이 없으면 바꾸기 판도 가족방 탭도 없다 — 로그아웃을 여기에 (11/24) */}
+      <button type="button" className="fam-btn fam-btn--text" onClick={() => logout(nav)}>
+        로그아웃
+      </button>
     </main>
   )
 }

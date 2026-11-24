@@ -1,4 +1,4 @@
-"""가족방 생성·목록, 초대 링크 발급·조회·폐기 (방장만). 어르신 기기 연결 해제."""
+"""가족방 생성·목록, 초대 링크 발급·조회·폐기 (방장만). 어르신 기기 연결 해제. 방장 넘기기 (D98)."""
 
 from datetime import timedelta
 from decimal import Decimal
@@ -19,6 +19,7 @@ from app.schemas.rooms import (
     InviteOut,
     MemberOut,
     MemberUpdateIn,
+    OwnerTransferIn,
     RoomCreateIn,
     RoomOut,
     RoomSettingsIn,
@@ -226,6 +227,31 @@ def remove_member(room_id: int, user_id: int, user: CurrentUser, db: DB):
         member.removed_at = now_kst()
         db.commit()
     return OkOut()
+
+
+@router.post("/{room_id}/owner", response_model=RoomOut)
+def transfer_owner(room_id: int, body: OwnerTransferIn, user: CurrentUser, db: DB):
+    """방장 넘기기 (D98). 받을 사람은 이 방의 다른 활동 구성원, 넘긴 사람은 보통 구성원으로 남는다.
+
+    되돌리기는 새 방장만 할 수 있다. 잠그는 순서는 탈퇴(account.py)와 같이 가족방 → 구성원 —
+    두 번 눌러도 한 번만 넘기고, 받을 사람이 그사이 나가지 못한다.
+    """
+    room = require_owner(room_id, user, db)
+    db.refresh(room, with_for_update=True)
+    if room.owner_user_id != user.user_id:  # 잠그기 전에 다른 요청이 먼저 넘겼다
+        raise ApiError(403, "NOT_OWNER", "방장만 할 수 있습니다")
+    if body.user_id == user.user_id:
+        raise ApiError(400, "ALREADY_OWNER", "이미 방장이에요")
+    target = db.scalar(
+        select(RoomMember.member_id)
+        .where(RoomMember.room_id == room_id, RoomMember.user_id == body.user_id, RoomMember.removed_at.is_(None))
+        .with_for_update()
+    )
+    if target is None:
+        raise ApiError(404, "MEMBER_NOT_FOUND", "구성원을 찾을 수 없어요")
+    room.owner_user_id = body.user_id
+    db.commit()
+    return room_out(room, user.user_id, db)
 
 
 @router.post("/{room_id}/leave", response_model=OkOut)

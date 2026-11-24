@@ -79,6 +79,10 @@
 .home-say { margin-left:auto; padding:0 8px; display:inline-flex; align-items:center; text-decoration:none; }
 .home-heard { display:flex; align-items:center; gap:6px; color:var(--ok); font-size:15px; font-weight:600; }
 .home-heard .fam-ic { width:17px; height:17px; }
+/* 한마디 두 줄 — '이름  한마디' (11/24) */
+.home-replies { display:flex; flex-direction:column; gap:4px; margin:0; padding:0; list-style:none; font-size:15px; line-height:1.5; overflow-wrap:anywhere; }
+.home-replies b { margin-right:8px; }
+.home-replies-more { color:var(--text-3); font-size:14px; text-decoration:none; }
 
 /* 폰 연결 전 — 시안 connectCard (.steps3) */
 .home-connect { display:flex; flex-direction:column; gap:12px; padding:16px; }

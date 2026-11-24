@@ -25,7 +25,7 @@ def test_personal_text_does_not_reach_logs(client, caplog, flow):
         sid = _start(client, ctx)
         assert _say(client, sid, SECRET)["state"] == "CONTINUE"
     elif flow == "elder_diary":
-        sid, _ = _talk(client, answers=(SECRET, SECRET, "좋았어요"))
+        sid, _ = _talk(client, answers=(SECRET, SECRET, SECRET, SECRET, "좋았어요"))
         draft = _draft(client, sid)
         assert draft.status_code == 200 and SECRET in draft.json()["body"]
         result = _post(client, sid)
