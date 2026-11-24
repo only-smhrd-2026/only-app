@@ -112,7 +112,7 @@ class HeartOut(BaseModel):
     at: datetime
     # REPLY 의 글 — 화면이 "큰딸이 ‘…’래요."로 읽는다. 이모지 칸은 text 키를 싣지 않는다
     text: str | None = Field(default=None, exclude_if=lambda value: value is None)
-    # 11/23 어느 일기에 왔는지 — 그 일기 앞 40자·올린 시각·사진(그림) 작은 그림. 없으면 null
+    # 11/23 어느 일기에 왔는지 — 그 일기 글(11/24 전체, 화면이 두 줄로 줄임)·올린 시각·사진(그림) 작은 그림. 없으면 null
     diary_body: str
     diary_posted_at: datetime
     diary_thumb_url: str | None = None

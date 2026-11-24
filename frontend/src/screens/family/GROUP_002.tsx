@@ -6,7 +6,7 @@
  * 링크 주소(토큰)는 이 화면 state 에만 둔다 (D16 — localStorage·console 금지). 서버는 토큰을 저장하지 않아 나가면 다시 못 본다.
  */
 import { useEffect, useState } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type {
   InviteCreatedOut,
@@ -23,6 +23,7 @@ import Sim from '../../components/Sim'
 import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
 import { PROMPT, say, stopSpeaking } from '../../lib/audio'
+import { logout } from '../../lib/logout'
 import './GROUP_002.css'
 
 // ── 할머니 화면 설정 (목업 ⑥ 설정 판, D74). 일기 시간은 넣지 않음(11/13 결정). 이름·부르는 말은 아래 TEXTS(글로 고치기)
@@ -133,6 +134,7 @@ export default function GROUP_002() {
 
 function RoomTab() {
   const { roomId } = useParams()
+  const nav = useNavigate()
   const { me, reloadRooms } = useFamily()
   // 이 탭을 열 때마다 새로 읽는다 — 갤럭시를 연결하고 돌아오면 '연결됐어요', 사진을 올리고 오면 사진 수가 바뀐다
   const rooms = useFetch<RoomOut[]>('/api/rooms')
@@ -347,6 +349,18 @@ function RoomTab() {
             <p className="fam-mini">
               {room.device_last_seen_at ? `마지막으로 연 때 · ${seenLabel(room.device_last_seen_at)}` : `${hon} 폰에서 하루한장이 열려요`}
             </p>
+            {/* 11/24: 어르신 폰에서 마이크가 막히면 그 폰이 알려 온다(lib/audio → PATCH /devices/me/permissions) — 켜는 길을 가족에게.
+                ponytail: 아래 순서는 아직 실기기로 확인 전 — 갤럭시·아이폰에서 눌러 보고 글을 맞출 것 */}
+            {room.device_perm_mic === false && (
+              <div className="gr-mic" role="note">
+                <b className="gr-danger">{hon} 폰 마이크가 꺼져 있어요</b>
+                <p className="fam-mini">말로 일기를 쓰려면 {hon} 폰에서 마이크를 허용해 주세요</p>
+                <ul className="fam-mini">
+                  <li>갤럭시(크롬 앱·홈 화면 앱): 주소창 왼쪽 자물쇠(또는 ⋮ → 설정 → 사이트 설정) → 마이크 → 허용</li>
+                  <li>아이폰: 설정 앱 → Safari → 마이크 → 허용 (또는 Safari 주소창 '가가' → 웹사이트 설정 → 마이크)</li>
+                </ul>
+              </div>
+            )}
           </div>
         </section>
       ) : (
@@ -544,6 +558,10 @@ function RoomTab() {
             이 가족방 나가기
           </button>
         )}
+        {/* 로그아웃 — 바꾸기 판에만 있어 못 찾았다(11/24 실사용). 탈퇴보다 잘 보이게, 보통 버튼 */}
+        <button type="button" className="fam-btn" onClick={() => logout(nav)}>
+          로그아웃
+        </button>
         {/* 회원 탈퇴 화면(ACCOUNT_001)으로 — 방장도 여기서 간다(방장 넘기기는 그 화면이 묻는다) */}
         <Link className="fam-text-btn gr-withdraw" to="/account/withdraw">
           회원 탈퇴

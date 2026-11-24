@@ -6,13 +6,21 @@
  * — 부르는 쪽이 '눌러서 들어 보세요'를 띄운다 (D48).
  */
 import { api, ApiError } from '../api/client'
+import type { DeviceOut } from '../api/types'
 import { MOOD_PROMPT } from './moodCheck'
 
 export type Recorder = { stop: () => Promise<Blob> }
 
 /** 마이크 녹음 시작. maxMs 가 지나면 저절로 멈춘다. 끝나면 webm/opus Blob. */
 export async function startRecording(maxMs = 60_000): Promise<Recorder> {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+  let stream: MediaStream
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'NotAllowedError') syncMic(false)
+    throw e
+  }
+  syncMic(true)
   const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : ''
   const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined)
   const chunks: Blob[] = []
@@ -32,6 +40,20 @@ export async function startRecording(maxMs = 60_000): Promise<Recorder> {
       return done
     },
   }
+}
+
+/**
+ * 마이크 허락이 서버에 적힌 것과 다르면 알린다 — 꺼지면 서버가 가족에게 '기기 권한이 꺼져 있어요'(PERMISSION_OFF)를 보낸다.
+ * 연결 때 한 번만 알리던 것을(ELDER_CONNECT_001) 녹음할 때도 (11/24 실기기: 허락이 풀렸는데 가족은 몰랐다).
+ * 쪽을 열 때마다 한 번만, 서버와 같으면 보내지 않는다 — 같은 알림이 쌓이지 않게.
+ */
+let micSynced = false
+function syncMic(on: boolean) {
+  if (micSynced) return
+  micSynced = true
+  api<DeviceOut>('/api/devices/me')
+    .then((d) => d.perm_mic !== on && api('/api/devices/me/permissions', { method: 'PATCH', body: { perm_mic: on } }))
+    .catch(() => {})
 }
 
 /** 녹음이 시작됐다는 신호 (FR-VS-001): 짧은 진동 + 삐. 못 내는 기기면 조용히 넘어간다. */
@@ -154,12 +176,26 @@ export function playBase64(b64: string, rate = 1, mime = 'audio/mpeg'): Promise<
  */
 export function say(text: string, rate = 0.9, b64?: string | null, v = voice): Promise<boolean> {
   stopSpeaking()
-  const key = PROMPT_KEY.get(text)
+  const key = PROMPT_KEY.get(text) // 고정 안내 mp3 는 원래 글로 찾는다 — 다듬기는 그 뒤
   const src = b64 ? `data:audio/mpeg;base64,${b64}` : key && FILES[`../assets/audio/${v === 'MALE' ? 'male/' : ''}${key}.mp3`]
-  if (!src) return speakServer(text, rate)
+  const words = speakText(text)
+  if (!src) return words ? speakServer(words, rate) : Promise.resolve(true)
   return play(src, rate).catch((e: unknown) =>
-    e instanceof DOMException && e.name === 'NotAllowedError' ? false : speakDevice(text, rate),
+    e instanceof DOMException && e.name === 'NotAllowedError' ? false : words ? speakDevice(words, rate) : true,
   )
+}
+
+/**
+ * 소리로 읽을 글 — 가족 글의 'ㅜㅜ'·'ㅋㅋ'(낱자모), '^^', '~', 그림 문자는 뺀다 (11/24 실기기: 'ㅜㅜ'를 '열열이'로 읽음).
+ * 화면 글은 그대로 두고 읽기에서만 뺀다. 남는 말이 없으면 '' — say 는 아무것도 읽지 않는다.
+ */
+export function speakText(text: string): string {
+  return text
+    .replace(/[\u3131-\u318E]+/g, ' ') // 홀로 쓴 자모(ㅋ ㅎ ㅠ ㅜ …) — 글자 안의 자모는 이 범위가 아니라 안 지워진다
+    .replace(/[\^~]+/g, ' ')
+    .replace(/[\p{Extended_Pictographic}\p{Emoji_Modifier}\uFE0F\u200D]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 /** 화면 글 읽기 — say 와 같다(고른 목소리, 안 되면 기기 목소리). 화면들이 쓰던 이름이라 남겨 둔다 (D78). */

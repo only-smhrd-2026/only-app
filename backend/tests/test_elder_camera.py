@@ -39,6 +39,7 @@ def test_upload_media_diary_and_album(client):
     with SessionLocal() as db:
         stored = db.get(Photo, photo["photo_id"])
         assert stored.source == "ELDER_CAMERA" and stored.uploaded_by is None
+        assert stored.taken_at == now_kst().date()  # 11/24 찍은 날 없으면 오늘로 저장
     # 어르신이 찍은 사진도 어르신 사진첩에 (D60 바꿈, 11/23). 일기로 올리기 전이라 diary_id 는 없다
     listed = {p["photo_id"]: p for p in client.get("/api/elder/album").json()["photos"]}
     assert (listed[photo["photo_id"]]["source"], listed[photo["photo_id"]]["diary_id"]) == ("ELDER_CAMERA", None)

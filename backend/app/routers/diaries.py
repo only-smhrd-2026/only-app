@@ -405,7 +405,7 @@ def elder_family_news(device: CurrentDevice, db: DB, again: bool = False):
             name=names.get(r.get("user_id")),
             at=r["at"],
             text=r.get("text"),
-            diary_body=diary.body[:40],
+            diary_body=diary.body,  # 11/24 다 보낸다 — 40자로 자르면 낱말 중간에서 끊겼다. 화면이 두 줄로 줄인다
             diary_posted_at=diary.posted_at,
             diary_thumb_url=_thumb(db, diary),
         )

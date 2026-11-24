@@ -4,17 +4,15 @@
  * 가운데 노란 [+] 는 화면이 아니라 '오늘 소식 보내기·추억 사진 올리기' 판을 연다).
  * 탭 첫 화면(App.tsx 의 TAB_SCREENS)만 이 안에 들어온다.
  * 가족방이 여럿이면 위 막대 이름을 눌러 바꾸고, 모든 탭이 그분 기준이다. 고른 분은 폰에 적어 둔다(다시 열어도 같은 분).
- * 로그아웃은 바꾸기 판 맨 아래 큰 글자 버튼(11/23 시안).
+ * 로그아웃은 바꾸기 판 맨 아래 큰 글자 버튼(11/23 시안). 가족방 탭 아래·가족방 없는 홈에도 있다(11/24, lib/logout).
  */
 import { useEffect, useState } from 'react'
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { api } from '../api/client'
 import type { NotificationListOut, RoomOut, UserOut } from '../api/types'
 import type { FamilyCtx } from '../hooks/useFamily'
 import { useFetch } from '../hooks/useFetch'
-import { clearFamilyDiaryDraft } from '../lib/familyDiaryDraft'
-import { disablePush, FAMILY_PUSH, syncPush } from '../lib/push'
-import { clearUploadDraft } from '../lib/uploadDraft'
+import { logout } from '../lib/logout'
+import { FAMILY_PUSH, syncPush } from '../lib/push'
 import FamIcon, { type FamIconName } from './FamIcon'
 import './FamilyFrame.css'
 
@@ -139,14 +137,6 @@ export default function FamilyFrame() {
     if (m) nav(pathname.replace(m[0], `/${m[1]}/${roomId}`), { replace: true })
   }
 
-  async function logout() {
-    await disablePush().catch(() => {}) // 이 브라우저로 가던 폰 알림을 끈다 — 로그인이 풀리기 전에(내 구독만 지울 수 있다)
-    await api('/api/auth/logout', { method: 'POST' }).catch(() => {})
-    clearUploadDraft() // 고르다 만 사진을 다음 사람에게 남기지 않는다
-    clearFamilyDiaryDraft() // 쓰다 만 가족 일기 글도
-    nav('/login', { replace: true })
-  }
-
   return (
     <div className="fam">
       <header className="fam-bar">
@@ -246,7 +236,7 @@ export default function FamilyFrame() {
             <button type="button" className="fam-btn" onClick={() => nav('/groups/new')}>
               <FamIcon name="plus" />새 가족방 만들기
             </button>
-            <button type="button" className="fam-btn fam-btn--text fam-logout" onClick={logout}>
+            <button type="button" className="fam-btn fam-btn--text fam-logout" onClick={() => logout(nav)}>
               로그아웃
             </button>
             {me.data && <p className="fam-me">{me.data.name} 님으로 로그인했어요</p>}

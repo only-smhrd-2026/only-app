@@ -76,10 +76,14 @@ async def _camera_form(request: Request, _: Annotated[None, Depends(_device_firs
         await form.close()
 
 
-def _save_elder_photo(device: CurrentDevice, db: DB, form: FormData, file_field: str, id_field: str) -> Photo:
+def _save_elder_photo(
+    device: CurrentDevice, db: DB, form: FormData, file_field: str, id_field: str, camera: bool = False
+) -> Photo:
     """어르신 기기 사진 한 장을 JPEG 로 저장한다(source ELDER_CAMERA — 오늘의 한 장 후보 아님).
 
     같은 요청 번호의 재전송은 처음 저장한 사진을 돌려준다. 카메라(/elder/photos)·폰 갤러리(/elder/album)가 같이 쓴다.
+    카메라 사진은 찍은 날(EXIF)이 없으면 오늘 — 화면이 줄이면서 EXIF 가 빠져 가족 사진첩에 '날짜 모름'으로 갔다(11/24).
+    갤러리 사진은 옛 사진일 수 있어 그대로 둔다.
     """
     files = [f for f in form.getlist(file_field) if isinstance(f, UploadFile)]
     if not files:
@@ -104,6 +108,8 @@ def _save_elder_photo(device: CurrentDevice, db: DB, form: FormData, file_field:
             if done:
                 return done
         jpeg, taken_at = to_jpeg(photo_file.file.read())
+        if camera and taken_at is None:
+            taken_at = today_kst()
         batch_id = upload_batch_id or uuid.uuid4()
         key = f"rooms/{device.room_id}/{batch_id}/0.jpg"
         storage.put(key, jpeg)
@@ -125,7 +131,7 @@ def _save_elder_photo(device: CurrentDevice, db: DB, form: FormData, file_field:
 @router.post("/photos", response_model=PhotoOut, status_code=201, openapi_extra=_UPLOAD_BODY)
 def camera_photo(device: CurrentDevice, db: DB, form: Annotated[FormData, Depends(_camera_form)]):
     """카메라 사진을 JPEG 로 저장하고 같은 요청 번호의 재전송은 기존 사진을 돌려준다."""
-    return photo_out(_save_elder_photo(device, db, form, "files", "upload_batch_id"))
+    return photo_out(_save_elder_photo(device, db, form, "files", "upload_batch_id", camera=True))
 
 
 def _greeting(room: FamilyRoom) -> str:

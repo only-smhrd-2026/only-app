@@ -50,6 +50,7 @@
 .family-rdiary { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 16px; background: var(--elder-bg2); font-size: 18px; font-weight: 600; line-height: 1.3; }
 .family-rdiary img { flex: none; width: 56px; height: 56px; border-radius: 12px; object-fit: cover; }
 .family-rdiary small { display: block; font-size: 16px; font-weight: 700; color: var(--elder-ink2); }
+.family-rbody { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } /* 일기 글은 두 줄까지, 넘치면 … (11/24) */
 .family-rwho { display: flex; align-items: center; gap: 10px; font-size: var(--elder-font-size-s); font-weight: 700; line-height: 1.3; }
 .family-rwho .family-hf { margin-right: 4px; vertical-align: -3px; }
 .family-rwho .family-hf .elder-ic { width: 22px; height: 22px; }
