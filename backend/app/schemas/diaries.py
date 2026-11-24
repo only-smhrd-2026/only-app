@@ -75,6 +75,9 @@ class ReactionOut(BaseModel):
     at: datetime
     # REPLY 칸의 글. 다른 칸은 응답에 text 키를 싣지 않는다 (DB 칸과 같이 — 값 없는 키는 안 넣음)
     text: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    # 목소리 답장 (D99) — 가족이 녹음한 소리 /api/media/… 와 길이(초). text 는 받아 적은 자막(빈 글일 수 있음)
+    audio_url: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    audio_sec: int | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class DiaryOut(BaseModel):
@@ -112,6 +115,9 @@ class HeartOut(BaseModel):
     at: datetime
     # REPLY 의 글 — 화면이 "큰딸이 ‘…’래요."로 읽는다. 이모지 칸은 text 키를 싣지 않는다
     text: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    # 목소리 답장 (D99) — 화면이 한 장씩 보여 주고 가족 목소리를 틀어 드린다. text 는 자막
+    audio_url: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    audio_sec: int | None = Field(default=None, exclude_if=lambda value: value is None)
     # 11/23 어느 일기에 왔는지 — 그 일기 글(11/24 전체, 화면이 두 줄로 줄임)·올린 시각·사진(그림) 작은 그림. 없으면 null
     diary_body: str
     diary_posted_at: datetime

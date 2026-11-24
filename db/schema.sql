@@ -238,6 +238,8 @@ CREATE TABLE diaries (
 --   heard_at(FAMILY 칸만 — 어르신이 가족 소식 첫 장에서 들은 시각, 같은 ISO 문자열. 없으면 아직 못 들으심, D63),
 --   kind: LIKE = 어르신 [좋아요] (가족 일기에) | HEART·SMILE·CLAP = 가족 이모지 (어르신 일기에)
 --         REPLY = 가족 한마디 (어르신 일기에, 11/19) — text(한 줄 1~40자) 키가 더 있다. 이모지 칸과 따로 한 사람 1칸, 글을 바꾸면 새 칸
+--                 목소리 답장(D99, 11/24)이면 audio_key(저장소 rooms/{방}/voice/{hex}.mp3)·audio_sec(초)가 더 있고 text 는
+--                 받아 적은 자막(빈 글일 수 있음). 글·목소리 같은 칸 — 바꾸거나 지우거나 탈퇴하면 소리 파일도 지운다
 CREATE INDEX ix_diaries_room_posted ON diaries(room_id, posted_at DESC);
 CREATE INDEX ix_diaries_room_author_posted ON diaries(room_id, author_type, posted_at);   -- S14
 

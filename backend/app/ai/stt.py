@@ -73,10 +73,25 @@ def _pcm(audio: bytes, timeout: float) -> bytes:
     -fs: -t 는 파일 속 시간표를 믿어 조작한 파일(시간표가 모두 0)에는 안 먹는다 → 출력 바이트로도 60초에서 멈춘다.
     -v quiet: 깨진 파일은 오류 글을 100MB 넘게 쏟는다. 쓰지 않는 글이라 끈다.
     """
+    out = ["-t", str(STT_MAX_SEC), "-fs", str(STT_MAX_SEC * CHUNK)]
+    out += ["-f", "s16le", "-ac", "1", "-ar", str(RATE), "pipe:1"]
+    return _ffmpeg(audio, out, timeout)[: STT_MAX_SEC * CHUNK]  # -fs 는 조금 넘겨 쓸 수 있어 과금 60초를 바이트로 보장
+
+
+def to_mp3(audio: bytes, max_sec: int, kbps: int, timeout: float = 10.0) -> bytes:
+    """가족 목소리 답장 저장용 (D99) — 브라우저 녹음(갤럭시 webm/opus·아이폰 mp4/aac)을 어느 폰에서나 트는
+    mono 24kHz 고정 비트레이트 mp3 로. max_sec 뒤는 버린다(-t, 시간표를 조작한 파일은 -fs 바이트로).
+    못 풀면 BadAudio."""
+    cap = max_sec * kbps * 125
+    out = ["-t", str(max_sec), "-fs", str(cap), "-ac", "1", "-ar", "24000", "-c:a", "libmp3lame", "-b:a", f"{kbps}k"]
+    return _ffmpeg(audio, [*out, "-f", "mp3", "pipe:1"], timeout)
+
+
+def _ffmpeg(audio: bytes, out: list[str], timeout: float) -> bytes:
+    """올라온 녹음을 ffmpeg 로 풀어 out 모양으로 (위 _pcm 설명의 좁히기 그대로). 못 풀면 BadAudio."""
     cmd = ["ffmpeg", "-v", "quiet", "-protocol_whitelist", "pipe"]
     cmd += ["-format_whitelist", "matroska,webm,mov,mp4,ogg", "-codec_whitelist", "opus,libopus,vorbis,aac"]
-    cmd += ["-i", "pipe:0", "-t", str(STT_MAX_SEC), "-fs", str(STT_MAX_SEC * CHUNK)]
-    cmd += ["-f", "s16le", "-ac", "1", "-ar", str(RATE), "pipe:1"]
+    cmd += ["-i", "pipe:0", *out]
     # 올라온 파일을 푸는 ffmpeg 에는 어디서나 PATH 만 물려준다(키가 든 환경 변수 제외).
     # 배포 컨테이너(root)면 nobody(65534)로도 낮춘다 — 구멍이 있어도 키를 못 읽게.
     # 개발 PC(root 아님·Windows)는 사용자만 그대로
@@ -85,7 +100,7 @@ def _pcm(audio: bytes, timeout: float) -> bytes:
     p = subprocess.run(cmd, input=audio, capture_output=True, timeout=timeout, env=env, **low)
     if p.returncode != 0:
         raise BadAudio
-    return p.stdout[: STT_MAX_SEC * CHUNK]  # -fs 는 조금 넘겨 쓸 수 있어 과금 60초를 바이트로 보장
+    return p.stdout
 
 
 def _get_token(left: Callable[[], float]) -> str:

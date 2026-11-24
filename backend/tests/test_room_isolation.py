@@ -43,6 +43,7 @@ CASES = [
     ("POST", "/diaries/{diary_id}/reaction", {"kind": "HEART", "on": True}),
     ("POST", "/diaries/{diary_id}/reply", {"text": "보고 싶어요"}),
     ("DELETE", "/diaries/{diary_id}/reply", None),
+    ("POST", "/diaries/{diary_id}/voice-reply", "voice"),  # 가족 목소리 답장 (D99)
     ("DELETE", "/diaries/{diary_id}", None),
     ("POST", "/elder/diaries/{diary_id}/read", None),
     ("POST", "/elder/diaries/{diary_id}/like", {"on": True}),
@@ -109,5 +110,7 @@ def test_other_family_cannot_access_resource(client, method, path, body):
         image = BytesIO()
         Image.new("RGB", (8, 8)).save(image, "JPEG")
         kwargs = {"files": [("files", ("photo.jpg", image.getvalue(), "image/jpeg"))]}
+    if body == "voice":
+        kwargs = {"files": {"audio": ("voice.webm", b"fake-webm", "audio/webm")}}
     response = client.request(method, "/api" + path.format(**ids), **kwargs)
     assert response.status_code in (403, 404, 501), response.text

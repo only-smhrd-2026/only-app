@@ -30,22 +30,30 @@ from __future__ import annotations
 
 import base64
 import logging
+import subprocess
 import threading
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter
+from fastapi import APIRouter, File, Request, UploadFile
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.ai import coach, image, tts
+from app.ai import coach, image, stt, tts
 from app.config import (
     DIARY_DRAFT_MIN,
     ELDER_DIARY_LIST_LIMIT,
     ELDER_HEARTS_LIMIT,
     ELDER_NEWS_AGAIN_LIMIT,
+    STT_FAMILY_PER_DAY,
+    STT_MAX_BYTES,
+    STT_PER_DAY,
+    VOICE_REPLY_KBPS,
+    VOICE_REPLY_MAX_CHARS,
+    VOICE_REPLY_MAX_SEC,
     now_kst,
+    settings,
 )
 from app.deps import DB, CurrentDevice, CurrentUser, require_member
 from app.errors import ApiError
@@ -67,6 +75,7 @@ from app.schemas.diaries import (
     ReplyIn,
 )
 from app.schemas.elder import ElderReplyDraftIn, ElderReplyDraftOut, ElderReplyIn
+from app.security import daily_allowed, stt_allowed
 from app.services import push, storage
 
 log = logging.getLogger("app.diaries")
@@ -257,7 +266,11 @@ def _rows(db, room: FamilyRoom, *cond, me: int | None = None, limit: int = 50) -
                 # 한마디(REPLY) 칸은 이모지 칸들 뒤로 — 가족 홈(HOME_001)은 '내 칸'을 앞에서부터 하나만 찾아
                 # 이모지가 켜졌는지 본다. 한마디가 앞에 오면 켜 둔 이모지가 꺼진 것처럼 보인다
                 reactions=[
-                    dict(r, name=names.get(r.get("user_id")) if r.get("by") == "FAMILY" else None)
+                    dict(
+                        r,
+                        name=names.get(r.get("user_id")) if r.get("by") == "FAMILY" else None,
+                        audio_url=_voice_url(r),
+                    )
                     for r in sorted(d.reactions, key=lambda r: r.get("kind") == "REPLY")
                     # 가족 일기의 가족 칸(가족끼리 한마디, D98)은 어르신 기기(me=None)에 내려보내지 않는다
                     if me is not None or d.author_type == "ELDER" or r.get("by") != "FAMILY"
@@ -414,6 +427,8 @@ def elder_family_news(device: CurrentDevice, db: DB, again: bool = False):
             name=names.get(r.get("user_id")),
             at=r["at"],
             text=r.get("text"),
+            audio_url=_voice_url(r),
+            audio_sec=r.get("audio_sec"),
             diary_body=diary.body,  # 11/24 다 보낸다 — 40자로 자르면 낱말 중간에서 끊겼다. 화면이 두 줄로 줄인다
             diary_posted_at=diary.posted_at,
             diary_thumb_url=_thumb(db, diary),
@@ -694,10 +709,95 @@ def send_reply(diary_id: int, body: ReplyIn, user: CurrentUser, db: DB):
     if diary.author_user_id == user.user_id:  # 404 확인 뒤에 — 먼저 하면 남의 가족방에 어떤 일기가 있는지 드러난다
         raise ApiError(400, "REPLY_NOT_ALLOWED", "내 일기에는 한마디를 남길 수 없어요")
     mine = _own_cell(diary, user.user_id, reply=True)
-    if mine is None or mine.get("text") != body.text:  # 새 리스트를 통째로 넣어야 저장된다
+    replaced = None
+    # 새 리스트를 통째로 넣어야 저장된다. 목소리 답장(D99) 칸이면 자막이 같아도 글 한마디로 바꾼다
+    if mine is None or mine.get("text") != body.text or mine.get("audio_key"):
         new = {"by": "FAMILY", "user_id": user.user_id, "kind": "REPLY", "text": body.text, "at": now_kst().isoformat()}
         diary.reactions = [*(r for r in diary.reactions if r is not mine), new]
+        replaced = mine
     db.commit()  # 바뀐 게 없어도 — 행 잠금이 풀린다
+    _drop_voice(replaced)
+    return _rows(db, db.get(FamilyRoom, diary.room_id), Diary.diary_id == diary_id, me=user.user_id)[0]
+
+
+def _voice_url(cell: dict) -> str | None:
+    """목소리 답장 칸(D99)의 소리 주소 — 화면은 이 주소를 받아 튼다. 다른 칸은 None."""
+    return f"/api/media/{cell['audio_key']}" if cell.get("audio_key") else None
+
+
+def _drop_voice(cell: dict | None) -> None:
+    """바뀌거나 지워진 목소리 답장 칸의 소리 파일을 지운다. DB 저장 뒤에 부른다(사진 지우기와 같은 순서).
+    실패해도 답장은 이미 바뀌었다 — 로그에는 예외 타입만 (D15)."""
+    if cell and cell.get("audio_key"):
+        try:
+            storage.delete(cell["audio_key"])
+        except Exception as e:
+            log.warning("voice delete failed type=%s", type(e).__name__)
+
+
+def _voice_caption(audio: bytes) -> str:
+    """목소리 답장의 자막 — 받아 적은 글. 하루 상한·장애·말소리 없음이면 빈 자막(소리는 그대로 보낸다).
+    상한은 /api/stt 와 같이 센다 (가족 몫 STT_FAMILY_PER_DAY 와 서버 전체 STT_PER_DAY, D46)."""
+    if settings.STT_PROVIDER != "mock" and not (
+        daily_allowed("stt_family", STT_FAMILY_PER_DAY) and daily_allowed("stt", STT_PER_DAY)
+    ):
+        return ""
+    try:
+        text, _ = stt.transcribe(audio)
+    except Exception as e:  # BadAudio·키 없음·제공자 장애·시간 초과 — 자막 없이 보낸다
+        log.warning("voice reply stt failed type=%s", type(e).__name__)
+        return ""
+    return " ".join(text.split())[:VOICE_REPLY_MAX_CHARS]
+
+
+@router.post("/diaries/{diary_id}/voice-reply", response_model=DiaryOut)
+def send_voice_reply(
+    diary_id: int,
+    request: Request,
+    user: CurrentUser,
+    db: DB,
+    audio: UploadFile = File(description="가족 목소리 녹음(webm/opus·mp4/aac), 5MB 이하"),
+):
+    """가족 목소리 답장 (D99, 11/24 사용자 — D6·D91·D98 '녹음은 저장하지 않는다'를 가족 답장에 한해 바꿈).
+
+    어르신 일기에만. 한 사람 한 일기 1칸 — 글 한마디와 같은 칸이라 글이든 목소리든 새로 보내면 바뀌고, 옛 소리 파일은
+    지운다. 녹음은 mp3(VOICE_REPLY_MAX_SEC 초까지)로 바꿔 저장하고 받아 적은 글을 자막(text)으로 붙인다.
+    heard_at 이 없어 어르신 가족 소식이 한 장씩 틀어 드린다. 소리·자막은 로그에 남기지 않는다 (D15).
+    """
+    # 돈이 드는 받아 적기를 부르니 /api/stt 와 같은 분당 상한 (D46)
+    if not stt_allowed(request.client.host if request.client else "unknown"):
+        raise ApiError(429, "TOO_MANY_REQUESTS", "잠시 후 다시 해 주세요")
+    data = audio.file.read(STT_MAX_BYTES + 1)
+    if len(data) > STT_MAX_BYTES:
+        raise ApiError(413, "AUDIO_TOO_LARGE", "녹음 파일이 너무 커요 (5MB 초과)")
+    if not data:
+        raise ApiError(422, "AUDIO_EMPTY", "녹음이 비어 있어요")
+    diary = _diary_for_reply(db, diary_id, user)
+    if diary.author_type != "ELDER":  # 404 확인 뒤에 — 먼저 하면 남의 가족방에 어떤 일기가 있는지 드러난다
+        raise ApiError(409, "VOICE_REPLY_NOT_ALLOWED", "목소리 답장은 어르신 일기에만 보낼 수 있어요")
+    room_id = diary.room_id
+    db.close()  # 변환·받아 적기(수 초) 동안 행 잠금·DB 연결을 쥐지 않는다 — 저장할 때 다시 잠근다
+    try:
+        mp3 = stt.to_mp3(data, VOICE_REPLY_MAX_SEC, VOICE_REPLY_KBPS)
+    except (stt.BadAudio, subprocess.TimeoutExpired):
+        mp3 = b""
+    sec = round(len(mp3) / (VOICE_REPLY_KBPS * 125))  # 고정 비트레이트라 바이트로 길이를 안다
+    if sec < 1:  # 못 푸는 파일은 ffmpeg 가 머리글만 내고 끝날 때가 있다 (목차가 끝에 있는 mp4)
+        raise ApiError(422, "AUDIO_INVALID", "녹음을 알아듣지 못했어요. 다시 녹음해 주세요.")
+    text = _voice_caption(data)
+    key = f"rooms/{room_id}/voice/{uuid.uuid4().hex}.mp3"
+    storage.put(key, mp3, "audio/mpeg")
+    try:
+        diary = _diary_for_reply(db, diary_id, user)  # 다시 잠그고, 그사이 바뀐 칸들 위에 쓴다
+    except ApiError:  # 그사이 일기가 지워졌거나 방에서 나갔다 — 올린 소리도 지운다
+        storage.delete(key)
+        raise
+    mine = _own_cell(diary, user.user_id, reply=True)
+    new = {"by": "FAMILY", "user_id": user.user_id, "kind": "REPLY", "text": text}
+    new |= {"audio_key": key, "audio_sec": sec, "at": now_kst().isoformat()}
+    diary.reactions = [*(r for r in diary.reactions if r is not mine), new]
+    db.commit()
+    _drop_voice(mine)
     return _rows(db, db.get(FamilyRoom, diary.room_id), Diary.diary_id == diary_id, me=user.user_id)[0]
 
 
@@ -709,3 +809,4 @@ def delete_reply(diary_id: int, user: CurrentUser, db: DB):
     if mine is not None:
         diary.reactions = [r for r in diary.reactions if r is not mine]
     db.commit()  # 바뀐 게 없어도 — 행 잠금이 풀린다
+    _drop_voice(mine)  # 목소리 답장이었으면 소리 파일도 (D99)
