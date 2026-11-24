@@ -388,17 +388,14 @@ def test_model_output_limits():
         "가족 이랑요",
         "바다요",
     ]
-    for bad in ({"text": "가" * (MODEL_TEXT_MAX + 1)}, {"text": "네?", "suggestions": ["가족들이랑 갔어요"]}):
-        try:
-            CoachTurn(**bad)
-            raise AssertionError(bad)
-        except ValidationError:
-            pass
-    try:  # 일기 동무도 모델 답이라 6자
-        DiaryTurn(text="누구랑 계셨어요?", suggestions=["밖에 다녀왔어요"])
-        raise AssertionError("diary chip")
+    try:
+        CoachTurn(text="가" * (MODEL_TEXT_MAX + 1))
+        raise AssertionError("text")
     except ValidationError:
         pass
+    # 긴 추천 답은 그것만 빠진다 — 질문은 살린다 (11/24). 일기 동무도 모델 답이라 6자
+    assert CoachTurn(text="네?", suggestions=["가족들이랑 갔어요", "바다요"]).suggestions == ["바다요"]
+    assert DiaryTurn(text="누구랑 계셨어요?", suggestions=["밖에 다녀왔어요"]).suggestions == []
     assert CoachReply(
         text="오늘은 뭐 하셨어요?", suggestions=["밖에 다녀왔어요"]
     ).suggestions  # 고정 답(코드)은 12자까지
