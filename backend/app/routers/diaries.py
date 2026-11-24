@@ -19,6 +19,7 @@
     읽어 드린 뒤 POST /elder/hearts/heard {until} 이 그때까지 온 칸에 heard_at 을 적는다.
 11. POST·DELETE /diaries/{id}/reply — 가족 한마디(40자까지)를 어르신 일기에 남기고 지운다 (11/19, D50 을 바꿈).
     reactions 의 REPLY 칸 — 이모지와 따로 한 사람 1칸. 어르신께는 10 의 hearts 로 같이 내려가 첫 장에서 읽어 드린다.
+    가족 일기에도 남길 수 있다(D98, 쓴 사람 본인은 빼고). 가족끼리 한마디라 어르신 기기에는 내려보내지 않는다.
 12. GET /elder/family-news?again=1 — 새 소식이 없을 때 '지난 소식 다시 듣기': 이미 들은 가족 일기 최근 5개 (11/19).
 
 담당: 일기 프롬프트·그림 화풍(image.STYLE) 다듬기 홍진성 / 사진 일기(카메라)·가족 일기·목록 세부 천주웅.
@@ -252,6 +253,8 @@ def _rows(db, room: FamilyRoom, *cond, me: int | None = None, limit: int = 50) -
                 reactions=[
                     dict(r, name=names.get(r.get("user_id")) if r.get("by") == "FAMILY" else None)
                     for r in sorted(d.reactions, key=lambda r: r.get("kind") == "REPLY")
+                    # 가족 일기의 가족 칸(가족끼리 한마디, D98)은 어르신 기기(me=None)에 내려보내지 않는다
+                    if me is not None or d.author_type == "ELDER" or r.get("by") != "FAMILY"
                 ],
             )
         )
@@ -672,15 +675,18 @@ def _diary_for_reply(db, diary_id: int, user) -> Diary:
 
 @router.post("/diaries/{diary_id}/reply", response_model=DiaryOut)
 def send_reply(diary_id: int, body: ReplyIn, user: CurrentUser, db: DB):
-    """가족 한마디를 어르신 일기에 (11/19 — D50 '글 답장은 없다'를 바꿈). 한 사람 1개, 이모지 칸과 따로.
+    """가족 한마디를 일기에 (11/19 — D50 '글 답장은 없다'를 바꿈). 한 사람 1개, 이모지 칸과 따로.
+
+    가족 일기에도 (D98 — D91 을 넓힘). 쓴 사람 본인은 제 일기에 못 남긴다. 가족 일기의 한마디는 가족끼리만 —
+    어르신 가족 소식(hearts 는 어르신 일기만 본다, 일기 목록은 _rows 가 뺀다)에는 나오지 않는다.
 
     글이 바뀌면 그 사람의 한마디 칸을 새 칸으로 바꿔 끼운다 — heard_at 이 없어 가족 소식 첫 장에서 다시 읽어 드린다.
     같은 글이 또 오면(두 번 누름) 그대로 둔다. 글 검사는 가족 일기 본문과 같다(금지어 검사 없음).
     글은 로그에 남기지 않는다.
     """
     diary = _diary_for_reply(db, diary_id, user)
-    if diary.author_type != "ELDER":  # 404 확인 뒤에 — 먼저 하면 남의 가족방에 어떤 일기가 있는지 드러난다
-        raise ApiError(400, "REPLY_NOT_ALLOWED", "한마디는 어르신 일기에만 남길 수 있어요")
+    if diary.author_user_id == user.user_id:  # 404 확인 뒤에 — 먼저 하면 남의 가족방에 어떤 일기가 있는지 드러난다
+        raise ApiError(400, "REPLY_NOT_ALLOWED", "내 일기에는 한마디를 남길 수 없어요")
     mine = _own_cell(diary, user.user_id, reply=True)
     if mine is None or mine.get("text") != body.text:  # 새 리스트를 통째로 넣어야 저장된다
         new = {"by": "FAMILY", "user_id": user.user_id, "kind": "REPLY", "text": body.text, "at": now_kst().isoformat()}
