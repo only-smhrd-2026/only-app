@@ -109,10 +109,11 @@ export default function ELDER_MIND_002() {
     <main className="elder elder--fit">
       <div className="elder-grow elder-center">
         <div className="elder-halo elder-pop">
-          <Sim face="thumbs" size={150} />
+          {/* elder-sim 이 없으면 빛 번짐(.elder-halo::before)이 그림 위에 그려져 가운데가 뿌옇다 (11/24 실사용) */}
+          <Sim face="thumbs" size={150} className="elder-sim" />
         </div>
         <h1>{title}</h1>
-        <p className="elder-sub">{words.join(' · ')} 였어요. 내일 또 해 봐요.</p>
+        <p className="elder-sub">{words.join(' · ')}였어요. 내일 또 해 봐요.</p>
       </div>
       <button type="button" className="elder-btn" onClick={toMind}>내 마음으로</button>
     </main>

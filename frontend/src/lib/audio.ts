@@ -127,36 +127,63 @@ export function setVoice(v: 'FEMALE' | 'MALE') {
   }
 }
 
-let current: HTMLAudioElement | null = null
+// 재생기는 하나만 만들어 모든 소리에 다시 쓴다. 아이폰 사파리는 사람이 누른 순간에 한 번 소리를 낸 재생기만
+// 그 뒤에도 저절로 소리를 낼 수 있다 — 소리마다 새 재생기를 만들면 긴 글의 두 번째 묶음부터 막혀 조용해졌다
+// (11/24 아이폰 실사용: 가족 소식이 '읽어 드릴게요.' 까지만 나옴. 서버 소리 113건은 전부 정상이었다)
+let player: HTMLAudioElement | undefined
+let finish: ((heard: boolean) => void) | undefined // 지금 재생을 끝내는 함수 — 새 재생·stopSpeaking 이 '우리가 멈춤'으로 끝낸다
+// 0.0125초 무음 wav. 첫 터치 때 재생기를 이것으로 한 번 틀어 아이폰이 그 재생기를 허락하게 한다
+const SILENT =
+  'data:audio/wav;base64,UklGRogAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWQAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA'
+
+function unlock() {
+  document.removeEventListener('touchend', unlock, true)
+  document.removeEventListener('click', unlock, true)
+  if ('speechSynthesis' in window) window.speechSynthesis.speak(new SpeechSynthesisUtterance('')) // 기기 목소리도 같은 규칙
+  if (finish) return // 이미 틀고 있다 — 그 재생기가 허락된 것
+  const audio = (player ??= new Audio())
+  audio.src = SILENT
+  audio.play().catch(() => {})
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('touchend', unlock, true) // 아이폰은 touchstart·pointerdown 이 아니라 손을 뗄 때를 '누름'으로 본다
+  document.addEventListener('click', unlock, true)
+}
 
 /**
- * mp3 재생. 끝까지 들려주면 true, stopSpeaking() 으로 멈추면 true, 전화벨·알람이 소리를 멈추면 false.
+ * mp3 재생. 끝까지 들려주면 true, stopSpeaking()·다음 재생으로 멈추면 true, 전화벨·알람이 소리를 멈추면 false.
  * 재생하지 못하면 reject — 자동 재생 막힘은 NotAllowedError, 소리가 3초 안에 시작되지 않거나 나오다 끊긴 채 3초면
  * (망이 멈춤: error 없이 stalled·waiting 만 옴) Error.
+ * 재생기를 같이 쓰므로 앞 소리의 이벤트(멈춤·끝남)가 늦게 올 수 있다 — paused·ended 를 그때 값으로 다시 보고 거른다.
  */
 function play(src: string, rate: number): Promise<boolean> {
+  finish?.(true)
+  const audio = (player ??= new Audio())
   return new Promise((resolve, reject) => {
-    const audio = new Audio(src)
-    audio.defaultPlaybackRate = audio.playbackRate = rate // default 도 같이: 다시 불러올 때 1.0 으로 돌아가지 않게
-    current = audio
     let stalled = 0
-    const settle = () => clearTimeout(stalled)
-    const wait = () => {
-      settle()
-      stalled = window.setTimeout(() => {
-        audio.onpause = null
-        audio.pause()
-        reject(new Error('stalled'))
-      }, 3_000)
+    let done = false
+    const end = (then: () => void) => {
+      if (done) return
+      done = true
+      clearTimeout(stalled)
+      if (finish === stop) finish = undefined
+      then()
     }
+    const stop = (heard: boolean) => end(() => resolve(heard))
+    finish = stop
+    const wait = () => {
+      clearTimeout(stalled)
+      stalled = window.setTimeout(() => end(() => (audio.pause(), reject(new Error('stalled')))), 3_000)
+    }
+    audio.onwaiting = () => !done && wait()
+    audio.onplaying = () => clearTimeout(stalled)
+    audio.onended = () => audio.ended && stop(true)
+    audio.onpause = () => audio.paused && !audio.ended && stop(false) // 우리가 멈춘 것은 먼저 끝냈다 → 여기 오면 전화벨 등
+    audio.onerror = () => end(() => reject(new Error('audio')))
+    audio.src = src
+    audio.defaultPlaybackRate = audio.playbackRate = rate // default 도 같이: 다시 불러올 때 1.0 으로 돌아가지 않게
     wait()
-    audio.onwaiting = wait
-    audio.onplaying = settle
-    audio.onended = () => (settle(), resolve(true))
-    // stopSpeaking() 은 current 를 비운 뒤 pause 이벤트가 온다 → 우리가 멈춘 것. current 그대로면 시스템이 멈춘 것(전화벨)
-    audio.onpause = () => (settle(), resolve(audio.ended || current !== audio))
-    audio.onerror = () => (settle(), reject(new Error('audio')))
-    audio.play().catch((e: unknown) => (settle(), reject(e)))
+    audio.play().catch((e: unknown) => end(() => reject(e)))
   })
 }
 
@@ -296,8 +323,7 @@ function speakDevice(text: string, rate = 0.9): Promise<boolean> {
 /** 재생 중인 서버 음성과 브라우저 TTS 를 모두 멈춘다. 서버 소리를 기다리던 읽기도 틀지 않게 된다 (D78). */
 export function stopSpeaking() {
   gen++
-  const a = current
-  current = null // pause 이벤트보다 먼저 비운다: play() 가 '우리가 멈춤'으로 알아보게
-  a?.pause()
+  finish?.(true) // pause 이벤트보다 먼저 끝낸다: play() 가 '우리가 멈춤'(true)으로 끝나게
+  player?.pause()
   if ('speechSynthesis' in window) window.speechSynthesis.cancel()
 }
