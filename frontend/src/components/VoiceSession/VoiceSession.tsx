@@ -31,7 +31,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { AiOut, EndReason, SessionGetOut, SessionOut, SttOut, TurnIn, TurnOut } from '../../api/types'
-import { cue, PROMPT, say, startRecording, stopSpeaking, type Recorder } from '../../lib/audio'
+import { cue, micBlockedTip, PROMPT, say, startRecording, stopSpeaking, type Recorder } from '../../lib/audio'
 import { clearPaused, RESUME_LEAD, savePaused } from '../../lib/pausedSession'
 import ElderPhoto from '../ElderPhoto'
 import Sim, { type SimFace } from '../Sim'
@@ -404,9 +404,9 @@ export default function VoiceSession(props: Props) {
     let rec: Recorder
     try {
       rec = await startRecording(RECORD_MS)
-    } catch {
+    } catch (e) {
       if (!alive.current || my !== seq.current) return
-      return buttonsOnly(PROMPT.micOff)
+      return buttonsOnly(PROMPT.micOff + micBlockedTip(e)) // 아이폰 [취소] 뒤면 '앱을 다시 열면…'을 덧붙인다
     }
     if (!alive.current || my !== seq.current) {
       rec.stop().catch(() => {})

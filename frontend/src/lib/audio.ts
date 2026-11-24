@@ -43,6 +43,15 @@ export async function startRecording(maxMs = 60_000): Promise<Recorder> {
 }
 
 /**
+ * 마이크가 막혔을 때 안내 끝에 덧붙일 말. 아이폰은 허락 창에서 [취소]를 한 번 누르면 앱을 다시 열 때까지
+ * 다시 묻지 않고 바로 막는다 — 코드로는 다시 띄울 수 없다 (11/24 실사용). 그 밖의 기기·오류면 ''.
+ */
+export function micBlockedTip(e: unknown): string {
+  const iphone = typeof navigator !== 'undefined' && /iPhone|iPad/.test(navigator.userAgent)
+  return iphone && e instanceof DOMException && e.name === 'NotAllowedError' ? ' 앱을 완전히 닫았다가 다시 열면 마이크를 다시 물어봐요.' : ''
+}
+
+/**
  * 마이크 허락이 서버에 적힌 것과 다르면 알린다 — 꺼지면 서버가 가족에게 '기기 권한이 꺼져 있어요'(PERMISSION_OFF)를 보낸다.
  * 연결 때 한 번만 알리던 것을(ELDER_CONNECT_001) 녹음할 때도 (11/24 실기기: 허락이 풀렸는데 가족은 몰랐다).
  * 쪽을 열 때마다 한 번만, 서버와 같으면 보내지 않는다 — 같은 알림이 쌓이지 않게.

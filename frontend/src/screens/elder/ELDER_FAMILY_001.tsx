@@ -14,7 +14,7 @@ import { Bars, Bub, Dots, ElderStop, IC } from '../../components/ElderUi'
 import Sim from '../../components/Sim'
 import { useLive, type ElderNavState } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
-import { cue, speak, startRecording, stopSpeaking, type Recorder } from '../../lib/audio'
+import { cue, micBlockedTip, speak, startRecording, stopSpeaking, type Recorder } from '../../lib/audio'
 import './ELDER_FAMILY_001.css'
 
 const KIND_WORD = { HEART: '하트', SMILE: '웃음', CLAP: '박수' } as const
@@ -134,8 +134,10 @@ function ReplySheet({ diary, to, speed, onSent, onClose }: { diary: DiaryOut; to
     if (!live.current || my !== run.current) return
     try {
       rec.current = await startRecording(REPLY_MS)
-    } catch {
-      if (live.current && my === run.current) fail('마이크를 쓸 수 없어요. 가족에게 마이크 허락을 부탁해 주세요.')
+    } catch (e) {
+      // 아이폰 [취소] 뒤면 앱을 다시 열어야 다시 묻는다 (11/24 실사용)
+      const tip = micBlockedTip(e) || ' 가족에게 마이크 허락을 부탁해 주세요.'
+      if (live.current && my === run.current) fail(`마이크를 쓸 수 없어요.${tip}`)
       return
     }
     if (!live.current || my !== run.current) return void rec.current.stop()

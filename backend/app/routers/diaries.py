@@ -178,13 +178,19 @@ def make_draft(session_id: uuid.UUID, device: CurrentDevice, db: DB):
         return out
 
 
-def _member_names(db, room_id: int) -> dict[int, str]:
-    """가족방 사람의 user_id → 별명(없으면 이름). 방에서 나간 사람도 그 줄은 남아 있어 이름이 나온다."""
+def _member_names(db, room_id: int, full: bool = False) -> dict[int, str]:
+    """가족방 사람의 user_id → 별명(없으면 이름). 방에서 나간 사람도 그 줄은 남아 있어 이름이 나온다.
+
+    full=True 면 '이름(별명)' — 가족 화면의 한마디·이모지 (11/24 실사용: '딸·손주'만 보여 누군지 몰랐다).
+    어르신 화면은 별명 그대로 읽는다('딸이 하트를 보냈어요').
+    """
     rows = db.execute(
         select(RoomMember.user_id, RoomMember.nickname, User.name)
         .join(User, User.user_id == RoomMember.user_id)
         .where(RoomMember.room_id == room_id)
     ).all()
+    if full:
+        return {user_id: f"{name}({nickname})" if nickname else name for user_id, nickname, name in rows}
     return {user_id: nickname or name for user_id, nickname, name in rows}
 
 
@@ -226,7 +232,7 @@ def _rows(db, room: FamilyRoom, *cond, me: int | None = None, limit: int = 50) -
         .limit(limit)
     ).all()
     # 리액션을 누른 가족의 이름은 응답에만 붙인다 (DB 에는 user_id 만)
-    names = _member_names(db, room.room_id) if any(d.reactions for d, *_ in rows) else {}
+    names = _member_names(db, room.room_id, full=me is not None) if any(d.reactions for d, *_ in rows) else {}
     out = []
     for d, name, photo_key, nickname in rows:
         mine = d.author_user_id == me if me is not None else d.author_type == "ELDER"

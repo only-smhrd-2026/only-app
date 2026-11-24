@@ -24,6 +24,34 @@ const familyLines = (d: DiaryOut) =>
     .filter((r) => r.by === 'FAMILY' && (r.kind === 'REPLY' ? r.text : KIND_WORD[r.kind]))
     .map((r) => `${r.name ?? '가족'} · ${r.kind === 'REPLY' ? `‘${r.text}’` : KIND_WORD[r.kind]}`)
 const day = (iso: string) => new Date(iso).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })
+const EMOJI: Record<string, string> = { HEART: '❤️', SMILE: '😊', CLAP: '👏' } // 가족 홈(HOME_001 REACTS)과 같은 그림
+
+/** 가족이 보낸 마음 — 이모지는 그림 줄로 모으고, 한마디는 말풍선으로 따로 (11/24 실사용: '딸 · 하트' 글자만 보여 구분이 안 됐다) */
+function FamilyMarks({ d }: { d: DiaryOut }) {
+  const fam = d.reactions.filter((r) => r.by === 'FAMILY')
+  const marks = fam.filter((r) => EMOJI[r.kind])
+  const replies = fam.filter((r) => r.kind === 'REPLY' && r.text)
+  return (
+    <div className="elder-past-fam" aria-label="가족이 보낸 마음">
+      {marks.length > 0 && (
+        <p className="elder-past-marks">
+          {marks.map((r) => (
+            <span key={`${r.user_id}${r.kind}`}>
+              <i aria-hidden="true">{EMOJI[r.kind]}</i>
+              {r.name ?? '가족'}
+            </span>
+          ))}
+        </p>
+      )}
+      {replies.map((r) => (
+        <p key={r.user_id ?? r.at} className="elder-past-reply">
+          <b>{r.name ?? '가족'}</b>
+          {r.text}
+        </p>
+      ))}
+    </div>
+  )
+}
 
 export default function ELDER_DIARY_004() {
   const { home } = (useLocation().state ?? {}) as ElderNavState
@@ -102,11 +130,7 @@ export default function ELDER_DIARY_004() {
             )}
             <DiaryPaper key={open.diary_id} body={open.body} onRead={() => read(open)} />
             <p className="elder-moodline"><MoodIcon mood={open.mood} />그날 기분 · {MOOD_LABEL[open.mood]}</p>
-            {familyLines(open).length > 0 && (
-              <ul className="elder-past-fam" aria-label="가족이 보낸 마음">
-                {familyLines(open).map((l, i) => <li key={i}>{l}</li>)}
-              </ul>
-            )}
+            {familyLines(open).length > 0 && <FamilyMarks d={open} />}
             <button type="button" className="elder-btn elder-btn--secondary" onClick={() => view.current?.close()}>닫기</button>
           </>
         )}
