@@ -159,6 +159,8 @@ class Settings(BaseSettings):
     SCHEDULER_ENABLED: bool = True
 
     ANTHROPIC_API_KEY: str = ""
+    # 비우면 Anthropic 직접. MonoRouter: https://monogpt.kr/api/monorouter/v1/anthropic (11/24, 키 mr_anthropic_…)
+    ANTHROPIC_BASE_URL: str = ""
     LLM_PROVIDER: str = "mock"  # mock | anthropic
     LLM_MODEL: str = "claude-haiku-5-5"
     STT_PROVIDER: str = "mock"  # mock | rtzr | ...
