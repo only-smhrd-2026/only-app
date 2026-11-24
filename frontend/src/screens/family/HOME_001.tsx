@@ -25,6 +25,7 @@ import { Avatar } from '../../components/FamilyFrame'
 import MoodIcon from '../../components/MoodIcon'
 import Sim from '../../components/Sim'
 import UrgentCard from '../../components/UrgentCard'
+import VoicePlay from '../../components/VoicePlay'
 import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
 import { getInstallState, promptInstall, subscribeInstallPrompt } from '../../lib/installPrompt'
@@ -266,8 +267,9 @@ function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserO
   const liked = d.reactions.some((r) => r.by === 'ELDER' && r.kind === 'LIKE')
   const elderReply = d.reactions.some((r) => r.by === 'ELDER' && r.kind === 'REPLY')
   const to = `/diaries/${d.diary_id}`
-  // 한마디(가족·어르신 답) — 카드에는 마지막 두 개만, 더 있으면 상세로 (11/24 실사용: 홈에서 한마디가 안 보였다)
-  const replies = d.reactions.filter((r) => r.kind === 'REPLY' && r.text)
+  // 한마디(가족·어르신 답) — 카드에는 마지막 두 개만, 더 있으면 그 자리에서 펼친다 (11/24 실사용 두 번)
+  const replies = d.reactions.filter((r) => r.kind === 'REPLY' && (r.text || r.audio_url)) // 목소리 답장은 자막이 비어도 (D99)
+  const [allReplies, setAllReplies] = useState(false)
 
   // 가족 이모지 (D54·#145): on = '이 상태로 만들어 줘'. 다른 이모지를 누르면 바꿔 끼우고, 켜진 것을 누르면 끈다
   async function react(kind: Reaction['kind']) {
@@ -353,17 +355,17 @@ function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserO
       </footer>
       {replies.length > 0 && (
         <ul className="home-replies">
-          {replies.slice(-2).map((r) => (
+          {(allReplies ? replies : replies.slice(-2)).map((r) => (
             <li key={`${r.by}${r.user_id ?? ''}`}>
               <b>{r.by === 'ELDER' ? `${room.elder_name} ${room.elder_honorific}` : (r.name ?? '가족')}</b>
-              {r.text}
+              {r.audio_url && <VoicePlay url={r.audio_url} sec={r.audio_sec} />} {r.text}
             </li>
           ))}
           {replies.length > 2 && (
             <li>
-              <Link className="home-replies-more" to={to} state={{ familyDiaryOrder: true }}>
-                한마디 {replies.length}개 모두 보기
-              </Link>
+              <button type="button" className="home-replies-more" onClick={() => setAllReplies((v) => !v)} aria-expanded={allReplies}>
+                {allReplies ? '한마디 접기' : `한마디 ${replies.length}개 모두 보기`}
+              </button>
             </li>
           )}
         </ul>
@@ -560,7 +562,8 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
     error?: string
   }>()
   // 일기 목록 글쓴이 필터 (11/18 멘토링) — 이미 불러온 목록을 화면에서 거른다. 더 불러온 지난 일기도 같은 필터로 보인다
-  const [who, setWho] = useState<'ALL' | DiaryOut['author_type']>('ALL')
+  // MINE = 내가 쓴 오늘 소식만 (11/24 실사용: 내 일기만 모아 볼 곳이 없었다)
+  const [who, setWho] = useState<'ALL' | 'MINE' | DiaryOut['author_type']>('ALL')
 
   // 설치형 앱은 다시 열어도 화면이 새로 뜨지 않는다 → 앱으로 돌아올 때마다 다시 읽는다
   const reloadDiaries = diaries.reload
@@ -583,7 +586,7 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
   const update = (d: DiaryOut) => setEdits({ base, byId: { ...byId, [d.diary_id]: d } })
   const page = older?.base === base ? older : undefined
   const items = [...(base?.diaries ?? []), ...(page?.diaries ?? [])].map((d) => byId[d.diary_id] ?? d)
-  const shown = who === 'ALL' ? items : items.filter((d) => d.author_type === who)
+  const shown = who === 'ALL' ? items : items.filter((d) => (who === 'MINE' ? d.is_mine : d.author_type === who))
   const hasMore = page?.hasMore ?? base?.has_more ?? false
   const error = diaries.error ?? mood.error
   // 일기 상세의 앞뒤 넘기기도 지금 보이는(거른) 목록 순서를 따른다
@@ -646,6 +649,7 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
               ['ALL', '전체'],
               ['ELDER', `${room.elder_name} ${room.elder_honorific}`],
               ['FAMILY', '가족'],
+              ['MINE', '내 일기'],
             ] as const
           ).map(([key, label]) => (
             <button type="button" key={key} className="fam-chip" onClick={() => setWho(key)} aria-pressed={who === key}>

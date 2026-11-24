@@ -41,6 +41,11 @@ ELDER_DIARY_LIST_LIMIT = 100
 # 가족 소식 첫 장 '하트가 왔어요'가 한 번에 받는 가족 이모지·한마디 수. 넘으면 들은 뒤 나머지가 나온다 (D63)
 ELDER_HEARTS_LIMIT = 20
 REPLY_MAX = 40  # 가족이 어르신 일기에 남기는 한마디 글자 수 (11/19) — 화면 HOME_002 의 REPLY_MAX 와 같은 값
+# 가족 목소리 답장 (D99, 11/24 사용자): 길이 상한(화면 HOME_002 VOICE_MS 와 같게),
+# 저장 mp3 고정 비트레이트(길이 = 바이트 / (KBPS × 125)), 받아 적은 자막 글자 수
+VOICE_REPLY_MAX_SEC = 30
+VOICE_REPLY_KBPS = 48
+VOICE_REPLY_MAX_CHARS = 200
 ELDER_NEWS_AGAIN_LIMIT = 5  # 가족 소식이 비었을 때 '지난 소식 다시 듣기'가 돌려주는 들은 가족 일기 수 (11/19)
 # 가족 사진 목록·어르신 사진첩이 한 번에 돌려주는 장수(최신 순) — 두 화면이 같은 사진을 보이게 한 값으로 (D8)
 PHOTO_LIST_LIMIT = 100

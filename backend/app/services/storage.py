@@ -14,7 +14,9 @@ from pathlib import Path
 
 from app.config import settings
 
-KEY_RE = re.compile(r"^rooms/\d+/[0-9a-f-]{36}(/\d+)?\.jpg$")
+KEY_RE = re.compile(r"^rooms/\d+/([0-9a-f-]{36}(/\d+)?\.jpg|voice/[0-9a-f]{32}\.mp3)$")
+# 가족 목소리 답장 (D99) — rooms/{가족방}/voice/{uuid}.mp3. 미디어 주소는 이 가족방 번호로 권한을 본다
+VOICE_KEY_RE = re.compile(r"^rooms/(\d+)/voice/[0-9a-f]{32}\.mp3$")
 
 
 def valid_key(key: str) -> bool:

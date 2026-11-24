@@ -285,6 +285,10 @@ export type Reaction = {
   name: string | null
   at: string
   text?: string // REPLY 칸에만
+  // 가족 목소리 답장 (D99, 11/24): 소리 주소·길이(초). 이때 text 는 받아 적은 자막(빈 글일 수 있음)
+  // POST /api/diaries/{id}/voice-reply (form audio, 30초까지) → DiaryOut. 글 한마디와 같은 칸 — 새로 보내면 바뀜
+  audio_url?: string
+  audio_sec?: number
 }
 export type DiaryListOut = { diaries: DiaryOut[]; has_more: boolean }
 // 어르신 가족 소식 GET /api/elder/family-news (D63): 안 들은 가족 일기 + 아직 못 들은 가족 이모지·한마디(첫 장 '하트가 왔어요', 받은 순서)
@@ -296,6 +300,8 @@ export type Heart = {
   name: string | null
   at: string
   text?: string
+  audio_url?: string // 목소리 답장 (D99) — 가족 소식이 한 장씩 틀어 드린다. text 는 자막
+  audio_sec?: number
   diary_body: string // 11/23 어느 일기에 — 일기 글 전체(11/24, 화면이 두 줄로 줄임)
   diary_posted_at: string
   diary_thumb_url: string | null

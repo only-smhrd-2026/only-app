@@ -82,10 +82,11 @@ def test_name_is_nickname_and_only_in_response(client):
     with SessionLocal() as db:
         db.scalar(select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == me)).nickname = "큰딸"
         db.commit()
-    assert _react(client, diary_id, "HEART").json()["reactions"][0]["name"] == "큰딸"
+    # 가족 화면은 '이름(별명)' (11/24 실사용), 별명이 없으면 이름만
+    assert _react(client, diary_id, "HEART").json()["reactions"][0]["name"] == "테스터(큰딸)"
     _join(client, room_id)
     first, second = _react(client, diary_id, "SMILE").json()["reactions"]
-    assert (first["name"], first["kind"]) == ("큰딸", "HEART")  # 앞사람 칸은 그대로
+    assert (first["name"], first["kind"]) == ("테스터(큰딸)", "HEART")  # 앞사람 칸은 그대로
     assert (second["name"], second["kind"]) == ("손주", "SMILE")
     assert all("name" not in stored for stored in _stored(diary_id))  # 이름은 DB 에 넣지 않는다
 

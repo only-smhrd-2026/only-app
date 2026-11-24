@@ -56,6 +56,30 @@ FALLBACK_QUESTION = CoachReply(
     question_type="RECALL",
     choice_mode="CHIPS",
 )
+# AI 가 실패한 턴의 고정 질문 — 차례대로 돌려 같은 문장을 되풀이하지 않는다
+# (11/24 실사용: Claude 크레딧이 끊긴 동안 사진첩 회상 1·2번 질문이 둘 다 FALLBACK_QUESTION 이었다)
+FALLBACK_QUESTIONS = (
+    FALLBACK_QUESTION,
+    CoachReply(
+        text="그날 이야기를 조금 더 들려주시겠어요?",
+        suggestions=["좋아요", "다음에요"],
+        question_type="RECALL",
+        choice_mode="CHIPS",
+    ),
+    CoachReply(
+        text="이 사진에서 가장 마음에 드는 건 뭐예요?",
+        suggestions=["다 좋아요", "글쎄요"],
+        question_type="RECALL",
+        choice_mode="CHIPS",
+    ),
+)
+
+
+def memory_fallback(turn_no: int) -> CoachReply:
+    """turn_no 번째 회상 질문을 AI 가 못 만들었을 때의 고정 질문 (1번 → FALLBACK_QUESTION, 그다음은 차례로)."""
+    return FALLBACK_QUESTIONS[(max(turn_no, 1) - 1) % len(FALLBACK_QUESTIONS)]
+
+
 FALLBACK_CLOSING = CoachReply(
     text="오늘 이야기 들려주셔서 고마워요. 내일 또 만나요.",
     suggestions=[],
@@ -226,14 +250,14 @@ def next_question(
     try:
         out = llm.call_json("memory_coach", _memory_data(ctx, turn_no, quiz=quiz, max_turns=max_turns), CoachTurn)
     except (llm.LlmError, NotImplementedError):
-        return (_quiz_reply(quiz.fallback, "", []) if quiz else FALLBACK_QUESTION), UNREAD, False
+        return (_quiz_reply(quiz.fallback, "", []) if quiz else memory_fallback(turn_no)), UNREAD, False
     if out.signal != "NONE" and not any(t["speaker"] == "ELDER" for t in ctx.turns):  # 어르신 말 전의 신호 → 무시
         return FALLBACK_QUESTION, "NONE", False
     if out.signal in URGENT_CLOSINGS:  # 위급(마음·몸)은 문제 넘기기로 보지 않는다
         return URGENT_CLOSINGS[out.signal], out.signal, out.private
     if out.signal in ENDING_SIGNALS:
         if _skipped_quiz(ctx, out.signal):  # 문제를 넘기는 말 — 대화를 끝내지 않는다 (FR-AI-003)
-            return FALLBACK_QUESTION, "NONE", out.private
+            return memory_fallback(turn_no), "NONE", out.private
         return _closing_reply(out.text), out.signal, out.private
     if quiz:
         if quiz_ok(quiz.qtype, out.text):

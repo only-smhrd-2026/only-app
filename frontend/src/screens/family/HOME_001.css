@@ -82,7 +82,7 @@
 /* 한마디 두 줄 — '이름  한마디' (11/24) */
 .home-replies { display:flex; flex-direction:column; gap:4px; margin:0; padding:0; list-style:none; font-size:15px; line-height:1.5; overflow-wrap:anywhere; }
 .home-replies b { margin-right:8px; }
-.home-replies-more { color:var(--text-3); font-size:14px; text-decoration:none; }
+.home-replies-more { min-height:32px; padding:0; border:0; background:none; color:var(--text-3); font:inherit; font-size:14px; text-decoration:none; }
 
 /* 폰 연결 전 — 시안 connectCard (.steps3) */
 .home-connect { display:flex; flex-direction:column; gap:12px; padding:16px; }

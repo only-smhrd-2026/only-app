@@ -43,7 +43,8 @@ function josa(word: string, withFinal: string, without: string) {
 const isOff = (p: PhotoOut) => p.analyzed && p.usable === false
 /** 사진 칸 아래 이름표 — 어르신 사진·오늘 소식 사진은 오늘의 한 장과 상관없어 출처만 */
 function tagOf(p: PhotoOut, hon: string): [string, string] {
-  if (p.source === 'ELDER_CAMERA') return [`${hon} 사진`, ' elder']
+  // 'elder' 는 어르신 화면 틀 클래스(elder.css 전역 .elder)와 겹쳐 이름표가 사진만 한 노란 상자가 됐다 (11/24 실사용)
+  if (p.source === 'ELDER_CAMERA') return [`${hon} 사진`, ' by-elder']
   if (p.source === 'FAMILY_DIARY') return ['오늘 소식', '']
   if (p.shown) return ['보여 드렸어요', ' done']
   if (isOff(p)) return ['안 나와요', '']

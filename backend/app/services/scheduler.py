@@ -2,7 +2,7 @@
 
 - 매시 정각 가족방별 memory_time 기준 오늘의 한 장 선정 — 홈에서도 보정한다 (D9).
 - 매시 1분 추억 알림 — 오늘의 한 장을 아직 안 본 어르신 기기에 푸시 (FR-NT-002, services/push.py). 일기 알림도 푸시로
-- 19:00 일기 알림 (천주웅)
+- 매시 1분 일기 알림 — 가족방 일기 시간(diary_time) 기준 (천주웅, 11/24 매시로)
 - 19:00 이틀째 기록 없음 가족 알림 (천주웅) — 기록 = 어르신이 말한 대화(models.ELDER_SPOKE)·어르신 일기
 - 일요일 19:00 주간 요약 (배선 천주웅, 요약 AI 홍진성)
 - 10분마다 분류 전 가족 사진 분류 (AI-04, 홍진성 — D71)
@@ -70,9 +70,13 @@ def select_daily_picks() -> None:
 
 
 def diary_reminders() -> None:
-    """일기 시간이 지난 연결된 가족방에 오늘 어르신 일기가 없으면 알림을 하루 한 번 만든다."""
+    """일기 시간(가족방 diary_time)이 지난 연결된 가족방에 오늘 어르신 일기가 없으면 알림을 하루 한 번 만든다.
+
+    매시 1분에 돈다. 푸시는 일기 시간 뒤 MEMORY_REMINDER_HOURS 안에만 (추억 알림과 같은 창).
+    """
     now = now_kst()
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    since = max(day_start, now - timedelta(hours=MEMORY_REMINDER_HOURS)).time()
     with SessionLocal() as db:
         wrote_today = select(Diary.room_id).where(
             Diary.author_type == "ELDER", Diary.status == "POSTED", Diary.posted_at >= day_start
@@ -104,7 +108,7 @@ def diary_reminders() -> None:
             )
             # 푸시는 일기 시간 뒤 MEMORY_REMINDER_HOURS 안에만 — 밤에 서버를 다시 띄울 때(기동 보정 catch_up)
             # 어르신 폰이 뒤늦게 울리지 않게. 앱 안 알림 줄은 그대로 만든다
-            if now.hour < DAILY_ALERT_HOUR + MEMORY_REMINDER_HOURS:
+            if room.diary_time >= since:
                 push.queue_elder(db, room.room_id, "DIARY_REMINDER")
         db.commit()
     log.info("job diary_reminders rooms=%d", len(rooms))
@@ -324,12 +328,8 @@ def start() -> None:
     scheduler.add_job(
         memory_reminders, CronTrigger(minute=1, timezone=TZ), id="memory_reminders", replace_existing=True
     )
-    scheduler.add_job(
-        diary_reminders,
-        CronTrigger(hour=DAILY_ALERT_HOUR, minute=0, timezone=TZ),
-        id="diary_reminders",
-        replace_existing=True,
-    )
+    # 매시 1분: 가족방마다 일기 시간이 다르다 (11/24 — 가족방 설정에 일기 시간을 다시 넣음)
+    scheduler.add_job(diary_reminders, CronTrigger(minute=1, timezone=TZ), id="diary_reminders", replace_existing=True)
     scheduler.add_job(
         no_record_alerts,
         CronTrigger(hour=DAILY_ALERT_HOUR, minute=0, timezone=TZ),

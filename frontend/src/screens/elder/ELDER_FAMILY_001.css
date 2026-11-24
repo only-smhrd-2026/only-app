@@ -56,6 +56,22 @@
 .family-rwho .family-hf .elder-ic { width: 22px; height: 22px; }
 .family-rwho q { font-weight: 800; }
 
+/* 가족 목소리 답장 한 장 (D99, 11/24 사용자 그림) — 재생 줄(누르면 다시 듣기·멈춤) · 받아 적은 자막 */
+.family-voice-wrap { display: flex; flex-direction: column; justify-content: center; gap: 14px; }
+.family-voice { display: flex; align-items: center; gap: 14px; min-height: 88px; padding: 12px 18px 12px 12px; border: var(--elder-edge-w) solid var(--elder-edge); border-radius: 44px; background: var(--elder-card); box-shadow: var(--elder-sh1); color: var(--elder-fg); cursor: pointer; }
+.family-voice:focus-visible { outline: 3px solid var(--elder-fg); outline-offset: 3px; }
+.family-voice-dot { flex: none; display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: var(--elder-fg); color: var(--elder-card); }
+.family-voice-dot .elder-ic { width: 28px; height: 28px; }
+.family-voice-tri { width: 0; height: 0; margin-left: 6px; border-style: solid; border-width: 13px 0 13px 22px; border-color: transparent transparent transparent var(--elder-card); }
+.family-voice-bars { flex: 1; display: flex; align-items: center; gap: 4px; height: 44px; }
+.family-voice-bars i { flex: 1; min-height: 6px; border-radius: 3px; background: var(--elder-primary); }
+.family-voice.on .family-voice-bars i { animation: family-voice-pulse 1s ease-in-out infinite alternate; }
+.family-voice.on .family-voice-bars i:nth-child(odd) { animation-delay: .4s; }
+@keyframes family-voice-pulse { to { transform: scaleY(.45); } }
+.family-voice > b { flex: none; font-size: var(--elder-font-size); font-weight: 800; font-variant-numeric: tabular-nums; }
+.family-voice-cap { margin: 0; font-size: var(--elder-font-size-long); line-height: 1.45; word-break: keep-all; }
+@media (prefers-reduced-motion: reduce) { .family-voice.on .family-voice-bars i { animation: none; } }
+
 /* 말로 답하기 판 */
 .reply-two > .elder-btn:first-child { flex: 1.5; }
 .reply-no { align-self: center; }

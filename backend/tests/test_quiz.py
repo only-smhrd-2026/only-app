@@ -153,7 +153,10 @@ def test_llm_failure_still_asks_bank_question(monkeypatch):
     reply, signal, _ = coach.next_question(CTX, QUIZ_TURN, plan())
     # 실패한 턴의 signal 은 UNREAD — 어르신 말을 읽지 못했다는 뜻이라 '신호 없음(NONE)'과 구분한다 (11/19)
     assert reply.text == Q_OPEN.prompt_text and reply.question_type == "KNOWHOW" and signal == coach.UNREAD
-    assert coach.next_question(CTX, 2) == (coach.FALLBACK_QUESTION, coach.UNREAD, False)
+    # 고정 질문은 턴마다 달라 같은 문장을 되풀이하지 않는다 (11/24 실사용)
+    assert coach.next_question(CTX, 1) == (coach.FALLBACK_QUESTION, coach.UNREAD, False)
+    assert coach.next_question(CTX, 2) == (coach.memory_fallback(2), coach.UNREAD, False)
+    assert coach.memory_fallback(2).text != coach.FALLBACK_QUESTION.text
 
 
 def test_next_type_rotates_least_recent_first():
@@ -201,7 +204,7 @@ def test_signal_rules(monkeypatch):
     )
     for s in ("STOP", "SAD"):
         monkeypatch.setattr(llm, "call_json", lambda *a, s=s: CoachTurn(text="오늘은 여기까지 해요.", signal=s))
-        assert coach.next_question(skipped, QUIZ_TURN + 1) == (coach.FALLBACK_QUESTION, "NONE", False)
+        assert coach.next_question(skipped, QUIZ_TURN + 1) == (coach.memory_fallback(QUIZ_TURN + 1), "NONE", False)
 
     def quiz_answer(said):  # 넘기기 칩이 없어져 말로 넘긴다 (D52 ⑧)
         return coach.CoachContext(
@@ -210,7 +213,7 @@ def test_signal_rules(monkeypatch):
 
     monkeypatch.setattr(llm, "call_json", lambda *a: CoachTurn(text="오늘은 여기까지 해요.", signal="STOP"))
     assert coach.next_question(quiz_answer("잘 모르겠어요, 넘어가요"), QUIZ_TURN + 1) == (
-        coach.FALLBACK_QUESTION,
+        coach.memory_fallback(QUIZ_TURN + 1),
         "NONE",
         False,
     )

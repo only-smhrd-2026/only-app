@@ -73,6 +73,9 @@ def _delete_room(db, room_id: int) -> list[str]:
         k for row in db.execute(select(Photo.object_key, Photo.thumb_key).where(Photo.room_id == room_id)) for k in row
     ]
     keys += db.scalars(select(Diary.illustration_key).where(Diary.room_id == room_id))
+    # 가족 목소리 답장 소리 (D99) — 일기 반응 칸에 key 가 있다
+    cells = db.scalars(select(Diary.reactions).where(Diary.room_id == room_id))
+    keys += [r["audio_key"] for reactions in cells for r in reactions if r.get("audio_key")]
     # 그림일기 그림은 올리지 않은 초안의 것도 저장소에 남아 있다 (diaries._draw — 일기 대화마다 key 가 정해져 있다)
     diary_talks = select(TalkSession.session_id).where(TalkSession.room_id == room_id, TalkSession.kind == "DIARY")
     keys += [f"rooms/{room_id}/{session_id}.jpg" for session_id in db.scalars(diary_talks)]
@@ -145,6 +148,18 @@ def withdraw(body: WithdrawIn, request: Request, response: Response, user: Curre
             keys += _delete_room(db, room.room_id)
             rooms_deleted += 1
 
+    # 내 목소리 답장(D99)은 탈퇴하면 칸과 소리를 지운다 — 글 한마디·이모지는 지금처럼 남는다 (11/24 사용자: 보관은
+    # 답장이 있는 동안). 지운 가족방의 일기는 위에서 이미 없어졌다
+    voiced = db.scalars(
+        select(Diary)
+        .where(Diary.reactions.contains([{"by": "FAMILY", "user_id": user.user_id, "kind": "REPLY"}]))
+        .with_for_update()
+    ).all()
+    for diary in voiced:
+        mine = [r for r in diary.reactions if r.get("user_id") == user.user_id and r.get("audio_key")]
+        if mine:
+            keys += [r["audio_key"] for r in mine]
+            diary.reactions = [r for r in diary.reactions if r not in mine]
     # 방장이 아닌 가족방은 나가기와 같게 구성원 줄을 지운다 (rooms.leave_room). 방장을 넘긴 방·내보내진 방(removed_at)의
     # 줄도 지운다 — 줄이 남으면 남은 글 옆에 호칭이 그대로 보인다
     db.execute(delete(RoomMember).where(RoomMember.user_id == user.user_id))

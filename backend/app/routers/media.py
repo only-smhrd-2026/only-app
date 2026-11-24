@@ -16,9 +16,13 @@ NOT_FOUND = ApiError(404, "MEDIA_NOT_FOUND", "사진을 찾을 수 없어요")  
 def get_media(key: str, actor: CurrentActor, db: DB):
     if not storage.valid_key(key):
         raise NOT_FOUND
-    room_id = db.scalar(
-        select(Photo.room_id).where((Photo.object_key == key) | (Photo.thumb_key == key), Photo.status == "ACTIVE")
-    )
+    # 가족 목소리 답장 mp3 (D99) — key 의 가족방 번호로 권한을 본다. 답장을 지우거나 바꾸면 파일도 지워 없으면 404
+    voice = storage.VOICE_KEY_RE.match(key)
+    room_id = int(voice[1]) if voice else None
+    if room_id is None:
+        room_id = db.scalar(
+            select(Photo.room_id).where((Photo.object_key == key) | (Photo.thumb_key == key), Photo.status == "ACTIVE")
+        )
     if room_id is None:  # 그림일기 그림 — 게시된 일기의 것만 (D36)
         room_id = db.scalar(select(Diary.room_id).where(Diary.illustration_key == key, Diary.status == "POSTED"))
     if room_id is None:
@@ -41,4 +45,5 @@ def get_media(key: str, actor: CurrentActor, db: DB):
     data = storage.get(key)
     if data is None:
         raise NOT_FOUND
-    return Response(data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
+    media_type = "audio/mpeg" if voice else "image/jpeg"
+    return Response(data, media_type=media_type, headers={"Cache-Control": "private, max-age=3600"})

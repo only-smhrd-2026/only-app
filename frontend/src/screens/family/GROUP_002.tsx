@@ -26,18 +26,26 @@ import { PROMPT, say, stopSpeaking } from '../../lib/audio'
 import { logout } from '../../lib/logout'
 import './GROUP_002.css'
 
-// ── 할머니 화면 설정 (목업 ⑥ 설정 판, D74). 일기 시간은 넣지 않음(11/13 결정). 이름·부르는 말은 아래 TEXTS(글로 고치기)
+// ── 할머니 화면 설정 (목업 ⑥ 설정 판, D74). 일기 시간은 11/13 에 뺐다가 11/24 실사용 피드백으로 다시 넣음.
+// 이름·부르는 말은 아래 TEXTS(글로 고치기)
 type ElderKey = 'elder_name' | 'elder_honorific'
-type SetKey = Exclude<keyof RoomSettingsIn, 'diary_time' | ElderKey>
+type SetKey = Exclude<keyof RoomSettingsIn, ElderKey>
 type SetDef = { key: SetKey; name: string; help: (hon: string) => string; opts: [value: string, label: string, px?: number][] }
 
 const hourLabel = (h: number) => (h === 0 ? '밤 12시' : h < 12 ? `오전 ${h}시` : h === 12 ? '낮 12시' : `오후 ${h - 12}시`)
+const HOURS: SetDef['opts'] = Array.from({ length: 24 }, (_, h) => [`${String(h).padStart(2, '0')}:00`, hourLabel(h)]) // 정각만 (D44)
 const SETS: SetDef[] = [
   {
     key: 'memory_time',
     name: '추억 시간',
     help: () => '매일 이 시간에 오늘의 한 장이 정해져요',
-    opts: Array.from({ length: 24 }, (_, h) => [`${String(h).padStart(2, '0')}:00`, hourLabel(h)]), // 정각만 (D44)
+    opts: HOURS,
+  },
+  {
+    key: 'diary_time',
+    name: '일기 시간',
+    help: (hon) => `매일 이 시간에 ${hon}께 오늘 일기를 써 보자고 알려 드려요 · 이미 쓰셨으면 안 알려요`,
+    opts: HOURS,
   },
   {
     key: 'font_size',
@@ -80,7 +88,7 @@ const SETS: SetDef[] = [
 ]
 /** 서버 값을 판의 값 모양으로 — 추억 시간 '09:00:00' → '09:00', 말 속도 0.9 → '0.90' */
 function curOf(r: RoomOut, k: SetKey) {
-  if (k === 'memory_time') return r.memory_time.slice(0, 5)
+  if (k === 'memory_time' || k === 'diary_time') return r[k].slice(0, 5)
   if (k === 'tts_speed') return Number(r.tts_speed).toFixed(2)
   return String(r[k])
 }
@@ -329,7 +337,7 @@ function RoomTab() {
   const list = members.data ?? []
   const reloadAll = () => (rooms.reload(), reloadRooms()) // 이 화면 + 위 막대·가족 홈이 같은 숫자를 보게
 
-  const [timeSet, ...chipSets] = SETS // 추억 시간은 24칸이라 판에서, 나머지는 칩으로 바로
+  const [timeSets, chipSets] = [SETS.slice(0, 2), SETS.slice(2)] // 추억·일기 시간은 24칸이라 판에서, 나머지는 칩으로 바로
   const fontPx = SETS[1].opts.find((o) => o[0] === room.font_size)?.[2]
 
   return (
@@ -505,15 +513,17 @@ function RoomTab() {
             {owner && <FamIcon name="chevRight" className="gr-chev" />}
           </button>
         ))}
-        <div className="gr-setrow">
-          <div className="gr-grow">
-            <b>{timeSet.name}</b>
-            <p className="fam-mini">{timeSet.help(hon)}</p>
+        {timeSets.map((timeSet) => (
+          <div key={timeSet.key} className="gr-setrow">
+            <div className="gr-grow">
+              <b>{timeSet.name}</b>
+              <p className="fam-mini">{timeSet.help(hon)}</p>
+            </div>
+            <button type="button" className="fam-btn fam-btn--sm" disabled={!owner} onClick={() => open({ t: 'set', s: timeSet })}>
+              {labelOf(timeSet, curOf(room, timeSet.key))}
+            </button>
           </div>
-          <button type="button" className="fam-btn fam-btn--sm" disabled={!owner} onClick={() => open({ t: 'set', s: timeSet })}>
-            {labelOf(timeSet, curOf(room, timeSet.key))}
-          </button>
-        </div>
+        ))}
         {chipSets.map((s) => (
           <div key={s.key} className="gr-seg" role="group" aria-label={s.name}>
             <p className="gr-label" aria-hidden="true">
