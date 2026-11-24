@@ -439,7 +439,7 @@ def test_elder_diary_pushes_the_title_only_and_logs_no_endpoint(client, outbox, 
     caplog.set_level(logging.DEBUG)
     room_id = setup_elder(client)["room_id"]
     phone = _family_phone(client)
-    sid, _ = _talk(client, answers=(SECRET, SECRET, "좋았어요"))
+    sid, _ = _talk(client, answers=(SECRET, SECRET, SECRET, SECRET, "좋았어요"))
     assert SECRET in _draft(client, sid).json()["body"]
     assert _post(client, sid).status_code == 201
     [request] = outbox.sent

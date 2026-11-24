@@ -1,6 +1,6 @@
 """회상 코치 (FR-AI-001·002·003·005·006, D42) — 회상 질문 3턴 → 문제 은행 문제 1개 → 자유 회상 → 마무리.
-일기 동무 (FR-DI-003, D36) — 질문 3개(뭐 하셨어요 → 누구랑 → 기분은) + 초안(본문·기분·그릴 사물).
-  옛 사진이면 1·2번은 그 사진 속 그때를 묻는다 (FR-DI-002, D58).
+일기 동무 (FR-DI-003, D36·D97) — 질문 5개(뭐 하셨어요 → 아직 안 나온 것 3번 → 기분은) + 초안(본문·기분·그릴 사물).
+  옛 사진이면 1~4번은 그 사진 속 그때를 묻는다 (FR-DI-002, D58).
   가족 모드 (FR-DI-006·007, D58) — 가족이 쓴 몇 마디 → 질문 1개 → 답 → 존댓말 1인칭 초안. 저장은 화면이 한다.
 
 4번째 질문(생각 문제, D72 섞기): 유형은 코드가 돌려 정하고(ai/quiz.py), 모델이 맞장구 + 그 유형 문제를 사진·대화에
@@ -300,15 +300,17 @@ def confirm_question(heard: str) -> CoachReply:
 
 # ---------------------------------------------------------------- 일기 동무 (FR-DI-003, D36)
 DIARY_MOODS = {"좋았어요": "GOOD", "그저 그랬어요": "SO_SO", "속상했어요": "UPSET", "쓸쓸했어요": "LONELY"}  # D75
-DIARY_QUESTIONS = [  # 1·2번 질문의 고정 문장 (LLM 이 실패할 때·mock)
+DIARY_QUESTIONS = [  # 1~4번 질문의 고정 문장 (LLM 이 실패할 때·mock)
     CoachReply(text="오늘은 뭐 하셨어요?", suggestions=["집에 있었어요", "밖에 다녀왔어요"], question_type="NONE"),
     CoachReply(text="누구랑 계셨어요?", suggestions=["혼자요", "가족이랑요", "친구랑요"], question_type="NONE"),
+    CoachReply(text="어디서 하셨어요?", suggestions=["집에서요", "밖에서요"], question_type="NONE"),
+    CoachReply(text="그다음에는 뭐 하셨어요?", suggestions=["쉬었어요", "밥 먹었어요"], question_type="NONE"),
 ]
 # 옛 사진 일기의 1번 고정 문장 (FR-DI-002, D58). 분류는 추정이라 단정하지 않는다('같네요')
 DIARY_OLD_PHOTO_QUESTION = CoachReply(
     text="옛날 사진 같네요. 언제 찍으신 사진이에요?", suggestions=["젊을 때요", "잘 모르겠어요"], question_type="NONE"
 )
-# 3번(마지막)은 늘 기분 칩 4개 — 칩을 고르면 일기의 기분이 바로 정해진다 (D75, 날씨에 빗대지 않는다).
+# 5번(마지막)은 늘 기분 칩 4개 — 칩을 고르면 일기의 기분이 바로 정해진다 (D75, 날씨에 빗대지 않는다).
 # 모델 출력용 상한(CoachReply 칩 ≤3)을 넘는 고정 문장이라 검사 없이 만든다(금지어 없음·물음표 1개).
 DIARY_MOOD_QUESTION = CoachReply.model_construct(
     text="오늘 기분은 어떠셨어요?", suggestions=list(DIARY_MOODS), question_type="NONE", choice_mode="CHIPS"
@@ -333,11 +335,11 @@ def diary_fallback(turn_no: int) -> CoachReply:
 
 
 def diary_question(ctx: CoachContext, turn_no: int) -> CoachReply:
-    """turn_no 번째 일기 질문 (1 뭐 하셨어요 → 2 누구랑 → 3 기분, FR-DI-003).
+    """turn_no 번째 일기 질문 (1 뭐 하셨어요 → 2~4 아직 안 나온 것 → 5 기분, FR-DI-003, D97).
 
-    옛 사진(ctx.old_photo)이면 1·2번은 오늘 일 대신 그 사진 속 그때를 묻는다 (FR-DI-002, D58). 3번 기분은 같다.
+    옛 사진(ctx.old_photo)이면 1~4번은 오늘 일 대신 그 사진 속 그때를 묻는다 (FR-DI-002, D58). 5번 기분은 같다.
     """
-    # ponytail: 질문 수는 3개 고정. 첫 답에 함께한 사람이 이미 나오면 2번은 프롬프트가 다른 것을 묻는다
+    # ponytail: 질문 수는 5개 고정. 2~4번은 이미 나온 것을 다시 묻지 않고 아직 안 나온 사실 하나씩을 묻는다
     # (diary_buddy.md 규칙 3). 질문 수 자체를 줄이려면 diary_buddy 출력에 '건너뛰기' 칸을 더한다.
     if turn_no >= DIARY_TURNS:
         return DIARY_MOOD_QUESTION

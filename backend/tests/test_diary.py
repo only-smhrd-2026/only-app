@@ -27,7 +27,9 @@ def _family_and_elder(client) -> int:
     return setup_elder(client)["room_id"]
 
 
-def _talk(client, answers=("경로당에 다녀왔어요", "영자 씨랑요", "좋았어요"), photo_id=None) -> tuple[str, list[dict]]:
+def _talk(
+    client, answers=("경로당에 다녀왔어요", "영자 씨랑요", "경로당에서요", "점심 먹었어요", "좋았어요"), photo_id=None
+) -> tuple[str, list[dict]]:
     body = {"session_id": str(uuid.uuid4()), "kind": "DIARY"} | ({"photo_id": photo_id} if photo_id else {})
     r = client.post("/api/elder/sessions", json=body)
     assert r.status_code == 201, r.text
@@ -50,16 +52,17 @@ def _sent(room_id: int, kind: str = "DIARY_POSTED") -> int:
         return db.scalar(select(func.count()).where(Notification.room_id == room_id, Notification.kind == kind))
 
 
-def test_three_questions_then_post_once_and_family_sees_new(client, monkeypatch):
+def test_five_questions_then_post_once_and_family_sees_new(client, monkeypatch):
     room_id = _family_and_elder(client)
     calls = []
     real = coach.diary_draft
     monkeypatch.setattr(coach, "diary_draft", lambda ctx: calls.append(1) or real(ctx))
     sid, replies = _talk(client)
     assert replies[0]["ai"]["text"].startswith("할머니,") and replies[0]["turn_no"] == 1
-    assert replies[2]["turn_no"] == 3 and replies[2]["ai"]["suggestions"] == MOODS
-    assert replies[3]["state"] == "ENDED" and replies[3]["end_reason"] == "COMPLETED"
-    assert "일기" in replies[3]["ai"]["text"]  # "들려주신 이야기로 일기를 써 볼게요"
+    assert [r["turn_no"] for r in replies[:5]] == [1, 2, 3, 4, 5]  # 뭐 하셨어요 → 안 나온 것 3번 → 기분 (D97)
+    assert replies[4]["ai"]["suggestions"] == MOODS
+    assert replies[5]["state"] == "ENDED" and replies[5]["end_reason"] == "COMPLETED"
+    assert "일기" in replies[5]["ai"]["text"]  # "들려주신 이야기로 일기를 써 볼게요"
 
     draft = _draft(client, sid).json()
     assert draft["mood"] == "GOOD" and "경로당" in draft["body"] and "좋았어요" not in draft["body"]
@@ -140,8 +143,8 @@ def test_not_saved_when_stopped_no_response_or_not_diary(client):
 
 def test_mood_question_keeps_four_chips_on_no_response_and_after_restart(client):
     _family_and_elder(client)
-    sid, replies = _talk(client, answers=("집에 있었어요", "혼자요"))
-    assert replies[-1]["turn_no"] == 3
+    sid, replies = _talk(client, answers=("집에 있었어요", "혼자요", "집에서요", "쉬었어요"))
+    assert replies[-1]["turn_no"] == 5
     ev = {"input_type": "BUTTON", "event": "NO_RESPONSE"}
     client.post(f"/api/elder/sessions/{sid}/turns", json=ev)
     second = client.post(f"/api/elder/sessions/{sid}/turns", json=ev).json()
@@ -163,7 +166,7 @@ def test_drawing_waits_then_attaches_and_only_room_members_see_it(client, monkey
     room_id = _family_and_elder(client)
     monkeypatch.setattr(llm, "call_json", fake_llm)  # coach 의 실제 로직(칩 우선·그릴 사물)은 그대로 돈다
     sid, replies = _talk(client)
-    assert replies[0]["ai"]["text"] == "오늘은 뭐 하셨어요?" and replies[2]["ai"]["suggestions"] == MOODS
+    assert replies[0]["ai"]["text"] == "오늘은 뭐 하셨어요?" and replies[4]["ai"]["suggestions"] == MOODS
     draft = _draft(client, sid).json()
     assert draft["mood"] == "GOOD" and draft["illustration_type"] == "AI_DRAWING"
     assert base64.b64decode(draft["illustration_b64"]).startswith(JPEG_SOI)  # mock 자리표시 그림
