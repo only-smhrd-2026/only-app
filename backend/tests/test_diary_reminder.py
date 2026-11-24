@@ -46,6 +46,19 @@ def test_time_and_repeated_run(client, monkeypatch):
     assert [n.notification_id for n in _reminders(room_id)] == [first[0].notification_id]
 
 
+def test_room_diary_time(client, monkeypatch):
+    """가족방 일기 시간이 21시면 21시 1분에 알림 (11/24 — 설정에 일기 시간을 다시 넣음, 매시 1분에 돈다)."""
+    room_id = setup_elder(client)["room_id"]
+    assert client.patch(f"/api/rooms/{room_id}/settings", json={"diary_time": "21:30"}).status_code == 422  # 정각만
+    assert client.patch(f"/api/rooms/{room_id}/settings", json={"diary_time": "21:00"}).status_code == 200
+    _at(monkeypatch, 19, 1)
+    scheduler.diary_reminders()
+    assert _reminders(room_id) == []  # 예전처럼 19시에 보내지 않는다
+    _at(monkeypatch, 21, 1)
+    scheduler.diary_reminders()
+    assert len(_reminders(room_id)) == 1
+
+
 @pytest.mark.parametrize(
     "author_type,status,yesterday,expected",
     [

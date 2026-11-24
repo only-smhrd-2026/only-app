@@ -202,9 +202,10 @@ def revoke_device(room_id: int, user: CurrentUser, db: DB):
 def update_settings(room_id: int, body: RoomSettingsIn, user: CurrentUser, db: DB):
     room = require_owner(room_id, user, db)
     changed = body.model_dump(exclude_none=True)
-    memory_time = changed.get("memory_time")
-    if memory_time and (memory_time.minute or memory_time.second or memory_time.microsecond):
-        raise ApiError(422, "VALIDATION", "추억 시간은 정각으로 골라 주세요")
+    for key, label in (("memory_time", "추억"), ("diary_time", "일기")):  # 둘 다 정각만 — 알림이 매시 1분에 돈다
+        t = changed.get(key)
+        if t and (t.minute or t.second or t.microsecond):
+            raise ApiError(422, "VALIDATION", f"{label} 시간은 정각으로 골라 주세요")
     if "tts_speed" in changed:
         changed["tts_speed"] = Decimal(changed["tts_speed"])
     for key, value in changed.items():
