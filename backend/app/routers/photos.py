@@ -1,4 +1,4 @@
-"""사진 올리기·목록·분류 정정 (BE-02·BE-05, FR-ME-001/002/004/009, D17)."""
+"""사진 올리기·목록·분류 정정·한 장씩 설명 고치기 (BE-02·BE-05, FR-ME-001/002/004/009, D17, D98)."""
 
 import copy
 import io
@@ -37,7 +37,7 @@ from app.errors import ApiError
 from app.models import DailyPick, FamilyRoom, Photo, TalkSession
 from app.photo_groups import group_filter, group_of
 from app.schemas.elder import PhotoGroup
-from app.schemas.photos import PhotoBatchOut, PhotoCorrectIn, PhotoListOut, PhotoOut
+from app.schemas.photos import PhotoBatchOut, PhotoCorrectIn, PhotoListOut, PhotoNoteIn, PhotoOut
 from app.services import storage
 
 log = logging.getLogger("app.photos")
@@ -407,6 +407,33 @@ def correct_photo(room_id: int, photo_id: int, body: PhotoCorrectIn, user: Curre
         photo.corrected_activity = value
         photo.corrected_at = now_kst()
         db.commit()
+    return photo_out(photo, user.user_id)
+
+
+@router.patch("/{photo_id}", response_model=PhotoOut)
+def update_photo_note(room_id: int, photo_id: int, body: PhotoNoteIn, user: CurrentUser, db: DB):
+    """사진 한 장의 설명(caption·people_note·taken_year) 고치기 (D98). 올릴 때는 묶음에 같은 글이 붙으니 여기서 한 장씩.
+
+    올린 사람이나 방장만(지우기와 같은 규칙). 보낸 칸만 바꾸고 null·빈 글이면 지운다. 언제쯤(taken_year)은
+    올리기와 같이 찍은 날(EXIF)이 없는 사진에만. 글 내용은 로그에 남기지 않는다 (D15).
+    """
+    require_member(room_id, user, db)
+    photo = db.get(Photo, photo_id, with_for_update=True)
+    if photo is None or photo.room_id != room_id or photo.status != "ACTIVE":
+        raise ApiError(404, "PHOTO_NOT_FOUND", "사진을 찾을 수 없어요")
+    if photo.source != "FAMILY":
+        raise ApiError(400, "DIARY_PHOTO", "일기 사진은 여기서 고칠 수 없어요")
+    if photo.uploaded_by != user.user_id and db.get(FamilyRoom, room_id).owner_user_id != user.user_id:
+        raise ApiError(403, "NOT_UPLOADER", "올린 사람이나 방장만 설명을 고칠 수 있어요")
+    # 올리기 검사(_note·_year)를 그대로 쓴다 — 둘 다 폼처럼 .get 으로 글자를 읽는다
+    sent = {k: "" if v is None else str(v) for k, v in body.model_dump(exclude_unset=True).items()}
+    if "caption" in sent:
+        photo.caption = _note(sent, "caption", "한마디는")
+    if "people_note" in sent:
+        photo.people_note = _note(sent, "people_note", "사진 속 사람은")
+    if "taken_year" in sent:
+        photo.taken_year = None if photo.taken_at else _year(sent)
+    db.commit()
     return photo_out(photo, user.user_id)
 
 

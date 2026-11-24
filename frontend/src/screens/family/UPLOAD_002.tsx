@@ -347,7 +347,7 @@ export default function UPLOAD_002() {
         )}
 
         <label className="st-label" htmlFor="up2-caption">
-          한마디 <small>선택 · 고른 {draft.files.length}장에 모두 붙어요</small>
+          한마디 <small>선택 · 고른 {draft.files.length}장에 모두 붙어요. 한 장씩은 나중에 사진첩에서 고쳐요</small>
         </label>
         <textarea
           id="up2-caption"
