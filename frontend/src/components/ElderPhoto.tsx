@@ -18,7 +18,15 @@ export default function ElderPhoto({ src, alt, className = '' }: Props) {
         onClick={() => zoom.current?.showModal()}
       >
         <span className="elder-photo-paper">
-          <img src={src} alt="" />
+          {/* 세로 사진이면 칸에 data-shape="port" — 부르는 화면이 세로 사진을 조금 작게 (11/25 실사용) */}
+          <img
+            src={src}
+            alt=""
+            onLoad={(e) => {
+              const i = e.currentTarget
+              i.closest('button')?.setAttribute('data-shape', i.naturalHeight > i.naturalWidth ? 'port' : 'land')
+            }}
+          />
           <span className="elder-zoomtag" aria-hidden="true">
             <svg className="elder-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="6.5" />
