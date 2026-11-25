@@ -375,7 +375,7 @@ def test_google_tts_adapter(monkeypatch):
     assert tts.synthesize(text, 0.85) == b"mp3!"
     assert sent["url"] == tts.GOOGLE_URL and sent["headers"] == {"X-Goog-Api-Key": "key-123"}  # 주소에는 키가 없다
     assert sent["body"] == {
-        "input": {"text": text},
+        "input": {"markup": text},  # 쉼 표시는 markup 칸에서만 읽힌다 (11/25 띄어 읽기)
         "voice": {"languageCode": "ko-KR", "name": "ko-KR-Chirp3-HD-Kore"},  # 기본 = 여자 목소리 (D74)
         "audioConfig": {"audioEncoding": "MP3"},
     }
@@ -395,6 +395,14 @@ def test_google_tts_adapter(monkeypatch):
     with pytest.raises(RuntimeError):
         tts.synthesize("키가 없어요.")
     tts._google.cache_clear()
+
+
+def test_tts_markup_pauses():
+    """11/25 실사용 '띄어 읽기를 못 한다' → 문장 끝·쉼표·따온 말 뒤에 쉼. 글 속 대괄호는 쉼 표시가 되지 않게."""
+    assert tts.markup("바다에 가셨군요. 누구랑 가셨어요?") == "바다에 가셨군요. [pause] 누구랑 가셨어요?"
+    assert tts.markup("할머니, 오늘은 수요일이에요.") == "할머니, [pause short] 오늘은 수요일이에요."
+    assert tts.markup("제가 '언니랑 같이'라고 들었어요.") == "제가 '언니랑 같이' [pause short] 라고 들었어요."
+    assert tts.markup("[pause long] 괄호") == "(pause long) 괄호"
 
 
 def test_turn_carries_tts_audio_and_survives_tts_failure(client, monkeypatch):

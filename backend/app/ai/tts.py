@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import re
 import time
 from functools import lru_cache
 
@@ -31,6 +32,21 @@ VOICES = {"FEMALE": "ko-KR-Chirp3-HD-Kore", "MALE": "ko-KR-Chirp3-HD-Charon"}
 # LLM 이 8.4초를 넘긴 턴(재시도 포함 최대 12초)에서 TTS 까지 막히면 15초를 넘는다
 TTS_BASE_SEC = 3.0
 TTS_PER_CHAR_SEC = 0.03
+# 띄어 읽기 (11/25 실사용 '심심이가 띄어쓰기를 못 한다' → 샘플 B 고름): 문장 끝·쉼표·따온 말 뒤에 쉼.
+# Chirp 3 HD 는 쉼 표시를 'markup' 칸에서만 읽는다(text 칸이면 소리 내어 읽지도, 쉬지도 않음)
+_PAUSES = (
+    (re.compile(r"([.!?])\s+"), r"\1 [pause] "),
+    (re.compile(r",\s+"), ", [pause short] "),
+    (re.compile(r"(['\"’”])\s*(라고|하고)"), r"\1 [pause short] \2"),
+)
+
+
+def markup(text: str) -> str:
+    """글 → 쉼 표시를 넣은 markup. 글 속 대괄호는 쉼 표시로 읽히지 않게 둥근 괄호로 바꾼다."""
+    out = text.replace("[", "(").replace("]", ")")
+    for pattern, repl in _PAUSES:
+        out = pattern.sub(repl, out)
+    return out
 
 
 def synthesize(text: str, speed: float = 0.90, voice: str = "FEMALE") -> bytes | None:
@@ -61,7 +77,7 @@ def _google(text: str, voice: str = "FEMALE") -> bytes:
         GOOGLE_URL,
         headers={"X-Goog-Api-Key": settings.GOOGLE_TTS_API_KEY},
         json={
-            "input": {"text": text},
+            "input": {"markup": markup(text)},
             "voice": {"languageCode": "ko-KR", "name": VOICES[voice]},
             "audioConfig": {"audioEncoding": "MP3"},
         },
