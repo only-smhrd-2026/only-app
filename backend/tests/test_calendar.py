@@ -150,3 +150,26 @@ def test_album_who_chips_and_elder_story(client):
     elder = [p["photo_id"] for p in client.get(url, params={"who": "ELDER"}).json()["photos"]]
     family = {p["photo_id"] for p in client.get(url, params={"who": "FAMILY"}).json()["photos"]}
     assert elder == [extra["elder"]] and family == base | {memory, quiet, extra["news"]}
+
+
+def test_elder_album_shows_who_sent(client):
+    """어르신 사진첩 사진 칸 이름표 (11/25) — 가족 사진은 올린 사람 '별명 (이름)', 올린 사람을 모르면 null."""
+    from sqlalchemy import update
+
+    from app.models import RoomMember, User
+
+    ctx = setup_elder(client)
+    sent, unknown = ctx["photo_ids"][:2]
+    with SessionLocal() as db:
+        owner = db.get(FamilyRoom, ctx["room_id"]).owner_user_id
+        db.execute(
+            update(RoomMember)
+            .where(RoomMember.room_id == ctx["room_id"], RoomMember.user_id == owner)
+            .values(nickname="큰딸")
+        )
+        db.execute(update(Photo).where(Photo.photo_id == sent).values(uploaded_by=owner))
+        name = db.get(User, owner).name
+        db.commit()
+    photos = {p["photo_id"]: p for p in client.get("/api/elder/album").json()["photos"]}
+    assert photos[sent]["uploader_name"] == f"큰딸 ({name})"
+    assert photos[unknown]["uploader_name"] is None

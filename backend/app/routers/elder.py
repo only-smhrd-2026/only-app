@@ -29,7 +29,7 @@ from app.errors import ApiError
 from app.models import DailyPick, Diary, FamilyRoom, Photo
 from app.photo_groups import group_of
 from app.routers.devices import notify_family
-from app.routers.diaries import unheard_hearts
+from app.routers.diaries import _member_names, unheard_hearts
 from app.routers.mood import check_due
 from app.routers.photos import _UPLOAD_BODY, _upload_lock, photo_out, to_jpeg
 from app.routers.sessions import load_session
@@ -303,7 +303,7 @@ def skip(device: CurrentDevice, db: DB, body: PickSkipIn | None = None):
     return OkOut()
 
 
-def _album_out(p: Photo, diary_id: int | None = None) -> AlbumPhotoOut:
+def _album_out(p: Photo, diary_id: int | None = None, uploader_name: str | None = None) -> AlbumPhotoOut:
     return AlbumPhotoOut(
         photo_id=p.photo_id,
         url=f"/api/media/{p.object_key}",
@@ -313,6 +313,7 @@ def _album_out(p: Photo, diary_id: int | None = None) -> AlbumPhotoOut:
         group=group_of(p),
         source=p.source,
         diary_id=diary_id,
+        uploader_name=uploader_name,
     )
 
 
@@ -321,6 +322,7 @@ def album(device: CurrentDevice, db: DB):
     """어르신 사진첩 — 가족이 올린 사진 + 어르신이 찍거나 고른 사진(ELDER_CAMERA, 일기 사진 포함 — D60 바꿈, 11/23).
 
     찍은 날(없으면 올린 날) 새것 먼저, PHOTO_LIST_LIMIT 장까지. 일기 사진이면 diary_id 로 그 일기를 알려 준다.
+    가족 사진은 올린 사람 '별명 (이름)'(11/25 — 사진 칸 이름표, 어르신 가족 소식과 같은 이름).
     """
     # 찍은 날 → 가족이 고른 연도 → 올린 날. DB 연결이 한국 시간이라 한국 날짜 (S15)
     day = func.coalesce(Photo.taken_at, func.make_date(Photo.taken_year, 1, 1), cast(Photo.uploaded_at, Date))
@@ -342,7 +344,8 @@ def album(device: CurrentDevice, db: DB):
             .group_by(Diary.photo_id)
         ).all()
     )
-    return AlbumOut(photos=[_album_out(p, diaries.get(p.photo_id)) for p in photos])
+    names = _member_names(db, device.room_id, elder=True)
+    return AlbumOut(photos=[_album_out(p, diaries.get(p.photo_id), names.get(p.uploaded_by)) for p in photos])
 
 
 @router.post("/album", response_model=AlbumPhotoOut, status_code=201)
