@@ -23,3 +23,10 @@
 /* 위 [← 뒤로](D97) 줄에 제목을 같이 — 버튼 줄을 따로 두면 360×740 에서 한 화면을 넘는다 */
 .elder-backed > .mind-page { padding-top: 10px; }
 .mind-page > h1 { min-height: 48px; padding-left: 96px; display: flex; align-items: center; }
+/* 칸마다 다른 그림 (11/25 사용자: 하트 하나 → 눈에 익은 그림) */
+.mind-emoji { font-size: 28px; line-height: 1; }
+/* 지난 결과 (11/25) — 목록이라 스크롤 허용 */
+.mind-results { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.mind-results button { width: 100%; display: flex; align-items: center; gap: 14px; padding: 12px 16px; border: 0; border-radius: var(--elder-radius); background: var(--elder-card); box-shadow: var(--elder-sh1); color: var(--elder-fg); font-size: var(--elder-font-size); font-weight: 800; text-align: left; }
+.mind-results button:active { background: var(--elder-bg2); }
+.mind-rface { font-size: 40px; }

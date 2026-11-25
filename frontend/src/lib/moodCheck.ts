@@ -48,16 +48,18 @@ export const MOOD_ANSWERS = ['없었어요', '며칠 있었어요', '절반 넘�
  * 이 글들은 mp3 가 없어 서버 목소리로 읽는다(lib/audio.ts say → /api/elder/speech). PHQ-8 문항은 위 MOOD_PROMPT mp3 그대로.
  */
 export type CheckKind = Exclude<MoodKind, 'MEMGAME'>
-type Check = { name: string; info: string; items: readonly string[]; answers: readonly string[] }
+// 이름·그림 (11/25 실사용: '…체크'가 헷갈림 → 낱말 하나 + 칸마다 다른 그림, 사용자 고름)
+type Check = { name: string; emoji: string; info: string; items: readonly string[]; answers: readonly string[] }
 
 const MOOD9 = '지난 2주 동안 죽는 것이 더 낫다고 생각하거나, 어떤 식으로든 스스로를 해치려고 생각한 날이 얼마나 있었어요?'
 
 export const CHECKS: Record<CheckKind, Check> = {
-  PHQ8: { name: '마음 체크', info: '여덟 가지 · 3분', items: MOOD_ITEMS, answers: MOOD_ANSWERS },
-  PHQ9: { name: '마음 자세히 체크', info: '아홉 가지 · 3분', items: [...MOOD_ITEMS, MOOD9], answers: MOOD_ANSWERS },
+  PHQ8: { name: '기분', emoji: '😊', info: '여덟 가지 물음 · 3분', items: MOOD_ITEMS, answers: MOOD_ANSWERS },
+  PHQ9: { name: '기분 자세히', emoji: '📝', info: '아홉 가지 물음 · 3분', items: [...MOOD_ITEMS, MOOD9], answers: MOOD_ANSWERS },
   UCLA3: {
-    name: '외로움 체크',
-    info: '세 가지 · 1분',
+    name: '외로움',
+    emoji: '🤝',
+    info: '세 가지 물음 · 1분',
     items: [
       '요즘 곁에 함께할 사람이 없다고 느끼실 때가 얼마나 있어요?',
       '요즘 혼자 남겨졌다고 느끼실 때가 얼마나 있어요?',
@@ -66,8 +68,9 @@ export const CHECKS: Record<CheckKind, Check> = {
     answers: ['거의 없어요', '가끔 있어요', '자주 있어요'],
   },
   GAD7: {
-    name: '걱정 체크',
-    info: '일곱 가지 · 2분',
+    name: '걱정',
+    emoji: '☁️',
+    info: '일곱 가지 물음 · 2분',
     items: [
       '지난 2주 동안 초조하거나 불안하거나 조마조마했던 날이 얼마나 있었어요?',
       '지난 2주 동안 걱정을 멈추기 어려웠던 날이 얼마나 있었어요?',
@@ -80,8 +83,9 @@ export const CHECKS: Record<CheckKind, Check> = {
     answers: MOOD_ANSWERS,
   },
   SMCQ: {
-    name: '기억력 체크',
-    info: '열네 가지 · 3분',
+    name: '기억력',
+    emoji: '🧠',
+    info: '열네 가지 물음 · 3분',
     items: [
       '요즘 기억력에 문제가 있다고 느끼세요?',
       '10년 전보다 기억력이 나빠졌다고 느끼세요?',
