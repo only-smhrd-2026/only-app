@@ -8,6 +8,7 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
 import type { NotificationListOut, NotificationOut, PushGroup, PushPrefs, RoomOut } from '../../api/types'
 import FamIcon, { type FamIconName } from '../../components/FamIcon'
+import Sim from '../../components/Sim'
 import { useFetch } from '../../hooks/useFetch'
 import { getInstallState } from '../../lib/installPrompt'
 import { disablePush, enablePush, FAMILY_PUSH, pushKey, pushState, type PushState } from '../../lib/push'
@@ -207,7 +208,12 @@ export default function NOTI_001() {
           {busy ? '처리 중…' : '모두 읽음'}
         </button>
       </div>
-      {visible.length === 0 && <p className="noti-empty">아직 알림이 없어요.</p>}
+      {visible.length === 0 && (
+        <div className="noti-empty">
+          <Sim face="smile" size={96} />
+          <p>아직 알림이 없어요.</p>
+        </div>
+      )}
       {['오늘', '이번 주', '이전'].map((label) => {
         const entries = visible.filter((n) => period(n.sent_at, today) === label)
         if (!entries.length) return null

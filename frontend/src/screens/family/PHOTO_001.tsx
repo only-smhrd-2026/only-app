@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { PhotoGroup, PhotoListOut, PhotoOut, RoomOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
+import Sim from '../../components/Sim'
 import { useFamily } from '../../hooks/useFamily'
 import './steps.css'
 import './PHOTO_001.css'
@@ -228,6 +229,7 @@ function Album({ room }: { room: RoomOut }) {
         </p>
       ) : page.photos.length === 0 && !group ? (
         <section className="fam-card ph-empty">
+          <Sim face="hello" size={72} />
           <p>아직 올린 사진이 없어요</p>
           <p className="st-dim">옛 사진을 올리면 내일부터 {hon}께 하루 1장씩 보여 드려요</p>
           <Link className="fam-btn fam-btn--primary" to="/upload">

@@ -78,6 +78,12 @@ const ICONS = {
     </>
   ),
   phone: <path d="M6 3h4l1.5 5L9 9.5a11 11 0 0 0 5.5 5.5L16 12.5l5 1.5v4a2 2 0 0 1-2 2A16 16 0 0 1 4 5a2 2 0 0 1 2-2z" />,
+  mic: (
+    <>
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>
 
 export type FamIconName = keyof typeof ICONS

@@ -27,20 +27,32 @@
 .diary-detail-react > span:first-child { font-size:18px; line-height:1; }
 .diary-detail-react[aria-pressed='true'] { border-color:var(--edge); background:var(--soft); }
 .diary-detail-react:disabled { cursor:wait; opacity:.6; }
-/* 한마디 남기기 — 시안: 추천 칩(누르면 칸만 채움) + 입력 칸 + [보내기] */
+/* 댓글 (11/25 사용자: 인스타 댓글창처럼 — 추천 칩 없이 목록 + 아래 입력 줄 하나) */
 .fam-card.diary-detail-reply { margin:0; display:flex; flex-direction:column; gap:12px; padding:16px; }
 .diary-detail-reply h2 { font-size:17px; font-weight:800; letter-spacing:-.02em; }
+.diary-detail-reply h2 small { color:var(--text-3); font-size:15px; font-weight:700; }
 .diary-detail-reply-note { color:var(--danger); font-size:15px; }
-.diary-detail-replies { display:flex; flex-direction:column; gap:6px; margin:0; padding:0; list-style:none; }
-.diary-detail-replies li { display:flex; align-items:center; gap:4px; padding:10px 4px 10px 14px; border-radius:14px; background:var(--bg); box-shadow:0 0 0 1px var(--line); }
-.diary-detail-replies li > span { flex:1; min-width:0; display:flex; flex-direction:column; overflow-wrap:anywhere; }
-.diary-detail-replies small { color:var(--text-3); font-size:13px; }
-.diary-detail-replies .fam-text-btn { flex:none; }
+.diary-detail-replies { display:flex; flex-direction:column; gap:14px; margin:0; padding:0; list-style:none; }
+.diary-detail-replies li { display:flex; align-items:flex-start; gap:10px; }
+.diary-detail-replies li > span:not(.fam-av) { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; overflow-wrap:anywhere; }
+.cm-text { font-size:15px; line-height:1.45; }
+.cm-text b { font-weight:800; }
+.cm-sub { color:var(--text-2); font-size:14px; }
+.diary-detail-replies small { display:flex; align-items:center; gap:10px; color:var(--text-3); font-size:13px; }
+.cm-del { min-height:32px; border:0; background:none; padding:0; color:var(--text-3); font-size:13px; font-weight:700; }
 .diary-detail-replies .fam-voice { align-self:flex-start; margin:2px 0; }
 /* 목소리 답장 녹음을 마친 뒤 — 들어 보기 · 보내기 · 다시 녹음 (D99) */
 .diary-detail-take { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
-.diary-detail-reply-form { display:flex; gap:8px; }
-.diary-detail-reply-form .fam-input { flex:1; }
+/* 입력 줄: 내 동그라미 · 칸 · 🎤 · [보내기] */
+.cm-bar { display:flex; align-items:center; gap:8px; padding-top:12px; border-top:1px solid var(--line); }
+.cm-input { flex:1; min-width:0; min-height:44px; padding:10px 14px; border:1px solid var(--line); border-radius:22px; background:var(--bg); color:var(--text); font-size:16px; }
+.cm-input::placeholder { color:var(--text-3); }
+.cm-mic { flex:none; width:44px; height:44px; display:grid; place-items:center; border:0; border-radius:50%; background:none; color:var(--text-2); }
+.cm-mic[aria-pressed='true'] { width:auto; padding:0 12px; border-radius:22px; background:var(--danger); color:#fff; }
+.cm-stop { font-size:14px; font-weight:800; white-space:nowrap; }
+.cm-post { flex:none; min-height:44px; border:0; background:none; padding:0 4px; color:var(--acc); font-size:16px; font-weight:800; }
+.cm-post:disabled { opacity:.4; }
+.cm-hint { color:var(--text-3); font-size:13px; }
 /* 어르신이 말로 하신 답 (11/23) */
 .diary-detail-elder-reply { display:flex; flex-direction:column; gap:8px; }
 .diary-detail-quote { padding:12px 14px; border-radius:14px; background:var(--soft); font-size:16px; font-weight:700; overflow-wrap:anywhere; }
