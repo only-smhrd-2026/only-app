@@ -8,6 +8,7 @@ import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { MOOD_LABEL, type WeeklyOut } from '../../api/types'
 import ElderPhoto from '../../components/ElderPhoto'
 import FamIcon from '../../components/FamIcon'
+import Sim from '../../components/Sim'
 import MoodIcon from '../../components/MoodIcon'
 import { useFetch } from '../../hooks/useFetch'
 import { markWeeklySeen } from '../../lib/weeklySeen'
@@ -50,7 +51,7 @@ function WeeklyWeek({ roomId, weekStart, onWeek }: { roomId: number; weekStart: 
     return (
       <main className="fam-stack weekly-screen">
         <h1 className="weekly-heading">주간 이야기</h1>
-        <div className="weekly-empty"><b>아직 주간 이야기가 없어요</b><p>첫 주간 이야기는 일요일 저녁에 와요.</p></div>
+        <div className="weekly-empty"><Sim face="curious" size={96} /><b>아직 주간 이야기가 없어요</b><p>첫 주간 이야기는 일요일 저녁에 와요.</p></div>
       </main>
     )
   if (error)
@@ -112,12 +113,16 @@ function WeeklyWeek({ roomId, weekStart, onWeek }: { roomId: number; weekStart: 
       ))}
       {empty ? (
         <>
-          <section className="fam-card weekly-empty"><p>이 주에는 이야기와 일기가 없었어요.</p></section>
+          <section className="fam-card weekly-empty"><Sim face="ask" size={72} /><p>이 주에는 이야기와 일기가 없었어요.</p></section>
           {changed}
         </>
       ) : (
         <>
           <section className="fam-card weekly-card">
+            <div className="weekly-hi">
+              <Sim face={data.memory_days + data.diary_days > 0 ? 'thumbs' : 'smile'} size={48} />
+              <b>{period} 이야기를 모았어요</b>
+            </div>
             <div className="weekly-stats">
               <div className="weekly-stat"><span>이야기한 날</span><b>{data.memory_days}일</b></div>
               <div className="weekly-stat"><span>일기 쓴 날</span><b>{data.diary_days}일</b></div>

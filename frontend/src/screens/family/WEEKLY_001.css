@@ -44,3 +44,5 @@
 .weekly-a { padding:10px 14px; border-radius:14px 14px 14px 4px; background:var(--soft); overflow-wrap:anywhere; }
 .weekly-empty { display:flex; flex-direction:column; align-items:center; gap:8px; padding:26px 24px; color:var(--text-2); text-align:center; }
 .weekly-empty b { color:var(--text); font-size:16px; }
+/* 심심이 인사 (11/25 사용자: 가족 앱에도 심심이 표정을) */
+.weekly-hi { display:flex; align-items:center; gap:10px; margin-bottom:12px; font-size:16px; }

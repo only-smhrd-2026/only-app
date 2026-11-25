@@ -37,7 +37,9 @@ def _device_from_cookie(request: Request, db: Session) -> FamilyRoom | None:
     raw = request.cookies.get(DEVICE_COOKIE)
     if not raw:
         return None
-    room = db.scalar(select(FamilyRoom).where(FamilyRoom.device_token_hash == sha256_hex(raw)))
+    room = db.scalar(
+        select(FamilyRoom).where(FamilyRoom.device_token_hash == sha256_hex(raw), FamilyRoom.status == "ACTIVE")
+    )  # 닫은 가족방의 기기는 연결이 끊긴 것으로 (11/25 시험 방 정리)
     if room and (room.device_last_seen_at is None or now_kst() - room.device_last_seen_at > timedelta(minutes=5)):
         room.device_last_seen_at = now_kst()
         db.commit()

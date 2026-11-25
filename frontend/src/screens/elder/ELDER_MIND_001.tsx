@@ -45,7 +45,7 @@ export default function ELDER_MIND_001() {
 
   useEffect(() => {
     if (!items) return
-    void say(`내 마음이에요. ${due ? '마음 체크할 차례예요. ' : ''}${nowSay ? `${nowSay} ` : ''}해 볼 것을 눌러 주세요.`, speed)
+    void say(`내 마음이에요. ${due ? '기분 여쭤볼 차례예요. ' : ''}${nowSay ? `${nowSay} ` : ''}해 볼 것을 눌러 주세요.`, speed)
     return () => stopSpeaking()
     // 기록을 받은 뒤 한 번만 읽는다
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -53,6 +53,39 @@ export default function ELDER_MIND_001() {
 
   const last = (k: CheckKind) => items?.find((i) => i.kind === k)
   const start = (kind: CheckKind) => nav('/elder/mood-check', { state: { home, kind } })
+  const [results, setResults] = useState(false) // [지난 결과 보기] (11/25 실사용: 결과를 다시 볼 곳이 안 보였다)
+  const nameOf = (i: Item) => (i.kind === 'MEMGAME' ? '기억력 놀이' : CHECKS[i.kind].name)
+  const lineOf = (i: Item) => `${md(i.check_date)[0]}월 ${md(i.check_date)[1]}일 ${nameOf(i)}, ${i.title}`
+
+  function openResults() {
+    setResults(true)
+    void say(items?.length ? '지난 결과예요. 누르면 읽어 드려요.' : '아직 해 본 것이 없어요.', speed)
+  }
+
+  if (results)
+    return (
+      <main className="elder mind-page">
+        <h1>지난 결과</h1>
+        {items?.length ? (
+          <ul className="mind-results">
+            {items.map((i) => (
+              <li key={`${i.check_date}${i.kind}`}>
+                <button type="button" onClick={() => void say(lineOf(i), speed)}>
+                  <span className="elder-face mind-rface" aria-hidden="true">{i.face}</span>
+                  <span className="mind-tl">
+                    <small>{md(i.check_date)[0]}월 {md(i.check_date)[1]}일 · {nameOf(i)}</small>
+                    {i.title}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="elder-text">아직 해 본 것이 없어요.</p>
+        )}
+        <button type="button" className="elder-btn" onClick={() => { stopSpeaking(); setResults(false) }}>닫기</button>
+      </main>
+    )
 
   return (
     <main className="elder mind-page">
@@ -77,6 +110,11 @@ export default function ELDER_MIND_001() {
           ))}
         </div>
       )}
+      {!!items?.length && (
+        <button type="button" className="elder-btn elder-btn--secondary elder-btn--sm" onClick={openResults}>
+          지난 결과 보기
+        </button>
+      )}
       <h2 className="elder-eyebrow">해 볼 것</h2>
       <div className="elder-col">
         {(Object.keys(CHECKS) as CheckKind[]).map((k) => {
@@ -85,7 +123,7 @@ export default function ELDER_MIND_001() {
           const before = last(k)
           return (
             <button key={k} type="button" className={`elder-btn elder-btn--wide${todo ? '' : ' elder-btn--secondary'}`} onClick={() => start(k)}>
-              <span className="elder-lead">{IC.heart}</span>
+              <span className="elder-lead mind-emoji" aria-hidden="true">{c.emoji}</span>
               <span className="mind-tl">
                 {c.name}
                 <small>{c.info}{todo ? ' · 할 차례' : ''}</small>
@@ -96,7 +134,7 @@ export default function ELDER_MIND_001() {
           )
         })}
         <button type="button" className="elder-btn elder-btn--wide elder-btn--secondary" onClick={() => nav('/elder/mind/memory-game', { state: { home } })}>
-          <span className="elder-lead">{IC.book}</span>
+          <span className="elder-lead mind-emoji" aria-hidden="true">🧩</span>
           <span className="mind-tl">
             기억력 놀이
             <small>낱말 세 개 · 2분</small>
@@ -104,7 +142,7 @@ export default function ELDER_MIND_001() {
           <span className="elder-go">{IC.next}</span>
         </button>
       </div>
-      <p className="elder-sub">병을 알아보는 검사가 아니에요. 걱정되시면 보건소나 병원에 물어보세요.</p>
+      <p className="elder-sub">병을 알아보는 검사가 아니에요.</p>
     </main>
   )
 }

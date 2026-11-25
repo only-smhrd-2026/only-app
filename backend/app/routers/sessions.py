@@ -40,6 +40,8 @@ from app.config import (
     MAX_TURNS,
     MOOD_LOW_DAYS,
     MOOD_LOW_WINDOW_DAYS,
+    MORE_SESSION_SEC,
+    MORE_TURNS,
     NO_RESPONSE_END,
     OLD_PHOTO_CONF_MIN,
     PAUSE_GAP_SEC,
@@ -83,6 +85,8 @@ _last_reply: dict[uuid.UUID, CoachReply] = {}
 _tts_failed: set[uuid.UUID] = set()
 # 확인을 기다리는 저신뢰 문장 (문장, 신뢰도). 재시작으로 잃으면 그 뒤 '맞아요'는 보통 답으로 저장된다(드묾)
 _pending: dict[uuid.UUID, tuple[str, float | None]] = {}
+# '더 얘기할래'로 더 준 질문 수 (11/25). ponytail: 메모리라 서버를 다시 켜면 원래 수로 끝난다(D9 워커 1개 전제)
+_more: dict[uuid.UUID, int] = {}
 
 
 def load_session(db, session_id: uuid.UUID, device, lock: bool = False) -> TalkSession:
@@ -165,16 +169,26 @@ def _story_offset(session: TalkSession) -> int:
 
 
 def _max_turns(session: TalkSession) -> int:
+    more = _more.get(session.session_id, 0)
     if session.kind == "DIARY":
-        return DIARY_TURNS
+        return DIARY_TURNS + more
     if session.kind == "ALBUM":
-        return ALBUM_TURNS
-    return MAX_TURNS
+        return ALBUM_TURNS + more
+    return MAX_TURNS + more
+
+
+def _grant_more(session: TalkSession, text: str) -> None:
+    """마지막 답(일기는 기분 묻기 앞 답부터)에 '더 얘기할래'가 있으면 한 번만 질문·시간을 더 준다 (11/25 실사용)."""
+    last = _max_turns(session) - (1 if session.kind == "DIARY" else 0)
+    if session.session_id not in _more and session.turn_count >= last and coach.wants_more(text):
+        _more[session.session_id] = MORE_TURNS
 
 
 def _fallback(session: TalkSession) -> CoachReply:
     """마지막 질문을 메모리에서 잃었을 때(서버 재시작) 다시 보여 줄 질문."""
-    return coach.diary_fallback(session.turn_count) if session.kind == "DIARY" else coach.FALLBACK_QUESTION
+    if session.kind == "DIARY":
+        return coach.diary_fallback(session.turn_count, _max_turns(session))
+    return coach.FALLBACK_QUESTION
 
 
 def _ask(
@@ -194,14 +208,14 @@ def _ask(
     signal, private, code = "NONE", False, None
     if session.kind == "DIARY":
         if end is None:
-            reply = coach.diary_question(ctx, turn_no)
+            reply = coach.diary_question(ctx, turn_no, _max_turns(session))
             # 일기 동무 AI 가 직전 답에서 본 신호 (11/19 S3) — 2~4번째 질문을 만들 때만 온다(1번은 어르신 말 전,
             # 5번 기분 질문과 고정 문장에는 없다). 위급이면 회상 대화와 같은 코드 문장으로 마무리
             if any(t["speaker"] == "ELDER" for t in ctx.turns):
                 signal = getattr(reply, "signal", "NONE")
             reply = coach.URGENT_CLOSINGS.get(signal, reply)
         else:  # "일기를 써 볼게요"는 일기를 쓸 때만. 무응답으로 끝나면 저장하지 않으니 다른 인사
-            reply = coach.DIARY_CLOSING if end in DIARY_SAVED else coach.DIARY_STOP
+            reply = coach.diary_closing(ctx) if end in DIARY_SAVED else coach.DIARY_STOP
     elif end:
         reply, signal, private = coach.closing(ctx, turn_no - off, _max_turns(session) - off)
     else:
@@ -422,7 +436,7 @@ def _talk_seconds(session: TalkSession) -> float:
 
 
 def _expired(session: TalkSession) -> bool:
-    return _talk_seconds(session) > MAX_SESSION_SEC
+    return _talk_seconds(session) > MAX_SESSION_SEC + (MORE_SESSION_SEC if session.session_id in _more else 0)
 
 
 def _stale(session: TalkSession) -> bool:
@@ -689,7 +703,7 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
             db.commit()
             return _out(db, session, room, reply, "ENDED", "NO_RESPONSE")
         last = _last_reply.get(session.session_id) or _fallback(session)
-        mood_question = session.kind == "DIARY" and session.turn_count >= DIARY_TURNS
+        mood_question = session.kind == "DIARY" and session.turn_count >= _max_turns(session)
         if stage >= 2 and not mood_question:  # 일기 기분 질문은 칩 4개 그대로 (둘만 남기면 기분이 한쪽으로 치우친다)
             last = last.model_copy(
                 update={"choice_mode": "TWO_BUTTONS", "suggestions": (last.suggestions or ["네", "아니요"])[:2]}
@@ -728,6 +742,7 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
     if _comforted(session):  # 위로 중 — 질문으로 돌아가지 않고 위로를 잇는다 (11/23)
         return _comfort(db, session, room)
     ctx = coach_context(db, room, session)
+    _grant_more(session, text)  # '더 얘기할래' — 아래에서 끝내지 않고 질문을 더 한다
     if session.turn_count >= _max_turns(session):  # 마지막 답(회상·일기 5번째) → 마무리 인사 후 종료
         reply, signal = _ask(db, session, ctx, end="COMPLETED")
         if signal == "RISK":

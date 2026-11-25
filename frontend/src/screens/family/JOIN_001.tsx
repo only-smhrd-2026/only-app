@@ -63,9 +63,14 @@ export default function JOIN_001() {
     setBusy(true)
     setError('')
     try {
-      await api<RoomOut>('/api/invites/accept', {
+      const joined = await api<RoomOut>('/api/invites/accept', {
         body: { token, name: myName, relation_tag: relation, nickname: nick || null },
       })
+      try {
+        localStorage.setItem('haru.fam.room', String(joined.room_id)) // 들어간 방을 바로 보이게 (GROUP_001 과 같은 칸, 11/25)
+      } catch {
+        /* 저장을 막아 둔 폰 — 서버가 최근 방을 먼저 준다 */
+      }
       nav('/', { replace: true }) // replace — 뒤로 가기로 초대 링크에 돌아오지 않게
     } catch (err) {
       const apiErr = err as ApiError

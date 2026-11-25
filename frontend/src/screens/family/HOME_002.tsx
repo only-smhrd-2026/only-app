@@ -1,6 +1,6 @@
 /**
  * HOME_002 — 일기 상세 (11/23 시안 f-detail). 하위 화면 틀의 ←를 쓰고, 열람 기록은 이 화면을 열 때만 남긴다(D36).
- * 추천 한마디는 누르면 입력 칸만 채우고 [보내기]는 따로(D91 바꿈 — 한 번 눌러 '곧 갈게요' 같은 약속이 실수로 가지 않게).
+ * 한마디는 인스타 댓글창처럼 — 목록(사람·글·시각) 아래 입력 줄 하나, 추천 문구 없음(11/25 사용자, D91 의 추천 칩을 뺌).
  * 가족 일기에 어르신이 말로 답하신 한 줄(reactions 의 by ELDER·kind REPLY)을 보여 준다.
  * 한마디는 가족 일기에도 남긴다(D98, 쓴 사람은 빼고) — 가족끼리만 보이고 어르신께는 읽어 드리지 않는다.
  * 어르신 일기에는 [🎤 목소리로 답장] (D99, 11/24) — 녹음해 들어 보고 보내면 어르신 가족 소식에서 그 목소리를 틀어 드린다
@@ -14,6 +14,7 @@ import { MOOD_LABEL, type DiaryOut, type Reaction, type RoomOut, type SttOut, ty
 import FamIcon from '../../components/FamIcon'
 import { Avatar } from '../../components/FamilyFrame'
 import MoodIcon from '../../components/MoodIcon'
+import Sim from '../../components/Sim'
 import { useFetch } from '../../hooks/useFetch'
 import VoicePlay from '../../components/VoicePlay'
 import { micBlockedTip, startRecording, type Recorder } from '../../lib/audio'
@@ -24,8 +25,7 @@ const REACTS = [
   ['SMILE', '😊', '웃음'],
   ['CLAP', '👏', '박수'],
 ] as const
-// 한마디 (11/19): 추천 답은 누르면 입력 칸만 채운다(11/23). 글자 수는 서버 config.REPLY_MAX 와 같은 값
-const REPLY_PICKS = ['보고 싶어요', '곧 갈게요', '잘 읽었어요', '사랑해요']
+// 댓글(한마디, 11/19): 한 사람에 하나. 추천 문구는 뺐다(11/25 사용자 — 인스타 댓글창처럼). 글자 수는 서버 config.REPLY_MAX 와 같은 값
 const REPLY_MAX = 40
 const VOICE_MS = 20_000 // 말로 한마디 녹음 상한 — 40자면 몇 초
 const VOICE_REPLY_SEC = 30 // 목소리 답장 상한 — 서버 config.VOICE_REPLY_MAX_SEC 와 같은 값 (D99)
@@ -36,6 +36,15 @@ const postedAt = (iso: string) =>
     hour: '2-digit', minute: '2-digit', hour12: false,
   })
 const iga = (word: string) => ((word.charCodeAt(word.length - 1) - 0xac00) % 28 ? '이' : '가')
+/** 댓글 시각 — '방금'·'5분'·'3시간'·'2일', 일주일 넘으면 '11월 3일' (인스타 댓글처럼) */
+function ago(iso: string) {
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000)
+  if (min < 1) return '방금'
+  if (min < 60) return `${min}분`
+  if (min < 1440) return `${Math.floor(min / 60)}시간`
+  if (min < 10080) return `${Math.floor(min / 1440)}일`
+  return new Date(iso).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric' })
+}
 
 function DiaryDetail({ diaryId }: { diaryId: string }) {
   const nav = useNavigate()
@@ -285,6 +294,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
     return (
       <main className="fam-stack diary-detail">
         <section className="fam-card diary-detail-state">
+          <Sim face="ask" size={96} />
           <h1>일기를 찾을 수 없어요</h1>
           <Link className="fam-btn fam-btn--primary" to="/">가족 홈으로</Link>
         </section>
@@ -395,96 +405,89 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
         )}
         {(!d.is_mine || replies.length > 0) && (
           <section className="fam-card diary-detail-reply" aria-labelledby="diary-reply-title" aria-busy={busy}>
-            <h2 id="diary-reply-title">{d.is_mine ? '가족 한마디' : '한마디 남기기'}</h2>
+            <h2 id="diary-reply-title">
+              댓글{replies.length > 0 && <small> {replies.length}</small>}
+            </h2>
             {replies.length > 0 && (
               <ul className="diary-detail-replies">
                 {replies.map((r) => (
                   <li key={r.user_id}>
+                    <Avatar name={r.name ?? '가족'} small />
                     <span>
-                      <small>{r === myReply ? '내 한마디' : (r.name ?? '가족')}</small>
+                      <span className="cm-text">
+                        <b>{r === myReply ? '나' : (r.name ?? '가족')}</b>
+                        {r.text && !r.audio_url && ` ${r.text}`}
+                      </span>
                       {r.audio_url && <VoicePlay url={r.audio_url} sec={r.audio_sec} />}
-                      {r.text && <b>{r.text}</b>}
+                      {r.audio_url && r.text && <span className="cm-sub">{r.text}</span>}
+                      <small>
+                        {ago(r.at)}
+                        {r === myReply && (
+                          <button type="button" className="cm-del" disabled={busy} onClick={removeReply}>지우기</button>
+                        )}
+                      </small>
                     </span>
-                    {r === myReply && (
-                      <button type="button" className="fam-text-btn" disabled={busy} onClick={removeReply}>지우기</button>
-                    )}
                   </li>
                 ))}
               </ul>
             )}
             {!d.is_mine && (
               <>
-                <div className="fam-seg" role="group" aria-label="추천 한마디 — 누르면 칸에 들어가요">
-                  {REPLY_PICKS.map((pick) => (
-                    <button type="button" key={pick} className="fam-chip" disabled={busy} onClick={() => setDraft(pick)} aria-pressed={draft === pick}>
-                      {pick}
+                {/* 어르신 일기 — 진짜 목소리 답장 (D99). 녹음을 마치면 들어 보고 보낸다 */}
+                {elder && take && (
+                  <div className="diary-detail-take" role="group" aria-label="녹음한 목소리">
+                    <VoicePlay url={take.url} sec={take.sec} label="들어 보기" />
+                    <button type="button" className="fam-btn fam-btn--primary fam-btn--sm" disabled={busy} onClick={() => void sendVoiceReply()}>
+                      {busy ? '보내는 중…' : '보내기'}
                     </button>
-                  ))}
-                </div>
-                <form className="diary-detail-reply-form" onSubmit={(e) => { e.preventDefault(); void sendReply(draft) }}>
+                    <button type="button" className="fam-btn fam-btn--sm" disabled={busy} onClick={() => void startVoiceReply()}>
+                      다시 녹음
+                    </button>
+                  </div>
+                )}
+                {/* 댓글 입력 줄 (11/25 사용자: 추천 문구 없이 인스타 댓글창처럼). 🎤 = 어르신 일기는 목소리 답장, 가족 일기는 말로 쓰기 */}
+                <form className="cm-bar" onSubmit={(e) => { e.preventDefault(); void sendReply(draft) }}>
+                  <Avatar name={me.data?.name ?? '나'} small />
                   <input
-                    className="fam-input"
+                    className="cm-input"
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     maxLength={REPLY_MAX}
-                    placeholder={`직접 쓰기 (${REPLY_MAX}자까지)`}
-                    aria-label={`한마디 직접 쓰기, ${REPLY_MAX}자까지`}
+                    placeholder={myReply ? '내 댓글 바꾸기…' : '댓글 달기…'}
+                    aria-label={`댓글 쓰기, ${REPLY_MAX}자까지`}
                     enterKeyHint="send"
                     autoComplete="off"
                   />
-                  <button type="submit" className="fam-btn fam-btn--primary" disabled={busy || !!voice || !draft.trim()}>보내기</button>
-                </form>
-                {elder ? (
-                  // 어르신 일기 — 진짜 목소리 답장 (D99). 녹음을 마치면 들어 보고 보낸다
-                  take ? (
-                    <div className="diary-detail-take" role="group" aria-label="녹음한 목소리">
-                      <VoicePlay url={take.url} sec={take.sec} label="들어 보기" />
-                      <button type="button" className="fam-btn fam-btn--primary fam-btn--sm" disabled={busy} onClick={() => void sendVoiceReply()}>
-                        {busy ? '보내는 중…' : '보내기'}
-                      </button>
-                      <button type="button" className="fam-btn fam-btn--sm" disabled={busy} onClick={() => void startVoiceReply()}>
-                        다시 녹음
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      className="fam-btn fam-btn--tonal fam-btn--sm"
-                      onClick={() => void (voice === 'rec' ? stopVoiceReply() : startVoiceReply())}
-                      disabled={busy || voice === 'start'}
-                      aria-pressed={voice === 'rec'}
-                    >
-                      {voice === 'rec' ? `■ 다 녹음했어요 · ${recSec}초` : <><span aria-hidden="true">🎤</span> 목소리로 답장</>}
-                    </button>
-                  )
-                ) : (
                   <button
                     type="button"
-                    className="fam-btn fam-btn--tonal fam-btn--sm"
-                    onClick={toggleVoice}
+                    className="cm-mic"
+                    onClick={() => void (elder ? (voice === 'rec' ? stopVoiceReply() : startVoiceReply()) : toggleVoice())}
                     disabled={busy || voice === 'start' || voice === 'stt'}
                     aria-pressed={voice === 'rec'}
+                    aria-label={voice === 'rec' ? (elder ? '다 녹음했어요' : '다 말했어요') : elder ? '목소리로 답장' : '말로 쓰기'}
                   >
-                    {voice === 'rec' ? '■ 다 말했어요' : voice === 'stt' ? '글자로 바꾸는 중…' : <><span aria-hidden="true">🎤</span> 말로 쓰기</>}
+                    {voice === 'rec' ? <span className="cm-stop">■ {elder ? `${recSec}초` : ''}</span> : <FamIcon name="mic" />}
                   </button>
-                )}
+                  <button type="submit" className="cm-post" disabled={busy || !!voice || !draft.trim()}>보내기</button>
+                </form>
                 {voice === 'rec' && (
-                  <p className="fam-note" role="status">
+                  <p className="cm-hint" role="status">
                     {elder ? `녹음하고 있어요. ${room.elder_honorific}께 이 목소리 그대로 들려 드려요 (${VOICE_REPLY_SEC}초까지).` : '듣고 있어요. 다 말하면 한 번 더 눌러 주세요.'}
                   </p>
                 )}
                 {voiceError && <p className="diary-detail-reply-note" role="alert">{voiceError}</p>}
                 {replyError && <p className="diary-detail-reply-note" role="alert">{replyError}</p>}
-                <p className="fam-note" role={replySent ? 'status' : undefined}>
-                  <FamIcon name={elder ? 'speaker' : 'family'} />
-                  <span>
-                    {elder
-                      ? replySent
+                {voice !== 'rec' && (
+                  <p className="cm-hint" role={replySent ? 'status' : undefined}>
+                    {replySent
+                      ? elder
                         ? `보냈어요 · ${name}께 ${myReply?.audio_url ? '목소리를 들려' : '읽어'} 드릴게요.`
-                        : `${room.elder_honorific}께 가족 소식에서 읽어 드리거나 목소리를 들려 드려요. 한 일기에 하나, 새로 보내면 바뀌어요.`
-                      : replySent ? '보냈어요 · 가족 모두에게 보여요.' : '가족 모두에게 보여요. 한 일기에 하나, 새로 보내면 바뀌어요.'}
-                  </span>
-                </p>
+                        : '보냈어요 · 가족 모두에게 보여요.'
+                      : elder
+                        ? `${room.elder_honorific}께 읽어 드려요 · 🎤 누르면 목소리로`
+                        : '가족 모두에게 보여요'}
+                  </p>
+                )}
                 {replySent && <Link className="fam-btn fam-btn--tonal fam-btn--sm" to="/">홈으로</Link>}
               </>
             )}

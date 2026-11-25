@@ -524,7 +524,7 @@ function StartHome({ room, reloadRooms }: { room: RoomOut; reloadRooms: () => vo
   )
 }
 
-function NoRoom() {
+function NoRoom({ me }: { me: UserOut }) {
   const nav = useNavigate()
   return (
     <main className="fam-stack">
@@ -540,7 +540,9 @@ function NoRoom() {
           가족방 만들기
         </button>
       </section>
-      {/* 가족방이 없으면 바꾸기 판도 가족방 탭도 없다 — 로그아웃을 여기에 (11/24) */}
+      {/* 가족방이 없으면 바꾸기 판도 가족방 탭도 없다 — 로그아웃을 여기에 (11/24).
+          계정이 둘이면 다른 계정으로 들어온 줄 모른다 — 지금 계정을 보인다 (11/25 실사용) */}
+      <p className="fam-note">지금 계정 · {me.email ?? me.name}</p>
       <button type="button" className="fam-btn fam-btn--text" onClick={() => logout(nav)}>
         로그아웃
       </button>
@@ -690,7 +692,7 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
 
 export default function HOME_001() {
   const { me, room, reloadRooms } = useFamily()
-  if (!room) return <NoRoom />
+  if (!room) return <NoRoom me={me} />
   // 어르신을 바꾸면 고친 일기를 처음부터 (key)
   return <RoomHome key={room.room_id} room={room} me={me} reloadRooms={reloadRooms} />
 }
