@@ -12,5 +12,10 @@ export async function logout(nav: NavigateFunction) {
   await api('/api/auth/logout', { method: 'POST' }).catch(() => {})
   clearUploadDraft() // 고르다 만 사진을 다음 사람에게 남기지 않는다
   clearFamilyDiaryDraft() // 쓰다 만 가족 일기 글도
+  try {
+    localStorage.removeItem('haru.fam.room') // 고른 가족방(FamilyFrame ROOM_KEY)도 — 다음 사람에게 남의 방 번호가 남지 않게 (11/25)
+  } catch {
+    /* 저장을 막아 둔 폰 — 남은 것이 없다 */
+  }
   nav('/login', { replace: true })
 }

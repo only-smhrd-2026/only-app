@@ -90,7 +90,9 @@ def list_rooms(user: CurrentUser, db: DB):
             RoomMember.removed_at.is_(None),
             FamilyRoom.status == "ACTIVE",
         )
-        .order_by(FamilyRoom.room_id)
+        # 가장 최근에 들어간 방 먼저 — 화면은 고른 방이 없으면 첫 방을 보인다
+        # (11/25 실사용: 초대받은 새 방 대신 옛 시험 방이 떴다)
+        .order_by(RoomMember.joined_at.desc(), FamilyRoom.room_id.desc())
     ).all()
     return [room_out(r, user.user_id, db) for r in rooms]
 
