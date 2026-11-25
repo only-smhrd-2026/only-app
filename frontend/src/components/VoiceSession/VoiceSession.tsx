@@ -3,7 +3,9 @@
  *
  * 모양(11/23): 위에 사진(흰 종이, 자르지 않음, 누르면 크게 — ElderPhoto. 사진이 없으면 큰 심심이) · 가운데 '지금 질문 카드' 하나
  * (심심이 표정이 단계마다 바뀜, 상태 글에 주어 — '심심이가 말하는 중'·'할머니 말씀 듣는 중', 카드를 누르면 다시 들음) ·
- * 아래 받침(답 칩 2개 · [눌러서 말하기] · [글자로]). 말풍선이 쌓이는 기록은 없다. 스크롤 없이 한 화면 — 사진이 줄어든다.
+ * 아래 받침(답 칩 2개 · [눌러서 말하기] · [글자로]). 첫 질문은 스크롤 없이 한 화면 — 사진이 남는 자리를 쓴다.
+ * 지난 대화 쌓기(11/25 실사용 a안, D102): 두 번째 질문부터 사진이 위에 작게 붙고(띠), 그 아래로 지난 대화가 말풍선으로 쌓인다.
+ * 맨 아래가 지금 질문 카드, 위로 밀면 처음 대화까지 보인다. 받침은 늘 아래에 고정. 지난 대화는 서버 대화를 턴마다 다시 읽는다.
  *
  *   SPEAKING ─(끝까지 읽음)→ WAITING ─[눌러서 말하기]→ IDLE(마이크 준비) → RECORDING(≤60초) ─[다 말했어요]→ TRANSCRIBING(/api/stt)
  *     → THINKING(/turns, 8초 '조금만요' 소리) → SPEAKING …
@@ -132,6 +134,8 @@ function chipsFor(a: AiOut): string[] {
 }
 const isMoodAsk = (a: AiOut) => a.suggestions.length > 3 && a.suggestions.every((s) => s in MOODS)
 const isConfirm = (a: AiOut) => a.question_type !== 'CLOSING' && a.suggestions.includes(REDO_CHIP)
+/** 서버 대화 → 지난 말풍선: 끝의 AI 턴(지금 질문 카드에 있는 말)은 뺀다 */
+const pastTurns = (turns?: TurnOut[]) => (turns?.at(-1)?.speaker === 'AI' ? turns.slice(0, -1) : (turns ?? []))
 
 type Props = {
   sessionId: string
@@ -160,9 +164,9 @@ export default function VoiceSession(props: Props) {
   const [me, setMe] = useState<string>() // 방금 보낸(들은) 내 말 — 생각하는 중·끊김·확인 질문에서만 보인다
   const [typing, setTyping] = useState(false)
   const [draft, setDraft] = useState('')
-  const [turnNo, setTurnNo] = useState(initial.turn_no) // 1 = 첫 질문만 — 2 부터 [지난 말 보기]
-  // [지난 말 보기] 판 (D97): 열 때 서버 대화를 읽는다(지금 질문·답만 화면에 있어서). 'loading'·'error' = 읽는 중·실패
-  const [past, setPast] = useState<TurnOut[] | 'loading' | 'error'>()
+  // 지난 대화 말풍선 (D102, [지난 말 보기] 판 D97 을 바꿈) — 서버 대화에서 지금 질문(마지막 AI 턴)을 뺀 것
+  const [log, setLog] = useState<TurnOut[]>(() => pastTurns(history))
+  const scroller = useRef<HTMLDivElement>(null)
   const [urgent, setUrgent] = useState(initial.urgent) // 몸 위급 — [119 전화하기] (11/19 응급)
   const recorder = useRef<Recorder | null>(null)
   const recAt = useRef(0) // 녹음 시작 시각 (첫 0.9초·너무 짧은 녹음)
@@ -244,7 +248,6 @@ export default function VoiceSession(props: Props) {
     const my = ++seq.current
     clearTimers() // 다시 듣기: 기다리던 무응답을 멈추고 다 읽은 뒤 새로 센다
     last.current = r
-    setTurnNo(r.turn_no)
     if (r.urgent) setUrgent(r.urgent) // 마무리 말을 읽는 동안에도 119 버튼이 바로 보이게
     setAi(r.ai)
     setClosing(r.state === 'ENDED')
@@ -343,6 +346,7 @@ export default function VoiceSession(props: Props) {
     if (r) {
       stopSpeaking() // 8초 안내 낭독 중이었으면 끊고 답을 읽는다
       pending.current = null
+      void loadLog() // 방금 한 답과 앞 질문이 말풍선으로 올라간다
       if (r.state !== 'ENDED') savePaused({ id: sessionId, kind: initial.kind, at: Date.now() }) // 30분은 마지막 턴부터
       return present(r)
     }
@@ -491,24 +495,14 @@ export default function VoiceSession(props: Props) {
     setTyping(true)
     typeTimer()
   }
-  /** [지난 말 보기] — 글자로 판처럼 읽던 말·무응답 안내를 멈추고 판을 연다. 닫으면 다시 기다린다 */
-  async function openPast() {
-    if (!canAnswer) return
-    seq.current += 1
-    stopSpeaking()
-    clearTimers()
-    setPhase('WAITING')
-    setPast('loading')
+  /** 지난 대화를 서버에서 다시 읽는다 (D102). 실패하면 있던 말풍선 그대로 — 대화는 계속된다 */
+  async function loadLog() {
     try {
       const s = await api<SessionGetOut>(`/api/elder/sessions/${sessionId}`)
-      if (alive.current) setPast((p) => p && s.turns)
+      if (alive.current) setLog(pastTurns(s.turns))
     } catch {
-      if (alive.current) setPast((p) => p && 'error')
+      /* 다음 턴에 다시 읽는다 */
     }
-  }
-  function closePast() {
-    setPast(undefined)
-    startWaiting()
   }
   function closeTyping() {
     setTyping(false)
@@ -596,6 +590,12 @@ export default function VoiceSession(props: Props) {
     // 세션 하나에 한 번만 시작한다 (sessionId 가 바뀌면 화면이 새로 마운트됨)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 새 말풍선·새 질문이 오면 맨 아래(지금 질문)가 보이게 (D102). 위로 밀어 보던 중이어도 새 질문이 오면 내려온다
+  useEffect(() => {
+    const el = scroller.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [log.length, ai.text, note])
 
   const mood = isMoodAsk(ai)
   const confirm = isConfirm(ai)
@@ -801,35 +801,40 @@ export default function VoiceSession(props: Props) {
   return (
     <section className="vs">
       <h1 className="vs-sr">{title}</h1>
-      {/* 위 [← 뒤로] 줄 오른쪽에 — 사진 자리를 줄이지 않게 (D97, elder.css .elder-back 과 같은 높이) */}
-      {turnNo > 1 && canAnswer && !typing && (
-        <button type="button" className="vs-key vs-past-btn" onClick={() => void openPast()}>
-          지난 말 보기
-        </button>
-      )}
-      {photo ? (
-        <ElderPhoto className="vs-photo" src={photo.src} alt={photo.alt} />
-      ) : (
-        <div className="vs-hero">
-          <Sim face={face} size={150} />
+      {/* 사진 띠 + 지난 대화 + 지금 질문 — 이 칸만 스크롤 (D102). 받침은 밖에 고정 */}
+      <div className="vs-scroll" ref={scroller}>
+        <div className={`vs-band${log.length ? ' vs-band--small' : ''}`}>
+          {photo ? (
+            <ElderPhoto className="vs-photo" src={photo.src} alt={photo.alt} />
+          ) : (
+            <div className="vs-hero">
+              <Sim face={face} size={150} />
+            </div>
+          )}
         </div>
-      )}
+        {log.map((t, i) => (
+          <p key={i} className={`vs-bub vs-bub--${t.speaker === 'AI' ? 'ai' : 'me'}`}>
+            <small>{t.speaker === 'AI' ? '꼬마심심이' : who}</small>
+            {t.text}
+          </p>
+        ))}
 
-      <button type="button" className={`vs-card vs-card--${phase.toLowerCase()}`} onClick={replayCard} disabled={phase === 'RECORDING'}>
-        <span className="vs-who">
-          {photo && <Sim face={face} size={48} />}
-          {status}
-        </span>
-        <span className="vs-line" aria-live="polite">
-          {line}
-        </span>
-        <span className="vs-again">
-          <Icon name="spk" />
-          다시 듣기
-        </span>
-      </button>
+        <button type="button" className={`vs-card vs-card--${phase.toLowerCase()}`} onClick={replayCard} disabled={phase === 'RECORDING'}>
+          <span className="vs-who">
+            {photo && <Sim face={face} size={48} />}
+            {status}
+          </span>
+          <span className="vs-line" aria-live="polite">
+            {line}
+          </span>
+          <span className="vs-again">
+            <Icon name="spk" />
+            다시 듣기
+          </span>
+        </button>
 
-      {me && (!confirm || redoing) && (phase === 'THINKING' || phase === 'OFFLINE') && <p className="vs-me">{me}</p>}
+        {me && (!confirm || redoing) && (phase === 'THINKING' || phase === 'OFFLINE') && <p className="vs-me">{me}</p>}
+      </div>
 
       <div className="vs-dock">
         {/* 몸이 위급하다는 말 (11/19 응급): 전화 앱이 119 를 채운 채 열린다 — 거는 것은 어르신이 한 번 더 누른다 */}
@@ -840,32 +845,6 @@ export default function VoiceSession(props: Props) {
         )}
         {dock}
       </div>
-
-      {past && (
-        <>
-          <div className="vs-scrim" onClick={closePast} />
-          <div className="vs-sheet vs-past" role="dialog" aria-modal="true" aria-label="지난 말">
-            <h2>지난 말</h2>
-            <ol className="vs-past-list">
-              {past === 'loading' ? (
-                <li>잠시만요…</li>
-              ) : past === 'error' ? (
-                <li>지금은 불러오지 못했어요.</li>
-              ) : (
-                past.map((t, i) => (
-                  <li key={i} className={t.speaker === 'AI' ? 'vs-past-ai' : 'vs-past-me'}>
-                    <b>{t.speaker === 'AI' ? '꼬마심심이' : who}</b>
-                    {t.text}
-                  </li>
-                ))
-              )}
-            </ol>
-            <button type="button" className="vs-key vs-key--p" onClick={closePast} autoFocus>
-              닫기
-            </button>
-          </div>
-        </>
-      )}
 
       {typing && (
         <>

@@ -1,7 +1,8 @@
 /*
  * 대화 화면(말하기 부품) 11/23 모양 — 시안 `설계자료/목업_1120/src/style.css` 의 .voice·.dock·.key·.status·.moods. 홍진성 담당.
  * 색·크기는 elder.css 변수(--elder-*)만 쓴다. 꿀 노랑 토큰이 elder.css 에 들어오기 전에도 같은 색이 나오게 시안 값을 예비로 둔다.
- * 한 화면(스크롤 없음): 사진이 남는 자리를 쓰고 줄어든다. 카드·받침은 내용만큼 (D51 ⑤, D60).
+ * 첫 질문은 한 화면(스크롤 없음): 사진이 남는 자리를 쓰고 줄어든다. 카드·받침은 내용만큼 (D51 ⑤, D60).
+ * 두 번째 질문부터(D102): 사진은 위 띠에 작게 붙고 지난 대화 말풍선이 쌓인다 — .vs-scroll 만 스크롤, 받침은 고정.
  * 부르는 화면은 <main className="elder elder--fit"> 안에 이것 하나만 둔다.
  */
 .vs {
@@ -28,8 +29,54 @@
 .vs-sr { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; margin: 0; }
 .vs-ic { flex: none; width: 1.15em; height: 1.15em; }
 
-/* 사진: 남는 자리를 다 쓰고, 카드·받침이 커지면 줄어든다 */
+/* 사진 띠 + 지난 대화 + 지금 질문 — 이 칸만 스크롤 (D102). 옆 여백까지 띠가 닿게 바깥 여백만큼 넓힌다 */
+.vs-scroll {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 calc(-1 * var(--elder-pad));
+  padding: 0 var(--elder-pad) 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* 첫 질문: 사진이 남는 자리를 다 쓰고, 카드·받침이 커지면 줄어든다 */
+.vs-band { flex: 1 1 0; min-height: 80px; display: flex; flex-direction: column; }
 .elder .vs-photo { flex: 1 1 0; min-height: 80px; }
+/* 세로 사진은 가로 사진 높이의 80% (11/25 실사용) — data-shape 는 ElderPhoto 가 사진을 읽고 붙인다 */
+.vs-photo[data-shape='port'] .elder-photo-paper > img { max-height: calc(80cqh - 16px); }
+/* 두 번째 질문부터: 위에 작게 붙는 띠. 바탕을 깔아 말풍선이 그 밑으로 지나간다. 누르면 크게(그대로) */
+.vs-band--small {
+  flex: none;
+  height: 128px;
+  min-height: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: 0 calc(-1 * var(--elder-pad));
+  padding: 0 var(--elder-pad) 8px;
+  background: var(--elder-bg);
+  box-shadow: 0 10px 10px -10px rgba(74, 45, 10, 0.18);
+}
+.elder .vs-band--small .vs-photo { min-height: 0; }
+.vs-band--small .vs-photo[data-shape='port'] .elder-photo-paper > img { max-height: calc(100cqh - 16px); }
+.vs-band--small .elder-zoomtag { display: none; }
+/* 지난 대화 말풍선 — 심심이 왼쪽 흰색 · 어르신 오른쪽 노랑 */
+.vs-bub {
+  flex: none;
+  max-width: 86%;
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 20px;
+  font-size: var(--elder-font-size-s);
+  font-weight: 600;
+  line-height: 1.38;
+  overflow-wrap: anywhere;
+}
+.vs-bub small { display: block; font-size: 17px; font-weight: 700; color: var(--vs-ink2); }
+.vs-bub--ai { align-self: flex-start; border-bottom-left-radius: 6px; background: var(--vs-surf); box-shadow: 0 0 0 1px var(--elder-line); }
+.vs-bub--me { align-self: flex-end; border-bottom-right-radius: 6px; background: var(--vs-brand-hi); }
 .vs-hero { flex: 1 1 0; min-height: 0; display: grid; place-items: center; overflow: hidden; }
 .vs-hero img { max-height: 100%; width: auto; object-fit: contain; filter: drop-shadow(0 10px 8px rgba(60, 35, 0, 0.16)); }
 
@@ -212,13 +259,6 @@ html[data-font='XXL'] .vs-dot { width: 36px; height: 36px; }
 }
 .vs-sheet h2 { margin: 0; font-size: var(--elder-font-size-lg); font-weight: 800; }
 /* [지난 말 보기] (D97) — 버튼은 위 [← 뒤로] 줄 오른쪽(.elder 기준), 판은 화면 전체·목록만 스크롤 */
-.vs-past-btn { position: absolute; top: 10px; right: var(--elder-pad); z-index: 10; min-height: 48px; padding: 4px 14px; border-radius: 16px; font-size: 20px; }
-.vs-past { bottom: 0; border-radius: 0; }
-.vs-past-list { flex: 1; min-height: 0; overflow-y: auto; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
-.vs-past-list li { display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border-radius: 20px; background: var(--vs-surf); font-size: var(--elder-font-size); line-height: 1.38; }
-.vs-past-list b { font-size: var(--elder-font-size-s); color: var(--vs-ink2); }
-.vs-past-list .vs-past-me { align-self: flex-end; max-width: 88%; background: var(--vs-brand); }
-.vs-past-list .vs-past-ai { align-self: flex-start; max-width: 88%; }
 .vs-field {
   flex: 1;
   min-width: 0;
