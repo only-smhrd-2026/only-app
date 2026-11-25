@@ -599,10 +599,15 @@ export default function VoiceSession(props: Props) {
 
   const mood = isMoodAsk(ai)
   const confirm = isConfirm(ai)
+  // 확인 질문에서 [다시 말할게요]를 눌러 다시 말하는 중 — 받침은 [다 말했어요]로 (11/25 실사용: 확인 버튼이 남아 녹음을 못 멈췄다)
+  const redoing = confirm && (phase === 'IDLE' || phase === 'RECORDING' || phase === 'TRANSCRIBING' || phase === 'THINKING')
   const care = !!ai.care
   // 말하는 중에도 답할 수 있다(끼어들기). 마무리 인사·끊김·생각하는 중에는 안 된다
   const canAnswer = (phase === 'WAITING' || phase === 'SPEAKING' || phase === 'TAP') && !closing
-  const line = phase === 'OFFLINE' ? OFFLINE : (note ?? (lead ? `${lead} ${ai.text}` : ai.text))
+  const line =
+    phase === 'OFFLINE'
+      ? OFFLINE
+      : (note ?? (redoing && (phase === 'IDLE' || phase === 'RECORDING') ? '다시 말씀해 주세요.' : lead ? `${lead} ${ai.text}` : ai.text))
 
   // 심심이 표정 (시안 talkHtml pose). 위로 중에는 웃는 얼굴만 — 손 흔들기·엄지는 쓰지 않는다
   const face: SimFace =
@@ -707,7 +712,7 @@ export default function VoiceSession(props: Props) {
         )}
       </>
     )
-  } else if (confirm) {
+  } else if (confirm && !redoing) {
     dock = (
       <>
         {me && <p className="vs-heard">“{me}”</p>}
@@ -742,7 +747,7 @@ export default function VoiceSession(props: Props) {
     dock = (
       <>
         <div className="vs-row">
-          {chipsFor(ai).map((c) => (
+          {(redoing ? [] : chipsFor(ai)).map((c) => (
             <button key={c} type="button" className="vs-key vs-chip" onClick={() => void onChip(c)} disabled={!canAnswer}>
               {c}
             </button>
@@ -824,7 +829,7 @@ export default function VoiceSession(props: Props) {
         </span>
       </button>
 
-      {me && !confirm && (phase === 'THINKING' || phase === 'OFFLINE') && <p className="vs-me">{me}</p>}
+      {me && (!confirm || redoing) && (phase === 'THINKING' || phase === 'OFFLINE') && <p className="vs-me">{me}</p>}
 
       <div className="vs-dock">
         {/* 몸이 위급하다는 말 (11/19 응급): 전화 앱이 119 를 채운 채 열린다 — 거는 것은 어르신이 한 번 더 누른다 */}
