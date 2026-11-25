@@ -18,6 +18,7 @@ export type RoomOut = {
   font_size: 'L' | 'XL' | 'XXL'
   tts_speed: string | number
   tts_voice: 'FEMALE' | 'MALE' // 어르신께 들려 드리는 목소리 (D74)
+  weather_region: string | null // 어르신 동네(시·도) — 심심이가 날씨를 알려 드린다 (D106). null = 안 정함
   device_input_mode: 'VOICE' | 'BUTTON'
   status: string
   is_owner: boolean
@@ -37,6 +38,7 @@ export type RoomSettingsIn = {
   font_size?: 'L' | 'XL' | 'XXL'
   tts_speed?: '0.80' | '0.90' | '1.00' // D74 (전 0.70·0.85·1.00)
   tts_voice?: 'FEMALE' | 'MALE'
+  weather_region?: string // 시·도 이름 (서버 config.REGIONS — GROUP_002 의 REGIONS 와 같게)
   device_input_mode?: 'VOICE' | 'BUTTON'
   elder_name?: string // 1~10자
   elder_honorific?: string // 부르는 말 1~20자 (빈 칸은 서버가 거절)
@@ -133,10 +135,16 @@ export type AiOut = {
   choice_mode: 'CHIPS' | 'TWO_BUTTONS'
   question_type: 'RECALL' | 'REMEMBER' | 'KNOWHOW' | 'THEN_NOW' | 'COMMON' | 'RECHECK' | 'CLOSING' | 'NONE'
   care?: boolean // 11/23 힘든 말씀 뒤 위로 중인 턴(D94 바꿈) — 대화는 이어지고, 화면은 전화 버튼 없이 심심이가 위로
+  // 잡담(CHAT, D106)만: 이 말에 어울리는 심심이 표정 · 어르신이 가자고 하신 화면(화면이 그리로 데려간다)
+  face?: 'hello' | 'joy' | 'smile' | 'curious' | 'ask' | 'thumbs' | null
+  go?: ChatGo | null
 }
+export type ChatGo = 'DIARY' | 'ALBUM' | 'NEWS' | 'MIND'
+/** GET /api/elder/sessions?kind=CHAT — '지난 이야기' 목록 한 줄 (D106). 말은 GET /api/elder/sessions/{id} 의 turns */
+export type ChatItemOut = { session_id: string; started_at: string; title: string; elder_turns: number }
 export type SessionState = 'CONTINUE' | 'ENDED'
 export type EndReason = 'COMPLETED' | 'USER_STOP' | 'NO_RESPONSE' | 'ERROR' | 'LIMIT'
-export type SessionKind = 'MEMORY' | 'ALBUM' | 'DIARY'
+export type SessionKind = 'MEMORY' | 'ALBUM' | 'DIARY' | 'CHAT' // CHAT = 심심이 잡담 (D106)
 export type SessionOut = {
   session_id: string
   kind: SessionKind

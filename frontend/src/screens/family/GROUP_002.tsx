@@ -34,6 +34,8 @@ type SetDef = { key: SetKey; name: string; help: (hon: string) => string; opts: 
 
 const hourLabel = (h: number) => (h === 0 ? '밤 12시' : h < 12 ? `오전 ${h}시` : h === 12 ? '낮 12시' : `오후 ${h - 12}시`)
 const HOURS: SetDef['opts'] = Array.from({ length: 24 }, (_, h) => [`${String(h).padStart(2, '0')}:00`, hourLabel(h)]) // 정각만 (D44)
+// 어르신 동네 — 서버 config.REGIONS 와 같은 이름·순서 (D106). 심심이가 이 동네 날씨를 알려 드린다
+const REGIONS = ['서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종', '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주']
 const SETS: SetDef[] = [
   {
     key: 'memory_time',
@@ -46,6 +48,12 @@ const SETS: SetDef[] = [
     name: '일기 시간',
     help: (hon) => `매일 이 시간에 ${hon}께 오늘 일기를 써 보자고 알려 드려요 · 이미 쓰셨으면 안 알려요`,
     opts: HOURS,
+  },
+  {
+    key: 'weather_region',
+    name: '사시는 동네',
+    help: (hon) => `심심이가 ${hon}께 이 동네 날씨를 알려 드려요`,
+    opts: REGIONS.map((r) => [r, r]),
   },
   {
     key: 'font_size',
@@ -90,9 +98,10 @@ const SETS: SetDef[] = [
 function curOf(r: RoomOut, k: SetKey) {
   if (k === 'memory_time' || k === 'diary_time') return r[k].slice(0, 5)
   if (k === 'tts_speed') return Number(r.tts_speed).toFixed(2)
+  if (k === 'weather_region') return r.weather_region ?? '' // 안 정함
   return String(r[k])
 }
-const labelOf = (s: SetDef, v: string) => s.opts.find((o) => o[0] === v)?.[1] ?? v
+const labelOf = (s: SetDef, v: string) => s.opts.find((o) => o[0] === v)?.[1] ?? (v || '고르기')
 
 // ── 글로 고치는 칸 (FR-AD-003·007) — 구성원 호칭(비우면 호칭 없음)·어르신 이름·부르는 말. 글자 수는 서버 schemas/rooms.py 와 같게
 const TEXTS: Record<'nickname' | ElderKey, { name: string; max: number; help: (hon: string) => string }> = {
@@ -337,7 +346,8 @@ function RoomTab() {
   const list = members.data ?? []
   const reloadAll = () => (rooms.reload(), reloadRooms()) // 이 화면 + 위 막대·가족 홈이 같은 숫자를 보게
 
-  const [timeSets, chipSets] = [SETS.slice(0, 2), SETS.slice(2)] // 추억·일기 시간은 24칸이라 판에서, 나머지는 칩으로 바로
+  // 추억·일기 시간(24칸)·사시는 동네(17칸)는 판에서, 나머지는 칩으로 바로
+  const [timeSets, chipSets] = [SETS.slice(0, 3), SETS.slice(3)]
   const fontPx = SETS[1].opts.find((o) => o[0] === room.font_size)?.[2]
 
   return (

@@ -1,11 +1,14 @@
 """세션 API 계약 v1 (설계안 3절). 초석에서 고정 — 모양을 바꾸면 김승희(화면)를 리뷰어로."""
 
 import uuid
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
-SessionKind = Literal["MEMORY", "ALBUM", "DIARY"]
+SessionKind = Literal["MEMORY", "ALBUM", "DIARY", "CHAT"]  # CHAT = 심심이 잡담 (D106)
+SimFace = Literal["hello", "joy", "smile", "curious", "ask", "thumbs"]
+ChatGo = Literal["DIARY", "ALBUM", "NEWS", "MIND"]
 InputType = Literal["VOICE", "CHIP", "BUTTON", "TEXT"]  # TEXT = 대화의 '글로 쓰기' (D52 ⑤). 말과 같은 길로 저장
 ChoiceMode = Literal["CHIPS", "TWO_BUTTONS"]
 QuestionType = Literal["RECALL", "REMEMBER", "KNOWHOW", "THEN_NOW", "COMMON", "RECHECK", "CLOSING", "NONE"]
@@ -21,6 +24,9 @@ class AiOut(BaseModel):
     question_type: QuestionType = "RECALL"
     # 11/23 힘든 말씀 뒤 위로 중인 턴 (D94 바꿈) — 대화는 이어지고, 화면은 전화 버튼 없이 심심이가 위로하는 얼굴
     care: bool = False
+    # 잡담(CHAT, D106)만: 이 말에 어울리는 심심이 표정 · 어르신이 가자고 하신 화면(화면이 그 화면으로 데려간다)
+    face: SimFace | None = None
+    go: ChatGo | None = None
 
 
 class SessionCreateIn(BaseModel):
@@ -28,6 +34,16 @@ class SessionCreateIn(BaseModel):
     kind: SessionKind
     photo_id: int | None = None
     pick_id: int | None = None
+    resume_of: uuid.UUID | None = None  # 잡담만: '지난 이야기'에서 [이어서 하기] 한 잡담 (D106)
+
+
+class ChatItemOut(BaseModel):
+    """'지난 이야기' 목록 한 줄 (D106). 대화 내용은 GET /elder/sessions/{id} 의 turns 로 읽는다."""
+
+    session_id: uuid.UUID
+    started_at: datetime
+    title: str
+    elder_turns: int  # 어르신이 말한 수
 
 
 class SessionOut(BaseModel):

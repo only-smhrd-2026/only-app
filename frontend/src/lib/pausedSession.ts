@@ -14,6 +14,9 @@ export type Paused = { id: string; kind: SessionKind; at: number }
 export const RESUME_LEAD = '아까 하던 이야기를 이어서 할게요.'
 
 export function savePaused(p: Paused) {
+  // 잡담(D106)은 '이어서'에 두지 않는다 — 홈의 '하던 이야기'는 회상·일기만, 잡담은 '지난 이야기'에서 잇는다.
+  // 두면 하나뿐인 칸에 든 회상 대화를 지워 버린다
+  if (p.kind === 'CHAT') return
   try {
     localStorage.setItem(KEY, JSON.stringify(p))
   } catch {

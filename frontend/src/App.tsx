@@ -11,6 +11,8 @@ import { useFetch } from './hooks/useFetch'
 import NotYet from './screens/NotYet'
 import NotFound from './screens/NotFound'
 import ELDER_ALBUM_001 from './screens/elder/ELDER_ALBUM_001'
+import ELDER_CHAT_001 from './screens/elder/ELDER_CHAT_001'
+import ELDER_CHAT_002 from './screens/elder/ELDER_CHAT_002'
 import ELDER_CONNECT_001 from './screens/elder/ELDER_CONNECT_001'
 import ELDER_DIARY_001 from './screens/elder/ELDER_DIARY_001'
 import ELDER_DIARY_002 from './screens/elder/ELDER_DIARY_002'
@@ -50,6 +52,10 @@ export const SCREENS: ScreenDef[] = [
   { id: 'ELDER_MEMORY_001', path: '/elder/memory/:sessionId', title: '회상 대화', Screen: ELDER_MEMORY_001 },
   { id: 'ELDER_MEMORY_002', path: '/elder/memory/:sessionId/done', title: '회상 마무리' },
   { id: 'ELDER_ALBUM_001', path: '/elder/album', title: '사진첩', Screen: ELDER_ALBUM_001 },
+  // 11/25 심심이 잡담 (D106) — 홈의 심심이를 누르면. 지난 이야기 목록·하나 보기는 같은 화면 파일
+  { id: 'ELDER_CHAT_001', path: '/elder/chat', title: '심심이랑 이야기', Screen: ELDER_CHAT_001 },
+  { id: 'ELDER_CHAT_002', path: '/elder/chat/past', title: '지난 이야기', Screen: ELDER_CHAT_002 },
+  { id: 'ELDER_CHAT_003', path: '/elder/chat/past/:sessionId', title: '지난 이야기 보기', Screen: ELDER_CHAT_002 },
   { id: 'ELDER_DIARY_001', path: '/elder/diary', title: '오늘 일기', Screen: ELDER_DIARY_001 },
   { id: 'ELDER_DIARY_002', path: '/elder/diary/:sessionId', title: '일기 대화', Screen: ELDER_DIARY_002 },
   { id: 'ELDER_DIARY_003', path: '/elder/diary/:sessionId/confirm', title: '일기 확인', Screen: ELDER_DIARY_003 },

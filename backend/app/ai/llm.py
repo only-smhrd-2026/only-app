@@ -19,7 +19,15 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from app.ai.schemas import BANNED_WORDS, TAXONOMY
-from app.config import CLASSIFY_PER_DAY, LLM_FAMILY_PER_DAY, LLM_PER_DAY, ROOT, WEEKLY_CARDS_MAX, settings
+from app.config import (
+    CLASSIFY_PER_DAY,
+    LLM_CHAT_PER_DAY,
+    LLM_FAMILY_PER_DAY,
+    LLM_PER_DAY,
+    ROOT,
+    WEEKLY_CARDS_MAX,
+    settings,
+)
 from app.security import daily_allowed
 
 log = logging.getLogger("app.ai")
@@ -28,7 +36,7 @@ PROMPTS_DIR = ROOT / "backend" / "app" / "ai" / "prompts"
 # 시도당 시간 상한(초). 말하기 턴은 화면이 15초에 포기하므로 6초 × 최대 2번(검증 재시도) 안에 끝나야
 # 고정 문장으로라도 대화가 이어진다(D14). 일기 초안은 확인 화면이 기다리므로 15초 × 최대 2번 (D36).
 # 가족 일기 질문(D58)·어제 이야기 첫 질문(D77)도 화면에서 바로 기다린다
-TURN_PROMPTS = {"memory_coach", "diary_buddy", "family_buddy", "story_question", "comfort"}
+TURN_PROMPTS = {"memory_coach", "diary_buddy", "family_buddy", "story_question", "comfort", "chat_buddy"}
 FAMILY_PROMPTS = {"family_buddy", "family_draft"}  # 가족이 부르는 것 — 하루 몫을 따로 센다 (LLM_FAMILY_PER_DAY)
 TURN_TIMEOUT_SEC = 6.0
 OTHER_TIMEOUT_SEC = 15.0
@@ -72,8 +80,12 @@ def call_json(
     provider = settings.LLM_PROVIDER
     t0 = time.perf_counter()
     tokens = 0
-    # 사진 분류는 대화와 따로 센다 — 사진을 많이 올려도 어르신 대화가 고정 문장으로 바뀌지 않게 (D71)
-    kind, cap = ("classify", CLASSIFY_PER_DAY) if prompt_name == "classify_photo" else ("llm", LLM_PER_DAY)
+    # 사진 분류는 대화와 따로 센다 — 사진을 많이 올려도 어르신 대화가 고정 문장으로 바뀌지 않게 (D71).
+    # 심심이 잡담도 따로 — 잡담을 많이 해도 회상·일기 몫은 남는다 (D106)
+    kind, cap = {
+        "classify_photo": ("classify", CLASSIFY_PER_DAY),
+        "chat_buddy": ("llm_chat", LLM_CHAT_PER_DAY),
+    }.get(prompt_name, ("llm", LLM_PER_DAY))
     try:
         if provider == "mock":
             out = _mock(prompt_name, data, schema)
@@ -111,6 +123,27 @@ _MOCK_CHIPS = [
 ]
 
 
+_MOCK_GO = (("일기", "DIARY"), ("사진첩", "ALBUM"), ("소식", "NEWS"), ("마음", "MIND"))
+_MOCK_GO_TEXT = {"DIARY": "일기 쓰기", "ALBUM": "사진첩", "NEWS": "가족 소식", "MIND": "마음 체크"}
+
+
+def _mock_chat(data: dict[str, Any]) -> dict[str, Any]:
+    """잡담 mock — 가자는 낱말(일기·사진첩·소식·마음 + 가자·보여·열어·할래)이면 그 화면, 아니면 고정 맞장구."""
+    turns = data.get("turns") or []
+    said = turns[-1]["text"] if turns and turns[-1].get("speaker") == "ELDER" else ""
+    base = {"face": "smile", "go": "NONE", "topic": "심심이랑 나눈 이야기", "signal": "NONE", "private": False}
+    if data.get("closing"):
+        return base | {"text": "오늘 이야기 즐거웠어요. 또 심심하시면 언제든 불러 주세요."}
+    if not said:
+        hon = data.get("elder_honorific", "어르신")
+        return base | {"face": "hello", "text": f"{hon}, 반가워요! 오늘은 뭐 하셨어요?"}
+    if any(w in said for w in ("가자", "보여", "열어", "할래", "쓰자")):
+        for word, go in _MOCK_GO:
+            if word in said:
+                return base | {"face": "thumbs", "go": go, "text": f"좋아요! {_MOCK_GO_TEXT[go]} 열어 드릴게요."}
+    return base | {"face": "joy", "text": "우와, 그러셨군요! 조금 더 들려주세요."}
+
+
 def _mock(prompt_name: str, data: dict[str, Any], schema: type[T]) -> T:
     if prompt_name == "weekly_summary":  # 어르신 답을 그대로 따온 카드 — 키 없는 PC 에서도 카드가 보이게 (D62)
         cards = [
@@ -127,6 +160,8 @@ def _mock(prompt_name: str, data: dict[str, Any], schema: type[T]) -> T:
     if prompt_name == "story_question":
         text = f"{data.get('elder_honorific', '어르신')}, {data['when']} 들려주신 이야기 생각나요. 그 뒤로 어떠셨어요?"
         return schema.model_validate({"text": text, "suggestions": ["좋았어요", "그저 그래요"], "signal": "NONE"})
+    if prompt_name == "chat_buddy":  # 키 없는 PC 에서도 잡담 화면·화면 이동을 눌러 볼 수 있게 (D106)
+        return schema.model_validate(_mock_chat(data))
     if prompt_name != "memory_coach":  # 일기(diary_*·family_*)는 coach 의 고정 문장으로 이어 간다
         raise LlmError(f"mock 은 memory_coach·weekly_summary·story_* 만 지원합니다 (요청: {prompt_name})")
     turn_no = int(data.get("turn_no", 1))

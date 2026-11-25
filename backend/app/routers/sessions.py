@@ -23,7 +23,7 @@ import time
 import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter
 from sqlalchemy import func, select
@@ -33,6 +33,8 @@ from app.ai.schemas import CoachReply, has_body_words, has_risk_words
 from app.config import (
     ALBUM_PER_DAY,
     ALBUM_TURNS,
+    CHAT_SESSION_SEC,
+    CHAT_TURNS,
     CLASSIFY_SYNC_SEC,
     COMFORT_TURNS,
     DIARY_TURNS,
@@ -61,6 +63,7 @@ from app.routers.devices import notify_family
 from app.routers.mood import LOW_DAYS_TITLE
 from app.schemas.sessions import (
     AiOut,
+    ChatItemOut,
     SessionCreateIn,
     SessionEndIn,
     SessionEndOut,
@@ -69,7 +72,7 @@ from app.schemas.sessions import (
     TurnIn,
     TurnOut,
 )
-from app.services import alerts, care
+from app.services import alerts, care, chat
 
 log = logging.getLogger("app.sessions")
 router = APIRouter(prefix="/elder/sessions", tags=["sessions"])
@@ -170,6 +173,8 @@ def _story_offset(session: TalkSession) -> int:
 
 def _max_turns(session: TalkSession) -> int:
     more = _more.get(session.session_id, 0)
+    if session.kind == "CHAT":
+        return CHAT_TURNS + more
     if session.kind == "DIARY":
         return DIARY_TURNS + more
     if session.kind == "ALBUM":
@@ -188,11 +193,18 @@ def _fallback(session: TalkSession) -> CoachReply:
     """마지막 질문을 메모리에서 잃었을 때(서버 재시작) 다시 보여 줄 질문."""
     if session.kind == "DIARY":
         return coach.diary_fallback(session.turn_count, _max_turns(session))
+    if session.kind == "CHAT":
+        return coach.CHAT_FALLBACK
     return coach.FALLBACK_QUESTION
 
 
 def _ask(
-    db, session: TalkSession, ctx: coach.CoachContext, end: str | None = None, turn_no: int | None = None
+    db,
+    session: TalkSession,
+    ctx: coach.CoachContext,
+    end: str | None = None,
+    turn_no: int | None = None,
+    resume_of: uuid.UUID | None = None,
 ) -> tuple[CoachReply, str]:
     """코치 호출 + AI 턴 저장 (latency_ms 기록). end(종료 사유)가 있으면 질문 대신 마무리 인사.
 
@@ -201,12 +213,17 @@ def _ask(
     돌려주는 signal 이 SAD·STOP·BODY 이면 reply 는 마무리 인사 — 질문 중이었다면 호출자가 대화를 끝낸다 (FR-AI-005).
     RISK 면 AI 턴을 남기지 않고 돌려준다 — 호출자가 _comfort 로 위로를 잇는다 (11/23).
     LOW·SAD·RISK·private 은 _note_mood 가 대화 기록과 가족 알림으로 남긴다 (D55).
+    잡담(CHAT, D106)은 chat_buddy 가 말하고, 표정·가자는 화면·제목을 AI 턴에 함께 남긴다. resume_of 는 잡담 첫 말에만.
     """
     t0 = time.perf_counter()
     turn_no = turn_no or session.turn_count
     off = _story_offset(session)  # 코치에는 사진 질문 번호로 넘긴다 — 어제 이야기 질문은 세지 않는다 (D77)
     signal, private, code = "NONE", False, None
-    if session.kind == "DIARY":
+    if session.kind == "CHAT":
+        room = db.get(FamilyRoom, session.room_id)
+        data = chat.data(db, room, session, closing=end is not None, max_turns=_max_turns(session), resume_of=resume_of)
+        reply, signal, private = coach.chat_reply(data)
+    elif session.kind == "DIARY":
         if end is None:
             reply = coach.diary_question(ctx, turn_no, _max_turns(session))
             # 일기 동무 AI 가 직전 답에서 본 신호 (11/19 S3) — 2~4번째 질문을 만들 때만 온다(1번은 어르신 말 전,
@@ -256,6 +273,11 @@ def _ask(
         urgent="BODY" if signal == "BODY" else None,
         # LOW 는 다음 날 안부 주제를(services/care.py), SAD 는 그 사진을 한동안 쉬게 하는 데 쓴다(services/picks.py)
         signal=signal if signal in ("LOW", "SAD") else None,
+        # 잡담(D106): 표정·가자는 화면·지난 이야기 제목·이어서 한 잡담 — 회상·일기 답에는 없는 값이라 None(키 없음)
+        face=getattr(reply, "face", None),
+        go=getattr(reply, "go", None),
+        topic=getattr(reply, "topic", None),
+        resume_of=str(resume_of) if resume_of else None,
     )
     _last_reply[session.session_id] = reply
     return reply, signal
@@ -418,6 +440,8 @@ def _ai_out(db, session: TalkSession, room: FamilyRoom, reply: CoachReply) -> Ai
         choice_mode=reply.choice_mode,
         question_type=reply.question_type,
         care=_caring(session),
+        face=getattr(reply, "face", None),  # 잡담만 (D106)
+        go=getattr(reply, "go", None),
     )
 
 
@@ -436,7 +460,8 @@ def _talk_seconds(session: TalkSession) -> float:
 
 
 def _expired(session: TalkSession) -> bool:
-    return _talk_seconds(session) > MAX_SESSION_SEC + (MORE_SESSION_SEC if session.session_id in _more else 0)
+    limit = CHAT_SESSION_SEC if session.kind == "CHAT" else MAX_SESSION_SEC  # 잡담은 20분 (D106)
+    return _talk_seconds(session) > limit + (MORE_SESSION_SEC if session.session_id in _more else 0)
 
 
 def _stale(session: TalkSession) -> bool:
@@ -531,6 +556,11 @@ def create_session(body: SessionCreateIn, device: CurrentDevice, db: DB):
         )
         if (albums_today or 0) >= ALBUM_PER_DAY:
             raise ApiError(409, "ALBUM_LIMIT", "오늘은 사진첩 이야기를 다 했어요. 내일 또 해요")
+    resume_of = None
+    if body.kind == "CHAT" and body.resume_of:  # '지난 이야기'에서 [이어서 하기] (D106)
+        if chat.earlier_of(db, room.room_id, body.resume_of) is None:
+            raise ApiError(404, "SESSION_NOT_FOUND", "지난 이야기를 찾을 수 없어요")
+        resume_of = body.resume_of
     pick = None
     if body.pick_id:
         pick = db.get(DailyPick, body.pick_id)
@@ -568,9 +598,24 @@ def create_session(body: SessionCreateIn, device: CurrentDevice, db: DB):
     # 그날 첫 회상 대화는 지난 대화의 이야기로 시작할 수 있다 (AI-07, D77). 물을 기억이 없으면 평소처럼 사진 질문
     reply = _ask_story(db, session, ctx) if session.kind == "MEMORY" else None
     if reply is None:
-        reply, _ = _ask(db, session, ctx)  # 어르신 말 전이라 signal 은 늘 NONE (coach)
+        reply, _ = _ask(db, session, ctx, resume_of=resume_of)  # 어르신 말 전이라 signal 은 늘 NONE (coach)
     db.commit()
     return _out(db, session, room, reply)
+
+
+@router.get("", response_model=list[ChatItemOut])
+def list_chats(device: CurrentDevice, db: DB, kind: Literal["CHAT"]):
+    """'지난 이야기' 목록 (D106) — 잡담만, 최신 순. 한 잡담의 말은 GET /elder/sessions/{id} 의 turns 로 읽는다.
+    회상·일기는 사진첩·지난 일기 화면이 따로 보여 주므로 kind=CHAT 만 받는다."""
+    return [
+        ChatItemOut(
+            session_id=s.session_id,
+            started_at=s.started_at,
+            title=chat.title_of(s),
+            elder_turns=sum(1 for t in s.turns if t.get("speaker") == "ELDER"),
+        )
+        for s in chat.recent(db, device.room_id)
+    ]
 
 
 @router.get("/{session_id}", response_model=SessionGetOut)
@@ -599,6 +644,7 @@ def get_session(session_id: uuid.UUID, device: CurrentDevice, db: DB):
             choice_mode=reply.choice_mode,
             question_type=reply.question_type,
             care=_caring(session),
+            face=getattr(reply, "face", None),  # 잡담만 — 가자는 화면(go)은 다시 열 때 또 데려가지 않게 싣지 않는다
         )
         if reply
         else None,
@@ -704,7 +750,9 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
             return _out(db, session, room, reply, "ENDED", "NO_RESPONSE")
         last = _last_reply.get(session.session_id) or _fallback(session)
         mood_question = session.kind == "DIARY" and session.turn_count >= _max_turns(session)
-        if stage >= 2 and not mood_question:  # 일기 기분 질문은 칩 4개 그대로 (둘만 남기면 기분이 한쪽으로 치우친다)
+        if session.kind == "CHAT":  # 잡담은 답 버튼이 없다 — 같은 말을 다시. 가자는 화면은 다시 데려가지 않는다 (D106)
+            last = last.model_copy(update={"go": None}) if getattr(last, "go", None) else last
+        elif stage >= 2 and not mood_question:  # 일기 기분 질문은 칩 4개 그대로 (둘만 남기면 기분이 한쪽으로 치우친다)
             last = last.model_copy(
                 update={"choice_mode": "TWO_BUTTONS", "suggestions": (last.suggestions or ["네", "아니요"])[:2]}
             )

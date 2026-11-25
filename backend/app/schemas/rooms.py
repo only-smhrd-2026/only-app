@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.config import REGIONS
+
 RelationTag = Literal["CHILD", "GRANDCHILD", "OTHER"]
 InviteKind = Literal["FAMILY", "ELDER_DEVICE"]
 
@@ -26,6 +28,7 @@ class RoomOut(BaseModel):
     font_size: str
     tts_speed: Decimal
     tts_voice: str  # FEMALE | MALE — 어르신께 들려 드리는 목소리 (D74)
+    weather_region: str | None = None  # 어르신 동네(시·도) — 심심이 날씨 (D106). None = 안 정함
     device_input_mode: str  # VOICE | BUTTON — 가족방 설정 화면(GROUP_003)이 지금 값을 보여 준다
     status: str
     is_owner: bool = False
@@ -124,9 +127,17 @@ class RoomSettingsIn(BaseModel):
     font_size: Literal["L", "XL", "XXL"] | None = None
     tts_speed: Literal["0.80", "0.90", "1.00"] | None = None  # RoomOut과 같이 글자로 받는다 (D74)
     tts_voice: Literal["FEMALE", "MALE"] | None = None  # 어르신께 들려 드리는 목소리 (D74)
+    weather_region: str | None = None  # 어르신 동네(시·도) — 심심이 날씨 (D106). config.REGIONS 의 이름만
     device_input_mode: Literal["VOICE", "BUTTON"] | None = None
     elder_name: str | None = Field(default=None, min_length=1, max_length=10)
     elder_honorific: str | None = Field(default=None, min_length=1, max_length=20)
+
+    @field_validator("weather_region")
+    @classmethod
+    def known_region(cls, value):
+        if value is not None and value not in REGIONS:
+            raise ValueError("동네는 시·도 목록에서 골라 주세요")
+        return value
 
     @field_validator("elder_name", "elder_honorific", mode="before")
     @classmethod
