@@ -21,6 +21,11 @@
 .ehome-say .elder-bub { flex: none; white-space: pre-line; font-weight: 800; line-height: 1.32; text-wrap: balance; }
 /* 심심이는 230px 까지, 화면이 낮으면 남는 높이만큼 줄어든다 */
 .ehome-say .elder-sim { flex: 0 1 auto; min-height: 0; width: auto; height: min(230px, 100%); max-width: 230px; object-fit: contain; }
+/* 심심이 = 잡담 버튼 (D106). 그림 자리·크기는 위와 같게 — 홈 모양은 바뀌지 않는다 */
+.ehome-simbtn { flex: 0 1 auto; min-height: 0; height: min(230px, 100%); display: flex; justify-content: center; padding: 0; border: 0; border-radius: 28px; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ehome-simbtn .elder-sim { height: 100%; transition: transform .12s ease; }
+.ehome-simbtn:active .elder-sim { transform: scale(.96); }
+@media (prefers-reduced-motion: reduce) { .ehome-simbtn .elder-sim { transition: none; } }
 .ehome-grid { flex: none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .ehome-tile {
   position: relative;

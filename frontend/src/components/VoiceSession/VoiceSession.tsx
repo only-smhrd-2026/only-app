@@ -28,11 +28,16 @@
  *   이어서(D52 ⑥): 화면을 떠나도 서버 대화는 마지막 턴 뒤 30분 살아 있다. 대화 번호를 기기에 적어 두고(lib/pausedSession),
  *   다시 열면(새로고침·홈의 '이어서') '아까 하던 이야기를 이어서 할게요.' 뒤에 그 질문부터 다시 읽는다. 끝나면 지운다.
  * 화면을 벗어나면(언마운트) alive=false 로 모든 후속 동작(타이머·재생·요청 뒤 처리)을 멈춘다.
+ *
+ * 잡담 모양(chat, D106 — 11/25 멘토 아이디어 '심심이랑 이야기'): 말하기 길(녹음·STT·끼어들기·끊김·위로·119)은 위와 같고
+ * 모양만 다르다 — 위에 심심이 무대(말할 때 통통·들을 때 갸웃·생각할 때 흔들 + 말 따라 표정), 아래로 ChatGPT 처럼 말풍선
+ * (심심이 말은 글자가 하나씩), 답 버튼 없음(말하기·글자로만). 어르신이 일기·사진첩·가족 소식·마음 체크로 가자고 하시면
+ * 서버가 go 를 주고 → 말을 다 들려준 뒤 '바로 열어 드릴게요' 판(GO_MS 뒤 저절로, [지금 가기]·[더 이야기할래요]).
  */
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { AiOut, EndReason, SessionGetOut, SessionOut, SttOut, TurnIn, TurnOut } from '../../api/types'
+import type { AiOut, ChatGo, EndReason, SessionGetOut, SessionOut, SttOut, TurnIn, TurnOut } from '../../api/types'
 import { cue, micBlockedTip, PROMPT, say, startRecording, stopSpeaking, type Recorder } from '../../lib/audio'
 import { clearPaused, RESUME_LEAD, savePaused } from '../../lib/pausedSession'
 import ElderPhoto from '../ElderPhoto'
@@ -67,6 +72,11 @@ const MOODS: Record<string, { face: string; ack?: string }> = {
   속상했어요: { face: '😢', ack: '속상하셨군요. 말씀해 주셔서 고마워요.' },
   쓸쓸했어요: { face: '😔', ack: '쓸쓸하셨군요. 말씀해 주셔서 고마워요.' },
 }
+
+// 잡담(D106) — 가자고 하신 화면으로 데려가기 전 기다리는 시간 · 판 글 · 심심이 글자가 나오는 빠르기(목소리 0.9배와 비슷하게)
+const GO_MS = 2_600
+const GO_LABEL: Record<ChatGo, string> = { DIARY: '오늘의 이야기 쓰기', ALBUM: '사진첩', NEWS: '가족 소식', MIND: '마음 체크' }
+const TYPE_CHAR_MS = 90
 
 const ERROR_AI: AiOut = {
   text: PROMPT.error,
@@ -150,10 +160,16 @@ type Props = {
   onDone: () => void // 끝난 뒤 [다 들었어요]·[조금 쉴게요]
   onMore?: () => void // 끝난 뒤 [더 이야기할래요] (회상만)
   maxTurns?: number // 회상 5 (서버 MAX_TURNS, D97), 일기 5 (서버 DIARY_TURNS). 진행 숫자는 11/12 뺐다 — 받기만 함
+  chat?: ChatProps // 있으면 잡담 모양 (D106)
+}
+type ChatProps = {
+  onGo: (go: ChatGo) => void // 어르신이 가자고 하신 화면으로
+  earlier?: TurnOut[] // '지난 이야기'에서 이어서 한 잡담의 말 — 맨 위에 흐리게
+  earlierLabel?: string // 그 밑 구분 글 ('11월 24일 이야기')
 }
 
 export default function VoiceSession(props: Props) {
-  const { sessionId, initial, history, speed, inputMode, who, title, photo, onEnded, onDone, onMore } = props
+  const { sessionId, initial, history, speed, inputMode, who, title, photo, onEnded, onDone, onMore, chat } = props
   const nav = useNavigate()
   const [phase, setPhase] = useState<Phase>('IDLE')
   const [ai, setAi] = useState<AiOut>(initial.ai)
@@ -185,6 +201,8 @@ export default function VoiceSession(props: Props) {
   const over = useRef(false) // 끝내는 중·끝남 — 뒤늦은 응답·복귀를 무시
   const lock = useRef<WakeLockSentinel | null>(null)
   const wantLock = useRef(false)
+  const [handoff, setHandoff] = useState<ChatGo>() // 잡담: 가자고 하신 화면 — '바로 열어 드릴게요' 판
+  const [typed, setTyped] = useState(Infinity) // 잡담: 심심이 말이 지금까지 나온 글자 수
 
   function later(ms: number, fn: () => void) {
     if (!alive.current) return
@@ -268,6 +286,25 @@ export default function VoiceSession(props: Props) {
       return setPhase('TAP') // 카드를 누르면 그 터치로 다시 읽는다 (D48)
     }
     if (r.state === 'ENDED') return endWith(r)
+    if (chat && r.ai.go) return goSoon(r.ai.go)
+    startWaiting()
+  }
+
+  /** 잡담: 가자고 하신 화면 — 판을 띄우고 GO_MS 뒤 저절로. 그사이 말하기·글자로를 누르면 판을 접고 이야기를 잇는다 */
+  function goSoon(go: ChatGo) {
+    clearTimers()
+    setHandoff(go)
+    setPhase('WAITING')
+    later(GO_MS, () => goNow(go))
+  }
+  function goNow(go: ChatGo) {
+    clearTimers()
+    stopSpeaking()
+    setHandoff(undefined)
+    chat?.onGo(go)
+  }
+  function stayHere() {
+    setHandoff(undefined)
     startWaiting()
   }
 
@@ -324,6 +361,7 @@ export default function VoiceSession(props: Props) {
     seq.current += 1 // 끼어들기: 읽던 질문의 뒤 처리(기다리기 시작)를 버린다
     clearTimers()
     stopSpeaking() // 질문·안내를 읽는 중에 답했으면 끊는다
+    setHandoff(undefined)
     setNote(undefined)
     setTyping(false)
     setPhase('THINKING')
@@ -346,6 +384,9 @@ export default function VoiceSession(props: Props) {
     if (r) {
       stopSpeaking() // 8초 안내 낭독 중이었으면 끊고 답을 읽는다
       pending.current = null
+      // 잡담: 서버를 다시 읽기 전에 앞 말·내 말을 먼저 올린다 — 말풍선이 잠깐 사라졌다 나타나지 않게 (아래 loadLog 가 바로잡음)
+      const said = body.text
+      if (chat && said) setLog((l) => [...l, { speaker: 'AI', text: last.current.ai.text }, { speaker: 'ELDER', text: said }])
       void loadLog() // 방금 한 답과 앞 질문이 말풍선으로 올라간다
       if (r.state !== 'ENDED') savePaused({ id: sessionId, kind: initial.kind, at: Date.now() }) // 30분은 마지막 턴부터
       return present(r)
@@ -401,6 +442,7 @@ export default function VoiceSession(props: Props) {
   async function beginRecording() {
     clearTimers()
     stopSpeaking() // 끼어들기: 읽던 질문을 멈춘다
+    setHandoff(undefined) // 잡담: 다른 화면으로 가려던 판을 접고 이야기를 잇는다
     setNote(undefined) // '잘 못 들었어요' 안내가 녹음 중에 남지 않게
     setTyping(false)
     setPhase('IDLE') // 마이크 준비 동안 버튼을 꺼서 녹음 두 번 시작·칩 동시 전송을 막는다
@@ -491,6 +533,7 @@ export default function VoiceSession(props: Props) {
     if (!canAnswer) return
     seq.current += 1 // 읽던 질문의 뒤 처리(20초 무응답 시작)를 버린다
     stopSpeaking()
+    setHandoff(undefined)
     setPhase('WAITING')
     setTyping(true)
     typeTimer()
@@ -592,10 +635,28 @@ export default function VoiceSession(props: Props) {
   }, [])
 
   // 새 말풍선·새 질문이 오면 맨 아래(지금 질문)가 보이게 (D102). 위로 밀어 보던 중이어도 새 질문이 오면 내려온다
+  // 잡담은 글자가 나올 때마다·판이 뜰 때도 (typed·handoff·phase)
   useEffect(() => {
     const el = scroller.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [log.length, ai.text, note])
+  }, [log.length, ai.text, note, typed, handoff, phase])
+
+  // 잡담: 새 심심이 말은 글자가 하나씩 나온다(ChatGPT 처럼). 움직임 줄이기 설정이면 바로 다 보인다
+  const isChat = !!chat
+  useEffect(() => {
+    if (!isChat) return
+    const len = ai.text.length
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    let n = still ? len : 0
+    setTyped(n)
+    if (still) return
+    const id = window.setInterval(() => {
+      n += 1
+      setTyped(n)
+      if (n >= len) window.clearInterval(id)
+    }, TYPE_CHAR_MS)
+    return () => window.clearInterval(id)
+  }, [isChat, ai.text])
 
   const mood = isMoodAsk(ai)
   const confirm = isConfirm(ai)
@@ -743,16 +804,18 @@ export default function VoiceSession(props: Props) {
       </div>
     )
   } else {
-    // 답 버튼 줄은 늘 그 자리에 — 사진 크기가 들썩이지 않게 (시안)
+    // 답 버튼 줄은 늘 그 자리에 — 사진 크기가 들썩이지 않게 (시안). 잡담은 답 버튼이 없다 (D106)
     dock = (
       <>
-        <div className="vs-row">
-          {(redoing ? [] : chipsFor(ai)).map((c) => (
-            <button key={c} type="button" className="vs-key vs-chip" onClick={() => void onChip(c)} disabled={!canAnswer}>
-              {c}
-            </button>
-          ))}
-        </div>
+        {!chat && (
+          <div className="vs-row">
+            {(redoing ? [] : chipsFor(ai)).map((c) => (
+              <button key={c} type="button" className="vs-key vs-chip" onClick={() => void onChip(c)} disabled={!canAnswer}>
+                {c}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="vs-row">
           {phase === 'RECORDING' ? (
             // 듣는 중: 노랑 그대로 + 빨간 점. 남은 시간 숫자는 없다 (60초면 저절로 끝남)
@@ -795,6 +858,112 @@ export default function VoiceSession(props: Props) {
           )}
         </div>
       </>
+    )
+  }
+
+  const sheet = typing && (
+    <>
+      <div className="vs-scrim" onClick={closeTyping} />
+      {/* 자판이 아래를 가리므로 판은 화면 위쪽에, [보내기]는 칸 바로 옆에 (11/23 시안) */}
+      <form className="vs-sheet" role="dialog" aria-modal="true" aria-label="글자로 답하기" onSubmit={submitTyping}>
+        <h2>글자로 답하기</h2>
+        <div className="vs-row">
+          <input
+            autoFocus
+            className="vs-field"
+            type="text"
+            enterKeyHint="send"
+            autoComplete="off"
+            maxLength={MAX_TEXT}
+            placeholder="여기에 써 주세요"
+            aria-label="글자로 답하기"
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value)
+              typeTimer()
+            }}
+          />
+          <button type="submit" className="vs-key vs-key--p vs-send">
+            보내기
+          </button>
+        </div>
+        <button type="button" className="vs-key" onClick={closeTyping}>
+          말로 할게요
+        </button>
+      </form>
+    </>
+  )
+
+  if (chat) {
+    // 잡담 모양 (D106): 위 심심이 무대 · 말풍선(지난 이야기 → 이번 잡담 → 지금 심심이 말) · 받침
+    const earlier = chat.earlier ?? []
+    const chatFace: SimFace =
+      phase === 'RECORDING' || phase === 'IDLE'
+        ? 'curious'
+        : phase === 'THINKING' || phase === 'TRANSCRIBING' || phase === 'OFFLINE'
+          ? 'ask'
+          : care
+            ? 'smile'
+            : (ai.face ?? 'smile')
+    const shown = phase === 'SPEAKING' && line === ai.text ? line.slice(0, typed) : line
+    const small = log.length + earlier.length >= 2 // 말풍선이 쌓이면 심심이가 작아져 자리를 내준다
+    const live = phase === 'RECORDING' || phase === 'IDLE' || phase === 'TRANSCRIBING'
+    return (
+      <section className="vs vs--chat">
+        <h1 className="vs-sr">{title}</h1>
+        <div className={`vs-stage vs-stage--${phase.toLowerCase()}${small ? ' vs-stage--small' : ''}`}>
+          <span className="vs-stage-sim">
+            <span className="vs-halo" aria-hidden="true" />
+            <Sim key={chatFace} face={chatFace} size={170} />
+          </span>
+          {status}
+        </div>
+        <div className="vs-scroll" ref={scroller}>
+          {earlier.map((t, i) => (
+            <p key={`e${i}`} className={`vs-bub vs-bub--${t.speaker === 'AI' ? 'ai' : 'me'} vs-bub--old`}>
+              {t.text}
+            </p>
+          ))}
+          {earlier.length > 0 && <p className="vs-sep">{chat.earlierLabel ?? '지난 이야기'}</p>}
+          {log.map((t, i) => (
+            <p key={i} className={`vs-bub vs-bub--${t.speaker === 'AI' ? 'ai' : 'me'}`}>
+              {t.text}
+            </p>
+          ))}
+          {/* 지금 심심이 말 — 누르면 다시 들음 (D51 ⑥) */}
+          <button type="button" className="vs-bub vs-bub--ai vs-bub--now" onClick={replayCard} disabled={phase === 'RECORDING'}>
+            <span aria-live="polite">{shown}</span>
+          </button>
+          {live && <p className="vs-bub vs-bub--me vs-bub--live">{phase === 'TRANSCRIBING' ? '받아 적는 중…' : '듣고 있어요…'}</p>}
+          {me && (phase === 'THINKING' || phase === 'OFFLINE') && <p className="vs-bub vs-bub--me">{me}</p>}
+          {handoff && (
+            <div className="vs-go" role="status">
+              <b>{GO_LABEL[handoff]}</b>
+              <span>바로 열어 드릴게요</span>
+              <span className="vs-go-bar" aria-hidden="true">
+                <i />
+              </span>
+              <span className="vs-row">
+                <button type="button" className="vs-key vs-key--p" onClick={() => goNow(handoff)}>
+                  지금 가기
+                </button>
+                <button type="button" className="vs-key" onClick={stayHere}>
+                  더 이야기할래요
+                </button>
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="vs-dock">
+          {urgent === 'BODY' && (
+            <a className="vs-key vs-urgent" href="tel:119">
+              119 전화하기
+            </a>
+          )}
+          {dock}
+        </div>
+        {sheet}
+      </section>
     )
   }
 
@@ -846,38 +1015,7 @@ export default function VoiceSession(props: Props) {
         {dock}
       </div>
 
-      {typing && (
-        <>
-          <div className="vs-scrim" onClick={closeTyping} />
-          {/* 자판이 아래를 가리므로 판은 화면 위쪽에, [보내기]는 칸 바로 옆에 (11/23 시안) */}
-          <form className="vs-sheet" role="dialog" aria-modal="true" aria-label="글자로 답하기" onSubmit={submitTyping}>
-            <h2>글자로 답하기</h2>
-            <div className="vs-row">
-              <input
-                autoFocus
-                className="vs-field"
-                type="text"
-                enterKeyHint="send"
-                autoComplete="off"
-                maxLength={MAX_TEXT}
-                placeholder="여기에 써 주세요"
-                aria-label="글자로 답하기"
-                value={draft}
-                onChange={(e) => {
-                  setDraft(e.target.value)
-                  typeTimer()
-                }}
-              />
-              <button type="submit" className="vs-key vs-key--p vs-send">
-                보내기
-              </button>
-            </div>
-            <button type="button" className="vs-key" onClick={closeTyping}>
-              말로 할게요
-            </button>
-          </form>
-        </>
-      )}
+      {sheet}
     </section>
   )
 }

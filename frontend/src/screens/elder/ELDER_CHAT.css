@@ -1,0 +1,20 @@
+/* 심심이 잡담 (D106) — ELDER_CHAT_001 대화 · ELDER_CHAT_002 지난 이야기. 시안 설계자료/목업_1125_심심이대화 */
+
+/* 오른쪽 위 [지난 이야기] — 왼쪽 위 [뒤로](ElderBackFrame .elder-back)와 같은 높이·크기 */
+.echat-past { position: absolute; top: 10px; right: var(--elder-pad); z-index: 10; gap: 4px; }
+
+/* 지난 이야기 목록 — 이 목록만 스크롤한다 (지난 일기와 같음, D60) */
+.echat-list { min-height: 100dvh; }
+.echat-items { padding-bottom: 6px; }
+.echat-item { min-height: 80px; justify-content: flex-start; gap: 12px; padding: 10px 14px; text-align: left; }
+.echat-item > img { flex: none; width: 56px; height: auto; }
+.echat-item > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; line-height: 1.25; }
+.echat-item small { font-size: var(--elder-font-size-s); font-weight: 600; color: var(--elder-ink2); }
+
+/* 지난 이야기 하나 — 말풍선 + 아래 [이 이야기 이어서 하기] */
+.echat-view { display: flex; flex-direction: column; gap: 12px; }
+.echat-view h1 { margin: 0; }
+.echat-log { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.echat-bub { flex: none; max-width: 86%; margin: 0; padding: 10px 16px; border-radius: 20px; font-size: var(--elder-font-size-s); font-weight: 600; line-height: 1.38; white-space: pre-line; overflow-wrap: anywhere; }
+.echat-bub--ai { align-self: flex-start; border-bottom-left-radius: 6px; background: var(--elder-card); box-shadow: 0 0 0 1px var(--elder-line); }
+.echat-bub--me { align-self: flex-end; border-bottom-right-radius: 6px; background: var(--elder-brand-hi); }

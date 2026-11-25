@@ -283,3 +283,49 @@ html[data-font='XXL'] .vs-dot { width: 36px; height: 36px; }
 @media (prefers-reduced-motion: reduce) {
   .vs-nudge::after, .vs-bars i, .vs-dots i, .vs-recdot, .vs-rec .vs-dot, .vs-card--recording .vs-who img { animation: none; }
 }
+
+/* ---------- 잡담 모양 (D106, 시안 설계자료/목업_1125_심심이대화) ----------
+ * 위 심심이 무대: 말할 때 통통·빛 퍼짐, 들을 때 갸웃·빛 모임, 생각할 때 흔들, 기다릴 때 숨쉬기. 말풍선이 쌓이면 작아진다.
+ * 말풍선은 ChatGPT 처럼 위에서 아래로 — 지금 심심이 말(.vs-bub--now)은 누르면 다시 듣는다. */
+.vs--chat { padding-top: 4px; }
+.vs-stage { flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; transition: gap 0.3s var(--elder-ease); }
+.vs-stage-sim { position: relative; display: grid; place-items: center; width: 170px; height: 156px; transition: width 0.3s var(--elder-ease), height 0.3s var(--elder-ease); }
+.vs-stage-sim img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain; transform-origin: 50% 92%; filter: drop-shadow(0 10px 8px rgba(60, 35, 0, 0.16)); animation: vs-pop 0.3s var(--elder-ease); }
+.vs-halo { position: absolute; inset: 4%; border-radius: 50%; background: radial-gradient(closest-side, var(--vs-soft), transparent); }
+.vs-halo::before, .vs-halo::after { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 3px solid var(--vs-brand); opacity: 0; }
+.vs-stage--small { flex-direction: row; justify-content: center; gap: 12px; }
+.vs-stage--small .vs-stage-sim { width: 92px; height: 84px; }
+.vs-stage--waiting .vs-stage-sim img, .vs-stage--ended .vs-stage-sim img, .vs-stage--tap .vs-stage-sim img { animation: vs-pop 0.3s var(--elder-ease), vs-breathe 3.2s ease-in-out 0.3s infinite; }
+.vs-stage--speaking .vs-stage-sim img { animation: vs-talk 0.4s ease-in-out infinite alternate; }
+.vs-stage--speaking .vs-halo::before { animation: vs-out 1.4s ease-out infinite; }
+.vs-stage--speaking .vs-halo::after { animation: vs-out 1.4s ease-out 0.7s infinite; }
+.vs-stage--recording .vs-stage-sim img, .vs-stage--idle .vs-stage-sim img { animation: vs-lean 1.4s ease-in-out infinite alternate; }
+.vs-stage--recording .vs-halo::before { animation: vs-in 1.3s ease-in infinite; }
+.vs-stage--recording .vs-halo::after { animation: vs-in 1.3s ease-in 0.65s infinite; }
+.vs-stage--thinking .vs-stage-sim img, .vs-stage--transcribing .vs-stage-sim img { animation: vs-sway 1.6s ease-in-out infinite; }
+.vs--chat .vs-scroll { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px); mask-image: linear-gradient(to bottom, transparent 0, #000 14px); padding-top: 6px; }
+.vs--chat .vs-bub { font-size: var(--elder-font-size-s); white-space: pre-line; }
+.vs-bub--old { opacity: 0.6; }
+.vs-bub--now { border: 0; color: var(--vs-ink); font: inherit; font-size: var(--elder-font-size-s); font-weight: 600; line-height: 1.38; text-align: left; cursor: pointer; min-height: 1.38em; }
+.vs-bub--now:focus-visible { outline: 4px solid var(--vs-ink); outline-offset: 2px; }
+.vs-bub--now:disabled { cursor: default; }
+.vs-bub--live { background: var(--vs-soft); color: var(--vs-ink2); outline: 2px dashed var(--vs-lip); outline-offset: -2px; }
+.vs-sep { flex: none; align-self: center; margin: 0; padding: 3px 12px; border-radius: 999px; background: var(--vs-bg2); color: var(--vs-ink2); font-size: 17px; font-weight: 700; }
+.vs-go { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 20px; background: var(--vs-soft); box-shadow: 0 0 0 1.5px var(--vs-lip); }
+.vs-go b { font-size: var(--elder-font-size); font-weight: 800; }
+.vs-go > span:not([class]) { font-size: 20px; font-weight: 600; color: var(--vs-ink2); }
+.vs-go-bar { height: 6px; border-radius: 3px; background: var(--vs-surf); overflow: hidden; }
+.vs-go-bar i { display: block; height: 100%; background: var(--vs-lip); transform-origin: left; animation: vs-fill 2.6s linear forwards; }
+@keyframes vs-pop { from { transform: scale(0.9); } }
+@keyframes vs-breathe { 50% { transform: scale(1.035); } }
+@keyframes vs-talk { to { transform: translateY(-8px) scale(1.02, 0.97); } }
+@keyframes vs-lean { from { transform: rotate(-4deg) scale(1.04); } to { transform: rotate(-8deg) scale(1.07); } }
+@keyframes vs-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+@keyframes vs-out { from { transform: scale(0.75); opacity: 0.8; } to { transform: scale(1.35); opacity: 0; } }
+@keyframes vs-in { from { transform: scale(1.4); opacity: 0; } to { transform: scale(0.8); opacity: 0.8; } }
+@keyframes vs-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .vs-stage-sim img, .vs-halo::before, .vs-halo::after { animation: none !important; }
+  .vs-stage, .vs-stage-sim { transition: none; }
+  .vs-go-bar i { animation: none; transform: none; }
+}

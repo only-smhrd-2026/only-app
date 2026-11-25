@@ -27,6 +27,7 @@ from app.ai import llm
 from app.ai.quiz import Quiz, QuizPlan
 from app.ai.schemas import (
     BANNED_WORDS,
+    ChatTurn,
     CoachReply,
     CoachTurn,
     DiaryDraft,
@@ -503,6 +504,44 @@ def comfort(ctx: CoachContext, n: int) -> CoachReply:
     except (llm.LlmError, NotImplementedError):
         return CoachReply(text=COMFORT_LINES[(n - 1) % len(COMFORT_LINES)], suggestions=[], question_type="NONE")
     return out.model_copy(update={"suggestions": out.suggestions[:2], "question_type": "NONE"})
+
+
+# ---------------------------------------------------------------- 심심이 잡담 (D106)
+class ChatReply(CoachReply):
+    """잡담 한 마디 — 회상·일기와 같은 대화 길(routers/sessions.py)로 다니고, 화면용 표정·가자는 화면·제목을 더 싣는다.
+    잡담은 물음표 2개·120자까지라(ChatTurn 이 검사함) model_construct 로 만든다 — CoachReply 검사(물음표 1개)를
+    다시 걸지 않게."""
+
+    face: str | None = None  # 심심이 표정 (Sim 그림 이름)
+    go: str | None = None  # DIARY | ALBUM | NEWS | MIND — 어르신이 가자고 하신 화면
+    topic: str | None = None  # '지난 이야기' 제목
+
+
+def _chat(text: str, face: str, question_type: str = "NONE", **extra: Any) -> ChatReply:
+    return ChatReply.model_construct(text=text, suggestions=[], question_type=question_type, face=face, **extra)
+
+
+CHAT_FALLBACK = _chat("아이고, 제가 잠깐 딴생각을 했어요. 다시 한 번 말씀해 주시겠어요?", "ask")
+CHAT_CLOSING = _chat("오늘 이야기 즐거웠어요. 또 심심하시면 언제든 불러 주세요.", "hello", "CLOSING")
+
+
+def chat_reply(data: dict[str, Any]) -> tuple[CoachReply, str, bool]:
+    """잡담 한 마디와 signal(NONE|LOW|RISK|BODY|STOP)·private. data = services/chat.data.
+
+    위급(RISK 마음·BODY 몸)은 회상과 같은 코드 문장 — 호출자가 위로를 잇거나(RISK) 119 와 함께 끝낸다(BODY).
+    STOP·closing 이면 그 말은 마무리 인사(질문 없음). AI 가 실패하면 고정 문장과 UNREAD (D14).
+    """
+    try:
+        out = llm.call_json("chat_buddy", data, ChatTurn)
+    except (llm.LlmError, NotImplementedError):
+        return (CHAT_CLOSING if data.get("closing") else CHAT_FALLBACK), UNREAD, False
+    signal = out.signal if any(t["speaker"] == "ELDER" for t in data["turns"]) else "NONE"  # 어르신 말 전 신호는 무시
+    if signal in URGENT_CLOSINGS:
+        return URGENT_CLOSINGS[signal], signal, out.private
+    closing = signal == "STOP" or bool(data.get("closing"))
+    go = None if closing or out.go == "NONE" else out.go
+    reply = _chat(out.text, out.face, "CLOSING" if closing else "NONE", go=go, topic=out.topic or None)
+    return reply, signal, out.private
 
 
 def elder_reply(transcript: str) -> str:

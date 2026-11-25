@@ -108,6 +108,41 @@ class CoachReply(BaseModel):
         return check_chips(v)
 
 
+CHAT_TEXT_MAX = 120  # 잡담 한 마디 상한 — 물으신 것에 답할 때 세 문장(프롬프트는 110자를 달라고 함, D106)
+CHAT_TOPIC_MAX = 20  # '지난 이야기' 제목 (프롬프트는 빈칸 빼고 15자)
+
+
+class ChatTurn(BaseModel):
+    """심심이 잡담 한 마디 (D106). text: 할 말, face: 심심이 표정, go: 어르신이 가자고 하신 화면, topic: 이야기 제목,
+    signal: 어르신 직전 말로 본 상태, private: 가족에게 전하지 말라고 하셨는지."""
+
+    text: str = Field(min_length=1, max_length=CHAT_TEXT_MAX)
+    face: Literal["hello", "joy", "smile", "curious", "ask", "thumbs"] = "smile"
+    go: Literal["NONE", "DIARY", "ALBUM", "NEWS", "MIND"] = "NONE"
+    topic: str = Field(default="", max_length=CHAT_TOPIC_MAX)
+    signal: Literal["NONE", "LOW", "RISK", "BODY", "STOP"] = "NONE"
+    private: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _urgent(cls, data):
+        return _urgent_text(data)
+
+    @field_validator("text")
+    @classmethod
+    def _text_rules(cls, v: str) -> str:
+        v = v.strip()
+        # 물음표 2개까지: "김치 열 포기요?"처럼 되받는 감탄 + 질문 하나 (11/25 시험판에서 1개 상한에 자주 걸림)
+        if question_marks(v) > 2:
+            raise ValueError("질문은 한 번에 하나만 (되받는 감탄 포함 물음표 ≤ 2)")
+        return check_banned(v)
+
+    @field_validator("topic")
+    @classmethod
+    def _topic_rules(cls, v: str) -> str:
+        return " ".join(v.split())
+
+
 class CoachTurn(BaseModel):
     """회상 대화 한 턴. text: 이번에 할 말, suggestions: 어르신이 고를 짧은 답, signal: 어르신 직전 말로 본 상태,
     private: 어르신이 이 이야기를 가족에게 전하지 말라고 하셨는지."""

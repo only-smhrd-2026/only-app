@@ -327,7 +327,10 @@ export default function ELDER_HOME_001() {
         </div>
         <div className="ehome-say" role={notice ? 'status' : undefined}>
           <Bub key={bubble} text={bubble} speed={speed} className="elder-bub--down" />
-          <Sim face="hello" size={230} className="elder-sim" />
+          {/* 심심이를 누르면 잡담 (D106, 11/25 멘토 아이디어) — 홈 모양은 그대로, 그림만 누를 수 있게 */}
+          <button type="button" className="ehome-simbtn" onClick={() => nav('/elder/chat', { state: { home } })} aria-label="꼬마심심이랑 이야기하기">
+            <Sim face="hello" size={230} className="elder-sim" />
+          </button>
         </div>
         <div className="ehome-grid">
           {tile('talk', onTalk, pick ? <img src={pick.photo_url} alt="" /> : ART.album, '회상', talkNote)}

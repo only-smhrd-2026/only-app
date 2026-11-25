@@ -46,6 +46,7 @@ CREATE TABLE family_rooms (
     font_size VARCHAR(5) NOT NULL DEFAULT 'XL' CHECK (font_size IN ('L', 'XL', 'XXL')),
     tts_speed NUMERIC(3,2) NOT NULL DEFAULT 0.90 CHECK (tts_speed IN (0.80, 0.90, 1.00)),   -- D74 (전 0.70·0.85·1.00)
     tts_voice VARCHAR(6) NOT NULL DEFAULT 'FEMALE' CHECK (tts_voice IN ('FEMALE', 'MALE')),  -- D74 어르신이 처음 연결 때 고름
+    weather_region VARCHAR(10),                                    -- 어르신 동네(시·도, config.REGIONS) — 심심이 날씨 (D106). NULL = 안 정함
     integration_scope VARCHAR(15) NOT NULL DEFAULT 'NONE' CHECK (integration_scope IN ('NONE', 'SUMMARY_ONLY')),
     integration_consent_at TIMESTAMPTZ,
     external_user_id VARCHAR(64) UNIQUE,
@@ -148,7 +149,7 @@ CREATE TABLE daily_picks (
 CREATE TABLE sessions (
     session_id UUID PRIMARY KEY,
     room_id BIGINT NOT NULL REFERENCES family_rooms(room_id),
-    kind VARCHAR(8) NOT NULL CHECK (kind IN ('MEMORY', 'ALBUM', 'DIARY')),
+    kind VARCHAR(8) NOT NULL CHECK (kind IN ('MEMORY', 'ALBUM', 'DIARY', 'CHAT')),   -- CHAT = 심심이 잡담 (D106)
     pick_id BIGINT REFERENCES daily_picks(pick_id),
     photo_id BIGINT REFERENCES photos(photo_id),
     input_mode VARCHAR(8) NOT NULL CHECK (input_mode IN ('VOICE', 'BUTTON')),
@@ -160,7 +161,7 @@ CREATE TABLE sessions (
     emotion_flag VARCHAR(6) NOT NULL DEFAULT 'NONE' CHECK (emotion_flag IN ('NONE', 'SAD', 'LOW', 'RISK')),   -- S4 DEFAULT. D55: LOW 기운 없는 말, RISK 위급 표현. SAD 는 11/12 전 값
     private_flag BOOLEAN NOT NULL DEFAULT false,
     turns JSONB NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(turns) = 'array'),   -- 아래 주석의 키
-    CONSTRAINT ck_sessions_turn_count CHECK (turn_count BETWEEN 0 AND 8)   -- 8턴 상한 (R17)
+    CONSTRAINT ck_sessions_turn_count CHECK (turn_count BETWEEN 0 AND 30)   -- 8턴 상한 (R17) → 잡담 20번 + 위로 (D106)
 );
 -- turns 한 칸 = AI 한 마디 또는 어르신 한 마디 (turn_no 1=AI, 2=ELDER, 3=AI …). 값 없는 키는 넣지 않는다.
 -- 칸 안의 값은 DB 가 아니라 서버 코드가 검사한다 (D38).
@@ -170,7 +171,9 @@ CREATE TABLE sessions (
 --           fact_id(지난 대화의 이야기로 연 첫 질문 — story_facts.fact_id, D77. RECHECK 는 쓰지 않음),
 --           urgent(BODY — 몸이 위급하다는 말로 끝난 마무리 턴. 화면이 [119 전화하기]를 띄운다, 11/19),
 --           care(오늘의 안부로 연 첫 질문 — care_days.topic, 11/19 돌봄 루프),
---           signal(LOW — 바로 앞 어르신 말을 AI 가 기운 없는 말로 봄. 다음 날 안부 주제를 고르는 데 쓴다)
+--           signal(LOW — 바로 앞 어르신 말을 AI 가 기운 없는 말로 봄. 다음 날 안부 주제를 고르는 데 쓴다),
+--           잡담(CHAT, D106): face(심심이 표정), go(DIARY|ALBUM|NEWS|MIND — 어르신이 가자고 하신 화면),
+--           topic(지난 이야기 목록의 제목), resume_of(이어서 한 지난 잡담의 session_id — 첫 AI 턴에만)
 --   출제  : question_code(문제 은행 code, AI 가 쓴 생각 문제는 'GEN-유형' 예 GEN-REMEMBER — D72, 되짚기는 없음),
 --           hint_level(0~3), recheck_result(REMEMBERED|HINTED|SKIPPED|NA),
 --           answer_summary — 14일 반복 방지는 최근 14일 세션의 question_code → question_bank.code 의 카테고리·활동,
