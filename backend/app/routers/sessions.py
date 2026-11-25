@@ -751,7 +751,8 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
         last = _last_reply.get(session.session_id) or _fallback(session)
         mood_question = session.kind == "DIARY" and session.turn_count >= _max_turns(session)
         if session.kind == "CHAT":  # 잡담은 답 버튼이 없다 — 같은 말을 다시. 가자는 화면은 다시 데려가지 않는다 (D106)
-            last = last.model_copy(update={"go": None}) if getattr(last, "go", None) else last
+            # 가자는 말 뒤면 화면에 갔다 와서 잇는 잡담이다 — '열어 드릴게요'를 되풀이하지 않고 다음 이야기를 청한다
+            last = coach.CHAT_MORE if getattr(last, "go", None) else last
         elif stage >= 2 and not mood_question:  # 일기 기분 질문은 칩 4개 그대로 (둘만 남기면 기분이 한쪽으로 치우친다)
             last = last.model_copy(
                 update={"choice_mode": "TWO_BUTTONS", "suggestions": (last.suggestions or ["네", "아니요"])[:2]}

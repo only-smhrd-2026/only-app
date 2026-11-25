@@ -523,6 +523,8 @@ def _chat(text: str, face: str, question_type: str = "NONE", **extra: Any) -> Ch
 
 CHAT_FALLBACK = _chat("아이고, 제가 잠깐 딴생각을 했어요. 다시 한 번 말씀해 주시겠어요?", "ask")
 CHAT_CLOSING = _chat("오늘 이야기 즐거웠어요. 또 심심하시면 언제든 불러 주세요.", "hello", "CLOSING")
+# 가자는 말('사진첩 열어 드릴게요') 뒤 말씀이 없을 때 — 그 말을 되풀이하지 않고 다음 이야기를 청한다 (11/25 잡담 잇기)
+CHAT_MORE = _chat("또 하고 싶은 이야기나 궁금한 거 있으세요?", "smile")
 
 
 def chat_reply(data: dict[str, Any]) -> tuple[CoachReply, str, bool]:
