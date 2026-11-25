@@ -5,3 +5,4 @@
 .mood-top .elder-steps i { width: 12px; height: 12px; }
 .mood-top .elder-btn--sm { flex: none; width: auto; }
 .mood-face { font-size: 110px; }
+.mood-call { text-decoration: none; } /* 109 전화 버튼은 링크(tel:) — 밑줄 없이 버튼처럼 (11/25) */

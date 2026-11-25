@@ -356,7 +356,7 @@ function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserO
       {replies.length > 0 && (
         <ul className="home-replies">
           {(allReplies ? replies : replies.slice(-2)).map((r) => (
-            <li key={`${r.by}${r.user_id ?? ''}`}>
+            <li key={`${r.by}${r.user_id ?? ''}-${r.at}`}>
               <b>{r.by === 'ELDER' ? `${room.elder_name} ${room.elder_honorific}` : (r.name ?? '가족')}</b>
               {r.audio_url && <VoicePlay url={r.audio_url} sec={r.audio_sec} />} {r.text}
             </li>

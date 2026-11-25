@@ -234,7 +234,7 @@ export type MoodCheckDueOut = { due: boolean } // 어르신 홈 마음 체크 �
 export type MoodKind = 'PHQ8' | 'PHQ9' | 'UCLA3' | 'GAD7' | 'SMCQ' | 'MEMGAME'
 export type MoodCheckIn = { kind?: MoodKind; answers: number[] } // kind 없으면 PHQ8
 // 마음 체크 저장 응답. say = 어르신께 드리는 끝 인사 한마디('잠이 편치 않은 날이 많으셨군요. …') — null 이면 평소 인사
-export type MoodCheckSavedOut = { ok: boolean; say: string | null; face: string; title: string; sub: string } // 11/23 결과는 점수 없이 얼굴·말
+export type MoodCheckSavedOut = { ok: boolean; say: string | null; face: string; title: string; sub: string; help_call: boolean } // 11/23 결과는 점수 없이 얼굴·말. help_call = 9번 '있었다' → [109 전화] (11/25)
 export type MoodHistoryOut = { items: { check_date: string; kind: MoodKind; level: 'USUAL' | 'DOWN' | 'HARD'; face: string; title: string }[] } // GET /api/elder/mood-history 최근 10개
 // 가족 홈 돌봄 일지 (backend/app/schemas/care.py, 11/19 돌봄 루프). 문장은 서버가 만든다 — 어르신 말 원문·점수 없음
 export type CareDayOut = {
@@ -276,8 +276,8 @@ export type DiaryOut = {
 // 리액션 한 칸. name = 누른 가족의 별명(없으면 이름), 어르신은 null
 // 가족: POST /api/diaries/{id}/reaction { kind, on } · 어르신: POST /api/elder/diaries/{id}/like { on } → 둘 다 DiaryOut
 // on 은 '이 상태로 만들어 줘' — 화면은 지금 보이는 상태의 반대를 보낸다(같은 요청이 두 번 가도 결과가 같다)
-// 가족 한마디 (11/19): kind 'REPLY' + text. 이모지와 따로 한 사람 1칸(어르신 일기에), 응답에서는 이모지 칸들 뒤에 온다
-// POST /api/diaries/{id}/reply { text: 한 줄 1~40자 } → DiaryOut (새로 보내면 바뀜) · DELETE /api/diaries/{id}/reply → 204
+// 가족 한마디 (11/19): kind 'REPLY' + text. 이모지와 따로, 한 사람이 여러 개(11/25), 응답에서는 이모지 칸들 뒤에 남긴 순서로 온다
+// POST /api/diaries/{id}/reply { text: 한 줄 1~40자 } → DiaryOut (새 칸이 붙음) · DELETE /api/diaries/{id}/reply?at=<칸의 at> → 204 (그 칸 하나)
 export type Reaction = {
   by: 'ELDER' | 'FAMILY'
   kind: 'LIKE' | 'HEART' | 'SMILE' | 'CLAP' | 'REPLY'
@@ -286,7 +286,8 @@ export type Reaction = {
   at: string
   text?: string // REPLY 칸에만
   // 가족 목소리 답장 (D99, 11/24): 소리 주소·길이(초). 이때 text 는 받아 적은 자막(빈 글일 수 있음)
-  // POST /api/diaries/{id}/voice-reply (form audio, 30초까지) → DiaryOut. 글 한마디와 같은 칸 — 새로 보내면 바뀜
+  // POST /api/diaries/{id}/voice-reply (form audio, 30초까지) → DiaryOut. 보낼 때마다 새 칸 (11/25)
+  // 어르신 답(by ELDER·kind REPLY)도 녹음이 있으면 소리 주소가 붙는다 (11/25) — 가족 화면은 눌러야 튼다
   audio_url?: string
   audio_sec?: number
 }
@@ -307,7 +308,8 @@ export type Heart = {
   diary_thumb_url: string | null
 }
 // 11/23 어르신 [말로 답하기] (가족 일기에만, 답장의 답장 없음): 녹음 → POST /api/stt → POST /api/elder/diaries/{id}/reply-draft {transcript} → {text}
-// → 어르신 확인 → POST /api/elder/diaries/{id}/reply {text} → DiaryOut (reactions 에 by ELDER·kind REPLY 한 칸)
+// → 어르신 확인 → POST /api/elder/diaries/{id}/voice-reply (form text + audio = 그 녹음, 11/25 저장) → DiaryOut (reactions 에 by ELDER·kind REPLY 한 칸)
+//   녹음이 없으면 POST /api/elder/diaries/{id}/reply {text}
 export type ElderReplyDraftIn = { transcript: string }
 export type ElderReplyDraftOut = { text: string }
 export type ElderReplyIn = { text: string }
