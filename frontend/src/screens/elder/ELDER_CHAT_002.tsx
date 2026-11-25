@@ -2,6 +2,7 @@
  * ELDER_CHAT_002 — 지난 이야기 (D106). 잡담(ELDER_CHAT_001) 오른쪽 위 [지난 이야기]에서 온다.
  * /elder/chat/past = 최근 30일 잡담 목록(최신 순, 제목은 심심이가 붙임) — 이 목록만 스크롤한다(지난 일기와 같음, D60).
  * /elder/chat/past/:sessionId = 그날 나눈 말 + [이 이야기 이어서 하기] → 새 잡담이 그 이야기로 시작한다(resume_of).
+ *   지금(30분 안) 하던 잡담이면 새로 열지 않고 그 잡담으로 돌아간다 (D107).
  * 폰의 뒤로 키·위 [뒤로]는 한 단계씩 돌아간다(주소가 둘이라).
  */
 import { useEffect } from 'react'
@@ -11,6 +12,7 @@ import { ElderStop } from '../../components/ElderUi'
 import Sim from '../../components/Sim'
 import { useFetch } from '../../hooks/useFetch'
 import { speak, stopSpeaking } from '../../lib/audio'
+import { readChat } from '../../lib/pausedSession'
 import type { ChatNavState } from './ELDER_CHAT_001'
 import './ELDER_CHAT.css'
 
@@ -84,6 +86,7 @@ function View({ sessionId }: { sessionId: string }) {
 
   function resume() {
     if (!data) return
+    if (readChat()?.id === sessionId) return nav('/elder/chat', { state: { home } }) // 지금 하던 잡담 — 그대로 잇는다
     const state: ChatNavState = { home, resumeOf: sessionId, earlier: data.turns, earlierLabel: day ? `${day} 이야기` : '지난 이야기' }
     nav('/elder/chat', { state })
   }

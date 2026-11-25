@@ -150,7 +150,7 @@ const pastTurns = (turns?: TurnOut[]) => (turns?.at(-1)?.speaker === 'AI' ? turn
 type Props = {
   sessionId: string
   initial: SessionOut
-  history?: TurnOut[] // 서버에서 다시 읽은 대화(새로고침·'이어서')면 있다 — 첫 질문 앞에 '아까 하던 이야기를…'
+  history?: TurnOut[] // 서버에서 다시 읽은 대화(새로고침·'이어서')면 있다 — 첫 질문 앞에 '아까 하던 이야기를…' (잡담은 D107 잇기)
   speed: number
   inputMode: 'VOICE' | 'BUTTON'
   who: string // 어르신 호칭 — '할머니 말씀 듣는 중'
@@ -181,7 +181,8 @@ export default function VoiceSession(props: Props) {
   const [typing, setTyping] = useState(false)
   const [draft, setDraft] = useState('')
   // 지난 대화 말풍선 (D102, [지난 말 보기] 판 D97 을 바꿈) — 서버 대화에서 지금 질문(마지막 AI 턴)을 뺀 것
-  const [log, setLog] = useState<TurnOut[]>(() => pastTurns(history))
+  // 잡담을 이어서 열면(D107) 지금 말풍선이 '사진첩 잘 보셨어요?' 같은 돌아온 인사라 서버 대화 전부가 지난 말풍선
+  const [log, setLog] = useState<TurnOut[]>(() => (chat ? (history ?? []) : pastTurns(history)))
   const scroller = useRef<HTMLDivElement>(null)
   const [urgent, setUrgent] = useState(initial.urgent) // 몸 위급 — [119 전화하기] (11/19 응급)
   const recorder = useRef<Recorder | null>(null)
@@ -386,7 +387,9 @@ export default function VoiceSession(props: Props) {
       pending.current = null
       // 잡담: 서버를 다시 읽기 전에 앞 말·내 말을 먼저 올린다 — 말풍선이 잠깐 사라졌다 나타나지 않게 (아래 loadLog 가 바로잡음)
       const said = body.text
-      if (chat && said) setLog((l) => [...l, { speaker: 'AI', text: last.current.ai.text }, { speaker: 'ELDER', text: said }])
+      // 돌아온 인사(잡담 잇기 D107)는 서버 대화에 없는 말이라 올리지 않는다 — 올리면 loadLog 뒤 사라져 깜빡인다
+      const prev: TurnOut[] = history && last.current === initial ? [] : [{ speaker: 'AI', text: last.current.ai.text }]
+      if (chat && said) setLog((l) => [...l, ...prev, { speaker: 'ELDER', text: said }])
       void loadLog() // 방금 한 답과 앞 질문이 말풍선으로 올라간다
       if (r.state !== 'ENDED') savePaused({ id: sessionId, kind: initial.kind, at: Date.now() }) // 30분은 마지막 턴부터
       return present(r)
@@ -617,7 +620,8 @@ export default function VoiceSession(props: Props) {
     awayAt.current = Date.now() // 숨은 채로 열렸으면 이때부터 센다 (0 이면 돌아오자마자 '30분 지남'으로 끝남)
     if (initial.state !== 'ENDED') savePaused({ id: sessionId, kind: initial.kind, at: Date.now() })
     // 한 틱 미뤄 시작: StrictMode 의 가짜 언마운트가 이 타이머를 지워서 첫 질문은 한 번만 읽힌다
-    const start = window.setTimeout(() => present(initial, true, history ? RESUME_LEAD : undefined), 0)
+    // 잡담은 '아까 하던 이야기를…'을 붙이지 않는다 — 지금 말이 이미 돌아온 인사(ELDER_CHAT_001, D107)
+    const start = window.setTimeout(() => present(initial, true, history && !chat ? RESUME_LEAD : undefined), 0)
     const onShow = () => (document.hidden ? leave() : comeBack())
     document.addEventListener('visibilitychange', onShow)
     return () => {

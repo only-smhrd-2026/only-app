@@ -8,7 +8,7 @@ import uuid
 import pytest
 from pydantic import ValidationError
 
-from app.ai import llm
+from app.ai import coach, llm
 from app.ai.schemas import ChatTurn
 from app.config import CHAT_TURNS
 from app.db import SessionLocal
@@ -41,9 +41,9 @@ def test_chat_start_and_go(client):
     r = _say(client, sid, "사진첩 좀 보여 줘")
     assert r["ai"]["go"] == "ALBUM" and r["state"] == "CONTINUE"  # 화면이 사진첩으로 데려간다
 
-    # 가자는 말 뒤 아무 말 없으면 같은 말을 다시 — 화면을 또 옮기지는 않는다
+    # 가자는 말 뒤 아무 말 없으면(화면에 갔다 와서 잇는 잡담) 다음 이야기를 청한다 — 화면을 또 옮기지는 않는다
     r = client.post(f"/api/elder/sessions/{sid}/turns", json={"input_type": "BUTTON", "event": "NO_RESPONSE"}).json()
-    assert r["ai"]["go"] is None and r["ai"]["text"]
+    assert r["ai"]["go"] is None and r["ai"]["text"] == coach.CHAT_MORE.text and r["state"] == "CONTINUE"
 
 
 @pytest.mark.parametrize(
