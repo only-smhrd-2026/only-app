@@ -6,8 +6,9 @@
 .diary-detail-who { flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.4; overflow-wrap:anywhere; }
 .diary-detail-who b { font-size:15px; }
 .diary-detail-who small { color:var(--text-3); font-size:13px; }
-.diary-detail-photo { position:relative; width:100%; min-height:44px; padding:0; border:0; border-radius:14px; overflow:hidden; background:var(--line); font:inherit; text-align:left; cursor:zoom-in; }
-.diary-detail-photo img { display:block; width:100%; height:auto; object-fit:contain; }
+.diary-detail-photo { position:relative; width:100%; min-height:44px; padding:0; border:0; border-radius:14px; overflow:hidden; background:none; font:inherit; text-align:left; cursor:zoom-in; }
+/* 11/25 피드백: 세로 사진이 화면을 다 채워 한마디가 밀려 내려감 → 화면 높이의 45% 까지만(누르면 크게). 옆 여백은 바탕 그대로 */
+.diary-detail-photo img { display:block; width:100%; height:auto; max-height:45dvh; object-fit:contain; }
 .diary-detail-zoom { box-sizing:border-box; width:100vw; height:100dvh; max-width:none; max-height:none; margin:0; padding:12px; padding-top:max(12px, env(safe-area-inset-top)); padding-bottom:max(12px, env(safe-area-inset-bottom)); border:0; background:#17120E; color:#fff; }
 .diary-detail-zoom[open] { display:flex; flex-direction:column; align-items:center; gap:12px; }
 .diary-detail-zoom::backdrop { background:#17120E; }

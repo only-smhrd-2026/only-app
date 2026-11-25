@@ -3,6 +3,8 @@
  * ① 받은 반응: 가족이 내 일기에 보낸 하트·웃음·박수·한마디를 '누가 · 어느 일기에'로 보여 주고 읽는다 → [다음 소식]에서 들음 표시.
  * ② 안 들은 가족 일기를 한 장씩: 보낸 사람 · 사진(없으면 꼬마심심이) · 글 → [하트](다시 눌러도 취소 안 됨, D64) · [말로 답하기].
  *    말로 답하기: 녹음 → /api/stt → AI 가 한 줄로(reply-draft) → '이렇게 보낼까요?' → [보내기] (답장의 답장은 없다).
+ *    보낼 때 그 녹음도 같이 보낸다 — 가족 화면에서 눌러 듣는다 (11/25 사용자).
+ * 가족 이름은 '딸 (김승희)'처럼 보이고(11/25 사용자 — 딸이 여럿이면 헷갈림), 읽을 때는 괄호를 떼고 '딸이'.
  * ③ 새 소식이 없으면 [지난 소식 다시 듣기] — 들은 가족 일기 최근 5개를 같은 방식으로, 읽음 표시는 바꾸지 않는다 (11/19).
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -30,6 +32,8 @@ function josa(word: string, withFinal: string, without: string) {
   return code >= 0xac00 && code <= 0xd7a3 && (code - 0xac00) % 28 !== 0 ? withFinal : without
 }
 const day = (iso: string) => new Date(iso).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
+/** 읽을 이름 — 서버가 준 '딸 (김승희)' 에서 괄호를 뗀다 */
+const callName = (who: string) => who.replace(/ \(.+\)$/, '')
 
 type Who = { who: string; words: string[]; reply?: string }
 type DiaryReacts = { diary_id: number; body: string; at: string; thumb: string | null; whos: Who[] }
@@ -56,7 +60,8 @@ const wordsText = (words: string[]) => words.map((w, i) => w + (i < words.length
 
 /** 읽어 줄 한 줄 — "큰딸이 11월 3일 일기에 하트를 보냈어요." · "손주가 11월 3일 일기에 ‘보고 싶어요’래요." */
 function reactLine(card: DiaryReacts, w: Who) {
-  const subject = `${w.who}${josa(w.who, '이', '가')} ${day(card.at)} 일기에`
+  const who = callName(w.who)
+  const subject = `${who}${josa(who, '이', '가')} ${day(card.at)} 일기에`
   if (!w.reply) return `${subject} ${wordsText(w.words)} 보냈어요.`
   const tail = w.reply.replace(/[^가-힣]+$/, '') // 받침은 글 끝의 느낌표·이모지를 건너뛰고 마지막 한글로 본다
   return `${subject} ‘${w.reply}’${josa(tail, '이래요', '래요')}.`
@@ -118,6 +123,7 @@ function ReplySheet({ diary, to, speed, onSent, onClose }: { diary: DiaryOut; to
   const [note, setNote] = useState('')
   const [sending, setSending] = useState(false)
   const rec = useRef<Recorder | undefined>(undefined)
+  const take = useRef<Blob | undefined>(undefined) // 받아 적은 녹음 — [보내기] 때 글과 같이 보낸다 (11/25)
   const run = useRef(0) // [다시 말할게요]·닫기 뒤에 끝난 옛 녹음·요청은 버린다
 
   function fail(text: string) {
@@ -154,8 +160,9 @@ function ReplySheet({ diary, to, speed, onSent, onClose }: { diary: DiaryOut; to
     setStep('think')
     setHeard('')
     try {
+      take.current = await r.stop()
       const form = new FormData()
-      form.append('audio', await r.stop(), 'speech.webm')
+      form.append('audio', take.current, 'speech.webm')
       const { transcript } = await api<SttOut>('/api/stt', { form })
       if (!live.current || my !== run.current) return
       if (!transcript.trim()) return fail('잘 못 들었어요. 다시 말해 주세요.')
@@ -171,10 +178,14 @@ function ReplySheet({ diary, to, speed, onSent, onClose }: { diary: DiaryOut; to
   }
 
   async function send() {
-    if (sending) return
+    const audio = take.current
+    if (sending || !audio) return
     setSending(true)
     try {
-      await api<DiaryOut>(`/api/elder/diaries/${diary.diary_id}/reply`, { body: { text: line } })
+      const form = new FormData()
+      form.append('text', line)
+      form.append('audio', audio, audio.type.includes('mp4') ? 'reply.mp4' : 'reply.webm') // 아이폰 mp4·갤럭시 webm
+      await api<DiaryOut>(`/api/elder/diaries/${diary.diary_id}/voice-reply`, { form })
       if (live.current) onSent(line)
     } catch (e) {
       if (live.current) fail(e instanceof ApiError ? e.message : '보내지 못했어요. 다시 해 주세요.')
@@ -322,7 +333,7 @@ export default function ELDER_FAMILY_001() {
     if (!voice?.audio_url) return
     let here = true
     manual.current = false
-    const who = voice.name || '가족'
+    const who = callName(voice.name || '가족')
     const url = voice.audio_url
     void speak(`${who}${josa(who, '이', '가')} ${day(voice.diary_posted_at)} 일기에 목소리로 답장을 보냈어요.`, speed).then((heard) => {
       // 자동 재생이 막혔으면(heard false) 재생 줄을 누르면 된다. 안내 중에 눌렀으면 이미 튼다
@@ -467,8 +478,9 @@ export default function ELDER_FAMILY_001() {
                 {c.thumb && <img src={c.thumb} alt="" />}
                 <span><small>{day(c.at)} 쓴 일기</small><span className="family-rbody">{c.body}</span></span>
               </span>
-              {c.whos.map((w) => (
-                <span key={w.who + (w.reply ?? '')} className="family-rwho">
+              {c.whos.map((w, i) => (
+                // 한 사람이 같은 한마디를 두 번 남길 수 있다(11/25 여러 개) — 순서로 구분
+                <span key={i} className="family-rwho">
                   <span className="elder-av" aria-hidden="true">{w.who[0]}</span>
                   <span><b>{w.who}</b> {w.reply ? <q>{w.reply}</q> : <>{heartFill}{wordsText(w.words)} 보냈어요</>}</span>
                 </span>

@@ -45,17 +45,17 @@ export const MOOD_ANSWERS = ['없었어요', '며칠 있었어요', '절반 넘�
  * (자리 = 서버에 보내는 값, 채점은 서버 routers/mood.py). WHO-5·ISI 는 넣지 않는다(사용자 결정).
  *   PHQ-9 9번: 공식 한국어판 '자신이 죽는 것이 더 낫다고 생각하거나 어떤 식으로든 자신을 해칠 것이라고 생각함'을 위와 같은 말투로.
  *   UCLA-3: 공식 1~3점 = 값+1 (서버가 더함). SMCQ: 아니요 0 · 네 1.
- * 이 글들은 mp3 가 없어 서버 목소리로 읽는다(lib/audio.ts say → /api/elder/speech). PHQ-8 문항은 위 MOOD_PROMPT mp3 그대로.
+ * 이 글들은 mp3 가 없어 서버 목소리로 읽는다(lib/audio.ts say → /api/elder/speech). 기분 1~8번은 위 MOOD_PROMPT mp3 그대로.
  */
-export type CheckKind = Exclude<MoodKind, 'MEMGAME'>
+// 11/25 사용자: '기분'과 '기분 자세히'가 9번 하나만 달라 헷갈림 → 기분 = PHQ-9 9문항 하나로. 예전 PHQ8 결과는 기록에만 남는다
+export type CheckKind = Exclude<MoodKind, 'MEMGAME' | 'PHQ8'>
 // 이름·그림 (11/25 실사용: '…체크'가 헷갈림 → 낱말 하나 + 칸마다 다른 그림, 사용자 고름)
 type Check = { name: string; emoji: string; info: string; items: readonly string[]; answers: readonly string[] }
 
 const MOOD9 = '지난 2주 동안 죽는 것이 더 낫다고 생각하거나, 어떤 식으로든 스스로를 해치려고 생각한 날이 얼마나 있었어요?'
 
 export const CHECKS: Record<CheckKind, Check> = {
-  PHQ8: { name: '기분', emoji: '😊', info: '여덟 가지 물음 · 3분', items: MOOD_ITEMS, answers: MOOD_ANSWERS },
-  PHQ9: { name: '기분 자세히', emoji: '📝', info: '아홉 가지 물음 · 3분', items: [...MOOD_ITEMS, MOOD9], answers: MOOD_ANSWERS },
+  PHQ9: { name: '기분', emoji: '😊', info: '아홉 가지 물음 · 3분', items: [...MOOD_ITEMS, MOOD9], answers: MOOD_ANSWERS },
   UCLA3: {
     name: '외로움',
     emoji: '🤝',
@@ -106,9 +106,9 @@ export const CHECKS: Record<CheckKind, Check> = {
   },
 }
 
-/** 주소 ?kind= → 체크 종류. 모르는 값·없으면 PHQ-8 */
+/** 주소 ?kind= → 체크 종류. 모르는 값·없으면 기분(PHQ-9) */
 export function checkKind(v: string | null): CheckKind {
-  return v && Object.hasOwn(CHECKS, v) ? (v as CheckKind) : 'PHQ8'
+  return v && Object.hasOwn(CHECKS, v) ? (v as CheckKind) : 'PHQ9'
 }
 
 const ORD = ['첫', '두', '세', '네', '다섯', '여섯', '일곱', '여덟', '아홉', '열', '열한', '열두', '열세', '열네']

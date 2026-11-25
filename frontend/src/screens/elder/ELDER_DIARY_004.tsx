@@ -44,7 +44,7 @@ function FamilyMarks({ d }: { d: DiaryOut }) {
         </p>
       )}
       {replies.map((r) => (
-        <p key={r.user_id ?? r.at} className="elder-past-reply">
+        <p key={`${r.user_id}-${r.at}`} className="elder-past-reply">
           <b>{r.name ?? '가족'}</b>
           {/* 가족 목소리 답장 (D99) — 누르면 그 목소리를 다시 틀어 드린다 */}
           {r.audio_url && (

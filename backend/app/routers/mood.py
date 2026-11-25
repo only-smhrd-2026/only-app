@@ -1,7 +1,8 @@
 """가족 홈 마음 카드: 최근 한국 날짜별 활동·기분만 집계한다.
 
 마음 체크는 마지막 결과의 날짜·단계만(점수 없음). 어르신 마음 체크 초대 여부·답 저장(기기 쿠키, D56).
-11/23 '내 마음': 체크 5가지(PHQ8 기본·PHQ9 자세히·UCLA3 외로움·GAD7 걱정·SMCQ 기억력) + 기억력 놀이(MEMGAME).
+11/23 '내 마음': 체크(PHQ9 기분·UCLA3 외로움·GAD7 걱정·SMCQ 기억력) + 기억력 놀이(MEMGAME).
+11/25 기분 = PHQ-9 9문항 하나로(사용자). 예전 PHQ8 결과는 그대로 읽는다.
 어르신께는 결과를 점수 없이 얼굴·말로(NFR-DE-003), 가족 홈에는 PHQ8·PHQ9 만 보인다.
 """
 
@@ -89,7 +90,12 @@ EASY = (
     "몸이 무거우셨어요",
 )
 # PHQ-9 9번(자해·죽음 생각)에 '있었다'고 하셨을 때 — 가족에게 알린다는 말은 하지 않는다 (11/23 사용자)
-ITEM9_SAY = "말씀해 주셔서 고마워요. 많이 힘드셨겠어요. 심심이가 곁에 있을게요."
+# 11/25 사용자: 기분 체크가 늘 9번을 물으니 109(자살예방 상담전화, 24시간)를 말과 버튼으로 알린다
+# — D82 '상담 전화 버튼 없음'을 바꿈
+ITEM9_SAY = (
+    "말씀해 주셔서 고마워요. 많이 힘드셨겠어요. 심심이가 곁에 있을게요. "
+    "힘드실 땐 109 에 전화하시면 언제든 이야기를 들어 드려요."
+)
 
 
 def score(kind: str, answers: list[int]) -> int:
@@ -247,7 +253,7 @@ def save_mood_check(body: MoodCheckIn, device: CurrentDevice, db: DB):
         say = care.check_say(answers[:8], hard=level == "HARD")
     else:
         say = None  # 화면이 제목·덧붙임을 읽는다
-    return MoodCheckSavedOut(say=say, face=face, title=title, sub=sub)
+    return MoodCheckSavedOut(say=say, face=face, title=title, sub=sub, help_call=item9(kind, answers))
 
 
 @router.get("/elder/mood-history", response_model=MoodHistoryOut)

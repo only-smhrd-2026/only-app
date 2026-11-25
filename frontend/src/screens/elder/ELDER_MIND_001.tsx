@@ -51,10 +51,10 @@ export default function ELDER_MIND_001() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items])
 
-  const last = (k: CheckKind) => items?.find((i) => i.kind === k)
+  const last = (k: CheckKind) => (k === 'PHQ9' ? now : items?.find((i) => i.kind === k)) // 기분은 예전 PHQ8 결과도
   const start = (kind: CheckKind) => nav('/elder/mood-check', { state: { home, kind } })
   const [results, setResults] = useState(false) // [지난 결과 보기] (11/25 실사용: 결과를 다시 볼 곳이 안 보였다)
-  const nameOf = (i: Item) => (i.kind === 'MEMGAME' ? '기억력 놀이' : CHECKS[i.kind].name)
+  const nameOf = (i: Item) => (i.kind === 'MEMGAME' ? '기억력 놀이' : i.kind === 'PHQ8' ? CHECKS.PHQ9.name : CHECKS[i.kind].name)
   const lineOf = (i: Item) => `${md(i.check_date)[0]}월 ${md(i.check_date)[1]}일 ${nameOf(i)}, ${i.title}`
 
   function openResults() {
@@ -119,7 +119,7 @@ export default function ELDER_MIND_001() {
       <div className="elder-col">
         {(Object.keys(CHECKS) as CheckKind[]).map((k) => {
           const c = CHECKS[k]
-          const todo = k === 'PHQ8' && due
+          const todo = k === 'PHQ9' && due
           const before = last(k)
           return (
             <button key={k} type="button" className={`elder-btn elder-btn--wide${todo ? '' : ' elder-btn--secondary'}`} onClick={() => start(k)}>

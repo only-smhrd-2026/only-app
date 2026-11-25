@@ -52,7 +52,8 @@
 .home-banner-txt .fam-mini { color:var(--text-2); }
 
 /* 일기 목록 글쓴이 필터 (11/18 멘토링) — 공통 칩(.fam-chip) */
-.home-filter { margin:0 var(--gut); flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; padding:6px 4px; margin-block:-6px; }
+/* 11/25 피드백: 내려도 위에 붙어 있게 — 막대 폭 전체에 바탕색을 깔아 밑으로 지나가는 카드를 가린다 */
+.home-filter { position:sticky; top:0; z-index:2; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; margin:-6px 0; padding:6px calc(var(--gut) + 4px); background:var(--bg); }
 .fam-stack .home-none { margin:14px var(--gut) 6px; color:var(--text-2); font-size:15px; text-align:center; }
 .home-older { margin:0 var(--gut); }
 
@@ -64,7 +65,7 @@
 .home-post-who b { display:flex; align-items:center; gap:6px; font-size:15px; }
 .home-post-mood { display:flex; align-items:center; gap:4px; color:var(--text-3); font-size:13px; }
 .home-post-mood .elder-ic { width:18px; height:18px; }
-.home-post-photo { position:relative; border-radius:14px; overflow:hidden; aspect-ratio:4/3; background:var(--line); }
+.home-post-photo { position:relative; border-radius:14px; overflow:hidden; aspect-ratio:4/3; } /* 남는 옆 여백은 카드 흰 바탕 그대로 (11/25) */
 .home-post-photo img { display:block; width:100%; height:100%; object-fit:contain; }
 .home-tag { position:absolute; left:10px; top:10px; display:flex; align-items:center; gap:4px; padding:4px 9px 4px 7px; border-radius:8px; background:rgba(30,18,8,.72); color:#fff; font-size:13px; font-weight:700; }
 .home-tag .fam-ic { width:14px; height:14px; }

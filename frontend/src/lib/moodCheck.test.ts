@@ -13,15 +13,16 @@ it('has eight mood questions and four answers', () => {
 
 it('keeps each scale at its own item and answer count', () => {
   const shape = Object.fromEntries(Object.entries(CHECKS).map(([k, c]) => [k, [c.items.length, c.answers.length]]))
-  expect(shape).toEqual({ PHQ8: [8, 4], PHQ9: [9, 4], UCLA3: [3, 3], GAD7: [7, 4], SMCQ: [14, 2] })
+  expect(shape).toEqual({ PHQ9: [9, 4], UCLA3: [3, 3], GAD7: [7, 4], SMCQ: [14, 2] }) // 기분 = PHQ-9 하나 (11/25)
   expect(CHECKS.PHQ9.items.slice(0, 8)).toEqual([...MOOD_ITEMS]) // PHQ-9 = PHQ-8 + 9번
 })
 
-it('reads the check kind from the address, PHQ8 by default', () => {
+it('reads the check kind from the address, PHQ9 by default', () => {
   expect(checkKind('GAD7')).toBe('GAD7')
-  expect(checkKind(null)).toBe('PHQ8')
-  expect(checkKind('MEMGAME')).toBe('PHQ8')
-  expect(checkKind('toString')).toBe('PHQ8')
+  expect(checkKind(null)).toBe('PHQ9')
+  expect(checkKind('MEMGAME')).toBe('PHQ9')
+  expect(checkKind('toString')).toBe('PHQ9')
+  expect(checkKind('PHQ8')).toBe('PHQ9') // 없앤 칸
   expect(ordinal(0)).toBe('첫 번째 질문이에요.')
   expect(ordinal(13)).toBe('열네 번째 질문이에요.')
 })

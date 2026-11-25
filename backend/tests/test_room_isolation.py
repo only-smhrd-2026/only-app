@@ -49,6 +49,7 @@ CASES = [
     ("POST", "/elder/diaries/{diary_id}/like", {"on": True}),
     ("POST", "/elder/diaries/{diary_id}/reply-draft", {"transcript": "고맙다"}),
     ("POST", "/elder/diaries/{diary_id}/reply", {"text": "고맙다"}),
+    ("POST", "/elder/diaries/{diary_id}/voice-reply", "elder-voice"),  # 어르신 목소리 답장 (11/25)
     ("GET", "/elder/sessions/{session_id}", None),
     ("POST", "/elder/sessions/{session_id}/turns", {"text": "네", "input_type": "CHIP"}),
     ("POST", "/elder/sessions/{session_id}/end", {"reason": "USER_STOP"}),
@@ -112,5 +113,7 @@ def test_other_family_cannot_access_resource(client, method, path, body):
         kwargs = {"files": [("files", ("photo.jpg", image.getvalue(), "image/jpeg"))]}
     if body == "voice":
         kwargs = {"files": {"audio": ("voice.webm", b"fake-webm", "audio/webm")}}
+    if body == "elder-voice":
+        kwargs = {"files": {"audio": ("voice.webm", b"fake-webm", "audio/webm")}, "data": {"text": "고맙다"}}
     response = client.request(method, "/api" + path.format(**ids), **kwargs)
     assert response.status_code in (403, 404, 501), response.text

@@ -1,10 +1,11 @@
 /**
  * HOME_002 — 일기 상세 (11/23 시안 f-detail). 하위 화면 틀의 ←를 쓰고, 열람 기록은 이 화면을 열 때만 남긴다(D36).
  * 한마디는 인스타 댓글창처럼 — 목록(사람·글·시각) 아래 입력 줄 하나, 추천 문구 없음(11/25 사용자, D91 의 추천 칩을 뺌).
- * 가족 일기에 어르신이 말로 답하신 한 줄(reactions 의 by ELDER·kind REPLY)을 보여 준다.
+ * 가족 일기에 어르신이 말로 답하신 한 줄(reactions 의 by ELDER·kind REPLY)을 보여 준다. 녹음이 있으면 [듣기]를 눌러야 튼다(11/25).
  * 한마디는 가족 일기에도 남긴다(D98, 쓴 사람은 빼고) — 가족끼리만 보이고 어르신께는 읽어 드리지 않는다.
  * 어르신 일기에는 [🎤 목소리로 답장] (D99, 11/24) — 녹음해 들어 보고 보내면 어르신 가족 소식에서 그 목소리를 틀어 드린다
- * (30초까지, 받아 적은 자막이 같이 붙는다. 글 한마디와 같은 칸이라 새로 보내면 바뀐다).
+ * (30초까지, 받아 적은 자막이 같이 붙는다). 녹음한 뒤 [보내기]·[다시 녹음]·[취소](11/25).
+ * 한마디·목소리 답장은 한 사람이 여러 개 남긴다(11/25 사용자 — 인스타 댓글처럼). 내 것마다 [지우기].
  * 가족 일기의 [🎤 말로 쓰기]는 그대로 말을 글자로 바꿔 칸에 넣기만 한다(D98, 녹음은 저장하지 않음).
  */
 import { useEffect, useRef, useState } from 'react'
@@ -25,7 +26,7 @@ const REACTS = [
   ['SMILE', '😊', '웃음'],
   ['CLAP', '👏', '박수'],
 ] as const
-// 댓글(한마디, 11/19): 한 사람에 하나. 추천 문구는 뺐다(11/25 사용자 — 인스타 댓글창처럼). 글자 수는 서버 config.REPLY_MAX 와 같은 값
+// 댓글(한마디, 11/19): 한 사람이 여러 개(11/25). 추천 문구는 뺐다(11/25 사용자 — 인스타 댓글창처럼). 글자 수는 서버 config.REPLY_MAX 와 같은 값
 const REPLY_MAX = 40
 const VOICE_MS = 20_000 // 말로 한마디 녹음 상한 — 40자면 몇 초
 const VOICE_REPLY_SEC = 30 // 목소리 답장 상한 — 서버 config.VOICE_REPLY_MAX_SEC 와 같은 값 (D99)
@@ -91,7 +92,8 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
   const mine = d?.reactions.find((r) => r.by === 'FAMILY' && r.kind !== 'REPLY' && r.user_id === me.data?.user_id)?.kind
   const replies = d?.reactions.filter((r) => r.by === 'FAMILY' && r.kind === 'REPLY') ?? []
   const elderReply = d?.reactions.find((r) => r.by === 'ELDER' && r.kind === 'REPLY')
-  const myReply = replies.find((r) => r.user_id === me.data?.user_id)
+  const isMine = (r: Reaction) => r.user_id === me.data?.user_id
+  const myLast = replies.findLast(isMine) // 내 마지막 한마디 — 두 번 누름 막기·보냈다는 안내
 
   // 화면을 떠나면 마이크를 끈다
   useEffect(() => {
@@ -238,12 +240,12 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
     }
   }
 
-  // 한마디 남기기 (11/19). 한 사람 1개 — 새로 보내면 서버가 바꿔 끼우고 어르신 일기면 어르신께 다시 읽어 드린다
+  // 한마디 남기기 (11/19). 보낼 때마다 새 칸이 붙고(11/25) 어르신 일기면 어르신께 읽어 드린다
   async function sendReply(text: string) {
     const clean = text.trim()
     if (!d || !diary.data || d.is_mine || busy || !clean) return
-    if (clean === myReply?.text) {
-      setDraft('') // 이미 남긴 글 그대로 — 서버가 다시 읽어 드리지 않으니 보내지 않는다
+    if (clean === myLast?.text && !myLast.audio_url) {
+      setDraft('') // 바로 앞에 남긴 글 그대로(두 번 누름) — 서버도 새 칸을 붙이지 않으니 보내지 않는다
       return
     }
     const base = diary.data
@@ -262,15 +264,15 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
     }
   }
 
-  async function removeReply() {
-    if (!d || !diary.data || !myReply || busy) return
+  async function removeReply(cell: Reaction) {
+    if (!d || !diary.data || busy) return
     const base = diary.data
     setBusy(true)
     setReplySent(false)
     setReplyError(undefined)
     try {
-      await api<void>(`/api/diaries/${d.diary_id}/reply`, { method: 'DELETE' })
-      setEdit({ base, data: { ...d, reactions: d.reactions.filter((r) => r !== myReply) } })
+      await api<void>(`/api/diaries/${d.diary_id}/reply?at=${encodeURIComponent(cell.at)}`, { method: 'DELETE' })
+      setEdit({ base, data: { ...d, reactions: d.reactions.filter((r) => r !== cell) } })
     } catch (e) {
       setReplyError(e instanceof ApiError ? e.message : '한마디를 지우지 못했어요. 다시 해 주세요.')
     } finally {
@@ -411,19 +413,19 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
             {replies.length > 0 && (
               <ul className="diary-detail-replies">
                 {replies.map((r) => (
-                  <li key={r.user_id}>
+                  <li key={`${r.user_id}-${r.at}`}>
                     <Avatar name={r.name ?? '가족'} small />
                     <span>
                       <span className="cm-text">
-                        <b>{r === myReply ? '나' : (r.name ?? '가족')}</b>
+                        <b>{isMine(r) ? '나' : (r.name ?? '가족')}</b>
                         {r.text && !r.audio_url && ` ${r.text}`}
                       </span>
                       {r.audio_url && <VoicePlay url={r.audio_url} sec={r.audio_sec} />}
                       {r.audio_url && r.text && <span className="cm-sub">{r.text}</span>}
                       <small>
                         {ago(r.at)}
-                        {r === myReply && (
-                          <button type="button" className="cm-del" disabled={busy} onClick={removeReply}>지우기</button>
+                        {isMine(r) && (
+                          <button type="button" className="cm-del" disabled={busy} onClick={() => void removeReply(r)}>지우기</button>
                         )}
                       </small>
                     </span>
@@ -443,6 +445,10 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
                     <button type="button" className="fam-btn fam-btn--sm" disabled={busy} onClick={() => void startVoiceReply()}>
                       다시 녹음
                     </button>
+                    {/* 11/25 피드백: 녹음한 뒤 안 보내고 그만둘 곳이 없었다 */}
+                    <button type="button" className="fam-btn fam-btn--sm" disabled={busy} onClick={() => setTake(undefined)}>
+                      취소
+                    </button>
                   </div>
                 )}
                 {/* 댓글 입력 줄 (11/25 사용자: 추천 문구 없이 인스타 댓글창처럼). 🎤 = 어르신 일기는 목소리 답장, 가족 일기는 말로 쓰기 */}
@@ -453,7 +459,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     maxLength={REPLY_MAX}
-                    placeholder={myReply ? '내 댓글 바꾸기…' : '댓글 달기…'}
+                    placeholder="댓글 달기…"
                     aria-label={`댓글 쓰기, ${REPLY_MAX}자까지`}
                     enterKeyHint="send"
                     autoComplete="off"
@@ -481,7 +487,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
                   <p className="cm-hint" role={replySent ? 'status' : undefined}>
                     {replySent
                       ? elder
-                        ? `보냈어요 · ${name}께 ${myReply?.audio_url ? '목소리를 들려' : '읽어'} 드릴게요.`
+                        ? `보냈어요 · ${name}께 ${myLast?.audio_url ? '목소리를 들려' : '읽어'} 드릴게요.`
                         : '보냈어요 · 가족 모두에게 보여요.'
                       : elder
                         ? `${room.elder_honorific}께 읽어 드려요 · 🎤 누르면 목소리로`
@@ -503,6 +509,8 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
               </span>
             </p>
             <p className="diary-detail-quote">“{elderReply.text}”</p>
+            {/* 어르신 목소리 (11/25 사용자) — 저절로 틀지 않고 눌러야 나온다 */}
+            {elderReply.audio_url && <VoicePlay url={elderReply.audio_url} sec={elderReply.audio_sec} label="목소리 듣기" />}
           </section>
         )}
         {!elder && (

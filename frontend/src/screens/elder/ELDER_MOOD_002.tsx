@@ -1,6 +1,6 @@
 /**
- * ELDER_MOOD_002 — 마음 체크 (D56·D66 → 11/23 시안 e-mood). 체크 5가지(PHQ-8·PHQ-9·UCLA-3·GAD-7·SMCQ) 공통 화면.
- * 종류는 앞 화면이 넘긴 state.kind(홈 초대·ELDER_MIND_001) 또는 주소 ?kind=, 없으면 PHQ-8. 문항·보기 글은 lib/moodCheck.ts 한 곳.
+ * ELDER_MOOD_002 — 마음 체크 (D56·D66 → 11/23 시안 e-mood). 체크 4가지(기분 PHQ-9·UCLA-3·GAD-7·SMCQ) 공통 화면.
+ * 종류는 앞 화면이 넘긴 state.kind(홈 초대·ELDER_MIND_001) 또는 주소 ?kind=, 없으면 기분(PHQ-9). 문항·보기 글은 lib/moodCheck.ts 한 곳.
  *
  * 한 번에 한 문항: 위에 진행 점 + '3 / 8' + [그만할래요], 심심이, 질문 말풍선(누르면 다시 읽음), 아래 보기(원래 칸 수 그대로).
  *   - 문항이 뜬 뒤 첫 0.8초 누름은 무시(두 번 눌림), 고른 답은 0.7초 보여 준 뒤 다음 문항으로(안 눌린 줄 알고 또 누르지 않게) — D51 ⑥.
@@ -8,12 +8,13 @@
  *   - [그만할래요]·도중에 나가면 저장하지 않는다(다음에 홈에서 다시 권한다).
  * 끝: 서버가 준 얼굴·제목·덧붙임만(점수 없음, NFR-DE-003) + [내 마음으로]·[홈으로]. 끝난 뒤 뒤로 키 = 홈(끝난 흐름을 다시 시작하지 않게).
  * PHQ-9 9번이 0 보다 크면 서버가 가족에게 급한 알림을 보내지만, 화면·소리는 알렸다고 말하지 않는다(서버 say = 위로 한마디).
+ * 그때(help_call) 끝 화면에 109(자살예방 상담전화, 24시간) 안내와 [109 에 전화하기] (11/25 사용자 — D82 '상담 전화 버튼 없음'을 바꿈).
  */
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { MoodCheckIn, MoodCheckSavedOut, MoodKind } from '../../api/types'
-import { Bub } from '../../components/ElderUi'
+import { Bub, IC } from '../../components/ElderUi'
 import Sim from '../../components/Sim'
 import { useLive, type ElderNavState } from '../../hooks/useElderSession'
 import { say, stopSpeaking } from '../../lib/audio'
@@ -127,9 +128,16 @@ export default function ELDER_MOOD_002() {
           <span className="elder-face mood-face" aria-hidden="true">{result.face}</span>
           <h1>{result.title}</h1>
           {result.sub && <p className="elder-sub">{result.sub}</p>}
-          <p className="elder-sub">{THANKS} 결과는 내 마음에서 다시 볼 수 있어요.</p>
+          <p className="elder-sub">
+            {result.help_call ? '힘드실 땐 109 에 전화하시면 언제든 이야기를 들어 드려요.' : `${THANKS} 결과는 내 마음에서 다시 볼 수 있어요.`}
+          </p>
         </div>
-        <button type="button" className="elder-btn" onClick={toMind}>내 마음으로</button>
+        {result.help_call && (
+          <a className="elder-btn mood-call" href="tel:109">
+            <span className="elder-dot">{IC.phone}</span>109 에 전화하기
+          </a>
+        )}
+        <button type="button" className={`elder-btn${result.help_call ? ' elder-btn--secondary' : ''}`} onClick={toMind}>내 마음으로</button>
         <button type="button" className="elder-btn elder-btn--secondary" onClick={toHome}>홈으로</button>
       </main>
     )

@@ -43,17 +43,18 @@ def test_voice_reply_is_kept_and_played_to_elder(client):
     assert "audio_url" not in _stored(diary_id)[0]  # DB 에는 key 만, 주소는 응답에만
 
 
-def test_new_reply_or_delete_removes_old_sound(client):
+def test_new_reply_keeps_old_sound_and_delete_removes_it(client):
     room_id = setup_elder(client)["room_id"]
     diary_id = _diary(room_id)
-    first = _key(_voice(client, diary_id).json()["reactions"][0])
-    second = _key(_voice(client, diary_id).json()["reactions"][0])  # 다시 녹음 → 칸 하나, 옛 소리 지움
-    assert len(_stored(diary_id)) == 1 and storage.get(first) is None and storage.get(second)
-    text = client.post(f"/api/diaries/{diary_id}/reply", json={"text": "보고 싶어요"}).json()["reactions"][0]
-    assert "audio_url" not in text and storage.get(second) is None  # 글 한마디로 바꾸면 소리도 지움
-    third = _key(_voice(client, diary_id).json()["reactions"][0])
-    assert client.delete(f"/api/diaries/{diary_id}/reply").status_code == 204
-    assert _stored(diary_id) == [] and storage.get(third) is None
+    one = _voice(client, diary_id).json()["reactions"][0]
+    two = _voice(client, diary_id).json()["reactions"][1]  # 또 녹음 → 칸이 하나 더 (11/25 여러 개)
+    assert len(_stored(diary_id)) == 2 and storage.get(_key(one)) and storage.get(_key(two))
+    client.post(f"/api/diaries/{diary_id}/reply", json={"text": "보고 싶어요"})  # 글 한마디도 더함 — 소리는 그대로
+    assert len(_stored(diary_id)) == 3 and storage.get(_key(two))
+    assert client.delete(f"/api/diaries/{diary_id}/reply", params={"at": one["at"]}).status_code == 204
+    assert storage.get(_key(one)) is None and storage.get(_key(two))  # 지운 칸의 소리만
+    assert client.delete(f"/api/diaries/{diary_id}/reply").status_code == 204  # at 없이 = 내 것 모두
+    assert _stored(diary_id) == [] and storage.get(_key(two)) is None
 
 
 def test_only_on_elder_diary_and_only_members(client, monkeypatch):
