@@ -89,6 +89,7 @@ class AlbumPhotoOut(BaseModel):
     group: PhotoGroup = "ETC"  # 11/23 분류 칩
     source: Literal["FAMILY", "ELDER_CAMERA", "FAMILY_DIARY"] = "FAMILY"
     diary_id: int | None = None  # 어르신 일기 사진이면 그 일기 (D60 바꿈)
+    uploader_name: str | None = None  # 11/25 가족 사진을 올린 사람 '별명 (이름)' — 어르신 사진이면 null
 
 
 class AlbumOut(BaseModel):

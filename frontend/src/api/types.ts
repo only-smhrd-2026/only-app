@@ -190,6 +190,7 @@ export type AlbumPhoto = {
   group: PhotoGroup
   source: 'FAMILY' | 'ELDER_CAMERA' | 'FAMILY_DIARY'
   diary_id: number | null // 어르신 일기 사진이면 그 일기
+  uploader_name: string | null // 11/25 가족 사진을 올린 사람 '별명 (이름)' — 어르신 사진이면 null
 }
 export type AlbumOut = { photos: AlbumPhoto[] }
 // POST /api/elder/album (multipart file + request_id) → AlbumPhoto — 어르신이 폰 갤러리에서 고른 사진 1장
