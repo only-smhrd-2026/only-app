@@ -1,11 +1,12 @@
 """가족 한마디 (11/19 — D50 '글 답장은 없다'를 바꿈): 어르신 일기에 한 사람 여러 개(11/25), 이모지 칸과 따로.
 
 어르신께는 가족 소식 첫 장(hearts)으로 같이 내려가 한 번 읽어 드리고, 글을 바꾸면 다시 읽어 드린다.
-+ 새 소식이 없을 때 '지난 소식 다시 듣기'(GET /elder/family-news?again=1).
++ 어르신 '지난 가족 소식' 달력(GET /elder/family-news/past, 11/25 — 옛 ?again=1).
 """
 
 import pytest
 
+from app.config import today_kst
 from app.db import SessionLocal
 from app.models import Diary
 from tests.conftest import setup_elder
@@ -236,16 +237,17 @@ def test_reply_stays_in_its_room(client):
     assert "heard_at" not in _stored(diary_id)[0]  # 남의 방 한마디에는 손대지 않는다
 
 
-# ---------------------------------------------------------------- 지난 소식 다시 듣기 (again=1)
+# ---------------------------------------------------------------- 지난 가족 소식 달력 (11/25, 옛 again=1)
 def _read_marks(diary_ids):
     with SessionLocal() as db:
         return {diary_id: db.get(Diary, diary_id).elder_read_at for diary_id in diary_ids}
 
 
-def test_again_gives_five_recent_heard_family_diaries_and_keeps_read_marks(client):
+def test_past_news_gives_heard_family_diaries_of_the_month_and_keeps_read_marks(client):
     room_id = setup_elder(client)["room_id"]
-    path = "/api/elder/family-news"
-    assert client.get(path, params={"again": 1}).json() == {"diaries": [], "hearts": [], "has_more": False}
+    path = "/api/elder/family-news/past"
+    month = today_kst().strftime("%Y-%m")  # 들은 일기가 없으면 이번 달
+    assert client.get(path).json() == {"month": month, "diaries": [], "prev_month": None, "next_month": None}
     heard = [_diary(room_id, "FAMILY") for _ in range(6)]
     gone = _diary(room_id, "FAMILY")
     for diary_id in [*heard, gone]:
@@ -255,18 +257,18 @@ def test_again_gives_five_recent_heard_family_diaries_and_keeps_read_marks(clien
     _react(client, _diary(room_id), "HEART")  # 어르신 일기 + 못 들은 하트
     marks = _read_marks([*heard, unheard])
 
-    again = client.get(path, params={"again": 1})
-    assert again.status_code == 200, again.text
-    # 들은 가족 일기만, 최근에 올라온 5개를 최신 먼저 — 안 들은 일기·어르신 일기·지운 일기는 없다
-    assert [d["diary_id"] for d in again.json()["diaries"]] == heard[:0:-1]
-    assert again.json()["hearts"] == []  # 첫 장(하트·한마디)은 다시 듣기에 없다
-    assert {d["read_by_elder"] for d in again.json()["diaries"]} == {True}
+    past = client.get(path)
+    assert past.status_code == 200, past.text
+    # 들은 가족 일기만 모두, 올린 순서 — 안 들은 일기·어르신 일기·지운 일기는 없다
+    assert [d["diary_id"] for d in past.json()["diaries"]] == heard
+    assert past.json()["month"] == month
+    assert {d["read_by_elder"] for d in past.json()["diaries"]} == {True}
 
-    assert _read_marks([*heard, unheard]) == marks  # 다시 듣기는 읽음 표시를 바꾸지 않는다
+    assert _read_marks([*heard, unheard]) == marks  # 지난 소식은 읽음 표시를 바꾸지 않는다
     news = _news(client)
     assert [d["diary_id"] for d in news["diaries"]] == [unheard]  # 평소 목록은 그대로
     assert len(news["hearts"]) == 1
     assert _home_count(client) == 2
 
     setup_elder(client)  # 다른 가족방의 기기에는 안 보인다
-    assert client.get(path, params={"again": 1}).json()["diaries"] == []
+    assert client.get(path).json()["diaries"] == []

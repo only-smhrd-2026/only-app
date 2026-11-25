@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 
 const ICONS = {
   home: <path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z" />,
+  chat: <path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-5 4v-4H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" />, // 11/25 사진첩 '할머니 이야기'
   imagePlus: (
     <>
       <rect x="3" y="6" width="14" height="14" rx="2.5" />

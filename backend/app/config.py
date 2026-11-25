@@ -50,7 +50,7 @@ VOICE_REPLY_MAX_SEC = 30
 ELDER_VOICE_REPLY_MAX_SEC = 60  # 어르신 [말로 답하기] 녹음 상한(화면 REPLY_MS)과 같게 — 저장하는 소리 길이 (11/25)
 VOICE_REPLY_KBPS = 48
 VOICE_REPLY_MAX_CHARS = 200
-ELDER_NEWS_AGAIN_LIMIT = 5  # 가족 소식이 비었을 때 '지난 소식 다시 듣기'가 돌려주는 들은 가족 일기 수 (11/19)
+DIARY_MONTH_LIMIT = 300  # 달력(가족 일기 달력·어르신 지난 가족 소식)이 한 달·하루에 읽는 일기 수 상한 (11/25)
 # 가족 사진 목록·어르신 사진첩이 한 번에 돌려주는 장수(최신 순) — 두 화면이 같은 사진을 보이게 한 값으로 (D8)
 PHOTO_LIST_LIMIT = 100
 NOTI_LIST_LIMIT = 50  # 가족 알림 목록이 한 번에 돌려주는 개수, 최신 순

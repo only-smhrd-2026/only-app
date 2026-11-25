@@ -332,7 +332,7 @@ export default function ELDER_HOME_001() {
         <div className="ehome-grid">
           {tile('talk', onTalk, pick ? <img src={pick.photo_url} alt="" /> : ART.album, '회상', talkNote)}
           {tile('diary', onDiary, ART.diary, '일기 쓰기', paused?.kind === 'DIARY' ? '이어서 해요' : home.diary_today ? '오늘 썼어요' : '오늘 있었던 일')}
-          {tile('news', () => nav('/elder/family-news', { state: { home } }), ART.news, '가족 소식', unread > 0 ? `새 소식 ${unread}개` : '다 봤어요',
+          {tile('news', () => nav('/elder/family-news', { state: { home } }), ART.news, '가족 소식', unread > 0 ? `새 소식 ${unread}개` : '지난 소식 보기', // 11/25 — 새 소식이 없으면 지난 소식 달력
             unread > 0 && <b className="elder-badge" aria-label={`새 소식 ${unread}개`}>{unread}</b>)}
           {tile('album', () => nav('/elder/album', { state: { home } }), ART.album, '사진첩', '지난 사진')}
           {tile('mind', () => nav('/elder/mind', { state: { home } }), ART.mind, '내 마음', home.mood_due ? '여쭤볼 차례' : '요즘 괜찮아요',

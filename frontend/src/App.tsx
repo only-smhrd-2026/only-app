@@ -29,6 +29,7 @@ import GROUP_001 from './screens/family/GROUP_001'
 import GROUP_002 from './screens/family/GROUP_002'
 import HOME_001 from './screens/family/HOME_001'
 import HOME_002 from './screens/family/HOME_002'
+import HOME_003 from './screens/family/HOME_003'
 import JOIN_001 from './screens/family/JOIN_001'
 import LOGIN_001 from './screens/family/LOGIN_001'
 import NOTI_001 from './screens/family/NOTI_001'
@@ -68,6 +69,7 @@ export const SCREENS: ScreenDef[] = [
   { id: 'GROUP_002', path: '/groups/:roomId/members', title: '구성원', Screen: GROUP_002 },
   { id: 'HOME_001', path: '/', title: '가족 홈', Screen: HOME_001 },
   { id: 'HOME_002', path: '/diaries/:diaryId', title: '일기 상세', Screen: HOME_002 },
+  { id: 'HOME_003', path: '/calendar/:roomId', title: '일기 달력', Screen: HOME_003 }, // 11/25 ?day=YYYY-MM-DD 면 그날 일기
   // 11/23 사진첩 탭 — 올리기 두 갈래 + 분류 칩 + 달별 사진. 옛 '올린 사진'(GROUP_004)을 합침
   { id: 'PHOTO_001', path: '/photos', title: '사진첩', Screen: PHOTO_001 },
   { id: 'UPLOAD_001', path: '/upload', title: '사진 올리기', Screen: UPLOAD_001 },
@@ -111,7 +113,7 @@ const TAB_SCREENS = new Set(['HOME_001', 'PHOTO_001', 'WEEKLY_001', 'GROUP_002']
 // 위 [← 뒤로]가 없는 어르신 화면 — 홈(오늘의 한 장·마음 체크 초대도 홈 화면)과 기기 연결. 나머지 어르신 화면은 ElderBackFrame (D97)
 const ELDER_NO_BACK = new Set(['ELDER_HOME_001', 'ELDER_TODAY_001', 'ELDER_MOOD_001', 'ELDER_CONNECT_001'])
 const isElderBacked = (s: { id: string }) => s.id.startsWith('ELDER_') && !ELDER_NO_BACK.has(s.id)
-const SUB_SCREENS = new Set(['GROUP_001', 'HOME_002', 'UPLOAD_001', 'UPLOAD_002', 'UPLOAD_003', 'FDIARY_001', 'NOTI_001', 'ACCOUNT_001'])
+const SUB_SCREENS = new Set(['GROUP_001', 'HOME_002', 'HOME_003', 'UPLOAD_001', 'UPLOAD_002', 'UPLOAD_003', 'FDIARY_001', 'NOTI_001', 'ACCOUNT_001'])
 const route = ({ id, path, title, Screen }: ScreenDef) => (
   <Route key={id} path={path} element={Screen ? <Screen /> : <NotYet id={id} title={title} />} />
 )
