@@ -330,6 +330,15 @@ DIARY_QUESTIONS = [  # 1~4번 질문의 고정 문장 (LLM 이 실패할 때·mo
     CoachReply(text="어디서 하셨어요?", suggestions=["집에서요", "밖에서요"], question_type="NONE"),
     CoachReply(text="그다음에는 뭐 하셨어요?", suggestions=["쉬었어요", "밥 먹었어요"], question_type="NONE"),
 ]
+DIARY_MORE_QUESTIONS = [  # 더 얘기하실 때(11/25)의 고정 문장
+    CoachReply(
+        text="네, 더 들려주세요. 또 어떤 일이 있었어요?", suggestions=["장 봤어요", "쉬었어요"], question_type="NONE"
+    ),
+    CoachReply(
+        text="그러셨군요. 또 생각나는 일 있으세요?", suggestions=["있어요", "그게 다예요"], question_type="NONE"
+    ),
+    CoachReply(text="그다음에는요?", suggestions=["쉬었어요", "그게 다예요"], question_type="NONE"),
+]
 # 옛 사진 일기의 1번 고정 문장 (FR-DI-002, D58). 분류는 추정이라 단정하지 않는다('같네요')
 DIARY_OLD_PHOTO_QUESTION = CoachReply(
     text="옛날 사진 같네요. 언제 찍으신 사진이에요?", suggestions=["젊을 때요", "잘 모르겠어요"], question_type="NONE"
@@ -345,34 +354,64 @@ DIARY_STOP = CoachReply(  # 무응답으로 끝남 → 저장하지 않으므로
     question_type="CLOSING",
     choice_mode="TWO_BUTTONS",
 )
-DIARY_CLOSING = CoachReply(
-    text="고마워요. 들려주신 이야기로 일기를 써 볼게요.",
+DIARY_CLOSING = CoachReply(  # AI 가 쓴 마무리(diary_closing)가 없을 때
+    text="오늘 이야기 잘 들었어요. 예쁜 일기로 써서 가족들한테도 보여 드릴게요.",
     suggestions=[],
     question_type="CLOSING",
     choice_mode="TWO_BUTTONS",
 )
 
 
-def diary_fallback(turn_no: int) -> CoachReply:
-    """turn_no 번째 일기 질문의 고정 문장."""
-    return DIARY_MOOD_QUESTION if turn_no >= DIARY_TURNS else DIARY_QUESTIONS[max(turn_no, 1) - 1]
+def diary_fallback(turn_no: int, max_turns: int = DIARY_TURNS) -> CoachReply:
+    """turn_no 번째 일기 질문의 고정 문장. 마지막(max_turns)은 기분 — '더 얘기할래'로 늘면 그만큼 뒤로 (11/25)."""
+    if turn_no >= max_turns:
+        return DIARY_MOOD_QUESTION
+    if turn_no > len(DIARY_QUESTIONS):  # '더 얘기할래'로 늘어난 질문 — 같은 질문을 되풀이하지 않게
+        return DIARY_MORE_QUESTIONS[(turn_no - len(DIARY_QUESTIONS) - 1) % len(DIARY_MORE_QUESTIONS)]
+    return DIARY_QUESTIONS[max(turn_no, 1) - 1]
 
 
-def diary_question(ctx: CoachContext, turn_no: int) -> CoachReply:
+def diary_question(ctx: CoachContext, turn_no: int, max_turns: int = DIARY_TURNS) -> CoachReply:
     """turn_no 번째 일기 질문 (1 뭐 하셨어요 → 2~4 아직 안 나온 것 → 5 기분, FR-DI-003, D97).
 
     옛 사진(ctx.old_photo)이면 1~4번은 오늘 일 대신 그 사진 속 그때를 묻는다 (FR-DI-002, D58). 5번 기분은 같다.
+    어르신이 '더 얘기할래'라고 하시면 max_turns 가 늘고(MORE_TURNS) 그 사이는 2~4번처럼 묻는다. 기분은 늘 마지막.
     """
-    # ponytail: 질문 수는 5개 고정. 2~4번은 이미 나온 것을 다시 묻지 않고 아직 안 나온 사실 하나씩을 묻는다
-    # (diary_buddy.md 규칙 3). 질문 수 자체를 줄이려면 diary_buddy 출력에 '건너뛰기' 칸을 더한다.
-    if turn_no >= DIARY_TURNS:
+    # ponytail: 질문 수는 5개 고정(더 얘기하시면 +3). 2~4번은 이미 나온 것을 다시 묻지 않고
+    # 아직 안 나온 사실 하나씩을 묻는다(diary_buddy.md 규칙 3).
+    # 질문 수 자체를 줄이려면 diary_buddy 출력에 '건너뛰기' 칸을 더한다.
+    if turn_no >= max_turns:
         return DIARY_MOOD_QUESTION
-    data = _data(ctx, turn_no, max_turns=DIARY_TURNS) | {"old_photo": ctx.old_photo}
+    data = _data(ctx, turn_no, max_turns=max_turns) | {"old_photo": ctx.old_photo}
     try:
         return llm.call_json("diary_buddy", data, DiaryTurn)
     except (llm.LlmError, NotImplementedError):
-        q = DIARY_OLD_PHOTO_QUESTION if ctx.old_photo and turn_no == 1 else diary_fallback(turn_no)
+        q = DIARY_OLD_PHOTO_QUESTION if ctx.old_photo and turn_no == 1 else diary_fallback(turn_no, max_turns)
         return q.model_copy(update={"text": f"{ctx.elder_honorific}, {q.text}"}) if turn_no == 1 else q
+
+
+def diary_closing(ctx: CoachContext) -> CoachReply:
+    """일기 대화를 다 마쳤을 때 인사 (11/25 사용자 '마무리를 잘'): 오늘 들은 일을 짚고 → 일기로 써서 보여 드린다.
+    AI 가 실패하거나 질문이 섞이면 고정 문장."""
+    data = _data(ctx, len(ctx.turns), closing=True, max_turns=len(ctx.turns)) | {"old_photo": ctx.old_photo}
+    try:
+        out = llm.call_json("diary_buddy", data, DiaryTurn)
+    except (llm.LlmError, NotImplementedError):
+        return DIARY_CLOSING
+    if question_marks(out.text):
+        return DIARY_CLOSING
+    return CoachReply(text=out.text, suggestions=[], question_type="CLOSING", choice_mode="TWO_BUTTONS")
+
+
+# 마지막 답에 '더 얘기할래'가 들었는지 (11/25 실사용: 더 하고 싶다고 하셨는데 끊었다). 말이라 띄어쓰기는 안 본다
+_WANTS_MORE = re.compile(
+    r"더(이야기|얘기|애기|말씀|말하|할래|하고싶)|(이야기|얘기|애기|말)(을|를)?(좀|조금)?더"
+    r"|할말이?(더|아직|남았|많|있)|아직(할말|안끝|이야기|얘기)|(끊|끝내)지마"
+)
+
+
+def wants_more(text: str) -> bool:
+    return bool(_WANTS_MORE.search(re.sub(r"\s", "", text)))
 
 
 def mood_of(text: str) -> str | None:
@@ -402,7 +441,9 @@ def diary_draft(ctx: CoachContext) -> DiaryDraft:
         # LLM 이 없거나 실패: 어르신 말을 그대로 이어 붙인다(말씀에 없는 내용 없음). 사물을 모르니 그림 없음(D75).
         # 본문은 화면에 보이고 소리로 읽히므로 금지어가 든 답은 뺀다 (NFR-DE-003, confirm_question 과 같은 규칙).
         said = " ".join(
-            a.rstrip(" .") + "." for a in answers if not mood_of(a) and not any(w in a for w in BANNED_WORDS)
+            a.rstrip(" .") + "."
+            for a in answers
+            if not mood_of(a) and not wants_more(a) and not any(w in a for w in BANNED_WORDS)
         )
         draft = DiaryDraft.model_construct(
             body=said[:400] or "오늘 이야기를 나눴다.", mood=picked or "SO_SO", draw_objects=[]
