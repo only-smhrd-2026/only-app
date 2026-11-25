@@ -60,7 +60,8 @@ function FamilyMarks({ d }: { d: DiaryOut }) {
 }
 
 export default function ELDER_DIARY_004() {
-  const { home } = (useLocation().state ?? {}) as ElderNavState
+  // openId: 가족 소식의 '가족이 일기를 읽었어요' 칸을 누르면 그 일기를 바로 크게 연다 (11/25 실사용)
+  const { home, openId } = (useLocation().state ?? {}) as ElderNavState & { openId?: number }
   const speed = Number(home?.settings.tts_speed) || 0.9
   const { data, error, loading, reload } = useFetch<DiaryListOut>('/api/elder/diaries')
   const [open, setOpen] = useState<DiaryOut>()
@@ -70,11 +71,11 @@ export default function ELDER_DIARY_004() {
 
   // 안내는 소리로도. 떠나면 멈춘다
   useEffect(() => {
-    const message = errorMessage ?? (count === undefined ? undefined : count ? GUIDE : EMPTY)
+    const message = errorMessage ?? (count === undefined ? undefined : count ? (openId ? undefined : GUIDE) : EMPTY)
     if (!message) return
     void speak(message, speed)
     return () => stopSpeaking()
-  }, [count, errorMessage, speed])
+  }, [count, errorMessage, speed, openId])
 
   const read = (d: DiaryOut) => {
     const lines = familyLines(d)
@@ -87,6 +88,16 @@ export default function ELDER_DIARY_004() {
     view.current?.showModal()
     read(d)
   }
+
+  const opened = useRef(false)
+  useEffect(() => {
+    const d = openId ? data?.diaries.find((x) => x.diary_id === openId) : undefined
+    if (!d || opened.current) return
+    opened.current = true
+    show(d)
+    // 목록을 받은 뒤 한 번만
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, openId])
 
   return (
     <main className="elder elder-past">

@@ -461,7 +461,8 @@ export default function ELDER_FAMILY_001() {
         <h1>{heartsTitle}</h1>
         <div className="family-reacts">
           {cards.map((c) => (
-            <button key={c.diary_id} type="button" className="family-react" onClick={() => replay(c.whos.map((w) => reactLine(c, w)).join(' '))}>
+            // 누르면 그 일기를 크게 — 가족이 보낸 것 전부와 일기를 다시 본다 (11/25 실사용: 눌러 보고 싶게 생겼다)
+            <button key={c.diary_id} type="button" className="family-react" onClick={() => nav('/elder/diaries', { state: { home, openId: c.diary_id } })}>
               <span className="family-rdiary">
                 {c.thumb && <img src={c.thumb} alt="" />}
                 <span><small>{day(c.at)} 쓴 일기</small><span className="family-rbody">{c.body}</span></span>
@@ -472,6 +473,7 @@ export default function ELDER_FAMILY_001() {
                   <span><b>{w.who}</b> {w.reply ? <q>{w.reply}</q> : <>{heartFill}{wordsText(w.words)} 보냈어요</>}</span>
                 </span>
               ))}
+              <span className="family-rgo">눌러서 일기 보기{IC.next}</span>
             </button>
           ))}
         </div>

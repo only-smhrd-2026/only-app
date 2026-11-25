@@ -44,16 +44,20 @@
 
 /* 받은 반응 — 일기마다 한 카드: 위 '어느 일기'(작은 사진 + 날짜 + 앞 글), 아래 '누가'(시안 .react·.rdiary·.rwho) */
 .family-reacts { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: safe center; gap: 12px; padding: 4px 2px; }
-.family-react { flex: none; display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 0; border-radius: 22px; background: var(--elder-card); box-shadow: var(--elder-sh1); color: var(--elder-fg); text-align: left; cursor: pointer; }
+.family-react { flex: none; display: flex; flex-direction: column; gap: 14px; padding: 16px; border: 0; border-radius: 22px; background: var(--elder-card); box-shadow: var(--elder-sh1); color: var(--elder-fg); text-align: left; cursor: pointer; }
 .family-react:active { background: var(--elder-bg2); }
 .family-react:focus-visible { outline: 3px solid var(--elder-fg); outline-offset: 3px; }
-.family-rdiary { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 16px; background: var(--elder-bg2); font-size: 18px; font-weight: 600; line-height: 1.3; }
-.family-rdiary img { flex: none; width: 56px; height: 56px; border-radius: 12px; object-fit: cover; }
+.family-rdiary { display: flex; align-items: center; gap: 14px; padding: 10px; border-radius: 16px; background: var(--elder-bg2); font-size: var(--elder-font-size-s); font-weight: 600; line-height: 1.3; }
+.family-rdiary img { flex: none; width: 84px; height: 84px; border-radius: 12px; object-fit: cover; }
 .family-rdiary small { display: block; font-size: 16px; font-weight: 700; color: var(--elder-ink2); }
 .family-rbody { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } /* 일기 글은 두 줄까지, 넘치면 … (11/24) */
-.family-rwho { display: flex; align-items: center; gap: 10px; font-size: var(--elder-font-size-s); font-weight: 700; line-height: 1.3; }
+.family-rwho { display: flex; align-items: center; gap: 12px; font-size: var(--elder-font-size-lg); font-weight: 700; line-height: 1.3; }
+.family-rwho .elder-av { width: 56px; height: 56px; font-size: 24px; }
+/* 크게 + 누르면 그 일기 (11/25 사용자) */
+.family-rgo { display: flex; align-items: center; justify-content: flex-end; gap: 2px; font-size: var(--elder-font-size-s); font-weight: 800; color: var(--elder-ink2); }
+.family-rgo .elder-ic { width: 22px; height: 22px; }
 .family-rwho .family-hf { margin-right: 4px; vertical-align: -3px; }
-.family-rwho .family-hf .elder-ic { width: 22px; height: 22px; }
+.family-rwho .family-hf .elder-ic { width: 28px; height: 28px; }
 .family-rwho q { font-weight: 800; }
 
 /* 가족 목소리 답장 한 장 (D99, 11/24 사용자 그림) — 재생 줄(누르면 다시 듣기·멈춤) · 받아 적은 자막 */

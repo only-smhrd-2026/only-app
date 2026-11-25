@@ -23,12 +23,15 @@ const EMPTY = '아직 사진이 없어요. 사진 올리기를 누르면 폰에 
 const CATS: [PhotoGroup | 'ALL' | 'DIARY', string][] = [
   ['ALL', '전체'], ['FAMILY', '가족'], ['TRAVEL', '여행'], ['FOOD', '음식'], ['NATURE', '풍경'], ['EVENT', '행사'], ['DIARY', '일기'],
 ]
+// 달 줄 맨 앞 [전체] — 처음에 고른 칸 (11/25 실사용: 전체 사진을 먼저 보고 그다음 달로)
+const ALL = 'ALL'
 /** 사진이 들어갈 탭: 올해는 달('2026-11' 꼴), 지난 해는 연도('2023' 꼴) (11/23 사용자) */
 function monthOf(taken: string | null, now: Date): string {
   const d = taken ? new Date(taken) : now
   return d.getFullYear() === now.getFullYear() ? `${d.getFullYear()}-${d.getMonth() + 1}` : `${d.getFullYear()}`
 }
 function monthName(key: string): string {
+  if (key === ALL) return '전체'
   const [y, m] = key.split('-')
   return m ? `${m}월` : `${y}년`
 }
@@ -57,12 +60,14 @@ export default function ELDER_ALBUM_001() {
   const keyed: [AlbumPhoto, string][] = []
   for (const p of photos) keyed.push([p, p.taken_at ? monthOf(p.taken_at, now) : (keyed.at(-1)?.[1] ?? monthOf(null, now))])
   const months = [...new Set(keyed.map(([, k]) => k))]
-  const cur = month && months.includes(month) ? month : months[0]
-  const list = keyed
-    .filter(([p, k]) => k === cur && (cat === 'ALL' || (cat === 'DIARY' ? p.diary_id !== null : p.group === cat)))
-    .map(([p]) => p)
+  const cur = month && months.includes(month) ? month : ALL
+  const shown = keyed.filter(
+    ([p, k]) => (cur === ALL || k === cur) && (cat === 'ALL' || (cat === 'DIARY' ? p.diary_id !== null : p.group === cat)),
+  )
+  const list = shown.map(([p]) => p)
   const [hero, ...rest] = list
-  const curName = cur ? monthName(cur) : ''
+  const curName = monthName(cur)
+  const heroName = cur === ALL && shown[0] ? monthName(shown[0][1]) : curName // [전체]면 대표 사진의 달
 
   const message = loading ? undefined : error
     ? error.code === 'DEVICE_REQUIRED' ? '가족이 보낸 연결 링크를 먼저 열어 주세요.' : error.message
@@ -130,7 +135,7 @@ export default function ELDER_ALBUM_001() {
       const saved = await api<AlbumPhoto>('/api/elder/album', { form })
       if (!live.current) return
       setAdded((a) => [saved, ...a])
-      setMonth(monthOf(saved.taken_at, now))
+      setMonth(ALL) // 올린 사진이 맨 앞에 보이게
       setCat('ALL')
       tell('사진첩에 올렸어요. 가족도 같이 봐요.')
     } catch (err) {
@@ -153,7 +158,7 @@ export default function ELDER_ALBUM_001() {
         <>
           {months.length > 0 && (
             <div className="alb-months" role="tablist" aria-label="달">
-              {months.map((k) => (
+              {[ALL, ...months].map((k) => (
                 <button key={k} type="button" role="tab" aria-selected={k === cur} onClick={() => chooseMonth(k)}>{monthName(k)}</button>
               ))}
             </div>
@@ -168,14 +173,14 @@ export default function ELDER_ALBUM_001() {
           {!photos.length && <p className="elder-sub">{EMPTY}</p>}
           {note && !open && <p className="elder-sent-ok" role="status">{note}</p>}
           {hero ? (
-            <button type="button" className="alb-hero" onClick={() => show(hero)} aria-label={`${curName} 대표 사진${hero.caption ? `, ${hero.caption}` : ''}`}>
+            <button type="button" className="alb-hero" onClick={() => show(hero)} aria-label={`${heroName} 대표 사진${hero.caption ? `, ${hero.caption}` : ''}`}>
               <img src={hero.url} alt="" decoding="async" />
-              <span><b>{curName}</b>{hero.caption}</span>
+              <span><b>{heroName}</b>{hero.caption}</span>
               {hero.diary_id !== null && <i className="alb-tag">일기</i>}
             </button>
           ) : photos.length > 0 && (
             <div className="elder-center alb-none">
-              <b>{curName}에는 이런 사진이 없어요</b>
+              <b>{cur === ALL ? '이런 사진이 없어요' : `${curName}에는 이런 사진이 없어요`}</b>
               <button type="button" className="elder-btn elder-btn--secondary elder-btn--sm" onClick={() => setCat('ALL')}>전체 보기</button>
             </div>
           )}
