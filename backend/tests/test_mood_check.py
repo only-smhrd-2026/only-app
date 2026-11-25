@@ -82,6 +82,7 @@ def test_save_keeps_first_answers_and_consent(client):
         "face": "😐",
         "title": "요즘 조금 지치셨어요",
         "sub": "즐거운 일이 줄었어요.",
+        "help_call": False,
     }
     with SessionLocal() as db:
         checks = db.scalars(select(MoodCheck).where(MoodCheck.room_id == room_id)).all()

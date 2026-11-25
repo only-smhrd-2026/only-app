@@ -18,7 +18,8 @@
 10. GET /elder/family-news 의 hearts — 어르신이 아직 못 들은 가족 이모지('하트가 왔어요' 첫 장, D63).
     읽어 드린 뒤 POST /elder/hearts/heard {until} 이 그때까지 온 칸에 heard_at 을 적는다.
 11. POST·DELETE /diaries/{id}/reply — 가족 한마디(40자까지)를 어르신 일기에 남기고 지운다 (11/19, D50 을 바꿈).
-    reactions 의 REPLY 칸 — 이모지와 따로 한 사람 1칸. 어르신께는 10 의 hearts 로 같이 내려가 첫 장에서 읽어 드린다.
+    reactions 의 REPLY 칸 — 이모지와 따로, 한 사람이 여러 개(11/25). 지우기는 ?at= 로 하나씩.
+    어르신께는 10 의 hearts 로 같이 내려가 첫 장에서 읽어 드린다.
     가족 일기에도 남길 수 있다(D98, 쓴 사람 본인은 빼고). 가족끼리 한마디라 어르신 기기에는 내려보내지 않는다.
 12. GET /elder/family-news?again=1 — 새 소식이 없을 때 '지난 소식 다시 듣기': 이미 들은 가족 일기 최근 5개 (11/19).
 
@@ -36,7 +37,8 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, File, Request, UploadFile
+from fastapi import APIRouter, File, Form, Request, UploadFile
+from pydantic import ValidationError
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -46,6 +48,7 @@ from app.config import (
     ELDER_DIARY_LIST_LIMIT,
     ELDER_HEARTS_LIMIT,
     ELDER_NEWS_AGAIN_LIMIT,
+    ELDER_VOICE_REPLY_MAX_SEC,
     STT_FAMILY_PER_DAY,
     STT_MAX_BYTES,
     STT_PER_DAY,
@@ -187,11 +190,12 @@ def make_draft(session_id: uuid.UUID, device: CurrentDevice, db: DB):
         return out
 
 
-def _member_names(db, room_id: int, full: bool = False) -> dict[int, str]:
+def _member_names(db, room_id: int, full: bool = False, elder: bool = False) -> dict[int, str]:
     """가족방 사람의 user_id → 별명(없으면 이름). 방에서 나간 사람도 그 줄은 남아 있어 이름이 나온다.
 
     full=True 면 '이름(별명)' — 가족 화면의 한마디·이모지 (11/24 실사용: '딸·손주'만 보여 누군지 몰랐다).
-    어르신 화면은 별명 그대로 읽는다('딸이 하트를 보냈어요').
+    elder=True 면 '별명 (이름)' — 어르신 가족 소식 (11/25 실사용: 딸이 여럿이면 헷갈림). 화면은 읽을 때 괄호를 뗀다
+    ('딸이 하트를 보냈어요').
     """
     rows = db.execute(
         select(RoomMember.user_id, RoomMember.nickname, User.name)
@@ -200,6 +204,8 @@ def _member_names(db, room_id: int, full: bool = False) -> dict[int, str]:
     ).all()
     if full:
         return {user_id: f"{name}({nickname})" if nickname else name for user_id, nickname, name in rows}
+    if elder:
+        return {user_id: f"{nickname} ({name})" if nickname else name for user_id, nickname, name in rows}
     return {user_id: nickname or name for user_id, nickname, name in rows}
 
 
@@ -241,7 +247,11 @@ def _rows(db, room: FamilyRoom, *cond, me: int | None = None, limit: int = 50) -
         .limit(limit)
     ).all()
     # 리액션을 누른 가족의 이름은 응답에만 붙인다 (DB 에는 user_id 만)
-    names = _member_names(db, room.room_id, full=me is not None) if any(d.reactions for d, *_ in rows) else {}
+    names = (
+        _member_names(db, room.room_id, full=me is not None, elder=me is None)
+        if any(d.reactions for d, *_ in rows)
+        else {}
+    )
     out = []
     for d, name, photo_key, nickname in rows:
         mine = d.author_user_id == me if me is not None else d.author_type == "ELDER"
@@ -419,7 +429,7 @@ def elder_family_news(device: CurrentDevice, db: DB, again: bool = False):
     if again:
         heard = (Diary.author_type == "FAMILY", Diary.elder_read_at.is_not(None))
         return FamilyNewsOut(diaries=_rows(db, room, *heard, limit=ELDER_NEWS_AGAIN_LIMIT), hearts=[])
-    names = _member_names(db, room.room_id)
+    names = _member_names(db, room.room_id, elder=True)
     hearts = [
         HeartOut(
             diary_id=diary.diary_id,
@@ -486,6 +496,50 @@ def elder_reply_draft(diary_id: int, body: ElderReplyDraftIn, device: CurrentDev
 
 @router.post("/elder/diaries/{diary_id}/reply", response_model=DiaryOut)
 def elder_reply(diary_id: int, body: ElderReplyIn, device: CurrentDevice, db: DB):
+    return _put_elder_reply(db, diary_id, device, body.text)
+
+
+@router.post("/elder/diaries/{diary_id}/voice-reply", response_model=DiaryOut)
+def elder_voice_reply(
+    diary_id: int,
+    device: CurrentDevice,
+    db: DB,
+    text: str = Form(description="어르신이 확인한 한 줄 — …/reply 의 text 와 같은 검사"),
+    audio: UploadFile = File(description="어르신 [말로 답하기] 녹음(webm/opus·mp4/aac), 5MB 이하"),
+):
+    """어르신 답 한 줄 + 그 녹음 (11/25 사용자 — D6 '녹음은 저장하지 않는다'를 어르신 답장에 한해 바꿈, D99 방식).
+
+    가족 화면은 [▶ 듣기]를 눌러야 튼다. 녹음은 이미 받아 적은 것이라 받아 적기는 다시 부르지 않는다.
+    소리를 못 풀면 글만 보낸다. 소리·글은 로그에 남기지 않는다 (D15).
+    """
+    try:
+        line = ElderReplyIn(text=text).text
+    except ValidationError as e:
+        raise ApiError(422, "REPLY_INVALID", "답은 한 줄로 40자까지예요") from e
+    data = audio.file.read(STT_MAX_BYTES + 1)
+    if len(data) > STT_MAX_BYTES:
+        raise ApiError(413, "AUDIO_TOO_LARGE", "녹음 파일이 너무 커요 (5MB 초과)")
+    _family_diary_for_elder(db, diary_id, device)  # 남의 방·지운 일기면 소리를 만들기 전에 404
+    room_id = device.room_id
+    db.close()  # 변환(수 초) 동안 DB 연결을 쥐지 않는다
+    voice = None
+    try:
+        mp3 = stt.to_mp3(data, ELDER_VOICE_REPLY_MAX_SEC, VOICE_REPLY_KBPS) if data else b""
+    except (stt.BadAudio, subprocess.TimeoutExpired):
+        mp3 = b""
+    sec = round(len(mp3) / (VOICE_REPLY_KBPS * 125))  # 고정 비트레이트라 바이트로 길이를 안다
+    if sec >= 1:
+        voice = (f"rooms/{room_id}/voice/{uuid.uuid4().hex}.mp3", sec)
+        storage.put(voice[0], mp3, "audio/mpeg")
+    try:
+        return _put_elder_reply(db, diary_id, device, line, voice)
+    except ApiError:  # 그사이 일기가 지워졌다 — 올린 소리도 지운다
+        if voice:
+            storage.delete(voice[0])
+        raise
+
+
+def _put_elder_reply(db, diary_id: int, device, text: str, voice: tuple[str, int] | None = None) -> DiaryOut:
     """어르신 답 한 줄을 가족 일기에 (11/23). reactions 에 어르신 REPLY 1칸 — 새로 보내면 바뀐다. 답장의 답장은 없다.
 
     일기 쓴 가족에게 ELDER_REPLY 알림(누르면 그 일기). 같은 글이 두 번 오면(두 번 누름) 그대로 두고 알림도 1번.
@@ -493,8 +547,11 @@ def elder_reply(diary_id: int, body: ElderReplyIn, device: CurrentDevice, db: DB
     """
     diary = _family_diary_for_elder(db, diary_id, device, lock=True)
     mine = next((r for r in diary.reactions if r.get("by") == "ELDER" and r.get("kind") == "REPLY"), None)
-    if mine is None or mine.get("text") != body.text:  # 새 리스트를 통째로 넣어야 저장된다
-        new = {"by": "ELDER", "kind": "REPLY", "text": body.text, "at": now_kst().isoformat()}
+    changed = mine is None or mine.get("text") != text
+    if changed:  # 새 리스트를 통째로 넣어야 저장된다
+        new = {"by": "ELDER", "kind": "REPLY", "text": text, "at": now_kst().isoformat()}
+        if voice:
+            new |= {"audio_key": voice[0], "audio_sec": voice[1]}
         diary.reactions = [*(r for r in diary.reactions if r is not mine), new]
         room = db.get(FamilyRoom, device.room_id)
         if diary.author_user_id is not None and db.scalar(
@@ -512,7 +569,7 @@ def elder_reply(diary_id: int, body: ElderReplyIn, device: CurrentDevice, db: DB
                     target_user_id=diary.author_user_id,
                     kind="ELDER_REPLY",
                     title=title,
-                    body=body.text,
+                    body=text,
                     link_screen="HOME_002",
                     link_id=diary.diary_id,
                 )
@@ -522,6 +579,10 @@ def elder_reply(diary_id: int, body: ElderReplyIn, device: CurrentDevice, db: DB
             )
         log.info("elder reply room=%s diary=%s", device.room_id, diary_id)
     db.commit()  # 바뀐 게 없어도 — 행 잠금이 풀린다
+    if changed:
+        _drop_voice(mine)  # 바뀐 옛 답의 소리
+    elif voice:
+        _drop_voice({"audio_key": voice[0]})  # 같은 답이 두 번 왔다(두 번 누름) — 새로 올린 소리는 버린다
     return _rows(db, db.get(FamilyRoom, device.room_id), Diary.diary_id == diary_id)[0]
 
 
@@ -612,6 +673,7 @@ def delete_diary(diary_id: int, user: CurrentUser, db: DB):
         raise ApiError(403, "NOT_AUTHOR", "내가 쓴 일기만 지울 수 있어요")
     diary.status = "DELETED"
     diary.body = ""
+    voices = [r for r in diary.reactions if r.get("audio_key")]  # 어르신 목소리 답장(11/25) — 저장 뒤 소리 파일도
     diary.reactions = []
     if diary.photo_id is not None:
         photo = db.get(Photo, diary.photo_id, with_for_update=True)
@@ -630,17 +692,21 @@ def delete_diary(diary_id: int, user: CurrentUser, db: DB):
             and shared is None
         ):
             commit_photo_deletion(db, photo)
+            for cell in voices:
+                _drop_voice(cell)
             return
     db.commit()
+    for cell in voices:
+        _drop_voice(cell)
 
 
-def _own_cell(diary: Diary, user_id: int, *, reply: bool) -> dict | None:
-    """이 가족이 이 일기에 둔 칸. 이모지 칸(reply=False)과 한마디 칸(reply=True)은 따로 — 한 사람이 하나씩 가진다."""
+def _own_cell(diary: Diary, user_id: int) -> dict | None:
+    """이 가족이 이 일기에 둔 이모지 칸 — 한 사람 1칸. 한마디 칸들(_own_replies)은 따로."""
     return next(
         (
             r
             for r in diary.reactions
-            if r.get("by") == "FAMILY" and r.get("user_id") == user_id and (r.get("kind") == "REPLY") is reply
+            if r.get("by") == "FAMILY" and r.get("user_id") == user_id and r.get("kind") != "REPLY"
         ),
         None,
     )
@@ -664,7 +730,7 @@ def send_reaction(diary_id: int, body: ReactionIn, user: CurrentUser, db: DB):
         raise ApiError(404, "DIARY_NOT_FOUND", "일기를 찾을 수 없어요")
     if diary.author_type != "ELDER":  # 404 확인 뒤에 — 먼저 하면 남의 가족방에 어떤 일기가 있는지 드러난다
         raise ApiError(409, "REACTION_NOT_ALLOWED", "이모지는 어르신 일기에만 보낼 수 있어요")
-    mine = _own_cell(diary, user.user_id, reply=False)  # 내 한마디 칸은 others 에 남는다
+    mine = _own_cell(diary, user.user_id)  # 내 한마디 칸은 others 에 남는다
     others = [r for r in diary.reactions if r is not mine]
     same = mine is not None and mine.get("kind") == body.kind
     if body.on and not same:  # 없던 것을 켜거나 다른 이모지에서 바꿔 끼움. 새 리스트를 통째로 넣어야 저장된다
@@ -696,28 +762,34 @@ def _diary_for_reply(db, diary_id: int, user) -> Diary:
 
 @router.post("/diaries/{diary_id}/reply", response_model=DiaryOut)
 def send_reply(diary_id: int, body: ReplyIn, user: CurrentUser, db: DB):
-    """가족 한마디를 일기에 (11/19 — D50 '글 답장은 없다'를 바꿈). 한 사람 1개, 이모지 칸과 따로.
+    """가족 한마디를 일기에 (11/19 — D50 '글 답장은 없다'를 바꿈). 이모지 칸과 따로, 한 사람이 여러 개 (11/25 사용자).
 
     가족 일기에도 (D98 — D91 을 넓힘). 쓴 사람 본인은 제 일기에 못 남긴다. 가족 일기의 한마디는 가족끼리만 —
     어르신 가족 소식(hearts 는 어르신 일기만 본다, 일기 목록은 _rows 가 뺀다)에는 나오지 않는다.
 
-    글이 바뀌면 그 사람의 한마디 칸을 새 칸으로 바꿔 끼운다 — heard_at 이 없어 가족 소식 첫 장에서 다시 읽어 드린다.
-    같은 글이 또 오면(두 번 누름) 그대로 둔다. 글 검사는 가족 일기 본문과 같다(금지어 검사 없음).
+    보낼 때마다 새 칸이 뒤에 붙는다 — heard_at 이 없어 어르신 가족 소식 첫 장에서 읽어 드린다.
+    내 바로 앞 한마디와 같은 글이 또 오면(두 번 누름) 그대로 둔다. 글 검사는 가족 일기 본문과 같다(금지어 검사 없음).
     글은 로그에 남기지 않는다.
     """
     diary = _diary_for_reply(db, diary_id, user)
     if diary.author_user_id == user.user_id:  # 404 확인 뒤에 — 먼저 하면 남의 가족방에 어떤 일기가 있는지 드러난다
         raise ApiError(400, "REPLY_NOT_ALLOWED", "내 일기에는 한마디를 남길 수 없어요")
-    mine = _own_cell(diary, user.user_id, reply=True)
-    replaced = None
-    # 새 리스트를 통째로 넣어야 저장된다. 목소리 답장(D99) 칸이면 자막이 같아도 글 한마디로 바꾼다
-    if mine is None or mine.get("text") != body.text or mine.get("audio_key"):
+    last = _own_replies(diary, user.user_id)[-1:]
+    # 새 리스트를 통째로 넣어야 저장된다. 앞 칸이 목소리 답장(D99)이면 자막이 같아도 새 글 한마디로 붙인다
+    if not last or last[0].get("text") != body.text or last[0].get("audio_key"):
         new = {"by": "FAMILY", "user_id": user.user_id, "kind": "REPLY", "text": body.text, "at": now_kst().isoformat()}
-        diary.reactions = [*(r for r in diary.reactions if r is not mine), new]
-        replaced = mine
+        diary.reactions = [*diary.reactions, new]
     db.commit()  # 바뀐 게 없어도 — 행 잠금이 풀린다
-    _drop_voice(replaced)
     return _rows(db, db.get(FamilyRoom, diary.room_id), Diary.diary_id == diary_id, me=user.user_id)[0]
+
+
+def _own_replies(diary: Diary, user_id: int) -> list[dict]:
+    """이 가족이 이 일기에 남긴 한마디 칸들(글·목소리), 남긴 순서."""
+    return [
+        r
+        for r in diary.reactions
+        if r.get("by") == "FAMILY" and r.get("user_id") == user_id and r.get("kind") == "REPLY"
+    ]
 
 
 def _voice_url(cell: dict) -> str | None:
@@ -760,8 +832,8 @@ def send_voice_reply(
 ):
     """가족 목소리 답장 (D99, 11/24 사용자 — D6·D91·D98 '녹음은 저장하지 않는다'를 가족 답장에 한해 바꿈).
 
-    어르신 일기에만. 한 사람 한 일기 1칸 — 글 한마디와 같은 칸이라 글이든 목소리든 새로 보내면 바뀌고, 옛 소리 파일은
-    지운다. 녹음은 mp3(VOICE_REPLY_MAX_SEC 초까지)로 바꿔 저장하고 받아 적은 글을 자막(text)으로 붙인다.
+    어르신 일기에만. 글 한마디처럼 보낼 때마다 새 칸이 붙는다(11/25 사용자 — 여러 개).
+    녹음은 mp3(VOICE_REPLY_MAX_SEC 초까지)로 바꿔 저장하고 받아 적은 글을 자막(text)으로 붙인다.
     heard_at 이 없어 어르신 가족 소식이 한 장씩 틀어 드린다. 소리·자막은 로그에 남기지 않는다 (D15).
     """
     # 돈이 드는 받아 적기를 부르니 /api/stt 와 같은 분당 상한 (D46)
@@ -792,21 +864,23 @@ def send_voice_reply(
     except ApiError:  # 그사이 일기가 지워졌거나 방에서 나갔다 — 올린 소리도 지운다
         storage.delete(key)
         raise
-    mine = _own_cell(diary, user.user_id, reply=True)
     new = {"by": "FAMILY", "user_id": user.user_id, "kind": "REPLY", "text": text}
     new |= {"audio_key": key, "audio_sec": sec, "at": now_kst().isoformat()}
-    diary.reactions = [*(r for r in diary.reactions if r is not mine), new]
+    diary.reactions = [*diary.reactions, new]
     db.commit()
-    _drop_voice(mine)
     return _rows(db, db.get(FamilyRoom, diary.room_id), Diary.diary_id == diary_id, me=user.user_id)[0]
 
 
 @router.delete("/diaries/{diary_id}/reply", status_code=204)
-def delete_reply(diary_id: int, user: CurrentUser, db: DB):
-    """내 한마디 지우기. 없어도 204. 내 이모지 칸과 다른 가족의 칸은 그대로 둔다."""
+def delete_reply(diary_id: int, user: CurrentUser, db: DB, at: str | None = None):
+    """내 한마디 하나 지우기 — ?at= 그 칸의 시각(응답의 at 그대로). 없어도 204.
+
+    at 이 없으면 내 한마디를 모두 지운다(한 사람 1개이던 때의 화면). 내 이모지 칸과 다른 가족의 칸은 그대로 둔다.
+    """
     diary = _diary_for_reply(db, diary_id, user)
-    mine = _own_cell(diary, user.user_id, reply=True)
-    if mine is not None:
-        diary.reactions = [r for r in diary.reactions if r is not mine]
+    gone = [r for r in _own_replies(diary, user.user_id) if at is None or r.get("at") == at]
+    if gone:
+        diary.reactions = [r for r in diary.reactions if not any(r is g for g in gone)]
     db.commit()  # 바뀐 게 없어도 — 행 잠금이 풀린다
-    _drop_voice(mine)  # 목소리 답장이었으면 소리 파일도 (D99)
+    for cell in gone:
+        _drop_voice(cell)  # 목소리 답장이었으면 소리 파일도 (D99)

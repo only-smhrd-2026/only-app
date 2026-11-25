@@ -1,4 +1,4 @@
-"""가족 한마디 (11/19 — D50 '글 답장은 없다'를 바꿈): 어르신 일기에 한 사람 1개, 이모지 칸과 따로.
+"""가족 한마디 (11/19 — D50 '글 답장은 없다'를 바꿈): 어르신 일기에 한 사람 여러 개(11/25), 이모지 칸과 따로.
 
 어르신께는 가족 소식 첫 장(hearts)으로 같이 내려가 한 번 읽어 드리고, 글을 바꾸면 다시 읽어 드린다.
 + 새 소식이 없을 때 '지난 소식 다시 듣기'(GET /elder/family-news?again=1).
@@ -35,11 +35,14 @@ def test_reply_send_change_delete(client):
     assert reply["text"] == "보고 싶어요"
     assert set(_stored(diary_id)[0]) == {"by", "user_id", "kind", "text", "at"}  # 이름은 DB 에 넣지 않는다
     assert _reply(client, diary_id, "보고 싶어요").json()["reactions"] == [reply]  # 같은 글 다시 — at 도 그대로
-    (changed,) = _reply(client, diary_id, "곧 갈게요").json()["reactions"]  # 바꿔 끼움 — 한 사람 1개
-    assert changed["text"] == "곧 갈게요"
-    assert changed["at"] != reply["at"]
-    assert client.get(f"/api/diaries/{diary_id}").json()["reactions"] == [changed]
-    assert _unreply(client, diary_id).status_code == 204
+    first, second = _reply(client, diary_id, "곧 갈게요").json()["reactions"]  # 새 글은 뒤에 붙음 — 여러 개 (11/25)
+    assert (first, second["text"]) == (reply, "곧 갈게요")
+    assert second["at"] != reply["at"]
+    assert client.get(f"/api/diaries/{diary_id}").json()["reactions"] == [first, second]
+    assert client.delete(f"/api/diaries/{diary_id}/reply", params={"at": first["at"]}).status_code == 204  # 하나만
+    assert [r["text"] for r in _stored(diary_id)] == ["곧 갈게요"]
+    _reply(client, diary_id, "보고 싶어요")
+    assert _unreply(client, diary_id).status_code == 204  # at 없이 = 내 한마디 모두
     assert _stored(diary_id) == []
     assert _unreply(client, diary_id).status_code == 204  # 없어도 204
 
@@ -51,7 +54,7 @@ def test_reply_becomes_one_line_of_40(client):
     assert r.json()["reactions"][0]["text"] == "엄마 김치 최고"
     r = _reply(client, diary_id, " " + "가" * 40 + "\n")  # 빈칸을 뗀 뒤 40자
     assert r.status_code == 200, r.text
-    assert r.json()["reactions"][0]["text"] == "가" * 40
+    assert r.json()["reactions"][-1]["text"] == "가" * 40  # 새 한마디는 뒤에 붙는다
 
 
 @pytest.mark.parametrize("text", ["", "   ", "\n\t", "\x00", "가" * 41, None, 3])
@@ -110,7 +113,8 @@ def test_emoji_and_reply_do_not_touch_each_other(client):
     assert _kinds(_react(client, diary_id, "SMILE", on=False)) == ["REPLY"]  # 안 켠 이모지 끄기 — 한마디는 그대로
     assert client.post(f"/api/diaries/{diary_id}/reaction", json={"kind": "REPLY", "on": False}).status_code == 422
     _react(client, diary_id, "SMILE")
-    assert _kinds(_reply(client, diary_id, "곧 갈게요")) == ["SMILE", "REPLY"]  # 한마디를 바꿔도 이모지는 남는다
+    # 한마디를 더해도 이모지는 그대로
+    assert _kinds(_reply(client, diary_id, "곧 갈게요")) == ["SMILE", "REPLY", "REPLY"]
     assert _unreply(client, diary_id).status_code == 204
     assert [r["kind"] for r in _stored(diary_id)] == ["SMILE"]  # 한마디만 지워진다
 

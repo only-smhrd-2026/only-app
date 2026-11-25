@@ -79,6 +79,7 @@ class MoodCheckSavedOut(BaseModel):
     face: str
     title: str
     sub: str
+    help_call: bool = False  # PHQ-9 9번에 '있었다' — 화면이 [109 전화] 버튼을 보인다 (11/25)
 
 
 class MoodHistoryItem(BaseModel):

@@ -47,6 +47,7 @@ REPLY_MAX = 40  # 가족이 어르신 일기에 남기는 한마디 글자 수 (
 # 가족 목소리 답장 (D99, 11/24 사용자): 길이 상한(화면 HOME_002 VOICE_MS 와 같게),
 # 저장 mp3 고정 비트레이트(길이 = 바이트 / (KBPS × 125)), 받아 적은 자막 글자 수
 VOICE_REPLY_MAX_SEC = 30
+ELDER_VOICE_REPLY_MAX_SEC = 60  # 어르신 [말로 답하기] 녹음 상한(화면 REPLY_MS)과 같게 — 저장하는 소리 길이 (11/25)
 VOICE_REPLY_KBPS = 48
 VOICE_REPLY_MAX_CHARS = 200
 ELDER_NEWS_AGAIN_LIMIT = 5  # 가족 소식이 비었을 때 '지난 소식 다시 듣기'가 돌려주는 들은 가족 일기 수 (11/19)
