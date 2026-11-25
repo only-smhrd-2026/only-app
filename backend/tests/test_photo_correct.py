@@ -55,6 +55,9 @@ def test_correct_repeat_and_change(client, context, monkeypatch):
         "group",  # 11/23 사진첩 분류 칩 · 올린 사람 · 어르신께 보여 드렸나
         "uploader_name",
         "shown",
+        "talked",  # 11/25 사진첩 판 — 어르신 이야기·쓴 일기 (목록만 채운다)
+        "quotes",
+        "diary_id",
     }
     assert response.json()["is_mine"] is False  # 이 fixture의 사진은 uploaded_by가 없는 시드형 자료
     with SessionLocal() as db:

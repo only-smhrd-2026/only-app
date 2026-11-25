@@ -7,7 +7,7 @@ import threading
 import uuid
 from collections.abc import AsyncIterator
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Request
 from PIL import ExifTags, Image, ImageOps
@@ -34,10 +34,10 @@ from app.config import (
 )
 from app.deps import DB, CurrentUser, require_member
 from app.errors import ApiError
-from app.models import DailyPick, FamilyRoom, Photo, TalkSession
+from app.models import ELDER_SPOKE, DailyPick, Diary, FamilyRoom, Photo, TalkSession, WeeklySummary
 from app.photo_groups import group_filter, group_of
 from app.schemas.elder import PhotoGroup
-from app.schemas.photos import PhotoBatchOut, PhotoCorrectIn, PhotoListOut, PhotoNoteIn, PhotoOut
+from app.schemas.photos import PhotoBatchOut, PhotoCorrectIn, PhotoListOut, PhotoNoteIn, PhotoOut, PhotoQuote
 from app.services import storage
 
 log = logging.getLogger("app.photos")
@@ -120,9 +120,18 @@ def to_jpeg(data: bytes) -> tuple[bytes, date | None]:
 
 
 def photo_out(
-    p: Photo, user_id: int | None = None, *, uploader_name: str | None = None, shown: bool = False
+    p: Photo,
+    user_id: int | None = None,
+    *,
+    uploader_name: str | None = None,
+    shown: bool = False,
+    talked: bool = False,
+    quotes: list[PhotoQuote] | None = None,
+    diary_id: int | None = None,
 ) -> PhotoOut:
-    """uploader_name·shown 은 목록(list_photos)만 채운다 — 한 장씩 돌려주는 곳(올리기·고치기)은 기본값."""
+    """uploader_name·shown·talked·quotes·diary_id 는 목록(list_photos)만 채운다.
+
+    한 장씩 돌려주는 곳(올리기·고치기)은 기본값."""
     analyzed = p.analyzed_at is not None
     return PhotoOut(
         is_mine=user_id is not None and p.uploaded_by == user_id,
@@ -143,6 +152,9 @@ def photo_out(
         group=group_of(p),
         uploader_name=uploader_name,
         shown=shown,
+        talked=talked,
+        quotes=quotes or [],
+        diary_id=diary_id,
     )
 
 
@@ -327,6 +339,23 @@ def shown_ids(db: DB, room_id: int, photo_ids: list[int]) -> set[int]:
     return set(db.scalars(picked.union(talked)))
 
 
+def photo_quotes(db: DB, room_id: int, photo_ids: set[int]) -> dict[int, list[PhotoQuote]]:
+    """주간 이야기 카드 중 이 사진들의 것, 오래된 주 먼저 (11/25). 가족에게 이미 보인 카드라 '가족에게 말하지 마'·
+    힘든 날 대화는 처음부터 없다(ai/weekly.py)."""
+    out: dict[int, list[PhotoQuote]] = {}
+    if not photo_ids:
+        return out
+    weeks = db.scalars(
+        select(WeeklySummary.qa_list).where(WeeklySummary.room_id == room_id).order_by(WeeklySummary.week_start)
+    )
+    for cards in weeks:
+        for card in cards or []:
+            if card.get("photo_id") in photo_ids and card.get("answer"):
+                quote = PhotoQuote(day=card["date"], question=card.get("question") or "", answer=card["answer"])
+                out.setdefault(card["photo_id"], []).append(quote)
+    return out
+
+
 def waiting_count(db: DB, room_id: int) -> int:
     """오늘의 한 장으로 아직 한 번도 안 나온 가족 사진 수 — 사진첩 '남은 사진 N장' (11/23).
 
@@ -347,14 +376,30 @@ def waiting_count(db: DB, room_id: int) -> int:
 
 
 @router.get("", response_model=PhotoListOut)
-def list_photos(room_id: int, user: CurrentUser, db: DB, before: int | None = None, group: PhotoGroup | None = None):
-    """가족 사진첩(PHOTO_001) 목록, 최신 먼저 (FR-ME-004). ?group= 분류 칩으로 거른다 (11/23)."""
+def list_photos(
+    room_id: int,
+    user: CurrentUser,
+    db: DB,
+    before: int | None = None,
+    group: PhotoGroup | None = None,
+    who: Literal["ELDER", "FAMILY"] | None = None,
+):
+    """가족 사진첩(PHOTO_001) 목록, 최신 먼저 (FR-ME-004). ?group= 분류 칩으로 거른다 (11/23).
+
+    ?who= 칩(11/25 사용자: 전체·어르신·가족) — ELDER 어르신이 찍거나 고른 사진, FAMILY 가족이 올린 추억 사진 +
+    가족 오늘 소식 사진(FAMILY_DIARY). 사진마다 어르신이 그 사진으로 말씀하셨는지·주간 이야기 카드·쓴 일기를 붙인다.
+    """
     require_member(room_id, user, db)  # 로그인 안 함 401, 남의 가족방 404
-    # 지운 사진·그림일기 사진(FAMILY_DIARY)은 뺀다. 어르신이 찍거나 고른 사진(ELDER_CAMERA)은 넣는다 (11/23)
+    sources = {"ELDER": ["ELDER_CAMERA"], "FAMILY": ["FAMILY", "FAMILY_DIARY"]}.get(
+        who, ["FAMILY", "ELDER_CAMERA", "FAMILY_DIARY"]
+    )
+    posted = select(Diary.photo_id).where(Diary.room_id == room_id, Diary.status == "POSTED")
+    # 지운 사진은 뺀다. 오늘 소식 사진(FAMILY_DIARY)은 게시된 일기에 붙은 것만 — 올리다 그만둔 사진은 안 보인다 (11/25)
     query = select(Photo).where(
         Photo.room_id == room_id,
         Photo.status == "ACTIVE",
-        Photo.source.in_(["FAMILY", "ELDER_CAMERA"]),
+        Photo.source.in_(sources),
+        or_(Photo.source != "FAMILY_DIARY", Photo.photo_id.in_(posted)),
     )
     if group is not None:
         query = query.where(group_filter(group))
@@ -377,7 +422,24 @@ def list_photos(room_id: int, user: CurrentUser, db: DB, before: int | None = No
     names = _member_names(db, room_id)
     room = db.get(FamilyRoom, room_id)
     elder = f"{room.elder_name} {room.elder_honorific}"
-    shown = shown_ids(db, room_id, [p.photo_id for p in page])
+    ids = [p.photo_id for p in page]
+    shown = shown_ids(db, room_id, ids)
+    talked = set(
+        db.scalars(
+            select(TalkSession.photo_id).where(
+                TalkSession.room_id == room_id, TalkSession.photo_id.in_(ids), ELDER_SPOKE
+            )
+        )
+    )
+    quotes = photo_quotes(db, room_id, set(ids))
+    # 같은 사진을 쓴 일기가 둘이면 나중 일기 (dict 는 뒤 값이 남는다)
+    diary_of = dict(
+        db.execute(
+            select(Diary.photo_id, Diary.diary_id)
+            .where(Diary.room_id == room_id, Diary.status == "POSTED", Diary.photo_id.in_(ids))
+            .order_by(Diary.diary_id)
+        ).all()
+    )
     return PhotoListOut(
         photos=[
             photo_out(
@@ -385,6 +447,9 @@ def list_photos(room_id: int, user: CurrentUser, db: DB, before: int | None = No
                 user.user_id,
                 uploader_name=elder if p.source == "ELDER_CAMERA" else names.get(p.uploaded_by),
                 shown=p.photo_id in shown,
+                talked=p.photo_id in talked,
+                quotes=quotes.get(p.photo_id),
+                diary_id=diary_of.get(p.photo_id),
             )
             for p in page
         ],

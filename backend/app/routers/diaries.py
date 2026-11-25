@@ -21,7 +21,7 @@
     reactions 의 REPLY 칸 — 이모지와 따로, 한 사람이 여러 개(11/25). 지우기는 ?at= 로 하나씩.
     어르신께는 10 의 hearts 로 같이 내려가 첫 장에서 읽어 드린다.
     가족 일기에도 남길 수 있다(D98, 쓴 사람 본인은 빼고). 가족끼리 한마디라 어르신 기기에는 내려보내지 않는다.
-12. GET /elder/family-news?again=1 — 새 소식이 없을 때 '지난 소식 다시 듣기': 이미 들은 가족 일기 최근 5개 (11/19).
+12. 들은 가족 일기는 어르신 '지난 가족 소식' 달력이 본다 — routers/calendar.py (11/25, 옛 ?again=1 을 바꿈).
 
 담당: 일기 프롬프트·그림 화풍(image.STYLE) 다듬기 홍진성 / 사진 일기(카메라)·가족 일기·목록 세부 천주웅.
 그림 제공자는 Workers AI FLUX.2 klein 4B 로 연결됨(D37, IMAGE_PROVIDER=cloudflare).
@@ -47,7 +47,6 @@ from app.config import (
     DIARY_DRAFT_MIN,
     ELDER_DIARY_LIST_LIMIT,
     ELDER_HEARTS_LIMIT,
-    ELDER_NEWS_AGAIN_LIMIT,
     ELDER_VOICE_REPLY_MAX_SEC,
     STT_FAMILY_PER_DAY,
     STT_MAX_BYTES,
@@ -417,18 +416,14 @@ def _thumb(db, diary: Diary) -> str | None:
 
 
 @router.get("/elder/family-news", response_model=FamilyNewsOut)
-def elder_family_news(device: CurrentDevice, db: DB, again: bool = False):
+def elder_family_news(device: CurrentDevice, db: DB):
     """어르신이 아직 안 들은 이 가족방의 가족 일기, 최근 50개 (FR-FD-003) + 아직 못 들은 가족 이모지·한마디 (D63).
 
     홈의 안 들은 소식 수(elder.py home)와 같은 조건. 50개가 넘으면 들은 뒤 다시 부를 때 나머지가 나온다.
     hearts 는 가족 소식 첫 장 '하트가 왔어요' — 받은 순서. 읽어 드린 뒤 POST /elder/hearts/heard.
-    again=1 은 새 소식이 없을 때 '지난 소식 다시 듣기' (11/19): 이미 들은 가족 일기를 최근에 올라온 순서로 5개,
-    같은 모양으로. 읽기만 한다 — 읽음 표시는 그대로이고 hearts 는 비운다.
+    이미 들은 가족 일기는 GET /elder/family-news/past (달력, 11/25).
     """
     room = db.get(FamilyRoom, device.room_id)
-    if again:
-        heard = (Diary.author_type == "FAMILY", Diary.elder_read_at.is_not(None))
-        return FamilyNewsOut(diaries=_rows(db, room, *heard, limit=ELDER_NEWS_AGAIN_LIMIT), hearts=[])
     names = _member_names(db, room.room_id, elder=True)
     hearts = [
         HeartOut(

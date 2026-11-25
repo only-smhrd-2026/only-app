@@ -8,6 +8,14 @@ from pydantic import BaseModel, Field
 from app.schemas.elder import PhotoGroup
 
 
+class PhotoQuote(BaseModel):
+    """어르신이 이 사진으로 하신 이야기 — 주간 이야기 카드 그대로(이미 걸러진 질문·전한 말, 11/25)."""
+
+    day: date  # 그 대화 날
+    question: str
+    answer: str
+
+
 class PhotoOut(BaseModel):
     is_mine: bool = False
     photo_id: int
@@ -28,6 +36,10 @@ class PhotoOut(BaseModel):
     group: PhotoGroup = "ETC"  # 11/23 사진첩 분류 칩 (app/photo_groups.py)
     uploader_name: str | None = None  # 11/23 올린 사람 — 가족 별명(없으면 이름), 어르신 사진이면 '이름 호칭'
     shown: bool = False  # 11/23 어르신께 보여 드렸나(오늘의 한 장으로 나옴·그 사진으로 대화함). false = 기다려요
+    # 11/25 사진첩 판(PHOTO_001) — 목록(list_photos)만 채운다
+    talked: bool = False  # 어르신이 이 사진으로 말씀하신 대화가 있다 — 사진 칸 말풍선
+    quotes: list[PhotoQuote] = Field(default_factory=list)  # 그 이야기의 주간 이야기 카드 — 주간 이야기가 나온 뒤
+    diary_id: int | None = None  # 이 사진을 쓴 게시 일기(어르신 일기·가족 오늘 소식) — 판이 그 일기를 보여 준다
 
 
 class PhotoBatchOut(BaseModel):

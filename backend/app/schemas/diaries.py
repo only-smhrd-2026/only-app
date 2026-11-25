@@ -125,9 +125,7 @@ class HeartOut(BaseModel):
 
 
 class FamilyNewsOut(DiaryListOut):
-    """어르신 가족 소식 (GET /elder/family-news): 안 들은 가족 일기 + 아직 못 들은 가족 이모지·한마디(받은 순서).
-
-    ?again=1 이면 이미 들은 가족 일기 최근 몇 개(지난 소식 다시 듣기) — 이때 hearts 는 빈 목록."""
+    """어르신 가족 소식 (GET /elder/family-news): 안 들은 가족 일기 + 아직 못 들은 가족 이모지·한마디(받은 순서)."""
 
     hearts: list[HeartOut]
 
