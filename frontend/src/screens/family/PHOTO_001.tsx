@@ -1,36 +1,38 @@
 /**
  * PHOTO_001 — 사진첩 탭 (11/23 새 화면, 사용자 결정. 시안 f-post·f-photos 를 합침 — 옛 가족방 탭 '올린 사진' 화면과
  * 추억 올리기 아래 사진첩(#279)을 이 탭으로 옮김). 위 막대·아래 탭 틀(FamilyFrame) 안, 지금 보는 분의 가족방.
- * 맨 위 '오늘의 한 장 남은 사진 N장'([오늘 소식 보내기]·[추억 사진 올리기]는 아래 탭 가운데 [+] 로 옮김, 11/23 사용자)
- * → 분류 칩(서버가 AI 분류를 묶은 PhotoGroup) → 달별 묶음 3열. 어르신이 찍은 이야기 사진(ELDER_CAMERA)도 섞여 나온다.
- * 사진을 누르면 아래 판: 크게(자르지 않음) · 올린 사람 · 찍은 날 · 보여 드렸어요/기다려요 · 어르신이 바로잡아 주신 말 ·
- * [이 사진 빼기](내가 올렸고 아직 안 보여 드린 사진만, 서버 DELETE …/photos/{id}). 'AI 가 본 것'·활동 고치기는 없다(D73 바꿈).
+ * 11/25 사용자: '기다려요·보여 드렸어요' 글자와 AI 분류 칩을 빼고 사진마다 어르신 이야기를 붙임 (D104).
+ * 맨 위 '보여 드릴 사진 N장 남았어요'(3장 이하일 때만) → 칩 전체·어르신·가족(?who=) → 달별 묶음 3열.
+ * 사진 칸: 왼쪽 아래 올린 사람 동그라미(어르신은 파랑), 오른쪽 아래 말풍선 = 어르신이 이 사진으로 이야기하심.
+ * 가족 칩에는 가족 오늘 소식 사진도 나온다. [오늘 소식 보내기]·[추억 사진 올리기]는 아래 탭 가운데 [+].
+ * 사진을 누르면 아래 판: 크게(자르지 않음) · 올린 사람 · 찍은 날 · 어르신 이야기(주간 이야기 카드·바로잡아 주신 말) 또는
+ * 이 사진을 쓴 일기(어르신 일기·오늘 소식 글과 어르신 답장, 목소리면 듣기) · [이 사진 빼기](내가 올린 추억 사진이고
+ * 아직 안 보여 드린 것만, 서버 DELETE …/photos/{id}). 'AI 가 본 것'·활동 고치기는 없다(D73 바꿈).
  */
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { PhotoGroup, PhotoListOut, PhotoOut, RoomOut } from '../../api/types'
+import type { DiaryOut, PhotoListOut, PhotoOut, RoomOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
 import Sim from '../../components/Sim'
+import VoicePlay from '../../components/VoicePlay'
 import { useFamily } from '../../hooks/useFamily'
+import { useFetch } from '../../hooks/useFetch'
 import './steps.css'
 import './PHOTO_001.css'
 
-const GROUPS: [PhotoGroup | '', string][] = [
+type Who = '' | 'ELDER' | 'FAMILY'
+const WHO: [Who, string][] = [
   ['', '전체'],
+  ['ELDER', '어르신'],
   ['FAMILY', '가족'],
-  ['TRAVEL', '여행'],
-  ['FOOD', '음식'],
-  ['NATURE', '풍경'],
-  ['EVENT', '행사'],
-  ['ETC', '기타'],
 ]
 const FEW = 3 // 남은 사진이 이만큼 이하면 더 올려 달라는 한 줄 (시안 f-post)
 
-/** 사진 목록 주소 — 전체면 group 없이, 더 보기는 before=앞 쪽 마지막 사진 번호 (routers/photos.py) */
-function listUrl(roomId: number, group: PhotoGroup | '', before?: number) {
+/** 사진 목록 주소 — 전체면 who 없이, 더 보기는 before=앞 쪽 마지막 사진 번호 (routers/photos.py) */
+function listUrl(roomId: number, who: Who, before?: number) {
   const q = new URLSearchParams()
-  if (group) q.set('group', group)
+  if (who) q.set('who', who)
   if (before) q.set('before', String(before))
   const s = q.toString()
   return `/api/rooms/${roomId}/photos${s ? `?${s}` : ''}`
@@ -42,15 +44,9 @@ function josa(word: string, withFinal: string, without: string) {
 }
 // 오늘의 한 장에 안 나오는 사진 — AI 가 '이야기하기 어려운 사진'으로 본 것(services/picks.py). 기다려요라고 하면 거짓이라 따로
 const isOff = (p: PhotoOut) => p.analyzed && p.usable === false
-/** 사진 칸 아래 이름표 — 어르신 사진·오늘 소식 사진은 오늘의 한 장과 상관없어 출처만 */
-function tagOf(p: PhotoOut, hon: string): [string, string] {
-  // 'elder' 는 어르신 화면 틀 클래스(elder.css 전역 .elder)와 겹쳐 이름표가 사진만 한 노란 상자가 됐다 (11/24 실사용)
-  if (p.source === 'ELDER_CAMERA') return [`${hon} 사진`, ' by-elder']
-  if (p.source === 'FAMILY_DIARY') return ['오늘 소식', '']
-  if (p.shown) return ['보여 드렸어요', ' done']
-  if (isOff(p)) return ['안 나와요', '']
-  return ['기다려요', '']
-}
+/** 어르신이 이 사진으로 이야기하셨다 — 대화·주간 이야기 카드·바로잡아 주신 말 중 하나라도 */
+const talkedOf = (p: PhotoOut) => p.talked || p.quotes.length > 0 || !!p.elder_note
+const md = (d: string) => `${Number(d.slice(5, 7))}월 ${Number(d.slice(8, 10))}일`
 /** 'YYYY-MM-DD' → '2019년 1월 3일' */
 function dayName(d: string) {
   const [y, m, day] = d.split('-').map(Number)
@@ -94,7 +90,7 @@ type Page = { photos: PhotoOut[]; hasMore: boolean; waiting: number; loading?: b
 
 function Album({ room }: { room: RoomOut }) {
   const hon = room.elder_honorific
-  const [group, setGroup] = useState<PhotoGroup | ''>('')
+  const [who, setWho] = useState<Who>('')
   const [page, setPage] = useState<Page | null>(null)
   const [error, setError] = useState<ApiError | Error>()
   const [tick, setTick] = useState(0) // [다시 시도]
@@ -111,14 +107,14 @@ function Album({ room }: { room: RoomOut }) {
   useEffect(() => {
     const stop = new AbortController()
     const mine = ++gen.current
-    api<PhotoListOut>(listUrl(room.room_id, group), { signal: stop.signal })
+    api<PhotoListOut>(listUrl(room.room_id, who), { signal: stop.signal })
       .then((out) => {
         setPage({ photos: out.photos, hasMore: out.has_more, waiting: out.waiting_count })
         setError(undefined)
       })
       .catch((e) => !stop.signal.aborted && gen.current === mine && setError(e))
     return () => stop.abort()
-  }, [room.room_id, group, tick])
+  }, [room.room_id, who, tick])
 
   useEffect(() => {
     if (!note) return
@@ -126,10 +122,10 @@ function Album({ room }: { room: RoomOut }) {
     return () => window.clearTimeout(timer)
   }, [note])
 
-  function pickGroup(g: PhotoGroup | '') {
-    if (g === group) return
+  function pickWho(w: Who) {
+    if (w === who) return
     setPage((p) => p && { ...p, photos: [], hasMore: false, loading: true }) // 남은 사진 수는 그대로 두고 사진만 비운다
-    setGroup(g)
+    setWho(w)
   }
 
   async function loadMore() {
@@ -138,7 +134,7 @@ function Album({ room }: { room: RoomOut }) {
     const mine = gen.current
     setMore(true)
     try {
-      const out = await api<PhotoListOut>(listUrl(room.room_id, group, last.photo_id))
+      const out = await api<PhotoListOut>(listUrl(room.room_id, who, last.photo_id))
       if (gen.current !== mine) return
       setPage((p) => p && { photos: [...p.photos, ...out.photos], hasMore: out.has_more, waiting: out.waiting_count })
     } catch (e) {
@@ -195,22 +191,21 @@ function Album({ room }: { room: RoomOut }) {
 
   return (
     <main className="ph">
-      <section className="fam-card ph-pool">
-        <div className="ph-row">
-          <h2>오늘의 한 장 남은 사진</h2>
-          <b className="ph-big">{n === undefined ? '…' : `${n}장`}</b>
-        </div>
-        {n !== undefined && n <= FEW && (
-          <p className="st-dim">
-            {n === 0 ? '이제 봤던 사진이 다시 나와요.' : `${n}일 뒤부터는 봤던 사진이 다시 나와요.`} {hon}
-            {josa(hon, '이', '가')} 좋아하실 옛 사진을 더 올려 주세요.
+      {/* 남은 사진이 적을 때만 한 줄 (11/25 — 큰 숫자 칸을 뺌) */}
+      {n !== undefined && n <= FEW && (
+        <section className="ph-low">
+          <p>
+            {n === 0 ? `${hon}께 보여 드릴 새 사진이 없어요. 봤던 사진이 다시 나와요.` : `${hon}께 보여 드릴 사진이 ${n}장 남았어요.`}
           </p>
-        )}
-      </section>
+          <Link className="fam-btn fam-btn--primary fam-btn--sm" to="/upload">
+            사진 올리기
+          </Link>
+        </section>
+      )}
 
-      <div className="ph-seg" role="group" aria-label="사진 묶음">
-        {GROUPS.map(([g, label]) => (
-          <button key={label} type="button" className="st-chip" aria-pressed={group === g} onClick={() => pickGroup(g)}>
+      <div className="ph-seg" role="group" aria-label="누가 올린 사진">
+        {WHO.map(([w, label]) => (
+          <button key={label} type="button" className="st-chip" aria-pressed={who === w} onClick={() => pickWho(w)}>
             {label}
           </button>
         ))}
@@ -227,7 +222,7 @@ function Album({ room }: { room: RoomOut }) {
         <p className="st-hint" aria-busy="true">
           불러오는 중…
         </p>
-      ) : page.photos.length === 0 && !group ? (
+      ) : page.photos.length === 0 && !who ? (
         <section className="fam-card ph-empty">
           <Sim face="hello" size={72} />
           <p>아직 올린 사진이 없어요</p>
@@ -247,20 +242,23 @@ function Album({ room }: { room: RoomOut }) {
               </h3>
               <ul className="st-grid">
                 {list.map((p) => {
-                  const [label, cls] = tagOf(p, hon)
+                  const by = p.uploader_name ?? '가족'
                   return (
                     <li key={p.photo_id}>
                       <button
                         type="button"
                         className="st-thumb"
-                        aria-label={`${label}${p.elder_note ? ' · 바로잡음' : ''} 사진 열기`}
+                        aria-label={`${by} 사진${talkedOf(p) ? ` · ${hon} 이야기` : ''} 열기`}
                         onClick={() => (setSheetError(''), setOpen({ id: p.photo_id, del: false }))}
                       >
                         <img src={p.url} alt="" loading="lazy" />
-                        <span className={`ph-cap${cls}`}>{label}</span>
-                        {p.elder_note && (
-                          <span className="ph-fix" aria-hidden="true">
-                            바로잡음
+                        {/* 'elder' 클래스는 어르신 화면 틀(elder.css 전역)과 겹친다 (11/24) — by-elder */}
+                        <span className={`ph-who${p.source === 'ELDER_CAMERA' ? ' by-elder' : ''}`} aria-hidden="true">
+                          {by[0]}
+                        </span>
+                        {talkedOf(p) && (
+                          <span className="ph-talk" aria-hidden="true">
+                            <FamIcon name="chat" />
                           </span>
                         )}
                       </button>
@@ -291,12 +289,8 @@ function Album({ room }: { room: RoomOut }) {
                 <b>{cur.uploader_name ?? '가족'}</b>
                 {cur.taken_at ? <small>{dayName(cur.taken_at)} 찍음</small> : cur.taken_year && <small>{cur.taken_year}년쯤 찍음</small>}
               </span>
-              {cur.source === 'FAMILY' && (
-                <span className={cur.shown ? 'ph-tag ok' : 'ph-tag'}>
-                  {cur.shown ? `${hon}께 보여 드렸어요` : isOff(cur) ? '오늘의 한 장에는 안 나와요' : '기다려요'}
-                </span>
-              )}
             </div>
+            <Story key={cur.photo_id} p={cur} hon={hon} />
             {cur.caption && (
               <p>
                 <small className="ph-mini">한마디</small>
@@ -320,21 +314,7 @@ function Album({ room }: { room: RoomOut }) {
                 설명 고치기
               </button>
             )}
-            {/* 어르신이 대화에서 바로잡아 주신 말 (FR-ME-009) — 다음 대화는 이 말을 따른다 */}
-            {cur.elder_note && (
-              <p className="st-note ph-fixnote">
-                <FamIcon name="check" />
-                <span>
-                  <b>
-                    {hon}
-                    {josa(hon, '이', '가')} 바로잡아 주신 말
-                  </b>{' '}
-                  <span className="ph-tag">바로잡음</span>
-                  <br />“{cur.elder_note}” — 다음 이야기부터 이렇게 여쭤봐요
-                </span>
-              </p>
-            )}
-            {cur.is_mine && !cur.shown ? (
+            {cur.source === 'FAMILY' && cur.is_mine && !cur.shown ? (
               <button type="button" className="fam-btn ph-danger" onClick={() => setOpen({ id: cur.photo_id, del: true })}>
                 이 사진 빼기
               </button>
@@ -464,5 +444,66 @@ function Album({ room }: { room: RoomOut }) {
         </p>
       )}
     </main>
+  )
+}
+
+/**
+ * 판 가운데 (11/25) — 이 사진을 쓴 일기(어르신 일기·가족 오늘 소식)가 있으면 그 글과 어르신 답장(목소리는 눌러서 듣기),
+ * 가족 추억 사진이면 어르신 이야기: 주간 이야기 카드(이미 걸러진 말) · 바로잡아 주신 말(FR-ME-009, 다음 대화는 이 말을 따른다).
+ */
+function Story({ p, hon }: { p: PhotoOut; hon: string }) {
+  const diary = useFetch<DiaryOut>(p.diary_id ? `/api/diaries/${p.diary_id}` : null)
+  const iga = josa(hon, '이', '가')
+  if (p.diary_id) {
+    const d = diary.data
+    const reply = d?.reactions.find((r) => r.by === 'ELDER' && r.kind === 'REPLY')
+    const liked = d?.reactions.some((r) => r.by === 'ELDER' && r.kind === 'LIKE')
+    return (
+      <section className="ph-story">
+        <h3>{p.source === 'ELDER_CAMERA' ? `${hon} 일기` : `${p.uploader_name ?? '가족'}의 오늘 소식`}</h3>
+        {d ? <p className="ph-quote">{d.body}</p> : <p className="ph-mini">{diary.error ? diary.error.message : '불러오는 중…'}</p>}
+        {reply && (
+          <p className="ph-said">
+            {hon}
+            {iga} 말로 답하셨어요 · ‘{reply.text}’
+          </p>
+        )}
+        {reply?.audio_url && <VoicePlay url={reply.audio_url} sec={reply.audio_sec} label="목소리 듣기" />}
+        {!reply && liked && (
+          <p className="ph-said">
+            {hon}
+            {iga} 좋아요를 보내셨어요
+          </p>
+        )}
+        <Link className="fam-text-btn" to={`/diaries/${p.diary_id}`}>
+          일기 보기 ›
+        </Link>
+      </section>
+    )
+  }
+  if (p.source !== 'FAMILY') return null
+  return (
+    <section className="ph-story">
+      <h3>
+        <FamIcon name="chat" />
+        {hon} 이야기
+      </h3>
+      {p.quotes.map((q) => (
+        <p key={q.day + q.question} className="ph-quote">
+          {q.answer}
+          <small>
+            {md(q.day)} 회상 대화 · {q.question}
+          </small>
+        </p>
+      ))}
+      {p.elder_note && (
+        <p className="ph-said">
+          {hon}
+          {iga} 바로잡아 주셨어요 · “{p.elder_note}” — 다음 이야기부터 이렇게 여쭤봐요
+        </p>
+      )}
+      {p.talked && !p.quotes.length && <p className="ph-mini">이 사진으로 이야기하셨어요. 하신 말씀은 '주간 이야기'가 나오면 여기에도 붙어요.</p>}
+      {!talkedOf(p) && <p className="ph-mini">아직 이 사진으로 이야기 나누지 않으셨어요.</p>}
+    </section>
   )
 }

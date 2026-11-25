@@ -1,0 +1,33 @@
+/* HOME_003 일기 달력 (11/25, D104) — 색은 틀(components/FamilyFrame.css) 변수만. 일기 카드는 HOME_001.css 의 home-post */
+.cal-months, .cal-day { display:flex; flex-direction:column; gap:12px; }
+.cal-months[hidden] { display:none; } /* 그날을 볼 때는 달력을 숨기기만 한다(붙여 둔 앞 달이 남게) */
+.fam .cal-title { margin:0 var(--gut); font-size:20px; font-weight:800; letter-spacing:-.02em; }
+.fam .cal-sub { margin:0 var(--gut); color:var(--ink3); font-size:14px; font-weight:700; }
+.cal-empty { margin:0 var(--gut); display:flex; flex-direction:column; align-items:center; gap:8px; padding:20px 16px; }
+.cal-months > .fam-btn, .cal-months > .fam-error { margin:0 var(--gut); }
+
+/* 한 달 — 7칸, 일기 있는 날만 사진 칸(누름) */
+.cal-month { display:flex; flex-direction:column; gap:6px; }
+.fam .cal-month h2 { margin:6px var(--gut) 0; font-size:17px; font-weight:800; }
+.cal-week, .cal-grid { display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; padding:0 var(--gut); }
+.cal-week span { text-align:center; font-size:12px; font-weight:700; color:var(--ink3); }
+.cal-week span:first-child { color:var(--t2e); }
+.cal-cell { position:relative; aspect-ratio:3/4; border-radius:8px; display:grid; place-items:center; font-size:13px; font-weight:700; color:var(--ink3); }
+.cal-cell.today { box-shadow:inset 0 0 0 1.5px var(--ink3); color:var(--ink); }
+.cal-cell.fut { opacity:.35; }
+button.cal-cell { padding:0; overflow:hidden; border:0; background:var(--soft); cursor:pointer; }
+button.cal-cell img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+button.cal-cell.sim img { object-fit:contain; padding:3px; }
+.cal-num { position:absolute; left:3px; top:1px; color:var(--surf); font-size:12px; font-weight:800; text-shadow:0 1px 3px rgba(0,0,0,.8); }
+button.cal-cell.sim .cal-num { color:var(--ink); text-shadow:none; }
+.cal-cnt { position:absolute; right:2px; bottom:2px; min-width:18px; height:18px; padding:0 4px; border-radius:9px; display:grid; place-items:center; background:var(--ink); color:var(--surf); font-size:11px; font-weight:800; }
+
+/* 그날 — 위 ‹ 날짜 ›, 아래 시간 줄 + 일기 카드 */
+.cal-dayh { display:flex; align-items:center; gap:4px; margin:0 calc(var(--gut) - 8px); }
+.fam .cal-dayh h1 { flex:1; margin:0; text-align:center; font-size:18px; font-weight:800; }
+.cal-arr { font-size:26px; font-weight:800; }
+.cal-arr:disabled { opacity:.25; }
+.cal-tl { display:flex; flex-direction:column; gap:6px; }
+.cal-time { margin:0 var(--gut); display:flex; align-items:center; gap:8px; font-size:13px; font-weight:800; color:var(--ink2); }
+.cal-time::after { content:""; flex:1; height:1px; background:var(--line); }
+.cal-tl .home-post { margin:0 var(--gut); }

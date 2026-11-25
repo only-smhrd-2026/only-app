@@ -151,6 +151,12 @@ export default function FamilyFrame() {
         ) : (
           <b className="fam-brand">하루한장</b>
         )}
+        {/* 11/25 사용자 — 가족 홈에만 [일기 달력](HOME_003, 인스타 스토리 보관함처럼) */}
+        {room && pathname === '/' && (
+          <button type="button" className="fam-icon-btn" onClick={() => nav(`/calendar/${room.room_id}`)} aria-label="일기 달력">
+            <FamIcon name="calendar" />
+          </button>
+        )}
         <button
           type="button"
           className="fam-icon-btn"

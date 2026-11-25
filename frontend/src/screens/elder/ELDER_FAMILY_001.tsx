@@ -5,12 +5,15 @@
  *    말로 답하기: 녹음 → /api/stt → AI 가 한 줄로(reply-draft) → '이렇게 보낼까요?' → [보내기] (답장의 답장은 없다).
  *    보낼 때 그 녹음도 같이 보낸다 — 가족 화면에서 눌러 듣는다 (11/25 사용자).
  * 가족 이름은 '딸 (김승희)'처럼 보이고(11/25 사용자 — 딸이 여럿이면 헷갈림), 읽을 때는 괄호를 떼고 '딸이'.
- * ③ 새 소식이 없으면 [지난 소식 다시 듣기] — 들은 가족 일기 최근 5개를 같은 방식으로, 읽음 표시는 바꾸지 않는다 (11/19).
+ * ③ 새 소식을 다 보면 '새 소식은 여기까지예요' → [지난 소식 보기]. 새 소식이 없으면 바로 '지난 가족 소식' 달력
+ *    (11/25 사용자 — 인스타 스토리 보관함처럼, D104): 들은 가족 일기가 온 날에 그날 사진(없으면 심심이)·2개 이상이면 수,
+ *    [◀ 10월] [12월 ▶]는 소식이 있는 달로. 날을 누르면 화면 가득 크게 읽어 드리고 [◀ 전 소식] [닫기] [다음 소식 ▶]
+ *    (달이 바뀌어도 이어서), 하트·말로 답하기도 된다. 읽음 표시는 바꾸지 않는다. 옛 '지난 소식 다시 듣기'(최근 5개)를 바꿈.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { DiaryOut, ElderReplyDraftOut, FamilyNewsOut, Heart, SttOut } from '../../api/types'
+import type { DiaryOut, ElderReplyDraftOut, FamilyNewsOut, Heart, PastNewsOut, SttOut } from '../../api/types'
 import ElderPhoto from '../../components/ElderPhoto'
 import { Bars, Bub, Dots, ElderStop, IC } from '../../components/ElderUi'
 import Sim from '../../components/Sim'
@@ -20,8 +23,10 @@ import { cue, micBlockedTip, playVoice, speak, startRecording, stopSpeaking, typ
 import './ELDER_FAMILY_001.css'
 
 const KIND_WORD = { HEART: '하트', SMILE: '웃음', CLAP: '박수' } as const
-const NO_NEWS = '오늘은 새 소식이 없어요.'
-const AGAIN_GUIDE = '지난 소식 다시 듣기를 누르면 다시 읽어 드려요.'
+const END = '새 소식은 여기까지예요.'
+const END_ASK = '지난 가족 소식도 볼까요?'
+const NO_PAST = '아직 지난 가족 소식이 없어요.'
+const WD = ['일', '월', '화', '수', '목', '금', '토']
 const REPLY_ASK = '하실 말씀을 해 주세요.'
 const REPLY_MS = 60_000 // 답장 녹음 상한 — 대화 녹음과 같게
 const BARS = [30, 55, 80, 45, 95, 60, 35, 75, 50, 85, 40, 65, 30, 55] // 목소리 재생 줄의 꾸밈 막대(높이 %) — 실제 파형 아님
@@ -32,6 +37,13 @@ function josa(word: string, withFinal: string, without: string) {
   return code >= 0xac00 && code <= 0xd7a3 && (code - 0xac00) % 28 !== 0 ? withFinal : without
 }
 const day = (iso: string) => new Date(iso).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
+/** 한국 날짜 'YYYY-MM-DD' */
+const kstDay = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })
+/** '오늘'·'어제'·'3일 전' */
+function agoOf(iso: string) {
+  const n = Math.round((Date.parse(kstDay(new Date().toISOString())) - Date.parse(kstDay(iso))) / 864e5)
+  return n === 0 ? '오늘' : n === 1 ? '어제' : `${n}일 전`
+}
 /** 읽을 이름 — 서버가 준 '딸 (김승희)' 에서 괄호를 뗀다 */
 const callName = (who: string) => who.replace(/ \(.+\)$/, '')
 
@@ -259,10 +271,18 @@ export default function ELDER_FAMILY_001() {
   const { home } = (useLocation().state ?? {}) as ElderNavState
   const speed = Number(home?.settings.tts_speed) || 0.9
   const { data, error, loading, reload } = useFetch<FamilyNewsOut>('/api/elder/family-news')
-  // 새 소식이 없을 때만 지난 소식(들은 가족 일기 최근 5개)을 받아 둔다 — 있으면 [지난 소식 다시 듣기]를 보인다
+  // 새 소식을 다 보면 '여기까지예요'(end) → [지난 소식 보기]·새 소식이 없으면 '지난 가족 소식' 달력 (11/25 사용자)
+  const [view, setView] = useState<'news' | 'end' | 'cal'>('news')
   const empty = !!data && !data.diaries.length && !data.hearts.length
-  const past = useFetch<FamilyNewsOut>(empty ? '/api/elder/family-news?again=1' : null)
-  const [again, setAgain] = useState(false)
+  const showCal = view === 'cal' || empty
+  const [month, setMonth] = useState<string>() // 없으면 서버가 들은 소식이 있는 가장 최근 달
+  const cal = useFetch<PastNewsOut>(showCal ? `/api/elder/family-news/past${month ? `?month=${month}` : ''}` : null)
+  // 달을 바꾸는 사이에는 옛 달 목록이 남아 있다 — 고른 달의 것일 때만 쓴다
+  const past = cal.data && (!month || cal.data.month === month) ? cal.data : undefined
+  // 달력에서 연 소식 — 번호, 또는 달을 넘어갔을 때 그 달의 첫·마지막 소식
+  const [pick, setPick] = useState<number | 'first' | 'last'>()
+  const dayView = useRef<HTMLDialogElement>(null)
+  const guided = useRef(new Set<string>()) // 달력 안내는 달마다 한 번만 읽는다 (크게 보기를 닫을 때마다 다시 읽지 않게)
   const live = useLive()
   const liking = useRef(false) // 하트 보내는 중
   const [index, setIndex] = useState(0)
@@ -285,28 +305,36 @@ export default function ELDER_FAMILY_001() {
   const voice = hearts ? voices[heartPage] : undefined // 없으면 모아 둔 장
   const heartsTitle = `가족이 ${home?.elder_honorific ? `${home.elder_honorific} ` : ''}일기를 읽었어요`
   const heartsText = cards.flatMap((c) => c.whos.map((w) => reactLine(c, w))).join(' ')
-  // 지난 소식을 받는 동안은 '새 소식이 없어요'를 읽지 않는다 — 받은 뒤 문장이 바뀌면 두 번 읽게 된다
-  const waiting = loading || (empty && !past.data && !past.error)
-  const canAgain = !!past.data?.diaries.length
-  const news = again ? past.data : data
-  const diary = hearts ? undefined : news?.diaries[index]
-  const last = !!news && index === news.diaries.length - 1
+  const waiting = loading || (showCal && !past && !cal.error)
+  const pastList = past?.diaries ?? []
+  const at = pick === 'first' ? 0 : pick === 'last' ? pastList.length - 1 : pick
+  const opened = at !== undefined ? pastList[at] : undefined
+  const diary = opened ?? (hearts || view !== 'news' ? undefined : data?.diaries[index])
+  const last = !!data && index === data.diaries.length - 1
   const nick = diary?.author_nickname || diary?.author_name || '가족'
   const sender = [diary?.author_nickname, diary?.author_name].filter(Boolean).join(' ') || '가족'
   const isLiked = diary ? (liked[diary.diary_id] ?? diary.reactions.some((r) => r.by === 'ELDER' && r.kind === 'LIKE')) : false
   const reply = diary ? (replied[diary.diary_id] ?? diary.reactions.find((r) => r.by === 'ELDER' && r.kind === 'REPLY')?.text) : undefined
+  const calGuide = past?.diaries.length ? `${Number(past.month.slice(5))}월 가족 소식이에요. 사진이 있는 날을 누르면 읽어 드려요.` : NO_PAST
   // 사진이 없는 가족 일기는 '사진 일기'라고 읽지 않는다 (D64)
   const message = waiting ? undefined : error
     ? error.code === 'DEVICE_REQUIRED' ? '가족이 보낸 연결 링크를 먼저 열어 주세요.' : error.message
-    : hearts ? (voice ? undefined : `${heartsTitle}. ${heartsText}`) // 목소리 장은 아래 따로 읽고 튼다
-      : diary ? `${sender}${josa(sender, '이', '가')} ${diary.illustration_url ? '사진 일기' : '일기'}를 보냈어요. 읽어 드릴게요. ${diary.body}`
-        : !data ? undefined
-          : canAgain ? `${NO_NEWS} ${AGAIN_GUIDE}` : NO_NEWS
+    : opened ? `${day(opened.posted_at)}, ${sender}${josa(sender, '이', '가')} 보낸 소식이에요. ${opened.body}`
+      : showCal ? (cal.error ? cal.error.message : calGuide)
+        : view === 'end' ? `${END} ${END_ASK}`
+          : hearts ? (voice ? undefined : `${heartsTitle}. ${heartsText}`) // 목소리 장은 아래 따로 읽고 튼다
+            : diary ? `${sender}${josa(sender, '이', '가')} ${diary.illustration_url ? '사진 일기' : '일기'}를 보냈어요. 읽어 드릴게요. ${diary.body}`
+              : undefined
 
   useEffect(() => {
-    if (message) void speak(message, speed)
+    if (!message) return
+    if (message === calGuide) {
+      if (guided.current.has(message)) return
+      guided.current.add(message)
+    }
+    void speak(message, speed)
     return () => stopSpeaking()
-  }, [message, diary?.diary_id, speed])
+  }, [message, calGuide, diary?.diary_id, speed])
 
   useEffect(() => () => clearTimeout(sayingTimer.current), [])
 
@@ -386,8 +414,8 @@ export default function ELDER_FAMILY_001() {
     if (heartPage < heartPages - 1) return setHeartPage((p) => p + 1) // 받은 반응의 다음 장 — 들음 표시는 마지막 장에서
     // 읽어 드린 마지막 반응까지만 '들음' — 그사이에 온 것은 다음에 읽어 드린다 (D63)
     void send('/api/elder/hearts/heard', { until: hearts[hearts.length - 1].at }, () => {
-      if (data!.diaries.length) setHeartsHeard(true)
-      else nav('/elder', { replace: true })
+      setHeartsHeard(true)
+      if (!data!.diaries.length) setView('end')
     })
   }
 
@@ -395,15 +423,27 @@ export default function ELDER_FAMILY_001() {
     if (!diary) return
     const next = () => {
       // 목록을 다시 읽으면 읽은 일기가 빠져 번호가 밀린다. 받은 목록에서 번호만 바꾼다.
-      if (last) nav('/elder', { replace: true })
+      if (last) setView('end')
       else setIndex((value) => value + 1)
     }
-    if (again) {
-      // 다시 듣기는 읽음 표시를 바꾸지 않는다 — 서버에 적지 않고 넘긴다
-      clearTimeout(sayingTimer.current)
-      setSaying(false)
-      next()
-    } else void send(`/api/elder/diaries/${diary.diary_id}/read`, undefined, next)
+    void send(`/api/elder/diaries/${diary.diary_id}/read`, undefined, next)
+  }
+
+  function openPast(i: number) {
+    setReadError(undefined)
+    setPick(i)
+    dayView.current?.showModal()
+  }
+
+  /** 크게 보기의 [◀ 전 소식]·[다음 소식 ▶] — 그 달 끝이면 소식이 있는 앞·뒤 달로 넘어가 이어서 */
+  function stepPast(dir: 1 | -1) {
+    if (at === undefined) return
+    setReadError(undefined)
+    if (pastList[at + dir]) return setPick(at + dir)
+    const to = dir > 0 ? past?.next_month : past?.prev_month
+    if (!to) return
+    setPick(dir > 0 ? 'first' : 'last')
+    setMonth(to)
   }
 
   /** 하트 — 다시 눌러도 지워지지 않는다 (D64). 먼저 보낸 것으로 보이고, 실패하면 되돌린다 */
@@ -426,6 +466,48 @@ export default function ELDER_FAMILY_001() {
   }
 
   const heartFill = <span className="family-hf">{IC.heartFill}</span>
+  // 가족 일기 한 장 — 새 소식(아래 [다음 소식])과 지난 소식 크게 보기(아래 [◀ 전 소식][닫기][다음 소식 ▶])가 같이 쓴다
+  const card = diary && (
+    <>
+      <div className="family-sender">
+        <span className="elder-av family-av" aria-hidden="true">{(diary.author_name || nick)[0]}</span>
+        <span><b>{nick}</b>{diary.author_nickname && diary.author_name && <small>{diary.author_name}</small>}</span>
+        {!opened && <span className="family-page">{index + 1} / {data!.diaries.length}</span>}
+      </div>
+      {diary.illustration_url
+        ? <ElderPhoto src={diary.illustration_url} alt="가족이 보낸 사진" />
+        : <Sim face="smile" size={168} className="elder-sim elder-simflex" />}
+      <FamilyPaper key={diary.diary_id} body={diary.body} saying={saying} onRead={() => replay(diary.body)} />
+      {reply && <p className="elder-sent-ok">{IC.chat}답장: {reply}</p>}
+      {readError && <p className="elder-text" role="alert">{readError}</p>}
+    </>
+  )
+  const reacts = diary && (
+    <div className="elder-row">
+      {isLiked
+        ? <p className="elder-sent-ok family-grow">{heartFill}보냈어요</p>
+        : <button type="button" className="elder-btn elder-btn--secondary" onClick={() => void like()}>{heartFill}하트</button>}
+      {!reply && (
+        <button type="button" className="elder-btn family-talk" onClick={() => setReplying(true)} disabled={busy}>
+          <span className="elder-dot">{IC.mic}</span>말로 답하기
+        </button>
+      )}
+    </div>
+  )
+  const replySheet = diary && replying && (
+    <ReplySheet
+      diary={diary}
+      to={nick}
+      speed={speed}
+      onClose={() => setReplying(false)}
+      onSent={(text) => {
+        setReplied((map) => ({ ...map, [diary.diary_id]: text }))
+        setReplying(false)
+        void speak(`${nick}에게 답장을 보냈어요.`, speed)
+      }}
+    />
+  )
+
   let body: ReactNode = null
   if (waiting) body = <p className="elder-text" role="status">잠시만요…</p>
   else if (error)
@@ -461,7 +543,7 @@ export default function ELDER_FAMILY_001() {
         <div className="elder-dock">
           <button type="button" className="elder-btn" disabled={busy} onClick={heardHearts}>
             <span className="elder-dot">{IC.next}</span>
-            {busy ? '잠시만요…' : heartPage < heartPages - 1 || data!.diaries.length ? '다음 소식' : '홈으로'}
+            {busy ? '잠시만요…' : '다음 소식'}
           </button>
         </div>
       </>
@@ -492,68 +574,113 @@ export default function ELDER_FAMILY_001() {
         {readError && <p className="elder-text" role="alert">{readError}</p>}
         <div className="elder-dock">
           <button type="button" className="elder-btn" disabled={busy} onClick={heardHearts}>
-            <span className="elder-dot">{IC.next}</span>{busy ? '잠시만요…' : data!.diaries.length ? '다음 소식' : '홈으로'}
+            <span className="elder-dot">{IC.next}</span>{busy ? '잠시만요…' : '다음 소식'}
           </button>
         </div>
       </>
     )
-  else if (diary)
+  else if (diary && !opened)
     body = (
       <>
         <h1 className="elder-sr">가족 소식</h1>
-        <div className="family-sender">
-          <span className="elder-av family-av" aria-hidden="true">{(diary.author_name || nick)[0]}</span>
-          <span><b>{nick}</b>{diary.author_nickname && diary.author_name && <small>{diary.author_name}</small>}</span>
-          <span className="family-page">{index + 1} / {news!.diaries.length}</span>
-        </div>
-        {diary.illustration_url
-          ? <ElderPhoto src={diary.illustration_url} alt="가족이 보낸 사진" />
-          : <Sim face="smile" size={168} className="elder-sim elder-simflex" />}
-        <FamilyPaper key={diary.diary_id} body={diary.body} saying={saying} onRead={() => replay(diary.body)} />
-        {reply && <p className="elder-sent-ok">{IC.chat}답장: {reply}</p>}
-        {readError && <p className="elder-text" role="alert">{readError}</p>}
+        {card}
         <div className="elder-dock">
-          <div className="elder-row">
-            {isLiked
-              ? <p className="elder-sent-ok family-grow">{heartFill}보냈어요</p>
-              : <button type="button" className="elder-btn elder-btn--secondary" onClick={() => void like()}>{heartFill}하트</button>}
-            {!reply && (
-              <button type="button" className="elder-btn family-talk" onClick={() => setReplying(true)} disabled={busy}>
-                <span className="elder-dot">{IC.mic}</span>말로 답하기
-              </button>
-            )}
-          </div>
+          {reacts}
           <button type="button" className={`elder-btn${reply || isLiked ? '' : ' elder-btn--secondary'}`} disabled={busy} onClick={markRead}>
-            {busy ? '잠시만요…' : last ? '홈으로' : '다음 소식'}
+            {busy ? '잠시만요…' : '다음 소식'}
           </button>
         </div>
-        {replying && (
-          <ReplySheet
-            diary={diary}
-            to={nick}
-            speed={speed}
-            onClose={() => setReplying(false)}
-            onSent={(text) => {
-              setReplied((map) => ({ ...map, [diary.diary_id]: text }))
-              setReplying(false)
-              void speak(`${nick}에게 답장을 보냈어요.`, speed)
-            }}
-          />
-        )}
+        {replySheet}
       </>
     )
-  else if (data)
+  else if (view === 'end')
     body = (
       <>
         <div className="elder-grow elder-center">
           <div className="elder-halo"><Sim face="hello" size={150} className="elder-sim" /></div>
-          <h1>{NO_NEWS}</h1>
-          {canAgain && <p className="elder-sub">{AGAIN_GUIDE}</p>}
+          <h1>{END}</h1>
+          <p className="elder-sub">{END_ASK}</p>
         </div>
-        {canAgain && <button type="button" className="elder-btn elder-btn--secondary" onClick={() => setAgain(true)}>지난 소식 다시 듣기</button>}
-        <button type="button" className="elder-btn" onClick={() => nav('/elder', { replace: true })}>홈으로</button>
+        <button type="button" className="elder-btn" onClick={() => setView('cal')}>지난 소식 보기</button>
+        <button type="button" className="elder-btn elder-btn--secondary" onClick={() => nav('/elder', { replace: true })}>홈으로</button>
       </>
     )
+  else if (showCal)
+    body = past ? <PastCalendar out={past} onOpen={openPast} onMonth={setMonth} /> : cal.error && <ElderStop text={cal.error.message} onRetry={cal.reload} />
 
-  return <main className="elder elder--fit elder-family">{body}</main>
+  return (
+    <main className="elder elder--fit elder-family">
+      {body}
+      {showCal && (
+        <dialog
+          ref={dayView}
+          className="elder-cover family-day"
+          aria-label="지난 가족 소식 크게 보기"
+          onClose={(e) => {
+            // 안에 든 사진 크게 보기(ElderPhoto 의 dialog)가 닫힐 때도 올라온다 — 이 창이 닫힐 때만 (ELDER_DIARY_004 와 같게)
+            if (e.target !== e.currentTarget) return
+            stopSpeaking()
+            setPick(undefined)
+            setReplying(false)
+          }}
+        >
+          {opened ? (
+            <>
+              <p className="family-when"><b>{day(opened.posted_at)}</b><small>{agoOf(opened.posted_at)}</small></p>
+              {card}
+              {reacts}
+              <div className="family-daynav">
+                <button type="button" className="elder-btn elder-btn--secondary elder-btn--sm" disabled={at === 0 && !past?.prev_month} onClick={() => stepPast(-1)}>◀ 전 소식</button>
+                <button type="button" className="elder-btn elder-btn--secondary elder-btn--sm" onClick={() => dayView.current?.close()}>닫기</button>
+                <button type="button" className="elder-btn elder-btn--secondary elder-btn--sm" disabled={at === pastList.length - 1 && !past?.next_month} onClick={() => stepPast(1)}>다음 소식 ▶</button>
+              </div>
+              {replySheet}
+            </>
+          ) : (
+            <p className="elder-text" role="status">잠시만요…</p>
+          )}
+        </dialog>
+      )}
+    </main>
+  )
+}
+
+/** 지난 가족 소식 달력 한 달 — 소식 온 날 = 그날 사진(없으면 심심이)·2개 이상이면 수. 나머지 날은 글자만(누를 수 없음) */
+function PastCalendar({ out, onOpen, onMonth }: { out: PastNewsOut; onOpen: (i: number) => void; onMonth: (month: string) => void }) {
+  const [y, m] = out.month.split('-').map(Number)
+  const lead = new Date(y, m - 1, 1).getDay()
+  const days = new Date(y, m, 0).getDate()
+  const [today] = useState(() => kstDay(new Date().toISOString()))
+  const byDay = new Map<string, number[]>() // 'YYYY-MM-DD' → 그날 소식 번호들
+  out.diaries.forEach((d, i) => byDay.set(kstDay(d.posted_at), [...(byDay.get(kstDay(d.posted_at)) ?? []), i]))
+  const go = (to: string | null, label: string) =>
+    to ? <button type="button" className="elder-btn elder-btn--secondary elder-btn--sm" onClick={() => onMonth(to)}>{label}</button> : <span />
+  return (
+    <>
+      <h1>지난 가족 소식</h1>
+      <div className="fcal-month">
+        {go(out.prev_month, `◀ ${Number(out.prev_month?.slice(5))}월`)}
+        <b>{m}월</b>
+        {go(out.next_month, `${Number(out.next_month?.slice(5))}월 ▶`)}
+      </div>
+      <div className="fcal-week" aria-hidden="true">{WD.map((w) => <span key={w}>{w}</span>)}</div>
+      <div className="fcal-grid">
+        {Array.from({ length: lead }, (_, i) => <span key={`b${i}`} />)}
+        {Array.from({ length: days }, (_, i) => {
+          const date = `${out.month}-${String(i + 1).padStart(2, '0')}`
+          const items = byDay.get(date)
+          if (!items) return <span key={date} className={`fcal-day${date === today ? ' today' : ''}${date > today ? ' fut' : ''}`}>{i + 1}</span>
+          const pic = items.map((j) => out.diaries[j].illustration_url).find(Boolean)
+          return (
+            <button key={date} type="button" className={`fcal-day${pic ? '' : ' sim'}`} onClick={() => onOpen(items[0])} aria-label={`${m}월 ${i + 1}일 가족 소식 ${items.length}개`}>
+              {pic ? <img src={pic} alt="" loading="lazy" /> : <Sim face="smile" size={40} />}
+              <span className="fcal-num">{i + 1}</span>
+              {items.length > 1 && <span className="fcal-cnt">{items.length}</span>}
+            </button>
+          )
+        })}
+      </div>
+      <p className="elder-sub fcal-count">{out.diaries.length ? `${m}월 가족 소식 ${out.diaries.length}개 · 사진을 누르면 읽어 드려요` : NO_PAST}</p>
+    </>
+  )
 }

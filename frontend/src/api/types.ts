@@ -213,9 +213,15 @@ export type PhotoOut = {
   elder_note: string | null // 어르신이 대화에서 이 사진을 바로잡아 주신 내용 한 문장 (FR-ME-009)
   group: PhotoGroup // 11/23 사진첩 분류 칩
   uploader_name: string | null // 11/23 올린 사람(가족 별명→이름, 어르신 사진이면 '순자 할머니' 꼴)
-  shown: boolean // 11/23 어르신께 보여 드렸나(오늘의 한 장·대화에 나옴). false = 기다려요
+  shown: boolean // 11/23 어르신께 보여 드렸나(오늘의 한 장·대화에 나옴). 이 사진 빼기 규칙에만 쓴다(11/25 화면 글자 없앰)
+  // 11/25 사진첩 판 — 목록만 채운다
+  talked: boolean // 어르신이 이 사진으로 말씀하신 대화가 있다 — 사진 칸 말풍선
+  quotes: PhotoQuote[] // 그 이야기의 주간 이야기 카드(질문·전한 말) — 주간 이야기가 나온 뒤에 붙는다
+  diary_id: number | null // 이 사진을 쓴 게시 일기(어르신 일기·가족 오늘 소식)
 }
-export type PhotoListOut = { photos: PhotoOut[]; has_more: boolean; waiting_count: number } // 11/23 ?group= 거르기, waiting_count = 오늘의 한 장으로 남은 사진 수
+export type PhotoQuote = { day: string; question: string; answer: string }
+// ?who=ELDER(어르신이 찍은 사진)·FAMILY(가족 추억 사진 + 오늘 소식 사진) 칩 (11/25). waiting_count = 오늘의 한 장으로 남은 사진 수
+export type PhotoListOut = { photos: PhotoOut[]; has_more: boolean; waiting_count: number }
 export type PhotoBatchOut = { upload_batch_id: string; photos: PhotoOut[] }
 
 // ---- 일기 (backend/app/schemas/diaries.py, D36)
@@ -294,7 +300,6 @@ export type Reaction = {
 export type DiaryListOut = { diaries: DiaryOut[]; has_more: boolean }
 // 어르신 가족 소식 GET /api/elder/family-news (D63): 안 들은 가족 일기 + 아직 못 들은 가족 이모지·한마디(첫 장 '하트가 왔어요', 받은 순서)
 // 첫 장을 읽어 드린 뒤 POST /api/elder/hearts/heard { until: 읽어 드린 마지막 하트·한마디의 at } → 204
-// ?again=1 (11/19): 새 소식이 없을 때 '지난 소식 다시 듣기' — 이미 들은 가족 일기 최근 5개, hearts 는 빈 목록. 읽음 표시는 그대로
 export type Heart = {
   diary_id: number
   kind: 'HEART' | 'SMILE' | 'CLAP' | 'REPLY'
@@ -314,6 +319,12 @@ export type ElderReplyDraftIn = { transcript: string }
 export type ElderReplyDraftOut = { text: string }
 export type ElderReplyIn = { text: string }
 export type FamilyNewsOut = DiaryListOut & { hearts: Heart[] }
+// 11/25 달력 (backend/app/schemas/calendar.py, 인스타 스토리 보관함처럼). 달 = 'YYYY-MM', 날 = 'YYYY-MM-DD'(한국 날짜)
+// 가족 일기 달력 HOME_003: GET /api/rooms/{id}/calendar?month= (없으면 일기가 있는 가장 최근 달) · GET …/calendar/{날}
+export type CalendarOut = { month: string; days: { date: string; count: number; thumb_url: string | null }[]; prev_month: string | null; next_month: string | null }
+export type CalendarDayOut = { date: string; diaries: DiaryOut[]; prev_date: string | null; next_date: string | null } // 올린 시각 순서
+// 어르신 '지난 가족 소식' 달력: GET /api/elder/family-news/past?month= — 이미 들은 가족 일기(올린 순서), 일기가 있는 앞·뒤 달
+export type PastNewsOut = { month: string; diaries: DiaryOut[]; prev_month: string | null; next_month: string | null }
 // ---- 가족 일기 동무 (backend/app/schemas/family_diary.py, D58) — FDIARY_002 질문 · FDIARY_003 초안. 서버는 저장하지 않는다
 // POST /api/rooms/{room_id}/family-diary/ask · /draft. 여러 가족방에 보내도 고른 방 하나로 한 번만 부른다
 export type FamilyAskIn = { text: string } // 가족이 쓴 말 1~200자
