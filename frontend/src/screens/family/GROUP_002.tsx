@@ -13,6 +13,7 @@ import type {
   InviteKind,
   InviteOut,
   MemberOut,
+  RegionOut,
   RelationTag,
   RoomOut,
   RoomSettingsIn,
@@ -34,8 +35,6 @@ type SetDef = { key: SetKey; name: string; help: (hon: string) => string; opts: 
 
 const hourLabel = (h: number) => (h === 0 ? '밤 12시' : h < 12 ? `오전 ${h}시` : h === 12 ? '낮 12시' : `오후 ${h - 12}시`)
 const HOURS: SetDef['opts'] = Array.from({ length: 24 }, (_, h) => [`${String(h).padStart(2, '0')}:00`, hourLabel(h)]) // 정각만 (D44)
-// 어르신 동네 — 서버 config.REGIONS 와 같은 이름·순서 (D106). 심심이가 이 동네 날씨를 알려 드린다
-const REGIONS = ['서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종', '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주']
 const SETS: SetDef[] = [
   {
     key: 'memory_time',
@@ -53,7 +52,7 @@ const SETS: SetDef[] = [
     key: 'weather_region',
     name: '사시는 동네',
     help: (hon) => `심심이가 ${hon}께 이 동네 날씨를 알려 드려요`,
-    opts: REGIONS.map((r) => [r, r]),
+    opts: [], // 시·도 → 시·군 두 단계 — 목록은 서버 GET /api/rooms/regions (D111). 고른 값은 '전남 영광군'처럼 그대로 보인다
   },
   {
     key: 'font_size',
@@ -164,6 +163,9 @@ function RoomTab() {
   // 링크 목록은 방장만 부를 수 있다 — 방장이 아니면 부르지 않는다
   const invites = useFetch<InviteOut[]>(room?.is_owner ? `/api/rooms/${roomId}/invites` : null)
   const [sheet, setSheet] = useState<Sheet>()
+  const regionSheet = sheet?.t === 'set' && sheet.s.key === 'weather_region'
+  const regions = useFetch<RegionOut[]>(regionSheet ? '/api/rooms/regions' : null)
+  const [regionDo, setRegionDo] = useState<string>() // 동네 판에서 고른 도 — 그 안의 시·군을 보여 준다
   // 보내기·복사가 안 됐을 때 판 안에 보여 줄 주소 — 서버가 다시 보여 주지 않으므로 판을 닫거나 칩을 바꿔도 이 화면에 있는 동안 둔다
   const [made, setMade] = useState<Partial<Record<InviteKind, string>>>({})
   const [busy, setBusy] = useState(false)
@@ -178,7 +180,7 @@ function RoomTab() {
   }, [note])
 
   const open = (s: Sheet) => (setError(undefined), setSheet(s))
-  const close = () => (setSheet(undefined), setError(undefined))
+  const close = () => (setSheet(undefined), setError(undefined), setRegionDo(undefined))
   /** 글로 고치기 판 — 지금 값을 넣어 둔 채 연다 */
   const openText = (s: TextSheet, value: string) => (setText(value), open(s))
 
@@ -756,7 +758,46 @@ function RoomTab() {
                 </div>
               </>
             )}
-            {sheet.t === 'set' && (
+            {sheet.t === 'set' && sheet.s.key === 'weather_region' && (
+              <>
+                <h2>{sheet.s.name}</h2>
+                <p className="gr-sheet-text">{regionDo ? `${regionDo}에서 시·군을 골라 주세요` : sheet.s.help(hon)}</p>
+                {regions.error && <p className="fam-error" role="alert">{regions.error.message}</p>}
+                {/* 목록 밖에 — 시·군 목록을 내려도 늘 보이게 */}
+                {regionDo && (
+                  <button type="button" className="fam-btn fam-btn--sm" onClick={() => setRegionDo(undefined)}>
+                    ← 다른 시·도 고르기
+                  </button>
+                )}
+                {/* 시·도 → (도면) 시·군. 광역시·세종은 시·도 하나로 저장 (D111). key: 단계가 바뀌면 목록을 맨 위부터 */}
+                <div key={regionDo ?? ''} className="gr-opts" aria-busy={regions.loading}>
+                  {(regionDo
+                    ? (regions.data?.find((r) => r.name === regionDo)?.towns ?? []).map((t) => ({ v: `${regionDo} ${t}`, label: t, towns: 0 }))
+                    : (regions.data ?? []).map((r) => ({ v: r.name, label: r.name, towns: r.towns.length }))
+                  ).map(({ v, label, towns }) => {
+                    const cur = curOf(room, 'weather_region')
+                    const on = cur === v || (towns > 0 && cur.startsWith(`${v} `))
+                    return (
+                      <button
+                        key={v}
+                        type="button"
+                        className={on ? 'fam-opt on' : 'fam-opt'}
+                        ref={on ? (el) => el?.scrollIntoView({ block: 'center' }) : undefined}
+                        disabled={busy}
+                        onClick={() => (towns > 0 ? setRegionDo(v) : saveSetting(room, sheet.s, v))}
+                      >
+                        <span>
+                          <b>{label}</b>
+                          {towns > 0 && <small>시·군 {towns}곳</small>}
+                        </span>
+                        {towns > 0 ? <FamIcon name="chevRight" /> : on && <FamIcon name="check" className="fam-ok" />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+            {sheet.t === 'set' && sheet.s.key !== 'weather_region' && (
               <>
                 <h2>{sheet.s.name}</h2>
                 <p className="gr-sheet-text">{sheet.s.help(hon)}</p>

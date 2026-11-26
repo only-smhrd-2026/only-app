@@ -14,7 +14,7 @@ from typing import Any
 import httpx
 
 from app.config import (
-    REGIONS,
+    PLACES,
     WEATHER_CACHE_SEC,
     WEATHER_COLD_FEELS,
     WEATHER_HOT_FEELS,
@@ -68,7 +68,7 @@ def _day(d: dict[str, Any], i: int) -> str:
 
 
 def _fetch(region: str) -> dict[str, str | None]:
-    lat, lon = REGIONS[region]
+    lat, lon = PLACES[region]
     base = {"latitude": lat, "longitude": lon, "timezone": "Asia/Seoul"}
     with httpx.Client(timeout=WEATHER_TIMEOUT_SEC) as client:
         f = client.get(
@@ -115,7 +115,7 @@ def look_for(region: str | None) -> str | None:
 
 
 def _get(region: str | None) -> dict[str, str | None] | None:
-    if region not in REGIONS:
+    if region not in PLACES:
         return None
     hit = _cache.get(region)
     if hit and time.monotonic() - hit[0] < WEATHER_CACHE_SEC:

@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.config import REGIONS
+from app.config import PLACES
 
 RelationTag = Literal["CHILD", "GRANDCHILD", "OTHER"]
 InviteKind = Literal["FAMILY", "ELDER_DEVICE"]
@@ -28,7 +28,7 @@ class RoomOut(BaseModel):
     font_size: str
     tts_speed: Decimal
     tts_voice: str  # FEMALE | MALE — 어르신께 들려 드리는 목소리 (D74)
-    weather_region: str | None = None  # 어르신 동네(시·도) — 심심이 날씨 (D106). None = 안 정함
+    weather_region: str | None = None  # 어르신 동네 '전남 영광군'·'서울' — 심심이 날씨 (D106·D111). None = 안 정함
     device_input_mode: str  # VOICE | BUTTON — 가족방 설정 화면(GROUP_003)이 지금 값을 보여 준다
     status: str
     is_owner: bool = False
@@ -127,7 +127,7 @@ class RoomSettingsIn(BaseModel):
     font_size: Literal["L", "XL", "XXL"] | None = None
     tts_speed: Literal["0.80", "0.90", "1.00"] | None = None  # RoomOut과 같이 글자로 받는다 (D74)
     tts_voice: Literal["FEMALE", "MALE"] | None = None  # 어르신께 들려 드리는 목소리 (D74)
-    weather_region: str | None = None  # 어르신 동네(시·도) — 심심이 날씨 (D106). config.REGIONS 의 이름만
+    weather_region: str | None = None  # 어르신 동네 '전남 영광군'·'서울' (D106·D111). config.PLACES 의 이름만
     device_input_mode: Literal["VOICE", "BUTTON"] | None = None
     elder_name: str | None = Field(default=None, min_length=1, max_length=10)
     elder_honorific: str | None = Field(default=None, min_length=1, max_length=20)
@@ -135,11 +135,18 @@ class RoomSettingsIn(BaseModel):
     @field_validator("weather_region")
     @classmethod
     def known_region(cls, value):
-        if value is not None and value not in REGIONS:
-            raise ValueError("동네는 시·도 목록에서 골라 주세요")
+        if value is not None and value not in PLACES:
+            raise ValueError("동네는 시·도·시·군 목록에서 골라 주세요")
         return value
 
     @field_validator("elder_name", "elder_honorific", mode="before")
     @classmethod
     def trim_elder_name(cls, value):
         return value.strip() if isinstance(value, str) else value
+
+
+class RegionOut(BaseModel):
+    """가족방 설정 '사시는 동네' 고르기 (D111). towns 가 비면(광역시·세종) 시·도 하나로 고른다."""
+
+    name: str
+    towns: list[str]

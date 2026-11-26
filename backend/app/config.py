@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -67,6 +68,18 @@ REGIONS: dict[str, tuple[float, float]] = {
     "경북": (36.5760, 128.5056),
     "경남": (35.2383, 128.6925),
     "제주": (33.4996, 126.5312),
+}
+# 도 안의 시·군 (D111, 11/26 사용자 '영광·해남이 전남 하나로 묶인다') — 가족방에는 '전남 영광군'처럼 남는다.
+# 좌표: Open-Meteo 지오코딩(소속 시·군이 그 이름인 곳, 시·군청 마을 먼저), 거기 없는 25곳은 OpenStreetMap.
+# 광역시·세종은 하나
+_TOWNS_FILE = ROOT / "data" / "regions.json"
+TOWNS: dict[str, dict[str, tuple[float, float]]] = {
+    do: {name: (lat, lon) for name, (lat, lon) in towns.items()}
+    for do, towns in json.loads(_TOWNS_FILE.read_text("utf-8")).items()
+}
+# 날씨를 받을 수 있는 이름 전부 — 시·도(11/25 부터 고른 방은 그대로) + '시·도 시·군'
+PLACES: dict[str, tuple[float, float]] = REGIONS | {
+    f"{do} {n}": p for do, towns in TOWNS.items() for n, p in towns.items()
 }
 WEATHER_CACHE_SEC = 30 * 60  # 동네마다 30분 동안 같은 날씨를 쓴다
 WEATHER_TIMEOUT_SEC = 3.0  # 날씨 서버를 기다리는 시간 — 넘으면 날씨 없이(모른다고) 대화를 이어 간다

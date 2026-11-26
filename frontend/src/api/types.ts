@@ -18,7 +18,7 @@ export type RoomOut = {
   font_size: 'L' | 'XL' | 'XXL'
   tts_speed: string | number
   tts_voice: 'FEMALE' | 'MALE' // 어르신께 들려 드리는 목소리 (D74)
-  weather_region: string | null // 어르신 동네(시·도) — 심심이가 날씨를 알려 드린다 (D106). null = 안 정함
+  weather_region: string | null // 어르신 동네 '서울'·'전남 영광군' — 심심이 날씨 (D106·D111). null = 안 정함
   device_input_mode: 'VOICE' | 'BUTTON'
   status: string
   is_owner: boolean
@@ -38,7 +38,7 @@ export type RoomSettingsIn = {
   font_size?: 'L' | 'XL' | 'XXL'
   tts_speed?: '0.80' | '0.90' | '1.00' // D74 (전 0.70·0.85·1.00)
   tts_voice?: 'FEMALE' | 'MALE'
-  weather_region?: string // 시·도 이름 (서버 config.REGIONS — GROUP_002 의 REGIONS 와 같게)
+  weather_region?: string // '서울'·'전남 영광군' (서버 config.PLACES, 목록은 GET /api/rooms/regions — D111)
   device_input_mode?: 'VOICE' | 'BUTTON'
   elder_name?: string // 1~10자
   elder_honorific?: string // 부르는 말 1~20자 (빈 칸은 서버가 거절)
@@ -73,6 +73,8 @@ export type TodayPickOut = { pick_id: number; photo_id: number; photo_url: strin
 // GET /api/elder/weather — 홈·잡담 심심이 날씨 그림 (11/26). null = 늘 쓰던 그림
 export type WeatherLook = 'snow' | 'raincoat' | 'umbrella' | 'winter' | 'hot' | 'wind'
 export type ElderWeatherOut = { look: WeatherLook | null }
+// GET /api/rooms/regions — '사시는 동네' 시·도 → 시·군 (D111). towns 가 비면 시·도 하나로 고른다
+export type RegionOut = { name: string; towns: string[] }
 export type ElderHomeOut = {
   greeting: string
   elder_name: string
