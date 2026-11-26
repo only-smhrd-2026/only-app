@@ -44,6 +44,7 @@ CASES = [
     ("POST", "/diaries/{diary_id}/read", None),
     ("POST", "/diaries/{diary_id}/reaction", {"kind": "HEART", "on": True}),
     ("POST", "/diaries/{diary_id}/reply", {"text": "보고 싶어요"}),
+    ("PATCH", "/diaries/{diary_id}/reply", {"at": "2026-11-26T09:00:00+09:00", "text": "보고 싶어요"}),
     ("DELETE", "/diaries/{diary_id}/reply", None),
     ("POST", "/diaries/{diary_id}/voice-reply", "voice"),  # 가족 목소리 답장 (D99)
     ("DELETE", "/diaries/{diary_id}", None),

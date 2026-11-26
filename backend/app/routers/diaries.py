@@ -74,6 +74,7 @@ from app.schemas.diaries import (
     HeartOut,
     HeartsHeardIn,
     ReactionIn,
+    ReplyEditIn,
     ReplyIn,
 )
 from app.schemas.elder import ElderReplyDraftIn, ElderReplyDraftOut, ElderReplyIn
@@ -863,6 +864,25 @@ def send_voice_reply(
     new |= {"audio_key": key, "audio_sec": sec, "at": now_kst().isoformat()}
     diary.reactions = [*diary.reactions, new]
     db.commit()
+    return _rows(db, db.get(FamilyRoom, diary.room_id), Diary.diary_id == diary_id, me=user.user_id)[0]
+
+
+@router.patch("/diaries/{diary_id}/reply", response_model=DiaryOut)
+def edit_reply(diary_id: int, body: ReplyEditIn, user: CurrentUser, db: DB):
+    """내 글 한마디 고치기 (11/25 멘토링) — body.at 그 칸의 시각(응답의 at 그대로). 목소리 답장은 지우고 다시 보낸다.
+
+    at 은 그대로 둔다(지우기·화면이 이 값으로 칸을 찾는다). 글이 바뀌면 어르신께 다시 읽어 드린다(heard_at 지움).
+    글은 로그에 남기지 않는다.
+    """
+    diary = _diary_for_reply(db, diary_id, user)
+    mine = _own_replies(diary, user.user_id)
+    cell = next((r for r in mine if r.get("at") == body.at and not r.get("audio_key")), None)
+    if cell is None:
+        raise ApiError(404, "REPLY_NOT_FOUND", "고칠 한마디를 찾을 수 없어요")
+    if cell.get("text") != body.text:  # 같은 글이면(두 번 누름) 그대로 — 다시 읽어 드리지 않는다
+        new = {k: v for k, v in cell.items() if k != "heard_at"} | {"text": body.text}
+        diary.reactions = [new if r is cell else r for r in diary.reactions]  # 새 리스트를 통째로 넣어야 저장된다
+    db.commit()  # 바뀐 게 없어도 — 행 잠금이 풀린다
     return _rows(db, db.get(FamilyRoom, diary.room_id), Diary.diary_id == diary_id, me=user.user_id)[0]
 
 

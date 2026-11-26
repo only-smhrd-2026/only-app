@@ -67,6 +67,12 @@ class ReplyIn(BaseModel):
         return " ".join(re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", value).split()) if isinstance(value, str) else value
 
 
+class ReplyEditIn(ReplyIn):
+    """내 글 한마디 고치기 (11/26) — at: 고칠 칸의 시각(응답의 at 그대로), text: 새 글(ReplyIn 과 같은 검사)."""
+
+    at: str = Field(max_length=64)
+
+
 class ReactionOut(BaseModel):
     by: Literal["ELDER", "FAMILY"]
     kind: Literal["LIKE", "HEART", "SMILE", "CLAP", "REPLY"]  # REPLY = 가족 한마디 (이모지와 따로 한 사람 1칸)

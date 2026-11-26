@@ -72,6 +72,8 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
   const [draft, setDraft] = useState('')
   const [replySent, setReplySent] = useState(false)
   const [replyError, setReplyError] = useState<string>()
+  const [fixing, setFixing] = useState<Reaction>() // 고치는 중인 내 한마디 (11/25 멘토링 '댓글 수정도')
+  const replyInput = useRef<HTMLInputElement>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string>()
@@ -244,7 +246,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
   async function sendReply(text: string) {
     const clean = text.trim()
     if (!d || !diary.data || d.is_mine || busy || !clean) return
-    if (clean === myLast?.text && !myLast.audio_url) {
+    if (!fixing && clean === myLast?.text && !myLast.audio_url) {
       setDraft('') // 바로 앞에 남긴 글 그대로(두 번 누름) — 서버도 새 칸을 붙이지 않으니 보내지 않는다
       return
     }
@@ -253,15 +255,32 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
     setReplySent(false)
     setReplyError(undefined)
     try {
-      const data = await api<DiaryOut>(`/api/diaries/${d.diary_id}/reply`, { body: { text: clean } })
+      const data = fixing // 고치기는 그 칸(at)의 글만 바꾼다 — 자리·시각은 그대로
+        ? await api<DiaryOut>(`/api/diaries/${d.diary_id}/reply`, { method: 'PATCH', body: { at: fixing.at, text: clean } })
+        : await api<DiaryOut>(`/api/diaries/${d.diary_id}/reply`, { body: { text: clean } })
       setEdit({ base, data })
       setDraft('')
-      setReplySent(true)
+      setReplySent(!fixing)
+      setFixing(undefined)
     } catch (e) {
-      setReplyError(e instanceof ApiError ? e.message : '한마디를 보내지 못했어요. 다시 해 주세요.')
+      const what = fixing ? '고치지' : '보내지'
+      setReplyError(e instanceof ApiError ? e.message : `한마디를 ${what} 못했어요. 다시 해 주세요.`)
     } finally {
       setBusy(false)
     }
+  }
+
+  function startFixing(cell: Reaction) {
+    setFixing(cell)
+    setDraft(cell.text ?? '')
+    setReplySent(false)
+    setReplyError(undefined)
+    replyInput.current?.focus()
+  }
+
+  function stopFixing() {
+    setFixing(undefined)
+    setDraft('')
   }
 
   async function removeReply(cell: Reaction) {
@@ -273,6 +292,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
     try {
       await api<void>(`/api/diaries/${d.diary_id}/reply?at=${encodeURIComponent(cell.at)}`, { method: 'DELETE' })
       setEdit({ base, data: { ...d, reactions: d.reactions.filter((r) => r !== cell) } })
+      if (fixing?.at === cell.at) stopFixing() // 고치던 한마디를 지웠다
     } catch (e) {
       setReplyError(e instanceof ApiError ? e.message : '한마디를 지우지 못했어요. 다시 해 주세요.')
     } finally {
@@ -424,6 +444,12 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
                       {r.audio_url && r.text && <span className="cm-sub">{r.text}</span>}
                       <small>
                         {ago(r.at)}
+                        {/* 글 한마디만 고친다 — 목소리 답장은 지우고 다시 */}
+                        {isMine(r) && !r.audio_url && (
+                          <button type="button" className="cm-del" disabled={busy} onClick={() => startFixing(r)} aria-pressed={fixing?.at === r.at}>
+                            고치기
+                          </button>
+                        )}
                         {isMine(r) && (
                           <button type="button" className="cm-del" disabled={busy} onClick={() => void removeReply(r)}>지우기</button>
                         )}
@@ -455,6 +481,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
                 <form className="cm-bar" onSubmit={(e) => { e.preventDefault(); void sendReply(draft) }}>
                   <Avatar name={me.data?.name ?? '나'} small />
                   <input
+                    ref={replyInput}
                     className="cm-input"
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
@@ -468,13 +495,13 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
                     type="button"
                     className="cm-mic"
                     onClick={() => void (elder ? (voice === 'rec' ? stopVoiceReply() : startVoiceReply()) : toggleVoice())}
-                    disabled={busy || voice === 'start' || voice === 'stt'}
+                    disabled={busy || voice === 'start' || voice === 'stt' || !!fixing}
                     aria-pressed={voice === 'rec'}
                     aria-label={voice === 'rec' ? (elder ? '다 녹음했어요' : '다 말했어요') : elder ? '목소리로 답장' : '말로 쓰기'}
                   >
                     {voice === 'rec' ? <span className="cm-stop">■ {elder ? `${recSec}초` : ''}</span> : <FamIcon name="mic" />}
                   </button>
-                  <button type="submit" className="cm-post" disabled={busy || !!voice || !draft.trim()}>보내기</button>
+                  <button type="submit" className="cm-post" disabled={busy || !!voice || !draft.trim()}>{fixing ? '고치기' : '보내기'}</button>
                 </form>
                 {voice === 'rec' && (
                   <p className="cm-hint" role="status">
@@ -483,7 +510,13 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
                 )}
                 {voiceError && <p className="diary-detail-reply-note" role="alert">{voiceError}</p>}
                 {replyError && <p className="diary-detail-reply-note" role="alert">{replyError}</p>}
-                {voice !== 'rec' && (
+                {fixing && (
+                  <p className="cm-hint" role="status">
+                    한마디를 고치고 있어요{elder ? ` · 고치면 ${room.elder_honorific}께 다시 읽어 드려요` : ''}{' '}
+                    <button type="button" className="cm-del" onClick={stopFixing}>취소</button>
+                  </p>
+                )}
+                {voice !== 'rec' && !fixing && (
                   <p className="cm-hint" role={replySent ? 'status' : undefined}>
                     {replySent
                       ? elder

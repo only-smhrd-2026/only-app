@@ -70,6 +70,9 @@ export type DeviceOut = {
 }
 
 export type TodayPickOut = { pick_id: number; photo_id: number; photo_url: string; status: string }
+// GET /api/elder/weather — 홈·잡담 심심이 날씨 그림 (11/26). null = 늘 쓰던 그림
+export type WeatherLook = 'snow' | 'raincoat' | 'umbrella' | 'winter' | 'hot' | 'wind'
+export type ElderWeatherOut = { look: WeatherLook | null }
 export type ElderHomeOut = {
   greeting: string
   elder_name: string

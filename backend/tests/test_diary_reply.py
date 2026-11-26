@@ -272,3 +272,35 @@ def test_past_news_gives_heard_family_diaries_of_the_month_and_keeps_read_marks(
 
     setup_elder(client)  # 다른 가족방의 기기에는 안 보인다
     assert client.get(path).json()["diaries"] == []
+
+
+# ---------------------------------------------------------------- 고치기 (11/25 멘토링)
+def _edit(client, diary_id, at, text):
+    return client.patch(f"/api/diaries/{diary_id}/reply", json={"at": at, "text": text})
+
+
+def test_reply_edit_keeps_place_and_reads_again(client):
+    room_id = setup_elder(client)["room_id"]
+    diary_id = _diary(room_id)
+    first = _reply(client, diary_id, "보고 싶어요").json()["reactions"][0]
+    second = _reply(client, diary_id, "곧 갈게요").json()["reactions"][1]
+    assert _heard(client, second["at"]).status_code == 204
+    assert _news(client)["hearts"] == []
+
+    r = _edit(client, diary_id, first["at"], "많이 보고 싶어요")
+    assert r.status_code == 200, r.text
+    assert [(c["at"], c["text"]) for c in r.json()["reactions"]] == [
+        (first["at"], "많이 보고 싶어요"),  # 자리·시각 그대로
+        (second["at"], "곧 갈게요"),
+    ]
+    (again,) = _news(client)["hearts"]  # 글이 바뀌면 다시 읽어 드린다
+    assert (again["at"], again["text"]) == (first["at"], "많이 보고 싶어요")
+    assert _heard(client, again["at"]).status_code == 204
+    assert _edit(client, diary_id, first["at"], "많이 보고 싶어요").status_code == 200  # 같은 글 — 들은 칸 그대로
+    assert _news(client)["hearts"] == []
+
+    assert _edit(client, diary_id, "2000-01-01T00:00:00+09:00", "없는 칸").status_code == 404
+    assert _edit(client, diary_id, first["at"], "   ").status_code == 422  # 빈 글은 보내기와 같이 막힘
+    _join(client, room_id)  # 다른 가족은 남의 한마디를 못 고친다
+    assert _edit(client, diary_id, first["at"], "바꿔치기").status_code == 404
+    assert _stored(diary_id)[0]["text"] == "많이 보고 싶어요"

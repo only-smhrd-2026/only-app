@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { ElderHomeOut, SessionOut } from '../../api/types'
+import type { ElderHomeOut, ElderWeatherOut, SessionOut } from '../../api/types'
 import todayPreview from '../../assets/today-preview.svg?inline' // 미리보기 전용 — 배포 빌드에 파일이 따로 남지 않게
 import { Bub } from '../../components/ElderUi'
 import Sim from '../../components/Sim'
@@ -136,6 +136,8 @@ export default function ELDER_HOME_001() {
   const { search } = useLocation()
   const preview = import.meta.env.DEV && new URLSearchParams(search).get('preview') === '1'
   const { data: serverHome, error, loading, reload } = useFetch<ElderHomeOut>(preview ? null : '/api/elder/home')
+  // 날씨 심심이 (11/26) — 홈과 따로 받아 홈을 기다리게 하지 않는다. 못 받으면 늘 쓰던 인사 그림
+  const weather = useFetch<ElderWeatherOut>(preview ? null : '/api/elder/weather')
   const home = preview ? previewHome : serverHome
   const homeError = error && !preview && (!serverHome || error.code === 'DEVICE_REQUIRED')
     ? error.code === 'DEVICE_REQUIRED'
@@ -330,7 +332,7 @@ export default function ELDER_HOME_001() {
           <Bub key={bubble} text={bubble} speed={speed} className="elder-bub--down" />
           {/* 심심이를 누르면 잡담 (D106, 11/25 멘토 아이디어) — 홈 모양은 그대로, 그림만 누를 수 있게 */}
           <button type="button" className="ehome-simbtn" onClick={() => nav('/elder/chat', { state: { home } })} aria-label="꼬마심심이랑 이야기하기">
-            <Sim face="hello" size={230} className="elder-sim" />
+            <Sim face={weather.data?.look ?? 'hello'} size={230} className="elder-sim" />
           </button>
         </div>
         <div className="ehome-grid">

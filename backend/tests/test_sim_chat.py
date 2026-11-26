@@ -166,3 +166,22 @@ def test_weather_words_and_failure(monkeypatch):
     assert weather.for_region("부산") is None
     assert weather.for_region("부산") is None and calls == ["부산"]  # 실패도 잠깐 기억 — 턴마다 기다리지 않게
     weather._cache.clear()
+
+
+def test_weather_look_picks_sim_picture(client, monkeypatch):
+    """날씨 심심이 그림 (11/26) — 하늘 먼저, 다음 몸으로 느끼는 기온, 바람. 맑은 보통 날·동네 없음은 null."""
+    assert weather.look(73, 2, 1) == "snow" and weather.look(85, 10, 1) == "snow"
+    assert weather.look(81, 30, 1) == "raincoat" and weather.look(95, 20, 12) == "raincoat"
+    assert weather.look(53, 3, 1) == "umbrella" and weather.look(63, 20, 1) == "umbrella"
+    assert weather.look(0, 5, 1) == "winter" and weather.look(3, 28, 1) == "hot"
+    assert weather.look(2, 15, 9) == "wind" and weather.look(0, 15, 8.9) is None
+
+    ctx = setup_elder(client)
+    assert client.get("/api/elder/weather").json() == {"look": None}  # 동네 안 정함
+    fake = {"where": "광주", "now": "눈, -1도", "today": "눈", "tomorrow": "흐림", "dust": "좋음", "look": "snow"}
+    monkeypatch.setattr(weather, "_fetch", lambda region: fake)
+    weather._cache.clear()
+    client.patch(f"/api/rooms/{ctx['room_id']}/settings", json={"weather_region": "광주"})
+    assert client.get("/api/elder/weather").json() == {"look": "snow"}
+    assert "look" not in weather.for_region("광주")  # 잡담 AI 데이터는 그대로
+    weather._cache.clear()
