@@ -169,12 +169,19 @@ def test_weather_words_and_failure(monkeypatch):
 
 
 def test_weather_look_picks_sim_picture(client, monkeypatch):
-    """날씨 심심이 그림 (11/26) — 하늘 먼저, 다음 몸으로 느끼는 기온, 바람. 맑은 보통 날·동네 없음은 null."""
-    assert weather.look(73, 2, 1) == "snow" and weather.look(85, 10, 1) == "snow"
-    assert weather.look(81, 30, 1) == "raincoat" and weather.look(95, 20, 12) == "raincoat"
-    assert weather.look(53, 3, 1) == "umbrella" and weather.look(63, 20, 1) == "umbrella"
-    assert weather.look(0, 5, 1) == "winter" and weather.look(3, 28, 1) == "hot"
-    assert weather.look(2, 15, 9) == "wind" and weather.look(0, 15, 8.9) is None
+    """날씨 심심이 그림 (D108·D109) — 지금 하늘, 오늘 예보(비·눈 확률 60%), 체감 10도↓·28도↑, 바람 초속 7m.
+    맑은 보통 날·동네 없음은 null."""
+
+    def now(code, feels=15, wind=1, today=0, rain=0):
+        return weather.look(code, feels, wind, today, rain)
+
+    assert now(73, 2) == "snow" and now(85) == "snow"
+    assert now(81, 30) == "raincoat" and now(95, wind=12) == "raincoat"
+    assert now(53, 3) == "umbrella" and now(63) == "umbrella"
+    assert now(0, today=63, rain=60) == "umbrella" and now(0, today=63, rain=59) is None  # 오늘 비 소식
+    assert now(1, 2, today=73, rain=80) == "snow" and now(2, today=95, rain=70) == "raincoat"  # 예보가 하늘보다 먼저
+    assert now(0, 10) == "winter" and now(0, 10.5) is None and now(3, 28) == "hot"
+    assert now(2, wind=7) == "wind" and now(0, wind=6.9) is None
 
     ctx = setup_elder(client)
     assert client.get("/api/elder/weather").json() == {"look": None}  # 동네 안 정함
