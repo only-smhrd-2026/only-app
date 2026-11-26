@@ -12,6 +12,9 @@
   따로 뽑아 그 사진에 적는다(photos.elder_note) — 다음 대화는 AI 가 본 모습 대신 그 말을 따르고, 그 사진에는 활동
   문제를 다시 내지 않는다(corrected_activity 'none'). 안부로 이어 묻지 않는다(pick 은 PLAN·EVENT 만).
   주간 이야기에는 정정 문장 카드로 나간다 (ai/weekly.summarize).
+- 좋아하시는 것(PREFERENCE, 11/26): 같은 AI 호출에서 따로 STORY_LIKES_MAX 개까지 뽑아 STORY_LIKES_KEEP_DAYS 일 둔다.
+  안부로 묻지 않고(pick 은 PLAN·EVENT 만) 잡담·일기 대화 데이터(likes)에 곁들인다.
+- 잡담·일기 대화에 넘기는 것(heard·likes): 최근 들은 이야기와 좋아하시는 것 — 그 대화 프롬프트가 곁들여 쓴다.
 - 로그에 어르신 말을 남기지 않는다 (D15) — 개수만.
 """
 
@@ -28,14 +31,25 @@ from sqlalchemy.orm import Session
 from app.ai import llm
 from app.ai.schemas import BANNED_WORDS, StoryFactItem, StoryFactItems
 from app.ai.weekly import QUOTE_MIN, _squeeze, pairs_of
-from app.config import STORY_FACTS_MAX, STORY_KEEP_DAYS, STORY_LOOKBACK_DAYS, TZ, now_kst, today_kst
+from app.config import (
+    STORY_FACTS_MAX,
+    STORY_KEEP_DAYS,
+    STORY_LIKES_KEEP_DAYS,
+    STORY_LIKES_MAX,
+    STORY_LOOKBACK_DAYS,
+    TZ,
+    now_kst,
+    today_kst,
+)
 from app.models import ELDER_SPOKE, Photo, StoryFact, TalkSession
 
 log = logging.getLogger("app.ai")
 
 FACT_MAX = 60  # 기억 한 문장 글자 수 (story_facts.fact_text 칸은 200)
 CORRECTIONS_MAX = 2  # 하루치 대화에서 뽑는 사진 바로잡기 수 — 안부 기억(STORY_FACTS_MAX)과 따로 센다 (FR-ME-009)
-ASK_KINDS = ("PLAN", "EVENT")  # 다음 날 안부로 이어 묻는 기억. CORRECTION 은 묻지 않는다
+ASK_KINDS = ("PLAN", "EVENT")  # 다음 날 안부로 이어 묻는 기억. CORRECTION·PREFERENCE 는 묻지 않는다
+HEARD_MAX = 3  # 잡담·일기 AI 에 넘기는 지난 이야기 수
+LIKES_MAX = 3  # 잡담·일기 AI 에 넘기는 좋아하시는 것 수
 
 
 def _start(day: date) -> datetime:
@@ -67,7 +81,8 @@ def check(items: list[StoryFactItem], pairs: list[dict[str, Any]]) -> list[tuple
         passed[item.ref] = (pair, item, fact)
     kept = list(passed.values())
     asks = [k for k in kept if k[1].kind in ASK_KINDS][:STORY_FACTS_MAX]
-    return asks + [k for k in kept if k[1].kind == "CORRECTION"][:CORRECTIONS_MAX]
+    likes = [k for k in kept if k[1].kind == "PREFERENCE"][:STORY_LIKES_MAX]
+    return asks + [k for k in kept if k[1].kind == "CORRECTION"][:CORRECTIONS_MAX] + likes
 
 
 def extract(db: Session, room_id: int, day: date) -> int:
@@ -101,7 +116,6 @@ def extract(db: Session, room_id: int, day: date) -> int:
         log.info("story extract room=%s pairs=%d failed", room_id, len(pairs))
         return 0
     kept = check(out.facts, pairs)
-    expires = _start(day + timedelta(days=STORY_KEEP_DAYS))
     db.add_all(
         StoryFact(
             room_id=room_id,
@@ -110,7 +124,9 @@ def extract(db: Session, room_id: int, day: date) -> int:
             fact_text=fact,
             kind=item.kind,
             fact_date=day,
-            expires_at=expires,
+            expires_at=_start(
+                day + timedelta(days=STORY_LIKES_KEEP_DAYS if item.kind == "PREFERENCE" else STORY_KEEP_DAYS)
+            ),
         )
         for pair, item, fact in kept
     )
@@ -189,6 +205,39 @@ def pick(db: Session, room_id: int) -> StoryFact | None:
         )
         .order_by(case((StoryFact.kind == "PLAN", 0), else_=1), StoryFact.fact_id)
     ).first()
+
+
+def heard(db: Session, room_id: int, *, unasked: bool = False) -> list[dict[str, str]]:
+    """최근 STORY_LOOKBACK_DAYS 일 안에 들은 요즘 이야기(PLAN·EVENT) HEARD_MAX 개, 최근 것부터 — 잡담·일기 AI 에.
+
+    unasked = 회상 첫 질문으로 이미 여쭌 것(used_at)은 뺀다 — 일기에서 같은 안부를 두 번 묻지 않게.
+    """
+    query = select(StoryFact).where(
+        StoryFact.room_id == room_id,
+        StoryFact.is_active.is_(True),
+        StoryFact.kind.in_(ASK_KINDS),
+        StoryFact.fact_date >= today_kst() - timedelta(days=STORY_LOOKBACK_DAYS),
+        StoryFact.expires_at > now_kst(),
+    )
+    if unasked:
+        query = query.where(StoryFact.used_at.is_(None))
+    rows = db.scalars(query.order_by(StoryFact.fact_date.desc(), StoryFact.fact_id).limit(HEARD_MAX)).all()
+    return [{"heard_on": when(f.fact_date), "text": f.fact_text} for f in rows]
+
+
+def likes(db: Session, room_id: int) -> list[str]:
+    """좋아하시는 것(PREFERENCE) — 보관 기간 안의 것, 최근 것부터, 같은 문장은 한 번만 LIKES_MAX 개."""
+    rows = db.scalars(
+        select(StoryFact.fact_text)
+        .where(
+            StoryFact.room_id == room_id,
+            StoryFact.is_active.is_(True),
+            StoryFact.kind == "PREFERENCE",
+            StoryFact.expires_at > now_kst(),
+        )
+        .order_by(StoryFact.fact_date.desc(), StoryFact.fact_id)
+    ).all()
+    return list(dict.fromkeys(rows))[:LIKES_MAX]
 
 
 def when(fact_date: date) -> str:

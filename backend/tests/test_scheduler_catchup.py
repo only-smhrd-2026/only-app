@@ -12,8 +12,10 @@ from app.services import scheduler, weekly
 from tests.conftest import make_room, signup
 
 
-@pytest.mark.parametrize("hour,count", [(18, 1), (19, 3), (23, 3)])
-def test_catch_up_hours_and_failure_isolation(monkeypatch, caplog, hour, count):
+@pytest.mark.parametrize(
+    "hour,jobs", [(3, ["weekly"]), (18, ["weekly", "story"]), (23, ["weekly", "story", "diary", "no_record"])]
+)
+def test_catch_up_hours_and_failure_isolation(monkeypatch, caplog, hour, jobs):
     called = []
 
     def weekly_summaries():
@@ -24,8 +26,9 @@ def test_catch_up_hours_and_failure_isolation(monkeypatch, caplog, hour, count):
     monkeypatch.setattr(scheduler, "weekly_summaries", weekly_summaries)
     monkeypatch.setattr(scheduler, "diary_reminders", lambda: called.append("diary"))
     monkeypatch.setattr(scheduler, "no_record_alerts", lambda: called.append("no_record"))
+    monkeypatch.setattr(scheduler, "story_facts", lambda: called.append("story"))
     scheduler.catch_up()
-    assert called == ["weekly", "diary", "no_record"][:count]
+    assert called == jobs
     assert "error=RuntimeError" in caplog.text
     assert "로그에 남기지 않을 글" not in caplog.text
 

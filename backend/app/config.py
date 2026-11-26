@@ -130,6 +130,10 @@ STORY_HOUR = 4  # 새벽 이 시각에 어제 대화에서 이야기 기억을 �
 STORY_FACTS_MAX = 3  # 하루치 대화에서 뽑는 기억 수 상한
 STORY_LOOKBACK_DAYS = 7  # 이어 물을 기억을 찾는 날수 — 이 안에서 가장 최근 대화한 날의 기억 하나 (FR-AI-008, D77)
 STORY_KEEP_DAYS = 30  # 기억 보관 날수 — 지나면 새벽 작업이 지운다 (DBR-013 [가정])
+STORY_LIKES_MAX = 2  # 하루치 대화에서 뽑는 '좋아하시는 것'(PREFERENCE) 수 — 안부 기억과 따로 센다 (11/26)
+STORY_LIKES_KEEP_DAYS = (
+    90  # '좋아하시는 것'은 오래가는 기억이라 더 오래 둔다 — 개인정보 처리방침(POLICY_001)과 같이 바꾼다
+)
 MOOD_LOW_DAYS = 2  # 기운 없는 말이 나온 날이 최근 MOOD_LOW_WINDOW_DAYS 일 중 이만큼이면 가족 알림 1건 (D55 ②)
 MOOD_LOW_WINDOW_DAYS = 7  # 위 날수를 세는 기간이자, 같은 알림을 다시 보내지 않는 기간
 # 일기 사진이 옛 사진이면(분류 is_old + 신뢰도 이 이상) 일기 1·2번 질문을 그 사진 속 그때로 (FR-DI-002, D58)

@@ -310,6 +310,10 @@ def urgent_reminders() -> None:
 def catch_up() -> None:
     """기동 시 놓친 작업 보정 (D9). 예: 지난 일요일 주간 요약이 없으면 지금 생성. TODO(천주웅)."""
     jobs = [weekly_summaries]
+    # 새벽 STORY_HOUR 에 꺼져 있었으면 어제 이야기 기억이 빠진다 — 이미 뽑은 방은 story.extract 가 건너뛴다 (11/26)
+    # ponytail: 기억이 0개로 끝난 방은 다시 켜질 때마다 AI 를 1번 더 부른다. 아깝게 되면 '뽑기 끝난 날' 표시를 둔다
+    if now_kst().hour >= STORY_HOUR:
+        jobs.append(story_facts)
     if now_kst().hour >= DAILY_ALERT_HOUR:
         jobs.extend([diary_reminders, no_record_alerts])
     for job in jobs:

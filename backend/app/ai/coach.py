@@ -52,6 +52,9 @@ class CoachContext:
     old_photo: bool = False  # 일기 사진이 옛 사진(분류 추정) — 일기 1·2번을 그 사진 속 그때로 (FR-DI-002, D58)
     # 분류 AI 가 본 '보이는 모습' 한 줄 (D71). 질문 재료로만 — 일기 초안(diary_draft)에는 넘기지 않는다
     scene: str | None = None
+    # 일기 대화에만 (11/26): 최근 들은 이야기(story.heard — 회상 첫 질문으로 여쭌 것은 뺌)·좋아하시는 것(story.likes)
+    heard: list[dict[str, str]] = field(default_factory=list)
+    likes: list[str] = field(default_factory=list)
 
 
 FALLBACK_QUESTION = CoachReply(
@@ -411,7 +414,12 @@ def diary_question(ctx: CoachContext, turn_no: int, max_turns: int = DIARY_TURNS
     # ponytail: 질문 수는 5개 고정(더 얘기하시면 +3). 2~4번은 이미 나온 것을 다시 묻지 않고
     # 아직 안 나온 사실 하나씩을 묻는다(diary_buddy.md 규칙 3).
     # 질문 수 자체를 줄이려면 diary_buddy 출력에 '건너뛰기' 칸을 더한다.
-    data = _data(ctx, turn_no, max_turns=max_turns) | {"old_photo": ctx.old_photo}
+    data = _data(ctx, turn_no, max_turns=max_turns) | {
+        "old_photo": ctx.old_photo,
+        # 사진이 있는 날 1번은 사진만 묻는다 — 넘기면 사진 대신 지난 이야기를 묻는다 (11/26 실호출 2/2)
+        "facts": [] if turn_no == 1 and ctx.photo else ctx.heard,
+        "likes": ctx.likes,
+    }
     if turn_no >= max_turns:
         if not any(t["speaker"] == "ELDER" for t in ctx.turns):
             return DIARY_MOOD_QUESTION
