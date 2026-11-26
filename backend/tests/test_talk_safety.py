@@ -125,6 +125,29 @@ def test_rude_keeps_talking_and_is_marked(client, monkeypatch):
     assert [t.get("rude", False) for t in _elder(sid)] == [True, True, False]
 
 
+def test_unclear_twice_gives_buttons_then_resets(client, monkeypatch):
+    """뜻 모를 말이 연달아 2번째면 다시 묻는 대신 답 버튼 2개. 알아들은 답이 오면 세기를 다시."""
+    ctx = setup_elder(client)
+    sid = _start(client, ctx)
+    _fake(monkeypatch, "memory_coach", MASH, CoachTurn(text="제가 잘 못 알아들었어요.", signal="UNCLEAR"))
+    assert _type(client, sid, MASH)["ai"]["choice_mode"] == "CHIPS"
+    ai = _type(client, sid, MASH)["ai"]
+    assert ai["choice_mode"] == "TWO_BUTTONS" and len(ai["suggestions"]) == 2
+    assert ai["text"].startswith(coach.UNCLEAR_LEAD)
+    _type(client, sid, "바닷가에 놀러 갔던 사진이야")
+    assert _type(client, sid, MASH)["ai"]["choice_mode"] == "CHIPS"  # 다시 첫 번째
+
+
+def test_third_rude_ends_talk(client, monkeypatch):
+    """한 대화에서 거친 말 3번째 — 선 긋기를 되풀이하지 않고 마무리 (낱말 안전망으로 잡힌 말도 센다)."""
+    ctx = setup_elder(client)
+    sid = _start(client, ctx)
+    assert _type(client, sid, "개새끼야")["state"] == "CONTINUE"
+    assert _type(client, sid, "존나 싫어")["state"] == "CONTINUE"
+    out = _type(client, sid, "씨발")
+    assert (out["state"], out["end_reason"], out["ai"]["text"]) == ("ENDED", "USER_STOP", coach.RUDE_CLOSING.text)
+
+
 def test_rude_diary_lead_is_fixed(client, monkeypatch):
     """11/26 실측: 일기 모델이 거친 말에 '죄송해요'·못 들은 척 — 앞말은 고정, 모델 질문만 쓴다."""
     setup_elder(client)

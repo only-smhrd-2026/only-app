@@ -315,13 +315,26 @@ UNCLEAR_LEAD = "제가 잘 못 알아들었어요."
 RUDE_LEAD = "그런 말씀은 들으면 제가 조금 속상해요."  # 거친 말 뒤 고정 한 마디 — 모델 말을 못 쓰는 차례에만 (D112)
 
 
-def unclear(last: CoachReply) -> CoachReply:
+def unclear(last: CoachReply, buttons: bool = False) -> CoachReply:
     """뜻을 알 수 없는 말(signal UNCLEAR, D112) 뒤 — 바로 앞 질문을 '잘 못 알아들었어요'와 함께 다시 (칩도 그대로).
 
-    잡담은 앞 말이 질문이 아닐 때가 많아 고정 문장으로 다시 청한다."""
+    buttons(연달아 UNCLEAR_BUTTONS 번째)면 답 버튼 2개로 — 무응답 2단계와 같은 모양. 일기 기분 질문은 칩 4개 그대로.
+    잡담은 앞 말이 질문이 아닐 때가 많고 답 버튼이 없어 고정 문장으로 다시 청한다."""
     if isinstance(last, ChatReply):
         return CHAT_UNCLEAR
-    return last.model_copy(update={"text": f"{UNCLEAR_LEAD} {last.text}"})
+    update = {"text": f"{UNCLEAR_LEAD} {last.text}"}
+    if buttons and last.suggestions != DIARY_MOOD_QUESTION.suggestions:
+        update |= {"choice_mode": "TWO_BUTTONS", "suggestions": (last.suggestions or ["네", "아니요"])[:2]}
+    return last.model_copy(update=update)
+
+
+# 한 대화에서 거친 말이 RUDE_END 번째면 (D112) — 꾸짖지 않고 마음을 알아 드리며 그 대화를 마무리
+RUDE_CLOSING = CoachReply(
+    text="오늘은 마음이 많이 불편하신가 봐요. 오늘은 여기까지 하고 푹 쉬세요.",
+    suggestions=[],
+    question_type="CLOSING",
+    choice_mode="TWO_BUTTONS",
+)
 
 
 def confirm_question(heard: str) -> CoachReply:
@@ -565,6 +578,7 @@ CHAT_CLOSING = _chat("오늘 이야기 즐거웠어요. 또 심심하시면 언�
 # 가자는 말('사진첩 열어 드릴게요') 뒤 말씀이 없을 때 — 그 말을 되풀이하지 않고 다음 이야기를 청한다 (11/25 잡담 잇기)
 CHAT_MORE = _chat("또 하고 싶은 이야기나 궁금한 거 있으세요?", "smile")
 CHAT_UNCLEAR = _chat(f"{UNCLEAR_LEAD} 다시 한 번 말씀해 주시겠어요?", "ask")  # 뜻 모를 말 뒤 (D112)
+CHAT_RUDE_CLOSING = _chat(RUDE_CLOSING.text, "hello", "CLOSING")  # 잡담에서 거친 말 RUDE_END 번째 (D112)
 
 
 def chat_reply(data: dict[str, Any]) -> tuple[CoachReply, str, bool]:

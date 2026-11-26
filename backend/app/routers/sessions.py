@@ -49,11 +49,13 @@ from app.config import (
     OLD_PHOTO_CONF_MIN,
     PAUSE_GAP_SEC,
     QUIZ_TURN,
+    RUDE_END,
     SESSION_ERROR_ALERT,
     SESSION_RESUME_MIN,
     STT_CONF_MIN,
     STT_FAIL_LOCK,
     TZ,
+    UNCLEAR_BUTTONS,
     now_kst,
     today_kst,
 )
@@ -85,6 +87,7 @@ DIARY_SAVED = ("COMPLETED", "LIMIT")
 # 세션은 어차피 30분 지나면 ENDED 취급이라 무방. 수평 확장이 필요해지면 sessions 테이블 컬럼으로.
 _no_response: dict[uuid.UUID, int] = defaultdict(int)
 _low_conf: dict[uuid.UUID, int] = defaultdict(int)
+_unclear_streak: dict[uuid.UUID, int] = defaultdict(int)  # 뜻 모를 말이 연달아 몇 번째인지 (D112)
 _last_reply: dict[uuid.UUID, CoachReply] = {}
 _tts_failed: set[uuid.UUID] = set()
 # 확인을 기다리는 저신뢰 문장 (문장, 신뢰도). 재시작으로 잃으면 그 뒤 '맞아요'는 보통 답으로 저장된다(드묾)
@@ -260,6 +263,13 @@ def _ask(
         signal = "NONE"
     if signal == "RUDE":  # 거친 말 (D112) — 모델이 선을 긋는 말로 이어 가고, 그 어르신 말은 거친 말로 적는다
         _mark_rude(session)
+    _unclear_streak.pop(session.session_id, None)  # 알아들은 답 — 뜻 모를 말 연달아 세기를 다시
+    rude = sum(1 for t in session.turns if t["speaker"] == "ELDER" and t.get("rude"))
+    last_rude = rude >= RUDE_END and session.turns[-1].get("rude")  # rude ≥ 1 이면 turns 는 비지 않음
+    if end is None and last_rude and signal not in coach.ENDING_SIGNALS:
+        # 한 대화에서 거친 말이 RUDE_END 번째 (D112) — 선 긋기를 되풀이하지 않고 그만(STOP)처럼 마무리
+        reply = coach.CHAT_RUDE_CLOSING if session.kind == "CHAT" else coach.RUDE_CLOSING
+        signal, code = "STOP", None
     last = _last_ai_turn(session)
     # 오늘의 안부에 하신 답이면 AI 가 본 신호를 돌봄 일지에 반응으로 적는다 (11/19 돌봄 루프).
     # 읽지 못한 답은 적지 않는다 — '괜찮다고 하셨어요'로 남아 가족이 잘못 안심하지 않게
@@ -524,7 +534,7 @@ def _finish(db, session: TalkSession, reason: str) -> None:
         if (errors_today or 0) >= SESSION_ERROR_ALERT and not already:
             room = db.get(FamilyRoom, session.room_id)
             notify_family(db, room.room_id, "SESSION_ERROR_3X", f"{room.elder_name} 님 대화가 오늘 3번 중단됐어요")
-    for store in (_no_response, _low_conf, _last_reply, _pending):
+    for store in (_no_response, _low_conf, _last_reply, _pending, _unclear_streak):
         store.pop(session.session_id, None)
     # _tts_failed 는 여기서 지우지 않는다: 끝인사를 읽다가 또 실패하면 가족 알림이 한 번 더 간다 (D5 는 대화에 1건)
 
@@ -733,9 +743,11 @@ def _unclear(db, session: TalkSession, room: FamilyRoom) -> SessionOut:
     """뜻을 알 수 없는 말 (AI 신호 UNCLEAR, D112 — 11/26 '푸엥츠'처럼 글로 막 친 말이 답으로 넘어가던 것).
 
     방금 저장한 어르신 말을 지우고(답으로 세지 않고, 일기·가족 이야기에도 안 씀) 바로 앞 질문을 다시 한다.
-    몇 번이든 같다 — 계속되면 5분 상한(D8)이 대화를 끝낸다."""
+    연달아 UNCLEAR_BUTTONS 번째부터는 답 버튼 2개로 (잡담은 버튼이 없어 그대로). 계속되면 5분 상한(D8)이 끝낸다."""
     session.turns = session.turns[:-1]
-    reply = coach.unclear(_last_reply.get(session.session_id) or _fallback(session))
+    _unclear_streak[session.session_id] += 1
+    buttons = _unclear_streak[session.session_id] >= UNCLEAR_BUTTONS
+    reply = coach.unclear(_last_reply.get(session.session_id) or _fallback(session), buttons)
     db.commit()
     return _out(db, session, room, reply)
 
