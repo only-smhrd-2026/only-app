@@ -174,6 +174,7 @@ CREATE TABLE sessions (
 --           signal(LOW — 바로 앞 어르신 말을 AI 가 기운 없는 말로 봄. 다음 날 안부 주제를 고르는 데 쓴다),
 --           잡담(CHAT, D106): face(심심이 표정), go(DIARY|ALBUM|NEWS|MIND — 어르신이 가자고 하신 화면),
 --           topic(지난 이야기 목록의 제목), resume_of(이어서 한 지난 잡담의 session_id — 첫 AI 턴에만)
+--           more(회상·사진첩 [더 이야기할래요]로 다시 연 질문의 번호 — 그 AI 턴에만, D110)
 --   출제  : question_code(문제 은행 code, AI 가 쓴 생각 문제는 'GEN-유형' 예 GEN-REMEMBER — D72, 되짚기는 없음),
 --           hint_level(0~3), recheck_result(REMEMBERED|HINTED|SKIPPED|NA),
 --           answer_summary — 14일 반복 방지는 최근 14일 세션의 question_code → question_bank.code 의 카테고리·활동,

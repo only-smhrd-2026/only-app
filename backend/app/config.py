@@ -36,6 +36,9 @@ MAX_SESSION_SEC = 300  # 5분 (대화한 시간)
 # 마지막 답에 '더 얘기할래'가 있으면 끊지 않고 질문·시간을 한 번 더 준다 (11/25 실사용 — 회상·사진첩·일기 모두)
 MORE_TURNS = 3
 MORE_SESSION_SEC = 180
+# 끝난 회상·사진첩 대화의 [더 이야기할래요] — 그 대화를 다시 열어 질문 MORE_TURNS 개·시간 MORE_SESSION_SEC 를 더 준다.
+# 한 대화에 이만큼까지 (D110, 11/26 사용자 '2번까지')
+MORE_ROUNDS = 2
 PAUSE_GAP_SEC = 90  # 턴 사이가 이보다 길면 보류로 보고 90초만 센다 (무응답 3단계 60초 + 여유)
 ALBUM_PER_DAY = 3
 ALBUM_TURNS = 2  # 사진첩 대화 장당 AI 질문 수 (FR-ME-008)
