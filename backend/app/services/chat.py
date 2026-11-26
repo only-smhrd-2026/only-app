@@ -18,13 +18,11 @@ from sqlalchemy.orm import Session
 from app.ai import story
 from app.ai.schemas import plain_jamo
 from app.config import CHAT_CONTEXT_TURNS, CHAT_LIST_DAYS, CHAT_LIST_LIMIT, TZ, now_kst, today_kst
-from app.models import ELDER_SPOKE, Diary, FamilyRoom, RoomMember, StoryFact, TalkSession, User
+from app.models import ELDER_SPOKE, Diary, FamilyRoom, RoomMember, TalkSession, User
 from app.routers.mood import check_due
 from app.services import picks, weather
 
 WEEKDAYS = "월화수목금토일"
-FACTS_MAX = 3  # 잡담에 넘기는 지난 이야기 수
-FACT_DAYS = 7  # 최근 이만큼 안에 들은 이야기만
 EARLIER_TURNS = 8  # 이어서 하는 지난 잡담에서 넘기는 마지막 말 수
 TITLE_MAX = 16  # 제목이 없는 옛 잡담은 어르신 첫 말 앞부분
 
@@ -81,23 +79,6 @@ def _family(db: Session, room_id: int) -> list[str]:
     return [nickname or name for nickname, name in rows]
 
 
-def _facts(db: Session, room_id: int) -> list[dict[str, str]]:
-    """최근 들은 요즘 이야기 (story_facts — 회상·일기·잡담에서 매일 새벽에 뽑는다, D77)."""
-    rows = db.scalars(
-        select(StoryFact)
-        .where(
-            StoryFact.room_id == room_id,
-            StoryFact.is_active.is_(True),
-            StoryFact.kind.in_(story.ASK_KINDS),
-            StoryFact.fact_date >= today_kst() - timedelta(days=FACT_DAYS),
-            StoryFact.expires_at > now_kst(),
-        )
-        .order_by(StoryFact.fact_date.desc(), StoryFact.fact_id)
-        .limit(FACTS_MAX)
-    ).all()
-    return [{"heard_on": story.when(f.fact_date), "text": f.fact_text} for f in rows]
-
-
 def earlier_of(db: Session, room_id: int, session_id: uuid.UUID | str | None) -> TalkSession | None:
     """이어서 할 지난 잡담 — 이 가족방의 잡담만 (다른 방 것은 없는 것처럼)."""
     if not session_id:
@@ -139,7 +120,8 @@ def data(
         "weather": weather.for_region(room.weather_region),
         "today": _today(db, room.room_id),
         "family": _family(db, room.room_id),
-        "facts": _facts(db, room.room_id),
+        "facts": story.heard(db, room.room_id),
+        "likes": story.likes(db, room.room_id),
         "earlier": (
             {
                 "topic": title_of(earlier),

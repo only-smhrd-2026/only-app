@@ -308,3 +308,120 @@ def test_weekly_skips_story_answers_and_denied_facts(client):
         weekly_ai.summarize(db, room_id, date(2026, 11, 9))
         row = db.scalar(select(WeeklySummary).where(WeeklySummary.room_id == room_id))
     assert [card["answer"] for card in row.qa_list] == ["'우리 큰딸 시집가던 날이야'라고 하셨어요."]
+
+
+LIKE = "나는 된장찌개가 제일 맛있어"
+
+
+def _add(room_id, session_id, day, text, kind, *, keep_days=30, used=False) -> None:
+    with SessionLocal() as db:
+        db.add(
+            StoryFact(
+                room_id=room_id,
+                session_id=session_id,
+                source_turn_no=2,
+                fact_text=text,
+                kind=kind,
+                fact_date=day,
+                used_at=now_kst() if used else None,
+                expires_at=datetime.combine(day + timedelta(days=keep_days), time(0), tzinfo=TZ),
+            )
+        )
+        db.commit()
+
+
+def test_check_keeps_likes_apart_from_asks():
+    """좋아하시는 것(PREFERENCE)은 안부 기억 3개와 따로 2개까지 (11/26)."""
+    pairs = [{"ref": f"a{i}", "question": "뭐 좋아하세요?", "said": f"{i}번 노래 좋아해 {LIKE}"} for i in range(6)]
+    items = [StoryFactItem(ref=f"a{i}", kind="EVENT", fact="노래하셨대요.", quote="노래 좋아해") for i in range(3)]
+    items += [
+        StoryFactItem(ref=f"a{i}", kind="PREFERENCE", fact="된장찌개를 좋아하신대요.", quote="된장찌개가")
+        for i in (3, 4, 5)
+    ]
+    kinds = [item.kind for _, item, _ in story.check(items, pairs)]
+    assert kinds == ["EVENT"] * 3 + ["PREFERENCE"] * 2
+
+
+def test_extract_keeps_likes_90_days(client, monkeypatch):
+    room_id = _room(client)
+    day = today_kst() - timedelta(days=1)
+    _talk(room_id, day, [("뭐 좋아하세요?", LIKE), ("내일은요?", PLAN)])
+
+    def fake(name, data, schema):
+        ref = {pair["said"]: pair["ref"] for pair in data["pairs"]}
+        return StoryFactItems(
+            facts=[
+                StoryFactItem(ref=ref[LIKE], kind="PREFERENCE", fact="된장찌개를 좋아하신대요.", quote="된장찌개가"),
+                StoryFactItem(ref=ref[PLAN], kind="PLAN", fact="경로당에 가신다고 하셨어요.", quote="경로당 가서"),
+            ]
+        )
+
+    monkeypatch.setattr(llm, "call_json", fake)
+    with SessionLocal() as db:
+        assert story.extract(db, room_id, day) == 2
+        rows = {f.kind: f.expires_at for f in db.scalars(select(StoryFact).where(StoryFact.room_id == room_id))}
+        assert rows["PREFERENCE"] == datetime.combine(day + timedelta(days=90), time(0), tzinfo=TZ)
+        assert rows["PLAN"] == datetime.combine(day + timedelta(days=30), time(0), tzinfo=TZ)
+        assert story.pick(db, room_id).kind == "PLAN"  # 좋아하시는 것은 안부로 묻지 않는다
+        assert story.likes(db, room_id) == ["된장찌개를 좋아하신대요."]
+
+
+def test_heard_skips_asked_and_likes_dedupe(client):
+    room_id = _room(client)
+    today = today_kst()
+    sid = _talk(room_id, today - timedelta(days=1), [("뭐 하세요?", PLAN)])
+    _add(room_id, sid, today - timedelta(days=1), "경로당에 가신다고 하셨어요.", "PLAN", used=True)
+    _add(room_id, sid, today - timedelta(days=2), "마당에 국화를 심으셨대요.", "EVENT")
+    _add(room_id, sid, today - timedelta(days=9), "열흘 전 이야기예요.", "EVENT")  # 7일 밖
+    _add(room_id, sid, today - timedelta(days=1), "된장찌개를 좋아하신대요.", "PREFERENCE", keep_days=90)
+    _add(room_id, sid, today - timedelta(days=40), "된장찌개를 좋아하신대요.", "PREFERENCE", keep_days=90)  # 같은 문장
+    _add(room_id, sid, today - timedelta(days=100), "지난 것이에요.", "PREFERENCE", keep_days=90)  # 기간 지남
+    with SessionLocal() as db:
+        assert [f["text"] for f in story.heard(db, room_id)] == [
+            "경로당에 가신다고 하셨어요.",
+            "마당에 국화를 심으셨대요.",
+        ]
+        assert story.heard(db, room_id, unasked=True) == [{"heard_on": "그저께", "text": "마당에 국화를 심으셨대요."}]
+        assert story.likes(db, room_id) == ["된장찌개를 좋아하신대요."]
+
+
+def test_diary_and_chat_get_heard_and_likes(client, monkeypatch):
+    """일기·잡담 AI 데이터에 지난 이야기·좋아하시는 것이 들어간다 (11/26)."""
+    ctx = setup_elder(client)
+    room_id = ctx["room_id"]
+    yday = today_kst() - timedelta(days=1)
+    sid = _talk(room_id, yday, [("내일은요?", PLAN)])
+    _add(room_id, sid, yday, "경로당에 가신다고 하셨어요.", "PLAN")
+    _add(room_id, sid, yday, "된장찌개를 좋아하신대요.", "PREFERENCE", keep_days=90)
+    seen: dict[str, dict] = {}
+    real = llm.call_json
+
+    def spy(name, data, schema, **kw):
+        seen.setdefault(name, data)
+        return real(name, data, schema, **kw)
+
+    monkeypatch.setattr(llm, "call_json", spy)
+    for kind in ("DIARY", "CHAT"):
+        r = client.post("/api/elder/sessions", json={"session_id": str(uuid.uuid4()), "kind": kind})
+        assert r.status_code == 201, r.text
+    for name in ("diary_buddy", "chat_buddy"):
+        assert seen[name]["facts"] == [{"heard_on": "어제", "text": "경로당에 가신다고 하셨어요."}], name
+        assert seen[name]["likes"] == ["된장찌개를 좋아하신대요."], name
+
+
+def test_diary_first_question_with_photo_gets_no_heard(monkeypatch):
+    """사진이 있는 일기 1번은 사진만 묻게 지난 이야기를 넘기지 않는다 (11/26 실호출 — 넘기면 사진 대신 그 일을 물음)."""
+    seen = []
+    monkeypatch.setattr(
+        llm, "call_json", lambda name, data, schema, **kw: seen.append(data) or (_ for _ in ()).throw(llm.LlmError("x"))
+    )
+    heard = [{"heard_on": "어제", "text": "경로당에 가신다고 하셨어요."}]
+    turns = [{"speaker": "AI", "text": "오늘 뭐 하셨어요?"}, {"speaker": "ELDER", "text": "공원 갔어"}]
+    for photo, turn_no, t, want in (
+        (None, 1, [], heard),
+        ({"caption": "공원"}, 1, [], []),
+        ({"caption": "공원"}, 2, turns, heard),
+    ):
+        ctx = coach.CoachContext(elder_name="김", elder_honorific="할머니", photo=photo, turns=t, heard=heard)
+        coach.diary_question(ctx, turn_no)
+        assert seen[-1]["facts"] == want
