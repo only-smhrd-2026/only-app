@@ -192,3 +192,26 @@ def test_weather_look_picks_sim_picture(client, monkeypatch):
     assert client.get("/api/elder/weather").json() == {"look": "snow"}
     assert "look" not in weather.for_region("광주")  # 잡담 AI 데이터는 그대로
     weather._cache.clear()
+
+
+def test_weather_towns_list_and_setting(client, monkeypatch):
+    """사시는 동네 시·도 → 시·군 (D111) — '전남 영광군'과 '전남 해남군'은 다른 날씨 좌표. 시·도만 고른 방도 그대로."""
+    from app.config import PLACES
+
+    ctx = setup_elder(client)
+    regions = client.get("/api/rooms/regions").json()
+    by = {r["name"]: r["towns"] for r in regions}
+    assert [r["name"] for r in regions][:3] == ["서울", "부산", "대구"] and by["서울"] == [] and by["세종"] == []
+    assert {"영광군", "해남군"} <= set(by["전남"]) and len(by["경기"]) == 31 and by["제주"] == ["제주시", "서귀포시"]
+    assert sum(len(t) for t in by.values()) == len(PLACES) - len(regions)
+    assert abs(PLACES["전남 영광군"][0] - PLACES["전남 해남군"][0]) > 0.5  # 위아래로 60km 넘게 떨어져 있다
+
+    url = f"/api/rooms/{ctx['room_id']}/settings"
+    assert client.patch(url, json={"weather_region": "전남 영광군"}).json()["weather_region"] == "전남 영광군"
+    assert client.patch(url, json={"weather_region": "전남 수원시"}).status_code == 422  # 그 도에 없는 시·군
+    asked = []
+    monkeypatch.setattr(weather, "_fetch", lambda region: asked.append(region) or {"now": "맑음", "look": "hot"})
+    weather._cache.clear()
+    assert client.get("/api/elder/weather").json() == {"look": "hot"} and asked == ["전남 영광군"]
+    assert client.patch(url, json={"weather_region": "전남"}).status_code == 200  # 11/25 에 고른 시·도 값도 그대로
+    weather._cache.clear()

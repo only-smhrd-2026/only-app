@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request
 from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
-from app.config import now_kst
+from app.config import REGIONS, TOWNS, now_kst
 from app.deps import DB, CurrentUser, require_member, require_owner
 from app.errors import ApiError
 from app.models import FamilyRoom, Photo, RoomMember, User
@@ -20,6 +20,7 @@ from app.schemas.rooms import (
     MemberOut,
     MemberUpdateIn,
     OwnerTransferIn,
+    RegionOut,
     RoomCreateIn,
     RoomOut,
     RoomSettingsIn,
@@ -78,6 +79,12 @@ def create_room(body: RoomCreateIn, user: CurrentUser, db: DB):
     db.commit()
     db.refresh(room)
     return room_out(room, user.user_id, db)
+
+
+@router.get("/regions", response_model=list[RegionOut])
+def regions(user: CurrentUser):
+    """가족방 설정 '사시는 동네' 목록 (D111) — 시·도 순서, 도는 그 안의 시·군까지. 화면에 이름을 따로 두지 않게."""
+    return [RegionOut(name=name, towns=list(TOWNS.get(name, {}))) for name in REGIONS]
 
 
 @router.get("", response_model=list[RoomOut])
