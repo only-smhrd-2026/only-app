@@ -407,3 +407,21 @@ def test_diary_and_chat_get_heard_and_likes(client, monkeypatch):
     for name in ("diary_buddy", "chat_buddy"):
         assert seen[name]["facts"] == [{"heard_on": "어제", "text": "경로당에 가신다고 하셨어요."}], name
         assert seen[name]["likes"] == ["된장찌개를 좋아하신대요."], name
+
+
+def test_diary_first_question_with_photo_gets_no_heard(monkeypatch):
+    """사진이 있는 일기 1번은 사진만 묻게 지난 이야기를 넘기지 않는다 (11/26 실호출 — 넘기면 사진 대신 그 일을 물음)."""
+    seen = []
+    monkeypatch.setattr(
+        llm, "call_json", lambda name, data, schema, **kw: seen.append(data) or (_ for _ in ()).throw(llm.LlmError("x"))
+    )
+    heard = [{"heard_on": "어제", "text": "경로당에 가신다고 하셨어요."}]
+    turns = [{"speaker": "AI", "text": "오늘 뭐 하셨어요?"}, {"speaker": "ELDER", "text": "공원 갔어"}]
+    for photo, turn_no, t, want in (
+        (None, 1, [], heard),
+        ({"caption": "공원"}, 1, [], []),
+        ({"caption": "공원"}, 2, turns, heard),
+    ):
+        ctx = coach.CoachContext(elder_name="김", elder_honorific="할머니", photo=photo, turns=t, heard=heard)
+        coach.diary_question(ctx, turn_no)
+        assert seen[-1]["facts"] == want

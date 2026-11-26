@@ -415,7 +415,8 @@ def diary_question(ctx: CoachContext, turn_no: int, max_turns: int = DIARY_TURNS
     # 질문 수 자체를 줄이려면 diary_buddy 출력에 '건너뛰기' 칸을 더한다.
     data = _data(ctx, turn_no, max_turns=max_turns) | {
         "old_photo": ctx.old_photo,
-        "facts": ctx.heard,
+        # 사진이 있는 날 1번은 사진만 묻는다 — 넘기면 사진 대신 지난 이야기를 묻는다 (11/26 실호출 2/2)
+        "facts": [] if turn_no == 1 and ctx.photo else ctx.heard,
         "likes": ctx.likes,
     }
     if turn_no >= max_turns:
