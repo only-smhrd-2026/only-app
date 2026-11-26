@@ -1,4 +1,5 @@
-"""주간 요약 AI-09 (#56, FR-FD-005·006, D62) — 한 주의 회상 대화에서 가족에게 전할 질문·답 카드를 고른다.
+"""주간 요약 AI-09 (#56, FR-FD-005·006, D62) — 한 주의 회상·잡담 대화에서 가족에게 전할 질문·답 카드를 고른다.
+(잡담 D106 은 11/26 부터 넣는다 — D112)
 
 summarize(db, room_id, week_start) 가 weekly_summaries 한 줄의 qa_list·notes·rule_check_passed·model_version 을 채운다.
 집계(services/weekly.build) 뒤에 예약 작업이 부른다. AI 가 실패해도 예외를 내지 않고, AI 는 한 주에 한 번만 부른다.
@@ -8,7 +9,8 @@ summarize(db, room_id, week_start) 가 weekly_summaries 한 줄의 qa_list·note
 - 규칙 검사는 코드가 카드마다 한다(check). 걸린 카드만 버린다.
 - 넣지 않는 대화: '가족에게 말하지 마'(private_flag, D55 ③), 기운 없음·위급(emotion_flag — 내용 없이
   CARE_LINE 한 줄, FR-FD-006), 일기 대화(이번 주 일기는 집계의 diaries 로 따로 보인다).
-- 넣지 않는 답: 음성 인식 신뢰도 WEEKLY_STT_MIN 미만, SAID_MIN 자 미만('네'·'몰라'), 어제 이야기 질문에 한 답(사진
+- 넣지 않는 답: 거친 말로 적힌 답(rude, D112),
+  음성 인식 신뢰도 WEEKLY_STT_MIN 미만, SAID_MIN 자 미만('네'·'몰라'), 어제 이야기 질문에 한 답(사진
   이야기가 아님), 어르신이 '그런 말 안 했어'라고 하신 기억의 근거 답 (AI-07, D77).
 - 로그에 어르신 말을 남기지 않는다 (D15) — 개수만.
 """
@@ -51,7 +53,8 @@ def pairs_of(sessions: list[TalkSession]) -> list[dict[str, Any]]:
             said = " ".join(str(turn.get("text", "")).split())
             asked = by_no.get(turn.get("reply_to_turn_no"))
             confidence = turn.get("stt_confidence")
-            if turn.get("speaker") != "ELDER" or not asked or len(said) < SAID_MIN:
+            # 거친 말로 적힌 답(D112)은 가족 카드·이야기 기억에 쓰지 않는다
+            if turn.get("speaker") != "ELDER" or not asked or len(said) < SAID_MIN or turn.get("rude"):
                 continue
             if asked.get("fact_id") or asked.get("care"):  # 어제 이야기(D77)·오늘의 안부에 한 답 — 사진 이야기가 아니다
                 continue
@@ -155,8 +158,13 @@ def summarize(db: Session, room_id: int, week_start: date) -> None:
     ).all()
     # 기운 없음·위급 대화는 내용 없이 한 줄만. 비밀 부탁 대화는 위급일 때만 센다 (D55 ③)
     care = any(s.emotion_flag != "NONE" and (not s.private_flag or s.emotion_flag == "RISK") for s in sessions)
+    # 회상·사진첩·잡담(11/26 사용자 '잡담도 가족이 보게') — 일기 대화는 그 주 일기로 따로 보인다
     pairs = pairs_of(
-        [s for s in sessions if s.kind in ("MEMORY", "ALBUM") and not s.private_flag and s.emotion_flag == "NONE"]
+        [
+            s
+            for s in sessions
+            if s.kind in ("MEMORY", "ALBUM", "CHAT") and not s.private_flag and s.emotion_flag == "NONE"
+        ]
     )
     # 어르신이 '그런 말 안 했어'라고 하신 기억의 근거 답 — 잘못 들었을 수 있어 가족에게 전하지 않는다 (FR-AI-008, D77)
     denied = {

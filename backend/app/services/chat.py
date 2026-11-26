@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai import story
+from app.ai.schemas import plain_jamo
 from app.config import CHAT_CONTEXT_TURNS, CHAT_LIST_DAYS, CHAT_LIST_LIMIT, TZ, now_kst, today_kst
 from app.models import ELDER_SPOKE, Diary, FamilyRoom, RoomMember, StoryFact, TalkSession, User
 from app.routers.mood import check_due
@@ -129,7 +130,7 @@ def data(
     now = now_kst()
     first = session.turns[0] if session.turns else {}
     earlier = earlier_of(db, room.room_id, resume_of or first.get("resume_of"))
-    turns = [{"speaker": t["speaker"], "text": t["text"]} for t in session.turns]
+    turns = [{"speaker": t["speaker"], "text": plain_jamo(t["text"])} for t in session.turns]  # ㅋㅋ·ㅇㅇ → 말로 (D112)
     return {
         "elder_name": room.elder_name,
         "elder_honorific": room.elder_honorific,

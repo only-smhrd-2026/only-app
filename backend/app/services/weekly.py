@@ -19,6 +19,7 @@ from app.config import (
     WEEKLY_DAYS_GAP,
     WEEKLY_HOUR,
     WEEKLY_MOOD_LOW_DAYS,
+    WEEKLY_RUDE_MIN,
     WEEKLY_TALK_LONG,
     WEEKLY_TALK_SHORT,
 )
@@ -71,7 +72,8 @@ def build(db: Session, room_id: int, now: datetime) -> bool:
         )
         .order_by(Diary.posted_at, Diary.diary_id)
     ).all()
-    memory_dates = {s.started_at.astimezone(TZ).date() for s in sessions if s.kind in ("MEMORY", "ALBUM")}
+    # 이야기한 날 = 회상·사진첩·잡담을 한 날 (잡담은 11/26 부터 센다 — D112)
+    memory_dates = {s.started_at.astimezone(TZ).date() for s in sessions if s.kind in ("MEMORY", "ALBUM", "CHAT")}
     moods = {d.posted_at.astimezone(TZ).date(): d.mood for d in diaries}
     words = turns = 0
     for session in sessions:
@@ -174,6 +176,23 @@ def changes(db: Session, row: WeeklySummary) -> list[dict[str, str]]:
     elif not low and (was or 0) >= WEEKLY_MOOD_LOW_DAYS and any(day.get("mood") for day in row.mood_trend):
         # 일기가 한 편도 없던 주는 기분을 모른다 — '편안해 보인다'고 하지 않는다
         out.append(_line("MOOD", "지난주보다 기분이 편안해 보이세요."))
+
+    # ③-2 거친 말 — 그 주에 거친 말·성적인 말로 적힌 어르신 말이 WEEKLY_RUDE_MIN 번 이상이면 횟수만 (D112).
+    # 말 내용은 넣지 않는다. 비밀 부탁 대화는 세지 않는다 (D55 ③과 같게)
+    rude = sum(
+        sum(1 for turn in s.turns if turn.get("speaker") == "ELDER" and turn.get("rude"))
+        for s in db.scalars(
+            select(TalkSession).where(
+                TalkSession.room_id == room_id,
+                TalkSession.started_at >= start,
+                TalkSession.started_at < end,
+                TalkSession.private_flag.is_(False),
+                TalkSession.turns.contains([{"rude": True}]),
+            )
+        )
+    )
+    if rude >= WEEKLY_RUDE_MIN:
+        out.append(_line("RUDE", f"대화 중에 거친 말이나 성적인 말을 하신 적이 {rude}번 있었어요.", True))
 
     # ④ 마음 체크 — 그 주(월~일)에 하신 것과 그 앞의 것
     checks = db.execute(
