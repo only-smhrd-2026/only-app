@@ -9,7 +9,7 @@ from pydantic import BaseModel
 class WeeklyChange(BaseModel):
     """'이번 주 달라진 점' 한 줄 — 문장은 서버가 만든다 (services/weekly.changes). 화면 쪽 짝은 api/types.ts."""
 
-    kind: Literal["TALK_DAYS", "TALK_LENGTH", "MOOD", "CHECK", "CARE", "ALERT"]
+    kind: Literal["TALK_DAYS", "TALK_LENGTH", "MOOD", "RUDE", "CHECK", "CARE", "ALERT"]  # RUDE 거친 말 횟수 (D112)
     text: str
     tone: Literal["calm", "watch"]  # calm 평소 · watch 살펴볼 것
 

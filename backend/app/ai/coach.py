@@ -8,6 +8,8 @@
 question_type 은 모델이 아니라 여기서 정한다: 모델 질문 RECALL, 생각 문제 = 그 유형(은행 문제면 qtype), 마무리 CLOSING.
 모델은 어르신 직전 말로 signal(NONE|LOW|SAD|RISK|BODY|STOP)과 private 을 함께 낸다. LOW 는 기록하고 이어 가고,
 SAD·RISK·BODY·STOP 이면 그 턴 말은 마무리 인사다 (FR-AI-005, D55). 위급(RISK 마음·BODY 몸) 마무리는 코드 문장.
+RUDE(거친 말·성적인 말)는 모델이 선을 긋고 이어 가고,
+UNCLEAR(뜻 모를 말)는 호출자가 그 말을 버리고 같은 질문을 다시 한다 (D112).
 이야기 기억 (AI-07 #46, D77) — 그날 첫 회상 대화는 지난 대화의 이야기 하나로 시작한다(story_question). 그 답에
 '그런 말 안 했어'면 모델이 signal DENY 를 내고 호출자가 그 기억을 끈다. 되짚기 문제(RECHECK)는 하지 않는다 — 질문마다
 어르신 말을 되받아 말하는 것으로 갈음한다 (11/12 멘토 '테스트 느낌', D52·D77).
@@ -309,6 +311,19 @@ def story_question(ctx: CoachContext, fact: str, when: str, heard_on: date) -> C
     return CoachReply(text=out.text, suggestions=out.suggestions[:2], question_type="RECALL")
 
 
+UNCLEAR_LEAD = "제가 잘 못 알아들었어요."
+RUDE_LEAD = "그런 말씀은 들으면 제가 조금 속상해요."  # 거친 말 뒤 고정 한 마디 — 모델 말을 못 쓰는 차례에만 (D112)
+
+
+def unclear(last: CoachReply) -> CoachReply:
+    """뜻을 알 수 없는 말(signal UNCLEAR, D112) 뒤 — 바로 앞 질문을 '잘 못 알아들었어요'와 함께 다시 (칩도 그대로).
+
+    잡담은 앞 말이 질문이 아닐 때가 많아 고정 문장으로 다시 청한다."""
+    if isinstance(last, ChatReply):
+        return CHAT_UNCLEAR
+    return last.model_copy(update={"text": f"{UNCLEAR_LEAD} {last.text}"})
+
+
 def confirm_question(heard: str) -> CoachReply:
     """STT 신뢰도가 낮을 때 (D5): LLM 을 부르지 않고 확인만 묻는다.
 
@@ -381,9 +396,20 @@ def diary_question(ctx: CoachContext, turn_no: int, max_turns: int = DIARY_TURNS
     # ponytail: 질문 수는 5개 고정(더 얘기하시면 +3). 2~4번은 이미 나온 것을 다시 묻지 않고
     # 아직 안 나온 사실 하나씩을 묻는다(diary_buddy.md 규칙 3).
     # 질문 수 자체를 줄이려면 diary_buddy 출력에 '건너뛰기' 칸을 더한다.
-    if turn_no >= max_turns:
-        return DIARY_MOOD_QUESTION
     data = _data(ctx, turn_no, max_turns=max_turns) | {"old_photo": ctx.old_photo}
+    if turn_no >= max_turns:
+        if not any(t["speaker"] == "ELDER" for t in ctx.turns):
+            return DIARY_MOOD_QUESTION
+        # 기분 질문은 고정 문장이지만 앞 답(4번째)도 AI 가 읽는다 — 뜻 모를 말·거친 말·기운 없는 말을 놓치지 않게.
+        # 모델이 쓴 말은 버리고 신호만 싣는다. AI 가 실패하면 신호 없이 기분 질문
+        try:
+            out = llm.call_json("diary_buddy", data, DiaryTurn)
+        except (llm.LlmError, NotImplementedError):
+            return DIARY_MOOD_QUESTION
+        mood, signal = DIARY_MOOD_QUESTION.model_dump(), getattr(out, "signal", "NONE")
+        if signal == "RUDE":  # 모델이 쓴 선 긋는 말은 기분 질문 앞에 못 붙이니 고정 한 마디
+            mood["text"] = f"{RUDE_LEAD} {mood['text']}"
+        return DiaryTurn.model_construct(**mood, signal=signal)
     try:
         return llm.call_json("diary_buddy", data, DiaryTurn)
     except (llm.LlmError, NotImplementedError):
@@ -399,9 +425,14 @@ def diary_closing(ctx: CoachContext) -> CoachReply:
         out = llm.call_json("diary_buddy", data, DiaryTurn)
     except (llm.LlmError, NotImplementedError):
         return DIARY_CLOSING
-    if question_marks(out.text):
-        return DIARY_CLOSING
-    return CoachReply(text=out.text, suggestions=[], question_type="CLOSING", choice_mode="TWO_BUTTONS")
+    # 마지막 답(기분)이 뜻 모를 말·거친 말이면 신호를 싣는다 — 호출자가 다시 묻거나 그 말을 일기에서 뺀다 (D112).
+    # 그 밖의 신호는 지금처럼 보지 않는다 (위급은 낱말 안전망이 먼저 잡는다)
+    signal = getattr(out, "signal", "NONE")
+    signal = signal if signal in ("RUDE", "UNCLEAR") else "NONE"
+    text = DIARY_CLOSING.text if question_marks(out.text) else out.text
+    return DiaryTurn.model_construct(
+        text=text, suggestions=[], question_type="CLOSING", choice_mode="TWO_BUTTONS", signal=signal
+    )
 
 
 # 마지막 답에 '더 얘기할래'가 들었는지 (11/25 실사용: 더 하고 싶다고 하셨는데 끊었다). 말이라 띄어쓰기는 안 본다
@@ -432,10 +463,13 @@ _MOOD_WORDS = {_mood_key(label): code for label, code in DIARY_MOODS.items()}
 
 
 def diary_draft(ctx: CoachContext) -> DiaryDraft:
-    """일기 대화 → 초안 (1인칭 본문·기분·그릴 사물). 어르신이 기분 칩을 골랐으면 그 값이 LLM 판단보다 우선."""
-    answers = [t["text"] for t in ctx.turns if t["speaker"] == "ELDER"]
+    """일기 대화 → 초안 (1인칭 본문·기분·그릴 사물). 어르신이 기분 칩을 골랐으면 그 값이 LLM 판단보다 우선.
+
+    거친 말로 적힌 어르신 답(rude, D112)은 일기 재료에서 뺀다."""
+    turns = [t for t in ctx.turns if not t.get("rude")]
+    answers = [t["text"] for t in turns if t["speaker"] == "ELDER"]
     picked = next((m for m in map(mood_of, reversed(answers)) if m), None)
-    data = {"elder_honorific": ctx.elder_honorific, "photo": ctx.photo, "turns": ctx.turns}
+    data = {"elder_honorific": ctx.elder_honorific, "photo": ctx.photo, "turns": turns}
     try:
         draft = llm.call_json("diary_draft", data, DiaryDraft)
     except (llm.LlmError, NotImplementedError):
@@ -525,6 +559,7 @@ CHAT_FALLBACK = _chat("아이고, 제가 잠깐 딴생각을 했어요. 다시 �
 CHAT_CLOSING = _chat("오늘 이야기 즐거웠어요. 또 심심하시면 언제든 불러 주세요.", "hello", "CLOSING")
 # 가자는 말('사진첩 열어 드릴게요') 뒤 말씀이 없을 때 — 그 말을 되풀이하지 않고 다음 이야기를 청한다 (11/25 잡담 잇기)
 CHAT_MORE = _chat("또 하고 싶은 이야기나 궁금한 거 있으세요?", "smile")
+CHAT_UNCLEAR = _chat(f"{UNCLEAR_LEAD} 다시 한 번 말씀해 주시겠어요?", "ask")  # 뜻 모를 말 뒤 (D112)
 
 
 def chat_reply(data: dict[str, Any]) -> tuple[CoachReply, str, bool]:

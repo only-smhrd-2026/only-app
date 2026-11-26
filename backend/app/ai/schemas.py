@@ -35,8 +35,17 @@ def has_body_words(text: str) -> bool:
     return any(w in t for w in BODY_WORDS)
 
 
+# 거친 말·성적인 말 조각 (D112 안전망). 띄어쓰기를 빼지 않고 견준다 — '씨 발라'·'개 새끼 낳았어'가 걸리지 않게
+RUDE_WORDS: list[str] = json.loads((ROOT / "data" / "rude_words.json").read_text("utf-8"))["words"]
+
+
+def has_rude_words(text: str) -> bool:
+    return any(w in text for w in RUDE_WORDS)
+
+
 def check_banned(text: str) -> str:
-    hit = [w for w in BANNED_WORDS if w in text]
+    # 거친 말도 AI 답·칩에 넣지 않는다 — 어르신 말을 되받다가(되짚기 규칙) 그 말을 따라 하지 않게 (D112)
+    hit = [w for w in (*BANNED_WORDS, *RUDE_WORDS) if w in text]
     if hit:
         raise ValueError(f"금지어 포함: {hit}")
     return text
@@ -120,7 +129,8 @@ class ChatTurn(BaseModel):
     face: Literal["hello", "joy", "smile", "curious", "ask", "thumbs"] = "smile"
     go: Literal["NONE", "DIARY", "ALBUM", "NEWS", "MIND"] = "NONE"
     topic: str = Field(default="", max_length=CHAT_TOPIC_MAX)
-    signal: Literal["NONE", "LOW", "RISK", "BODY", "STOP"] = "NONE"
+    # RUDE 거친 말·UNCLEAR 뜻 모를 말 — 회상 CoachTurn 과 같음 (D112)
+    signal: Literal["NONE", "LOW", "RISK", "BODY", "STOP", "RUDE", "UNCLEAR"] = "NONE"
     private: bool = False
 
     @model_validator(mode="before")
@@ -154,7 +164,9 @@ class CoachTurn(BaseModel):
     # LOW 는 기록하고 이어 감, SAD·RISK·STOP·BODY 이면 대화를 끝낸다 (FR-AI-005, D55).
     # DENY = 어제 이야기 질문에 '그런 말 안 했어' — 그 기억을 끄고 대화는 이어 간다 (FR-AI-008, D77)
     # BODY = 지금 몸이 위급하다는 말 — 가족에게 바로 알리고 화면이 119 버튼을 띄운다 (11/19 응급)
-    signal: Literal["NONE", "LOW", "SAD", "RISK", "STOP", "DENY", "BODY"] = "NONE"
+    # RUDE = 거친 말·성적인 말 — 선을 긋고 이어 감, 그 말은 일기·가족 이야기에 쓰지 않음.
+    # UNCLEAR = 뜻을 알 수 없는 말(자판을 막 친 글자) — 답으로 받지 않고 같은 질문을 다시 (D112, 11/26 피드백)
+    signal: Literal["NONE", "LOW", "SAD", "RISK", "STOP", "DENY", "BODY", "RUDE", "UNCLEAR"] = "NONE"
     private: bool = False  # '애들한테 말하지 마' → 그 대화는 기운 없는 날에서 뺀다. 위급만 예외 (D55 ③)
 
     @model_validator(mode="before")
@@ -181,7 +193,8 @@ class DiaryTurn(CoachReply):
     # 화면에 보이는 답은 회상과 같은 상한 (D52 ④)
     # 어르신 직전 답에서 본 상태 (11/19 S3): LOW 기운 없는 말(기록하고 이어 감), RISK 목숨을 해치는 이야기,
     # BODY 지금 몸이 위급하다는 말 — RISK·BODY 는 코드 문장으로 마무리하고 일기로 남기지 않는다
-    signal: Literal["NONE", "LOW", "RISK", "BODY"] = "NONE"
+    # RUDE 거친 말·UNCLEAR 뜻 모를 말 — 회상 CoachTurn 과 같음 (D112)
+    signal: Literal["NONE", "LOW", "RISK", "BODY", "RUDE", "UNCLEAR"] = "NONE"
 
     @model_validator(mode="before")
     @classmethod

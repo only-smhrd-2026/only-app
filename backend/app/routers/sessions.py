@@ -29,7 +29,7 @@ from fastapi import APIRouter
 from sqlalchemy import func, select
 
 from app.ai import classify, coach, quiz, story, tts
-from app.ai.schemas import CoachReply, has_body_words, has_risk_words
+from app.ai.schemas import CoachReply, has_body_words, has_risk_words, has_rude_words
 from app.config import (
     ALBUM_PER_DAY,
     ALBUM_TURNS,
@@ -126,10 +126,12 @@ def coach_context(db, room: FamilyRoom, session: TalkSession) -> coach.CoachCont
         ),
         # 문제였던 AI 턴에는 quiz 표시 → 다음 턴에 평가 없이 "아, 그렇군요"로 받게 (FR-AI-003). 일기 턴엔 없음.
         # 어제 이야기 턴에는 story 표시 → 다음 턴에 날짜를 다시 말하지 않고, '그런 말 안 했어'면 DENY (D77)
+        # 거친 말로 적힌 어르신 턴에는 rude 표시 → 모델은 그 말을 되짚지 않고, 일기 초안은 그 답을 뺀다 (D112)
         turns=[
             {"speaker": t["speaker"], "text": t["text"]}
             | ({"quiz": True} if t.get("question_code") else {})
             | ({"story": True} if t.get("fact_id") or t.get("care") else {})
+            | ({"rude": True} if t.get("rude") else {})
             for t in session.turns
         ],
         # 일기 사진이 옛 사진이면 1·2번을 그 사진 속 그때로 (FR-DI-002, D58). 분류(AI-04 #29) 전에는 늘 False.
@@ -236,6 +238,7 @@ def _ask(
             reply = coach.URGENT_CLOSINGS.get(signal, reply)
         else:  # "일기를 써 볼게요"는 일기를 쓸 때만. 무응답으로 끝나면 저장하지 않으니 다른 인사
             reply = coach.diary_closing(ctx) if end in DIARY_SAVED else coach.DIARY_STOP
+            signal = getattr(reply, "signal", "NONE")  # 마지막 답이 뜻 모를 말·거친 말일 때만 온다 (D112)
     elif end:
         reply, signal, private = coach.closing(ctx, turn_no - off, _max_turns(session) - off)
     else:
@@ -249,6 +252,14 @@ def _ask(
     read = signal != coach.UNREAD
     if not read:
         signal = "NONE"
+    if signal == "UNCLEAR":
+        # 뜻 모를 말 (D112) — AI 턴을 남기지 않고 돌려준다. 호출자가 그 말을 지우고 같은 질문을 다시 한다(_unclear).
+        # 시간 상한·무응답 마무리나 어르신 말 뒤가 아닌 부름(다시 열기)에서는 신호 없음으로 — 모델이 쓴 끝인사 그대로
+        if end in (None, "COMPLETED") and session.turns and session.turns[-1]["speaker"] == "ELDER":
+            return reply, signal
+        signal = "NONE"
+    if signal == "RUDE":  # 거친 말 (D112) — 모델이 선을 긋는 말로 이어 가고, 그 어르신 말은 거친 말로 적는다
+        _mark_rude(session)
     last = _last_ai_turn(session)
     # 오늘의 안부에 하신 답이면 AI 가 본 신호를 돌봄 일지에 반응으로 적는다 (11/19 돌봄 루프).
     # 읽지 못한 답은 적지 않는다 — '괜찮다고 하셨어요'로 남아 가족이 잘못 안심하지 않게
@@ -706,7 +717,27 @@ def _save_elder(db, session: TalkSession, body: TurnIn, text: str) -> None:
         input_type=body.input_type,
         retried=body.retried,
         reply_to_turn_no=last_ai["turn_no"] if last_ai else None,
+        rude=True if has_rude_words(text) else None,  # 거친 말 낱말 안전망 — AI 판단(RUDE)과 따로 (D112)
     )
+
+
+def _mark_rude(session: TalkSession) -> None:
+    """방금 저장한 어르신 말을 거친 말로 적는다 (AI 신호 RUDE, D112). 그 말은 일기 초안·주간 이야기·이야기 기억에서
+    빠지고, 한 주에 WEEKLY_RUDE_MIN 번이면 주간 요약에 횟수만 한 줄 (services/weekly.changes)."""
+    last = session.turns[-1] if session.turns else None
+    if last and last["speaker"] == "ELDER":
+        session.turns = [*session.turns[:-1], last | {"rude": True}]  # 새 리스트 — SQLAlchemy 가 바뀐 것을 알게
+
+
+def _unclear(db, session: TalkSession, room: FamilyRoom) -> SessionOut:
+    """뜻을 알 수 없는 말 (AI 신호 UNCLEAR, D112 — 11/26 '푸엥츠'처럼 글로 막 친 말이 답으로 넘어가던 것).
+
+    방금 저장한 어르신 말을 지우고(답으로 세지 않고, 일기·가족 이야기에도 안 씀) 바로 앞 질문을 다시 한다.
+    몇 번이든 같다 — 계속되면 5분 상한(D8)이 대화를 끝낸다."""
+    session.turns = session.turns[:-1]
+    reply = coach.unclear(_last_reply.get(session.session_id) or _fallback(session))
+    db.commit()
+    return _out(db, session, room, reply)
 
 
 @router.post("/{session_id}/turns", response_model=SessionOut)
@@ -798,12 +829,16 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
     _grant_more(session, text)  # '더 얘기할래' — 아래에서 끝내지 않고 질문을 더 한다
     if session.turn_count >= _max_turns(session):  # 마지막 답(회상·일기 5번째) → 마무리 인사 후 종료
         reply, signal = _ask(db, session, ctx, end="COMPLETED")
+        if signal == "UNCLEAR":  # 마지막 답이 뜻 모를 말 — 끝내지 않고 마지막 질문을 다시
+            return _unclear(db, session, room)
         if signal == "RISK":
             return _comfort(db, session, room)
         _finish(db, session, "COMPLETED")
         db.commit()
         return _out(db, session, room, reply, "ENDED", "COMPLETED")
     reply, signal = _ask(db, session, ctx, turn_no=session.turn_count + 1)
+    if signal == "UNCLEAR":
+        return _unclear(db, session, room)
     if signal == "RISK":
         return _comfort(db, session, room)
     if signal in coach.ENDING_SIGNALS:  # 슬픔·위급·그만 (FR-AI-005, D55): 마무리 인사로 끝낸다. 질문 수는 그대로

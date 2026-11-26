@@ -311,7 +311,8 @@ def fact(row: CareDay) -> str:
 def react(db: Session, room_id: int, signal: str) -> None:
     """오늘의 안부에 하신 답 — AI 가 그 말에서 본 신호를 반응으로 적는다. 그만하자는 말(STOP)은 답으로 치지 않는다."""
     row = db.scalar(select(CareDay).where(CareDay.room_id == room_id, CareDay.care_date == today_kst()))
-    if row is None or row.asked_at is None or row.reaction is not None or signal == "STOP":
+    # 거친 말(RUDE, D112)도 답으로 치지 않는다 — '아직 편치 않다고'로 잘못 적히지 않게
+    if row is None or row.asked_at is None or row.reaction is not None or signal in ("STOP", "RUDE"):
         return
     row.reaction = "DENY" if signal == "DENY" else "OK" if signal == "NONE" else "SAME"
 
