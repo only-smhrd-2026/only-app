@@ -56,6 +56,7 @@ CASES = [
     ("GET", "/elder/sessions/{session_id}", None),
     ("POST", "/elder/sessions/{session_id}/turns", {"text": "네", "input_type": "CHIP"}),
     ("POST", "/elder/sessions/{session_id}/end", {"reason": "USER_STOP"}),
+    ("POST", "/elder/sessions/{session_id}/more", None),  # [더 이야기할래요] (D110)
     ("POST", "/elder/sessions/{session_id}/draft", None),
     ("POST", "/notifications/{notification_id}/read", None),
 ]

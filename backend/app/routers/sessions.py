@@ -42,6 +42,7 @@ from app.config import (
     MAX_TURNS,
     MOOD_LOW_DAYS,
     MOOD_LOW_WINDOW_DAYS,
+    MORE_ROUNDS,
     MORE_SESSION_SEC,
     MORE_TURNS,
     NO_RESPONSE_END,
@@ -171,15 +172,17 @@ def _story_offset(session: TalkSession) -> int:
     return 1 if first.get("fact_id") or first.get("care") else 0  # 오늘의 안부(돌봄 루프)도 같은 자리
 
 
+def _reopens(session: TalkSession) -> list[int]:
+    """[더 이야기할래요]로 다시 연 자리 — 그때 한 질문 번호들 (AI 턴의 more 키, D110). DB 에 남아 재시작에도 그대로."""
+    return [t["more"] for t in session.turns if t.get("more")]
+
+
 def _max_turns(session: TalkSession) -> int:
     more = _more.get(session.session_id, 0)
-    if session.kind == "CHAT":
-        return CHAT_TURNS + more
-    if session.kind == "DIARY":
-        return DIARY_TURNS + more
-    if session.kind == "ALBUM":
-        return ALBUM_TURNS + more
-    return MAX_TURNS + more
+    base = {"CHAT": CHAT_TURNS, "DIARY": DIARY_TURNS, "ALBUM": ALBUM_TURNS}.get(session.kind, MAX_TURNS) + more
+    reopens = _reopens(session)
+    # 다시 연 질문부터 MORE_TURNS 개 — 시간 상한(LIMIT)으로 일찍 끝났어도 남은 질문이 아니라 3개를 더 한다
+    return max(base, reopens[-1] - 1 + MORE_TURNS) if reopens else base
 
 
 def _grant_more(session: TalkSession, text: str) -> None:
@@ -461,7 +464,8 @@ def _talk_seconds(session: TalkSession) -> float:
 
 def _expired(session: TalkSession) -> bool:
     limit = CHAT_SESSION_SEC if session.kind == "CHAT" else MAX_SESSION_SEC  # 잡담은 20분 (D106)
-    return _talk_seconds(session) > limit + (MORE_SESSION_SEC if session.session_id in _more else 0)
+    extra = (MORE_SESSION_SEC if session.session_id in _more else 0) + MORE_SESSION_SEC * len(_reopens(session))
+    return _talk_seconds(session) > limit + extra
 
 
 def _stale(session: TalkSession) -> bool:
@@ -809,6 +813,34 @@ def post_turn(session_id: uuid.UUID, body: TurnIn, device: CurrentDevice, db: DB
         db.commit()
         return _out(db, session, room, reply, "ENDED", reason)
     session.turn_count += 1
+    db.commit()
+    return _out(db, session, room, reply)
+
+
+@router.post("/{session_id}/more", response_model=SessionOut)
+def talk_more(session_id: uuid.UUID, device: CurrentDevice, db: DB):
+    """끝난 회상·사진첩 대화를 [더 이야기할래요]로 다시 연다 (D110) — 앞 대화를 다 본 채 질문 MORE_TURNS 개 더.
+
+    옛 방식(같은 사진으로 새 사진첩 대화)은 AI 가 앞 이야기를 몰라 첫 질문부터 다시 했다. 한 대화에 MORE_ROUNDS 번까지,
+    잘 끝난 대화(COMPLETED·LIMIT)만, 마지막 말 뒤 30분 안. 사진첩 하루 상한(ALBUM_PER_DAY)에는 세지 않는다.
+    """
+    session = load_session(db, session_id, device, lock=True)
+    if session.kind not in ("MEMORY", "ALBUM") or session.end_reason not in ("COMPLETED", "LIMIT") or _stale(session):
+        raise ApiError(409, "MORE_NOT_ALLOWED", "이 이야기는 이어서 할 수 없어요. 다음에 또 들려주세요.")
+    if len(_reopens(session)) >= MORE_ROUNDS:
+        raise ApiError(409, "MORE_LIMIT", "이 사진 이야기는 여기까지 해요. 다음에 또 들려주세요.")
+    room = db.get(FamilyRoom, session.room_id)
+    session.ended_at = session.end_reason = None
+    q = session.turn_count + 1
+    reply, signal = _ask(db, session, coach_context(db, room, session), turn_no=q)
+    if signal == "RISK":
+        return _comfort(db, session, room)
+    if signal in coach.ENDING_SIGNALS:  # 앞 답을 다시 읽고 마무리로 왔다 — 다시 끝낸다 (다시 연 횟수에 세지 않음)
+        _finish(db, session, "COMPLETED")
+        db.commit()
+        return _out(db, session, room, reply, "ENDED", "COMPLETED")
+    session.turns = [*session.turns[:-1], session.turns[-1] | {"more": q}]  # 새 리스트 — 다시 연 자리 표시
+    session.turn_count = q
     db.commit()
     return _out(db, session, room, reply)
 
