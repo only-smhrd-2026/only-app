@@ -18,6 +18,7 @@ from app.config import (
     WEATHER_CACHE_SEC,
     WEATHER_COLD_FEELS,
     WEATHER_HOT_FEELS,
+    WEATHER_RAIN_PROB,
     WEATHER_TIMEOUT_SEC,
     WEATHER_WIND_MS,
 )
@@ -44,10 +45,15 @@ def dust(value: float, cuts: tuple[int, int, int]) -> str:
     return ["좋음", "보통", "나쁨", "매우 나쁨"][sum(value > c for c in cuts)]
 
 
-def look(code: int, feels: float, wind: float) -> str | None:
-    """지금 날씨에 맞는 심심이 그림 이름 — 하늘 먼저, 다음 몸으로 느끼는 기온, 바람. 맑은 보통 날은 None(인사 그림)."""
+def look(code: int, feels: float, wind: float, today_code: int, today_rain: int) -> str | None:
+    """지금 날씨에 맞는 심심이 그림 이름 — 지금 하늘, 오늘 예보(비·눈 확률), 몸으로 느끼는 기온, 바람 순.
+    맑은 보통 날은 None(인사 그림)."""
     if sky(code) in LOOK:
         return LOOK[sky(code)]
+    # 지금 맑아도 오늘 비·눈 소식이면 나가시기 전에 (D109).
+    # ponytail: 하루 최대 확률이라 아침에 그친 비도 저녁까지 우산 — 거슬리면 hourly 확률로 남은 시간만 보기
+    if today_rain >= WEATHER_RAIN_PROB:
+        return LOOK.get(sky(today_code), "umbrella")
     if feels <= WEATHER_COLD_FEELS:
         return "winter"
     if feels >= WEATHER_HOT_FEELS:
@@ -86,7 +92,13 @@ def _fetch(region: str) -> dict[str, str | None]:
         "today": _day(daily, 0),
         "tomorrow": _day(daily, 1),
         "dust": f"미세먼지 {dust(air['pm10'], (30, 80, 150))}, 초미세먼지 {dust(air['pm2_5'], (15, 35, 75))}",
-        "look": look(now["weather_code"], now["apparent_temperature"], now["wind_speed_10m"]),
+        "look": look(
+            now["weather_code"],
+            now["apparent_temperature"],
+            now["wind_speed_10m"],
+            daily["weather_code"][0],
+            daily["precipitation_probability_max"][0] or 0,
+        ),
     }
 
 

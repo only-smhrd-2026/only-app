@@ -68,9 +68,10 @@ REGIONS: dict[str, tuple[float, float]] = {
 WEATHER_CACHE_SEC = 30 * 60  # 동네마다 30분 동안 같은 날씨를 쓴다
 WEATHER_TIMEOUT_SEC = 3.0  # 날씨 서버를 기다리는 시간 — 넘으면 날씨 없이(모른다고) 대화를 이어 간다
 # 날씨 심심이 그림 기준 (11/26 사용자: 하늘 먼저, 다음 기온·바람) — 몸으로 느끼는 기온(도)·바람(초속 m)
-WEATHER_COLD_FEELS = 5  # 이하면 목도리 심심이
+WEATHER_RAIN_PROB = 60  # 지금 맑아도 오늘 비·눈 올 확률(%)이 이 이상이면 우산·눈 심심이 (D109)
+WEATHER_COLD_FEELS = 10  # 이하면 목도리 심심이 (D109 — 5 → 10, 어르신은 추위에 약해 늦가을부터)
 WEATHER_HOT_FEELS = 28  # 이상이면 더운 심심이
-WEATHER_WIND_MS = 9  # 이상이면 바람 심심이
+WEATHER_WIND_MS = 7  # 이상이면 바람 심심이 (D109 — 9 → 7)
 # 어르신 사진첩 '내 일기' 목록이 한 번에 돌려주는 개수(최신 순) — 사진 목록 PHOTO_LIST_LIMIT 와 같은 값 (D8)
 ELDER_DIARY_LIST_LIMIT = 100
 # 가족 소식 첫 장 '하트가 왔어요'가 한 번에 받는 가족 이모지·한마디 수. 넘으면 들은 뒤 나머지가 나온다 (D63)
