@@ -8,6 +8,7 @@ from fastapi import APIRouter, FastAPI, Request
 from sqlalchemy import text
 from starlette.responses import JSONResponse
 
+from app.ai import llm
 from app.config import now_kst, settings
 from app.deps import DB
 from app.errors import install_handlers
@@ -106,7 +107,14 @@ def health(db: DB):
     except Exception as e:
         logging.getLogger("app.health").warning("health db error=%s", type(e).__name__)  # 예외 종류만 (D15)
         return JSONResponse(status_code=503, content={"ok": False, "db": False})
-    return {"ok": True, "env": settings.APP_ENV, "time": now_kst().isoformat(), "db": True}
+    # llm_fail_streak: AI 호출이 연달아 실패한 수 — 0 이 아니면 고정 문장으로 돌고 있다 (11/26, 배포 확인 때 같이 본다)
+    return {
+        "ok": True,
+        "env": settings.APP_ENV,
+        "time": now_kst().isoformat(),
+        "db": True,
+        "llm_fail_streak": llm.fail_streak(),
+    }
 
 
 app.include_router(api)

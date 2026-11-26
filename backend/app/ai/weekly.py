@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import date, datetime, time, timedelta
+from time import sleep
 from typing import Any
 
 from sqlalchemy import select
@@ -27,7 +28,15 @@ from sqlalchemy.orm import Session
 
 from app.ai import llm
 from app.ai.schemas import BANNED_WORDS, WeeklyCard, WeeklyCards
-from app.config import TZ, WEEKLY_CARDS_MAX, WEEKLY_HOUR, WEEKLY_PAIRS_MAX, WEEKLY_STT_MIN, settings
+from app.config import (
+    TZ,
+    WEEKLY_CARDS_MAX,
+    WEEKLY_HOUR,
+    WEEKLY_PAIRS_MAX,
+    WEEKLY_RETRY_SEC,
+    WEEKLY_STT_MIN,
+    settings,
+)
 from app.models import ELDER_SPOKE, FamilyRoom, Photo, StoryFact, TalkSession, WeeklySummary
 
 log = logging.getLogger("app.ai")
@@ -138,6 +147,24 @@ def _fixes(db: Session, room_id: int, end: datetime) -> list[dict[str, Any]]:
     return cards[:CORRECTIONS_MAX]
 
 
+def _call_once_more(data: dict[str, Any]) -> WeeklyCards | None:
+    """주간 카드 AI. API 오류·시간 초과면 WEEKLY_RETRY_SEC 쉬었다 한 번 더
+    (11/26 — 일요일 한 번뿐이라 잠깐의 429·과부하로 그 주 카드가 통째로 빠지지 않게).
+    모델이 답했는데 못 쓴 것(LlmRefused)은 다시 해도 같아서 바로 포기. 실패면 None.
+
+    ponytail: 한 번만 — 크레딧 부족처럼 오래가는 실패는 그 주 숫자만. 몇 시간 뒤 다시 하려면 예약 작업에 '다시 할 주' 칸
+    """
+    for attempt in (1, 2):
+        try:
+            return llm.call_json("weekly_summary", data, WeeklyCards)
+        except llm.LlmRefused:
+            return None
+        except llm.LlmError:
+            if attempt == 1:
+                sleep(WEEKLY_RETRY_SEC)
+    return None
+
+
 def summarize(db: Session, room_id: int, week_start: date) -> None:
     """그 주 줄에 카드와 안부 한 줄을 채운다. 줄이 없거나 AI 를 이미 불렀으면(성공·실패 모두) 아무것도 하지 않는다."""
     row = db.scalar(
@@ -194,10 +221,10 @@ def summarize(db: Session, room_id: int, week_start: date) -> None:
             "elder_honorific": honorific,
             "pairs": [{key: pair[key] for key in ("ref", "question", "said")} for pair in pairs],
         }
-        try:
-            out = llm.call_json("weekly_summary", data, WeeklyCards)
-        except llm.LlmError:
+        out = _call_once_more(data)
+        if out is None:
             row.model_version = "failed"  # 그 주는 숫자만 보인다. 다시 부르지 않는다
+            log.warning("weekly ai failed room=%s", room_id)
         else:
             made = len(out.cards)
             cards = [

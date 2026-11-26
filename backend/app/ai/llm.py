@@ -22,6 +22,7 @@ from app.ai.schemas import BANNED_WORDS, TAXONOMY
 from app.config import (
     CLASSIFY_PER_DAY,
     LLM_CHAT_PER_DAY,
+    LLM_FAIL_ALERT,
     LLM_FAMILY_PER_DAY,
     LLM_PER_DAY,
     ROOT,
@@ -100,10 +101,35 @@ def call_json(
             out, tokens = _anthropic(prompt_name, data, schema, image, timeout)
         else:
             raise LlmError(f"LLM_PROVIDER={provider} 는 지원하지 않습니다")
+    except LlmRefused:  # 모델은 답했다 — 장애가 아니다
+        raise
+    except LlmError:
+        _failed(provider, prompt_name)
+        raise
     finally:
         ms = int((time.perf_counter() - t0) * 1000)
         log.info("llm provider=%s prompt=%s ms=%d tokens=%d", provider, prompt_name, ms, tokens)
+    global _fail_streak
+    _fail_streak = 0
     return out
+
+
+# 연달아 실패한 AI 호출 수 (11/26 — 크레딧 부족·분당 상한·하루 상한이면 고정 문장으로 이어 가서 겉으로는 멀쩡해 보인다).
+# 성공하면 0. ponytail: 프로세스 메모리(워커 1개, D9) — 다시 켜면 0, 여러 스레드가 동시에 더해도 대략이면 된다
+_fail_streak = 0
+
+
+def fail_streak() -> int:
+    return _fail_streak
+
+
+def _failed(provider: str, prompt_name: str) -> None:
+    global _fail_streak
+    if provider != "anthropic":  # mock 은 일기 프롬프트를 늘 실패로 넘긴다 — 장애가 아니다
+        return
+    _fail_streak += 1
+    if _fail_streak == LLM_FAIL_ALERT:  # 한 번만 — 계속 실패해도 로그가 쌓이지 않게
+        log.error("llm failing streak=%d prompt=%s", _fail_streak, prompt_name)
 
 
 # ---------------------------------------------------------------- mock
