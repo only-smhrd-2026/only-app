@@ -1,4 +1,4 @@
-"""11/26 AI 전체 점검 고침 (D113): 위급이 겹칠 때·위로 중 몸 위급·마음 체크 다시 하기·말로 답하기·일기 '그만'·낱말 목록.
+"""11/26 AI 전체 점검 고침 (D114): 위급이 겹칠 때·위로 중 몸 위급·마음 체크 다시 하기·말로 답하기·일기 '그만'·낱말 목록.
 
 유료 API 는 부르지 않는다: call_json 을 바꿔 모델 출력을 흉내 낸다.
 """
@@ -100,3 +100,12 @@ def test_new_urgent_words_and_old_false_positive():
     assert not has_risk_words("자식한테 목매고 살았지")  # 매달리며 살았다는 옛말 — 위급 아님
     for said in ("갑자기 한쪽 팔에 힘이 없어", "가슴이 조여 와", "넘어졌는데 못 일어나"):
         assert has_body_words(said), said
+
+
+# ---------------------------------------------------------------- 어르신 대화 공통 규칙
+def test_elder_talk_prompts_share_one_common_block():
+    """위급 판단 기준·약속·약 규칙은 _elder_common.md 한 곳 — 어르신 대화 프롬프트 4개에만 붙는다."""
+    for name in llm.ELDER_TALK:
+        assert "# 위급 판단 기준" not in (llm.PROMPTS_DIR / f"{name}.md").read_text("utf-8")
+        assert "## 위급 판단 기준" in llm.load_prompt(name), name
+    assert "위급 판단 기준" not in llm.load_prompt("weekly_summary")

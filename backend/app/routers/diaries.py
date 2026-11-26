@@ -486,7 +486,7 @@ def elder_reply_draft(diary_id: int, body: ElderReplyDraftIn, device: CurrentDev
     """어르신 [말로 답하기] (11/23): STT 로 받아 적은 말 → 어르신 말투 한 줄(40자). 저장하지 않는다.
 
     AI 가 실패하거나 키가 없으면 하신 말 앞 40자. 어르신이 듣고 확인한 뒤 POST …/reply 로 보낸다.
-    받아 적은 말에 위급 낱말이 있으면 대화와 같은 급한 알림을 가족 모두에게 (D113 — 40자로 줄이면 사라질 수 있다).
+    받아 적은 말에 위급 낱말이 있으면 대화와 같은 급한 알림을 가족 모두에게 (D114 — 40자로 줄이면 사라질 수 있다).
     """
     _family_diary_for_elder(db, diary_id, device)
     urgent = "BODY" if has_body_words(body.transcript) else "MOOD" if has_risk_words(body.transcript) else None

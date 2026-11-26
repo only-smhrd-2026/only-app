@@ -424,7 +424,7 @@ def _comfort(db, session: TalkSession, room: FamilyRoom, end: str | None = None)
         return _out(db, session, room, reply, "ENDED", reason)
     t0 = time.perf_counter()
     reply = coach.comfort(coach_context(db, room, session), n)
-    if reply.signal == "BODY":  # 위로 중 지금 몸이 위급하다는 말 — 위로를 잇지 않고 119 와 함께 끝 (D113)
+    if reply.signal == "BODY":  # 위로 중 지금 몸이 위급하다는 말 — 위로를 잇지 않고 119 와 함께 끝 (D114)
         return _body_close(db, session, room, risk=True)
     latency = int((time.perf_counter() - t0) * 1000)
     _add_turn(session, "AI", reply.text, question_type=reply.question_type, latency_ms=latency, comfort=n)
@@ -437,7 +437,7 @@ def _body_close(db, session: TalkSession, room: FamilyRoom, risk: bool = False) 
     """몸 위급 낱말(안전망, 11/19 응급): AI 를 부르지 않고 가족 모두에게 바로 알린 뒤 119 버튼과 함께 마무리한다.
 
     일기 대화·AI 가 실패한 턴도 잡는다. 일기 대화는 일기로 남기지 않는다(USER_STOP — _comfort 와 같다).
-    risk = 마음 위급도 함께(약을 먹고 숨을 못 쉬심, D113) — 알림은 119 쪽 하나, 대화 기록은 마음 위급으로도 남긴다.
+    risk = 마음 위급도 함께(약을 먹고 숨을 못 쉬심, D114) — 알림은 119 쪽 하나, 대화 기록은 마음 위급으로도 남긴다.
     """
     if risk:
         session.emotion_flag = "RISK"
@@ -701,7 +701,7 @@ def _urgent_close(db, session: TalkSession, room: FamilyRoom, body: TurnIn, text
 def _urgent_by_words(db, session: TalkSession, room: FamilyRoom, text: str) -> SessionOut | None:
     """위급 낱말 안전망 (D55 ①·11/19 응급) — AI 판단을 기다리지 않는다. 위급 낱말이 없으면 None.
 
-    몸 위급이 함께면 몸 먼저: '약 먹고 죽으려고 다 먹었어, 숨을 못 쉬겠어'는 위로가 아니라 119 (D113).
+    몸 위급이 함께면 몸 먼저: '약 먹고 죽으려고 다 먹었어, 숨을 못 쉬겠어'는 위로가 아니라 119 (D114).
     """
     if has_body_words(text):
         return _body_close(db, session, room, risk=has_risk_words(text))

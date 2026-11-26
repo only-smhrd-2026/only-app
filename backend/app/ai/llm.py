@@ -37,6 +37,7 @@ PROMPTS_DIR = ROOT / "backend" / "app" / "ai" / "prompts"
 # 고정 문장으로라도 대화가 이어진다(D14). 일기 초안은 확인 화면이 기다리므로 15초 × 최대 2번 (D36).
 # 가족 일기 질문(D58)·어제 이야기 첫 질문(D77)도 화면에서 바로 기다린다
 TURN_PROMPTS = {"memory_coach", "diary_buddy", "family_buddy", "story_question", "comfort", "chat_buddy"}
+ELDER_TALK = {"memory_coach", "diary_buddy", "chat_buddy", "comfort"}  # 끝에 prompts/_elder_common.md 를 붙인다 (D114)
 FAMILY_PROMPTS = {"family_buddy", "family_draft"}  # 가족이 부르는 것 — 하루 몫을 따로 센다 (LLM_FAMILY_PER_DAY)
 TURN_TIMEOUT_SEC = 6.0
 OTHER_TIMEOUT_SEC = 15.0
@@ -62,6 +63,8 @@ def load_prompt(prompt_name: str) -> str:
         f"다른 말로 바꾸거나 뺀다: {', '.join(BANNED_WORDS)}"
     )
     text = (PROMPTS_DIR / f"{prompt_name}.md").read_text("utf-8")
+    if prompt_name in ELDER_TALK:  # 어르신 대화 공통 규칙·위급 판단 기준은 한 파일에서만 고친다 (D114)
+        text += "\n\n" + (PROMPTS_DIR / "_elder_common.md").read_text("utf-8")
     if prompt_name == "classify_photo":  # 고르는 기준·목록은 taxonomy.json 한 곳 — 정답표 안내와 같은 글 (D71)
         text += "\n\n# 분류 기준\n" + "\n".join(f"- {r}" for r in TAXONOMY["_rules"])
         text += f"\n\n활동 목록: {', '.join(TAXONOMY['activity'])}\n주제 목록: {', '.join(TAXONOMY['category'])}"

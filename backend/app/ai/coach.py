@@ -422,7 +422,7 @@ def diary_question(ctx: CoachContext, turn_no: int, max_turns: int = DIARY_TURNS
         except (llm.LlmError, NotImplementedError):
             return DIARY_MOOD_QUESTION
         mood, signal = DIARY_MOOD_QUESTION.model_dump(), getattr(out, "signal", "NONE")
-        if signal == "STOP":  # 기분을 묻지 않고 끝 인사 (D113)
+        if signal == "STOP":  # 기분을 묻지 않고 끝 인사 (D114)
             return DiaryTurn.model_construct(**DIARY_STOP.model_dump(), signal="STOP")
         if signal == "RUDE":  # 모델이 쓴 선 긋는 말은 기분 질문 앞에 못 붙이니 고정 한 마디
             mood["text"] = f"{RUDE_LEAD} {mood['text']}"
@@ -432,7 +432,7 @@ def diary_question(ctx: CoachContext, turn_no: int, max_turns: int = DIARY_TURNS
     except (llm.LlmError, NotImplementedError):
         q = DIARY_OLD_PHOTO_QUESTION if ctx.old_photo and turn_no == 1 else diary_fallback(turn_no, max_turns)
         return q.model_copy(update={"text": f"{ctx.elder_honorific}, {q.text}"}) if turn_no == 1 else q
-    if getattr(out, "signal", "NONE") == "STOP":  # '그만할래' — 질문을 잇지 않고 끝 인사, 일기로 남기지 않는다 (D113)
+    if getattr(out, "signal", "NONE") == "STOP":  # '그만할래' — 질문을 잇지 않고 끝 인사, 일기로 남기지 않는다 (D114)
         return DiaryTurn.model_construct(**DIARY_STOP.model_dump(), signal="STOP")
     first = re.split(r"(?<=[.!,])\s+", out.text.strip())[0]
     if getattr(out, "signal", "NONE") == "RUDE" and ("죄송" in first or not any(w in first for w in RUDE_EMPATHY)):
@@ -559,7 +559,7 @@ def family_draft(text: str, question: str, answer: str) -> str:
 def comfort(ctx: CoachContext, n: int) -> ComfortTurn:
     """힘든 말씀 뒤 n 번째 위로 말 (D94 바꿈, 11/23). 질문을 강요하지 않는다. AI 가 실패하면 고정 문장.
 
-    signal BODY = 위로 중 지금 몸이 위급하다는 말 — 호출자가 119 와 함께 끝낸다 (D113)."""
+    signal BODY = 위로 중 지금 몸이 위급하다는 말 — 호출자가 119 와 함께 끝낸다 (D114)."""
     data = _data(ctx, n, max_turns=COMFORT_TURNS)
     try:
         out = llm.call_json("comfort", data, ComfortTurn)
