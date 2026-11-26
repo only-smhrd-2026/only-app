@@ -228,8 +228,10 @@ def save_mood_check(body: MoodCheckIn, device: CurrentDevice, db: DB):
     ).scalar_one_or_none()
     room = db.get(FamilyRoom, device.room_id)
     who = f"{room.elder_name} {room.elder_honorific}"
-    # 가족 알림은 그날 그 종류가 처음 저장될 때만 — 다시 보내도 1건 (11/19 S9)
-    if saved is not None and item9(kind, answers):
+    # 가족 알림은 그날 그 종류가 처음 저장될 때만 — 다시 보내도 1건 (11/19 S9).
+    # 9번만은 그날 다시 한 체크(저장 안 됨)여도 알린다 — 처음엔 0 이었다가 다시 할 때 답하셔도 놓치지 않게 (D114).
+    # 두 번 누름·되풀이는 raise_alert 가 30분 안의 열린 알림으로 막는다
+    if item9(kind, answers):
         # PHQ-9 9번(자해·죽음 생각) — 대화의 위급과 같은 급한 알림 1건(가족 홈 긴급 카드·폰 알림, 30분 되풀이 막기).
         # 무엇을 답하셨는지는 넣지 않는다. 어르신께는 알렸다고 말하지 않는다 (11/23 사용자)
         alerts.raise_alert(db, room, None, "MOOD")

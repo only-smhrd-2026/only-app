@@ -207,8 +207,8 @@ class DiaryTurn(CoachReply):
     # 화면에 보이는 답은 회상과 같은 상한 (D52 ④)
     # 어르신 직전 답에서 본 상태 (11/19 S3): LOW 기운 없는 말(기록하고 이어 감), RISK 목숨을 해치는 이야기,
     # BODY 지금 몸이 위급하다는 말 — RISK·BODY 는 코드 문장으로 마무리하고 일기로 남기지 않는다
-    # RUDE 거친 말·UNCLEAR 뜻 모를 말 — 회상 CoachTurn 과 같음 (D112)
-    signal: Literal["NONE", "LOW", "RISK", "BODY", "RUDE", "UNCLEAR"] = "NONE"
+    # RUDE 거친 말·UNCLEAR 뜻 모를 말 — 회상 CoachTurn 과 같음 (D112). STOP 그만하자는 말 — 일기로 남기지 않고 끝 (D114)
+    signal: Literal["NONE", "LOW", "RISK", "BODY", "STOP", "RUDE", "UNCLEAR"] = "NONE"
 
     @model_validator(mode="before")
     @classmethod
@@ -219,6 +219,19 @@ class DiaryTurn(CoachReply):
     @classmethod
     def _model_chip_rules(cls, v: list[str]) -> list[str]:
         return check_model_chips(v)
+
+
+class ComfortTurn(CoachReply):
+    """힘든 말씀 뒤 위로 한 마디 + 어르신 직전 말로 본 몸 위급 여부 (D114).
+
+    위로 중에 '방금 약 먹었어'·'가슴이 조여'처럼 지금 몸이 위급한 말이 나오면 BODY — 코드가 119 버튼과 함께 끝낸다."""
+
+    signal: Literal["NONE", "BODY"] = "NONE"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _urgent(cls, data):
+        return _urgent_text(data)
 
 
 class FamilyQuestion(BaseModel):
