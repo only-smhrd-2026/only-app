@@ -137,6 +137,9 @@ def coach_context(db, room: FamilyRoom, session: TalkSession) -> coach.CoachCont
             | ({"rude": True} if t.get("rude") else {})
             for t in session.turns
         ],
+        # 일기 대화에는 지난 이야기·좋아하시는 것을 곁들인다 (11/26 — 회상은 사진에 집중하게 첫 질문에만)
+        heard=story.heard(db, session.room_id, unasked=True) if session.kind == "DIARY" else [],
+        likes=story.likes(db, session.room_id) if session.kind == "DIARY" else [],
         # 일기 사진이 옛 사진이면 1·2번을 그 사진 속 그때로 (FR-DI-002, D58). 분류(AI-04 #29) 전에는 늘 False.
         # NUMERIC 칸은 Decimal — Decimal('0.80') >= 0.8 은 거짓이라 float 로 비교한다 (quiz.py 와 같이)
         old_photo=bool(

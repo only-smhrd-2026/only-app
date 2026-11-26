@@ -282,8 +282,9 @@ class StoryFactItem(BaseModel):
     """
 
     ref: str  # 입력 pairs 의 ref — 근거가 된 어르신 답
-    # PLAN 앞으로 하실 일·약속, EVENT 요즘 하신 일, CORRECTION 사진 내용을 바로잡아 주신 답 (FR-ME-009)
-    kind: Literal["PLAN", "EVENT", "CORRECTION"]
+    # PLAN 앞으로 하실 일·약속, EVENT 요즘 하신 일, CORRECTION 사진 내용을 바로잡아 주신 답 (FR-ME-009),
+    # PREFERENCE 지금 좋아하시는 것 — 안부로 묻지 않고 잡담·일기 대화에 곁들인다 (11/26)
+    kind: Literal["PLAN", "EVENT", "CORRECTION", "PREFERENCE"]
     fact: str  # 그 답을 전하는 한 문장
     quote: str  # 그 답 원문에서 글자 그대로 옮긴 구절
 
