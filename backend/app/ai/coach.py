@@ -411,10 +411,15 @@ def diary_question(ctx: CoachContext, turn_no: int, max_turns: int = DIARY_TURNS
             mood["text"] = f"{RUDE_LEAD} {mood['text']}"
         return DiaryTurn.model_construct(**mood, signal=signal)
     try:
-        return llm.call_json("diary_buddy", data, DiaryTurn)
+        out = llm.call_json("diary_buddy", data, DiaryTurn)
     except (llm.LlmError, NotImplementedError):
         q = DIARY_OLD_PHOTO_QUESTION if ctx.old_photo and turn_no == 1 else diary_fallback(turn_no, max_turns)
         return q.model_copy(update={"text": f"{ctx.elder_honorific}, {q.text}"}) if turn_no == 1 else q
+    if getattr(out, "signal", "NONE") == "RUDE":
+        # 11/26 실측: 일기 모델은 거친 말에 사과('죄송해요')하거나 못 들은 척 넘어간다 — 질문만 두고 앞말은 고정 (D112)
+        question = re.split(r"(?<=[.!])\s+", out.text.strip())[-1]
+        out = DiaryTurn.model_construct(**(out.model_dump() | {"text": f"{RUDE_LEAD} {question}"}))
+    return out
 
 
 def diary_closing(ctx: CoachContext) -> CoachReply:

@@ -125,6 +125,18 @@ def test_rude_keeps_talking_and_is_marked(client, monkeypatch):
     assert [t.get("rude", False) for t in _elder(sid)] == [True, True, False]
 
 
+def test_rude_diary_lead_is_fixed(client, monkeypatch):
+    """11/26 실측: 일기 모델이 거친 말에 '죄송해요'·못 들은 척 — 앞말은 고정, 모델 질문만 쓴다."""
+    setup_elder(client)
+    sid = str(uuid.uuid4())
+    assert client.post("/api/elder/sessions", json={"session_id": sid, "kind": "DIARY"}).status_code == 201
+    said = "씨발 이딴 거 왜 물어"
+    _fake(monkeypatch, "diary_buddy", said, DiaryTurn(text="죄송해요. 오늘 하루는 어떻게 보내셨어요?", signal="RUDE"))
+    out = _type(client, sid, said)
+    assert out["ai"]["text"] == f"{coach.RUDE_LEAD} 오늘 하루는 어떻게 보내셨어요?"
+    assert _elder(sid)[-1]["rude"] is True
+
+
 def test_rude_answer_stays_out_of_diary_draft(monkeypatch):
     seen = {}
 
