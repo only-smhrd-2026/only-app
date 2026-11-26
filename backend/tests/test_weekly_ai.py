@@ -192,7 +192,8 @@ def test_model_gets_only_question_and_answer_pairs(client, monkeypatch):
 
 
 def test_ai_failure_keeps_numbers_and_is_not_called_again(client, monkeypatch):
-    """AI 가 실패하면 그 주는 숫자만 — 예외를 내지 않고, 다시 불러도 AI 는 한 번뿐이다."""
+    """AI 가 실패하면 쉬었다 한 번 더, 그래도 실패면 그 주는 숫자만 — 예외를 내지 않고, 다시 불러도 AI 는 그 두 번뿐."""
+    monkeypatch.setattr(weekly_ai, "WEEKLY_RETRY_SEC", 0)
     room_id = _room(client)
     with SessionLocal() as db:
         _talk(db, room_id, 10, [("누구랑 가셨어요?", "큰오빠랑 둘이 갔지")])
@@ -207,7 +208,43 @@ def test_ai_failure_keeps_numbers_and_is_not_called_again(client, monkeypatch):
     row = _summarize(room_id)
     assert (row.qa_list, row.rule_check_passed, row.model_version, row.memory_days) == ([], False, "failed", 1)
     _summarize(room_id)
-    assert len(calls) == 1
+    assert len(calls) == 2
+
+
+def test_ai_error_once_then_cards(client, monkeypatch):
+    """일요일 한 번뿐인 요약 — 잠깐의 API 오류(429·과부하) 한 번으로 그 주 카드가 빠지지 않는다 (11/26)."""
+    monkeypatch.setattr(weekly_ai, "WEEKLY_RETRY_SEC", 0)
+    room_id = _room(client)
+    with SessionLocal() as db:
+        _talk(db, room_id, 10, [("누구랑 가셨어요?", "큰오빠랑 둘이 갔지")])
+        db.commit()
+    real, calls = llm.call_json, []
+
+    def flaky(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise llm.LlmError("RateLimitError")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(llm, "call_json", flaky)
+    row = _summarize(room_id)
+    assert len(calls) == 2 and row.model_version == "mock" and len(row.qa_list) == 1
+
+
+def test_ai_refusal_is_not_retried(client, monkeypatch):
+    monkeypatch.setattr(weekly_ai, "WEEKLY_RETRY_SEC", 0)
+    room_id = _room(client)
+    with SessionLocal() as db:
+        _talk(db, room_id, 10, [("누구랑 가셨어요?", "큰오빠랑 둘이 갔지")])
+        db.commit()
+    calls = []
+
+    def refuse(*args, **kwargs):
+        calls.append(1)
+        raise llm.LlmRefused("refusal")
+
+    monkeypatch.setattr(llm, "call_json", refuse)
+    assert _summarize(room_id).model_version == "failed" and len(calls) == 1
 
 
 def test_nested_output_schema_is_strict():
