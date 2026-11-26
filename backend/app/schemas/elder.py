@@ -65,6 +65,12 @@ class ElderSpeechOut(BaseModel):
     audio_b64: str | None  # 가족방이 고른 목소리 mp3. null 이면 화면이 기기 목소리로 (mock·상한·제공자 장애)
 
 
+class ElderWeatherOut(BaseModel):
+    """홈·잡담 심심이 날씨 그림 (11/26, 11/25 멘토링). null = 늘 쓰던 그림(동네 안 정함·날씨 못 받음·맑은 보통 날)."""
+
+    look: Literal["snow", "raincoat", "umbrella", "winter", "hot", "wind"] | None
+
+
 class ElderHomeOut(BaseModel):
     greeting: str
     elder_name: str

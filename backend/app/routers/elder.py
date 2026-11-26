@@ -43,13 +43,14 @@ from app.schemas.elder import (
     ElderSpeechIn,
     ElderSpeechOut,
     ElderVoiceIn,
+    ElderWeatherOut,
     PickListenedIn,
     PickSkipIn,
     TodayPickOut,
 )
 from app.schemas.photos import PhotoOut
 from app.security import speech_allowed
-from app.services import picks, storage
+from app.services import picks, storage, weather
 
 log = logging.getLogger("app.elder")
 router = APIRouter(prefix="/elder", tags=["elder"])
@@ -138,6 +139,17 @@ def _greeting(room: FamilyRoom) -> str:
     hour = now_kst().hour
     part = "좋은 아침이에요" if hour < 12 else ("좋은 오후예요" if hour < 18 else "좋은 저녁이에요")
     return f"{room.elder_name} {room.elder_honorific}, {part}."
+
+
+@router.get("/weather", response_model=ElderWeatherOut)
+def weather_look(device: CurrentDevice, db: DB):
+    """홈·잡담 심심이가 입을 날씨 그림 (11/26, 11/25 멘토링 '추우면 추워하는 심심이').
+
+    홈을 기다리게 하지 않으려고 따로 — 화면이 홈을 그린 뒤 부른다. 날씨는 동네마다 30분 기억한다(weather.py).
+    """
+    region = db.get(FamilyRoom, device.room_id).weather_region
+    db.close()  # 날씨 서버를 기다리는 동안(최대 수 초) DB 연결을 쥐지 않는다
+    return ElderWeatherOut(look=weather.look_for(region))
 
 
 @router.get("/home", response_model=ElderHomeOut)

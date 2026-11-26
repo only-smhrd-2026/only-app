@@ -565,7 +565,8 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
   }>()
   // 일기 목록 글쓴이 필터 (11/18 멘토링) — 이미 불러온 목록을 화면에서 거른다. 더 불러온 지난 일기도 같은 필터로 보인다
   // MINE = 내가 쓴 오늘 소식만 (11/24 실사용: 내 일기만 모아 볼 곳이 없었다)
-  const [who, setWho] = useState<'ALL' | 'MINE' | DiaryOut['author_type']>('ALL')
+  // 처음엔 어르신 일기만 (11/25 멘토링 '가족 화면 첫 장에 할머니 일기 먼저' · 11/26 사용자)
+  const [who, setWho] = useState<'ALL' | 'MINE' | DiaryOut['author_type']>('ELDER')
 
   // 설치형 앱은 다시 열어도 화면이 새로 뜨지 않는다 → 앱으로 돌아올 때마다 다시 읽는다
   const reloadDiaries = diaries.reload
@@ -648,8 +649,8 @@ function RoomHome({ room, me, reloadRooms }: { room: RoomOut; me: UserOut; reloa
         <div className="fam-seg home-filter" role="group" aria-label="누가 쓴 일기">
           {(
             [
-              ['ALL', '전체'],
               ['ELDER', `${room.elder_name} ${room.elder_honorific}`],
+              ['ALL', '전체'],
               ['FAMILY', '가족'],
               ['MINE', '내 일기'],
             ] as const

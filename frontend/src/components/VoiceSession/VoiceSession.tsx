@@ -37,7 +37,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { AiOut, ChatGo, EndReason, SessionGetOut, SessionOut, SttOut, TurnIn, TurnOut } from '../../api/types'
+import type { AiOut, ChatGo, EndReason, SessionGetOut, SessionOut, SttOut, TurnIn, TurnOut, WeatherLook } from '../../api/types'
 import { cue, micBlockedTip, PROMPT, say, startRecording, stopSpeaking, type Recorder } from '../../lib/audio'
 import { clearPaused, RESUME_LEAD, savePaused } from '../../lib/pausedSession'
 import ElderPhoto from '../ElderPhoto'
@@ -166,6 +166,7 @@ type ChatProps = {
   onGo: (go: ChatGo) => void // 어르신이 가자고 하신 화면으로
   earlier?: TurnOut[] // '지난 이야기'에서 이어서 한 잡담의 말 — 맨 위에 흐리게
   earlierLabel?: string // 그 밑 구분 글 ('11월 24일 이야기')
+  weather?: WeatherLook | null // 동네 날씨 그림 — 말할 때 기본 얼굴 대신 (11/26)
 }
 
 export default function VoiceSession(props: Props) {
@@ -908,7 +909,10 @@ export default function VoiceSession(props: Props) {
           ? 'ask'
           : care
             ? 'smile'
-            : (ai.face ?? 'smile')
+            : // 말할 때 기본 얼굴(웃음·인사)은 날씨 그림 (11/26 사용자) — 기쁨·엄지 같은 감정 표정은 그대로
+              !ai.face || ai.face === 'smile' || ai.face === 'hello'
+              ? (chat.weather ?? ai.face ?? 'smile')
+              : ai.face
     const shown = phase === 'SPEAKING' && line === ai.text ? line.slice(0, typed) : line
     const small = log.length + earlier.length >= 2 // 말풍선이 쌓이면 심심이가 작아져 자리를 내준다
     const live = phase === 'RECORDING' || phase === 'IDLE' || phase === 'TRANSCRIBING'

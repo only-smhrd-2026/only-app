@@ -51,6 +51,8 @@ def test_new_reply_keeps_old_sound_and_delete_removes_it(client):
     assert len(_stored(diary_id)) == 2 and storage.get(_key(one)) and storage.get(_key(two))
     client.post(f"/api/diaries/{diary_id}/reply", json={"text": "보고 싶어요"})  # 글 한마디도 더함 — 소리는 그대로
     assert len(_stored(diary_id)) == 3 and storage.get(_key(two))
+    edit = client.patch(f"/api/diaries/{diary_id}/reply", json={"at": one["at"], "text": "자막 바꾸기"})
+    assert edit.status_code == 404  # 목소리 답장은 고치지 않는다 — 지우고 다시
     assert client.delete(f"/api/diaries/{diary_id}/reply", params={"at": one["at"]}).status_code == 204
     assert storage.get(_key(one)) is None and storage.get(_key(two))  # 지운 칸의 소리만
     assert client.delete(f"/api/diaries/{diary_id}/reply").status_code == 204  # at 없이 = 내 것 모두

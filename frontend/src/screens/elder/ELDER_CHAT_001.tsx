@@ -11,10 +11,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { ChatGo, ElderHomeOut, SessionGetOut, SessionOut, TurnOut } from '../../api/types'
+import type { ChatGo, ElderHomeOut, ElderWeatherOut, SessionGetOut, SessionOut, TurnOut } from '../../api/types'
 import { ElderStop, IC } from '../../components/ElderUi'
 import VoiceSession from '../../components/VoiceSession/VoiceSession'
 import { useLive } from '../../hooks/useElderSession'
+import { useFetch } from '../../hooks/useFetch'
 import { setVoice } from '../../lib/audio'
 import { setElderFont } from '../../lib/elderFont'
 import { clearPaused, readChat, savePaused, type Paused } from '../../lib/pausedSession'
@@ -63,6 +64,7 @@ export default function ELDER_CHAT_001() {
   const live = useLive()
   const [start] = useState<ChatNavState>(() => (loc.state ?? {}) as ChatNavState)
   const [home, setHome] = useState<ElderHomeOut | undefined>(start.home)
+  const weather = useFetch<ElderWeatherOut>('/api/elder/weather') // 날씨 심심이 (11/26) — 서버가 30분 기억
   const [resume, setResume] = useState(start.resumeOf ? start : undefined) // [새로 이야기하기]면 지난 이야기를 뗀다
   // 30분 안에 하던 잡담 (D107). '지난 이야기'의 [이어서 하기]로 왔으면 그 이야기로 새 잡담을 연다
   const [kept] = useState(() => (start.resumeOf ? null : readChat()))
@@ -167,7 +169,7 @@ export default function ELDER_CHAT_001() {
         onEnded={() => {}}
         onDone={() => nav('/elder', { replace: true })}
         onMore={again}
-        chat={{ onGo: go, earlier: resume?.earlier, earlierLabel: resume?.earlierLabel }}
+        chat={{ onGo: go, earlier: resume?.earlier, earlierLabel: resume?.earlierLabel, weather: weather.data?.look }}
       />
     </main>
   )
