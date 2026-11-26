@@ -160,6 +160,35 @@ def test_rude_diary_lead_is_fixed(client, monkeypatch):
     assert _elder(sid)[-1]["rude"] is True
 
 
+def test_rude_diary_keeps_empathy_lead(client, monkeypatch):
+    """마음을 알아 드리는 앞말은 그대로 — 짜증을 거친 말로 잘못 봤을 때 '속상해요'로 딱딱해지지 않게."""
+    setup_elder(client)
+    sid = str(uuid.uuid4())
+    assert client.post("/api/elder/sessions", json={"session_id": sid, "kind": "DIARY"}).status_code == 201
+    said, line = "아 짜증나 왜 자꾸 물어", "많이 답답하셨군요. 오늘은 어디 다녀오셨어요?"
+    _fake(monkeypatch, "diary_buddy", said, DiaryTurn(text=line, signal="RUDE"))
+    assert _type(client, sid, said)["ai"]["text"] == line
+
+
+def test_jamo_answers_reach_model_as_words(client, monkeypatch):
+    """'ㅋㅋㅋ'·'ㅇㅇ'는 모델에 말로 넘긴다 (실측에서 뜻 모를 말로 버렸다). 저장은 원문, 막 친 글자는 그대로."""
+    seen = []
+    real = llm.call_json
+
+    def spy(prompt, data, schema):
+        seen.append([t["text"] for t in data["turns"] if t["speaker"] == "ELDER"])
+        return real(prompt, data, schema)
+
+    monkeypatch.setattr(llm, "call_json", spy)
+    ctx = setup_elder(client)
+    sid = _start(client, ctx)
+    _type(client, sid, "ㅋㅋㅋ")
+    _type(client, sid, "ㅇㅇ")
+    _type(client, sid, "ㅁㄴㅇㄹ")
+    assert seen[-1] == ["하하", "응", "ㅁㄴㅇㄹ"]
+    assert [t["text"] for t in _elder(sid)] == ["ㅋㅋㅋ", "ㅇㅇ", "ㅁㄴㅇㄹ"]
+
+
 def test_rude_answer_stays_out_of_diary_draft(monkeypatch):
     seen = {}
 

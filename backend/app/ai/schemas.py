@@ -43,6 +43,20 @@ def has_rude_words(text: str) -> bool:
     return any(w in text for w in RUDE_WORDS)
 
 
+# 자판 줄임말만으로 된 답 (11/26 실측: 'ㅋㅋㅋ'·'ㅇㅇ'를 뜻 모를 말로 버림, D112)
+# — 모델에는 말로 바꿔 넘긴다. 저장은 원문
+_JAMO_ONLY = re.compile(r"[ㅋㅎㅇㄴㅠㅜ\s.!?~]+")
+_JAMO_WORDS = ((r"[ㅋㅎ]{2,}", "하하"), (r"ㅇㅇ+", "응"), (r"ㄴㄴ+", "아니"), (r"[ㅠㅜ]{2,}", "흑흑"))
+
+
+def plain_jamo(text: str) -> str:
+    if not _JAMO_ONLY.fullmatch(text):  # 글 속에 섞인 것·막 친 글자(ㅁㄴㅇㄹ)는 그대로 — 모델이 본다
+        return text
+    for pattern, word in _JAMO_WORDS:
+        text = re.sub(pattern, word, text)
+    return text
+
+
 def check_banned(text: str) -> str:
     # 거친 말도 AI 답·칩에 넣지 않는다 — 어르신 말을 되받다가(되짚기 규칙) 그 말을 따라 하지 않게 (D112)
     hit = [w for w in (*BANNED_WORDS, *RUDE_WORDS) if w in text]

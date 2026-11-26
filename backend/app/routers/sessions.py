@@ -29,7 +29,7 @@ from fastapi import APIRouter
 from sqlalchemy import func, select
 
 from app.ai import classify, coach, quiz, story, tts
-from app.ai.schemas import CoachReply, has_body_words, has_risk_words, has_rude_words
+from app.ai.schemas import CoachReply, has_body_words, has_risk_words, has_rude_words, plain_jamo
 from app.config import (
     ALBUM_PER_DAY,
     ALBUM_TURNS,
@@ -131,7 +131,7 @@ def coach_context(db, room: FamilyRoom, session: TalkSession) -> coach.CoachCont
         # 어제 이야기 턴에는 story 표시 → 다음 턴에 날짜를 다시 말하지 않고, '그런 말 안 했어'면 DENY (D77)
         # 거친 말로 적힌 어르신 턴에는 rude 표시 → 모델은 그 말을 되짚지 않고, 일기 초안은 그 답을 뺀다 (D112)
         turns=[
-            {"speaker": t["speaker"], "text": t["text"]}
+            {"speaker": t["speaker"], "text": plain_jamo(t["text"])}
             | ({"quiz": True} if t.get("question_code") else {})
             | ({"story": True} if t.get("fact_id") or t.get("care") else {})
             | ({"rude": True} if t.get("rude") else {})

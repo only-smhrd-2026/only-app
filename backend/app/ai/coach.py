@@ -313,6 +313,7 @@ def story_question(ctx: CoachContext, fact: str, when: str, heard_on: date) -> C
 
 UNCLEAR_LEAD = "제가 잘 못 알아들었어요."
 RUDE_LEAD = "그런 말씀은 들으면 제가 조금 속상해요."  # 거친 말 뒤 고정 한 마디 — 모델 말을 못 쓰는 차례에만 (D112)
+RUDE_EMPATHY = ("속상", "답답", "화나", "언짢", "서운")  # 일기 모델이 거친 말 앞에 쓴 말이 이걸 담으면 그대로 둔다
 
 
 def unclear(last: CoachReply, buttons: bool = False) -> CoachReply:
@@ -428,8 +429,10 @@ def diary_question(ctx: CoachContext, turn_no: int, max_turns: int = DIARY_TURNS
     except (llm.LlmError, NotImplementedError):
         q = DIARY_OLD_PHOTO_QUESTION if ctx.old_photo and turn_no == 1 else diary_fallback(turn_no, max_turns)
         return q.model_copy(update={"text": f"{ctx.elder_honorific}, {q.text}"}) if turn_no == 1 else q
-    if getattr(out, "signal", "NONE") == "RUDE":
-        # 11/26 실측: 일기 모델은 거친 말에 사과('죄송해요')하거나 못 들은 척 넘어간다 — 질문만 두고 앞말은 고정 (D112)
+    first = re.split(r"(?<=[.!,])\s+", out.text.strip())[0]
+    if getattr(out, "signal", "NONE") == "RUDE" and ("죄송" in first or not any(w in first for w in RUDE_EMPATHY)):
+        # 11/26 실측: 일기 모델은 거친 말에 사과('죄송해요')하거나 못 들은 척 넘어간다 — 질문만 두고 앞말은 고정 (D112).
+        # 마음을 알아 드리는 앞말('많이 답답하셨나 봐요')은 그대로 둔다 — 짜증을 거친 말로 잘못 봤을 때 덜 딱딱하게
         question = re.split(r"(?<=[.!])\s+", out.text.strip())[-1]
         out = DiaryTurn.model_construct(**(out.model_dump() | {"text": f"{RUDE_LEAD} {question}"}))
     return out
