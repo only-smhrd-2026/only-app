@@ -1,6 +1,7 @@
 """내 정보 (11/27): 이름 고치기 · 프로필 사진 올리기·바꾸기·지우기 · 사진은 같은 가족방 사람에게만 보인다."""
 
 import io
+import uuid
 
 from PIL import Image
 
@@ -125,3 +126,34 @@ def test_profile_photo_on_memory_comments(client):
     _run()
     (reply,) = client.post(f"/api/memories/{sid}/reply", json={"text": "보고 싶어요"}).json()["reactions"]
     assert reply["profile_url"] == url
+
+
+def test_album_uses_current_uploader_photos(client, family):
+    owner, member, room_id, _ = family
+    path = f"/api/rooms/{room_id}/photos"
+    picture = ("album.jpg", _jpeg(), "image/jpeg")
+    uploaded = client.post(path, files={"files": picture})
+    assert uploaded.status_code == 201, uploaded.text
+    photo_id = uploaded.json()["photos"][0]["photo_id"]
+    profile_url = _put(client).json()["profile_url"]
+
+    login(client, owner)
+    elder_photo = client.put(f"/api/rooms/{room_id}/elder-photo", files={"file": picture})
+    assert elder_photo.status_code == 200, elder_photo.text
+    elder_url = elder_photo.json()["elder_photo_url"]
+    without_uploader = add_photos(room_id)[0]
+    connect_device(client, room_id)
+    camera = client.post("/api/elder/album", files={"file": picture}, data={"request_id": str(uuid.uuid4())})
+    assert camera.status_code == 201, camera.text
+    elder_id = camera.json()["photo_id"]
+
+    photos = {p["photo_id"]: p for p in client.get(path).json()["photos"]}
+    assert photos[photo_id]["uploader_profile_url"] == profile_url
+    assert photos[elder_id]["uploader_profile_url"] == elder_url
+    assert "uploader_profile_url" not in photos[without_uploader]
+    assert client.get(profile_url).status_code == client.get(elder_url).status_code == 200
+
+    assert client.delete(f"/api/rooms/{room_id}/members/{member['user_id']}").status_code == 200
+    photos = {p["photo_id"]: p for p in client.get(path).json()["photos"]}
+    assert photos[photo_id]["uploader_name"] is not None
+    assert "uploader_profile_url" not in photos[photo_id]

@@ -35,6 +35,8 @@ class PhotoOut(BaseModel):
     elder_note: str | None = None  # 어르신이 대화에서 이 사진을 바로잡아 주신 내용 한 문장 (FR-ME-009)
     group: PhotoGroup = "ETC"  # 11/23 사진첩 분류 칩 (app/photo_groups.py)
     uploader_name: str | None = None  # 11/23 올린 사람 — 가족 별명(없으면 이름), 어르신 사진이면 '이름 호칭'
+    # 목록의 올린 사람 사진. 어르신 사진이면 가족방에 등록한 얼굴 사진
+    uploader_profile_url: str | None = Field(default=None, exclude_if=lambda value: value is None)
     shown: bool = False  # 11/23 어르신께 보여 드렸나(오늘의 한 장으로 나옴·그 사진으로 대화함). false = 기다려요
     # 11/25 사진첩 판(PHOTO_001) — 목록(list_photos)만 채운다
     talked: bool = False  # 어르신이 이 사진으로 말씀하신 대화가 있다 — 사진 칸 말풍선

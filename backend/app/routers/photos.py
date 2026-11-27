@@ -124,12 +124,13 @@ def photo_out(
     user_id: int | None = None,
     *,
     uploader_name: str | None = None,
+    uploader_profile_url: str | None = None,
     shown: bool = False,
     talked: bool = False,
     quotes: list[PhotoQuote] | None = None,
     diary_id: int | None = None,
 ) -> PhotoOut:
-    """uploader_name·shown·talked·quotes·diary_id 는 목록(list_photos)만 채운다.
+    """올린 사람 정보와 shown·talked·quotes·diary_id 는 목록(list_photos)만 채운다.
 
     한 장씩 돌려주는 곳(올리기·고치기)은 기본값."""
     analyzed = p.analyzed_at is not None
@@ -151,6 +152,7 @@ def photo_out(
         elder_note=p.elder_note,
         group=group_of(p),
         uploader_name=uploader_name,
+        uploader_profile_url=uploader_profile_url,
         shown=shown,
         talked=talked,
         quotes=quotes or [],
@@ -416,12 +418,14 @@ def list_photos(
     photos = db.scalars(
         query.order_by(Photo.uploaded_at.desc(), Photo.photo_id.desc()).limit(PHOTO_LIST_LIMIT + 1)
     ).all()
-    from app.routers.diaries import _member_names  # diaries 가 이 파일을 가져다 써서 여기서 늦게 가져온다
+    from app.routers.diaries import _member_names, _member_photos  # diaries 가 이 파일을 쓰므로 여기서 가져온다
 
     page = photos[:PHOTO_LIST_LIMIT]
     names = _member_names(db, room_id)
+    profiles = _member_photos(db, room_id)
     room = db.get(FamilyRoom, room_id)
     elder = f"{room.elder_name} {room.elder_honorific}"
+    elder_profile = f"/api/media/{room.elder_photo_key}" if room.elder_photo_key else None
     ids = [p.photo_id for p in page]
     shown = shown_ids(db, room_id, ids)
     talked = set(
@@ -446,6 +450,7 @@ def list_photos(
                 p,
                 user.user_id,
                 uploader_name=elder if p.source == "ELDER_CAMERA" else names.get(p.uploaded_by),
+                uploader_profile_url=elder_profile if p.source == "ELDER_CAMERA" else profiles.get(p.uploaded_by),
                 shown=p.photo_id in shown,
                 talked=p.photo_id in talked,
                 quotes=quotes.get(p.photo_id),
