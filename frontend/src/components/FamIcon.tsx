@@ -41,6 +41,23 @@ const ICONS = {
   ),
   chevDown: <path d="M6 9l6 6 6-6" />,
   chevRight: <path d="M9 6l6 6-6 6" />,
+  chevLeft: <path d="M15 6l-6 6 6 6" />, // 11/27 사진첩 사진 보기 앞 사진
+  close: <path d="M6 6l12 12M18 6 6 18" />, // 11/27 사진첩 '모든 사진' 닫기
+  grid: ( // 11/27 사진첩 '모든 달 보기'
+    <>
+      <rect x="4" y="4" width="6.5" height="6.5" rx="1.6" />
+      <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6" />
+      <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6" />
+      <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6" />
+    </>
+  ),
+  more: ( // 11/27 사진첩 사진 보기 ⋯ (설명 고치기·사진 빼기)
+    <>
+      <circle cx="5.5" cy="12" r="1.2" />
+      <circle cx="12" cy="12" r="1.2" />
+      <circle cx="18.5" cy="12" r="1.2" />
+    </>
+  ),
   arrowLeft: <path d="M19 12H5M11 6l-6 6 6 6" />,
   plus: <path d="M12 5v14M5 12h14" />,
   camera: (

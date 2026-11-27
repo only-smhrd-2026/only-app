@@ -1,51 +1,140 @@
-/* PHOTO_001 사진첩 탭 — 11/23 시안 f-post(.banner·.big)·f-photos(.thumb .cap·.fixdot·사진 판). 칩·3열·안내 줄은 steps.css.
+/* PHOTO_001 사진첩 탭 — 11/27 시안 설계자료/목업_1127_사진첩/index.html(FamilyAlbum 배치)의 크기 그대로.
    색은 틀(components/FamilyFrame.css)의 꿀 노랑·크림 변수만. .fam p 의 margin 0 보다 세게 하려고 p 는 .fam 을 앞에 */
-.ph { display:flex; flex-direction:column; gap:12px; padding:4px var(--gut) 28px; }
+.ph { display:flex; flex-direction:column; padding-bottom:28px; }
 .ph .fam-card { margin:0; }
-.ph-row { display:flex; align-items:center; gap:10px; }
-.ph-grow { flex:1; min-width:0; display:flex; flex-direction:column; }
-.ph-grow small { font-size:13px; color:var(--ink2); }
+.ph-pad { display:flex; flex-direction:column; gap:12px; padding:12px var(--gut) 0; }
+.ph-mini { font-size:13px; color:var(--ink3); }
 
-/* 보여 드릴 사진이 적을 때만 한 줄 (11/25) */
-.ph-low { display:flex; align-items:center; gap:10px; padding:8px 8px 8px 14px; border-radius:14px; background:var(--soft); color:var(--acc); font-size:14px; font-weight:700; }
+/* 위 — 연도(내리면 숨음) + 달 탭 + 칩. 틀의 스크롤 칸(.fam-body) 위에 붙어 있다 */
+.ph-top { position:sticky; top:0; z-index:1; background:var(--bg); box-shadow:0 1px 0 var(--line); }
+.ph-year { height:26px; display:grid; place-items:center; font-size:15px; font-weight:800; overflow:hidden; transition:height .18s, opacity .18s; }
+.ph-top.mini .ph-year { height:0; opacity:0; }
+.ph-months { display:flex; align-items:stretch; }
+.ph-grid-btn { flex:none; width:48px; height:44px; border:0; background:none; display:grid; place-items:center; color:var(--ink2); cursor:pointer; }
+.ph-grid-btn .fam-ic { width:22px; height:22px; }
+.ph-mtabs { flex:1; min-width:0; display:flex; overflow-x:auto; scrollbar-width:none; }
+.ph-mtabs::-webkit-scrollbar { display:none; }
+.ph-mtab { flex:none; position:relative; height:44px; padding:0 14px; border:0; background:none; font-size:16px; font-weight:600; color:var(--ink3); white-space:nowrap; cursor:pointer; }
+.ph-mtab[aria-current="true"] { color:var(--ink); font-weight:800; }
+.ph-mtab[aria-current="true"]::after { content:""; position:absolute; left:10px; right:10px; bottom:0; height:4px; border-radius:2px 2px 0 0; background:var(--brand); box-shadow:inset 0 -1px 0 var(--lip); }
+/* 칩 (전체·어르신·가족) — 한 줄로 옆으로 넘김 */
+.ph-chips { display:flex; gap:6px; padding:8px var(--gut) 10px; overflow-x:auto; scrollbar-width:none; }
+.ph-chips .st-chip { flex:none; min-height:36px; font-size:14.5px; }
+
+/* 달 넘길 때 미끄러짐 (밀어서 넘기기) */
+.ph-page { touch-action:pan-y; }
+.ph-page.in-l { animation:ph-inl .26s cubic-bezier(.2,.8,.2,1); }
+.ph-page.in-r { animation:ph-inr .26s cubic-bezier(.2,.8,.2,1); }
+@keyframes ph-inl { from { transform:translateX(36%); opacity:.3; } }
+@keyframes ph-inr { from { transform:translateX(-36%); opacity:.3; } }
+
+/* 보여 드릴 사진이 적을 때만 한 줄 (11/27 — 2장 이하) */
+.ph-low { display:flex; align-items:center; gap:10px; margin:10px 12px; padding:8px 8px 8px 14px; border-radius:14px; background:var(--soft); color:var(--acc); font-size:14px; font-weight:700; }
+.ph-pad .ph-low { margin:0; }
 .fam .ph-low p { flex:1; min-width:0; }
 .ph-low .fam-btn { flex:none; }
-
-/* 두 갈래 — 오늘 소식(연한 노랑) · 추억 사진(흰 카드) */
-
-/* 칩 (전체·어르신·가족) — 한 줄로 옆으로 넘김. 안쪽 여백은 초점 테두리가 안 잘리게 */
-.ph-seg { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; padding:6px var(--gut) 6px 4px; margin:-6px calc(-1 * var(--gut)) -6px -4px; }
-.ph-seg .st-chip { flex:none; }
-
-/* 달별 묶음 */
-.ph-month { display:flex; flex-direction:column; gap:8px; }
-.ph-month h3 { margin:6px 2px 0; font-size:13px; font-weight:700; color:var(--ink3); }
-/* 사진 칸 — 왼쪽 아래 올린 사람(어르신은 파랑), 오른쪽 아래 말풍선 = 어르신이 이 사진으로 이야기하심 (11/25) */
-.ph-who, .ph-talk { position:absolute; bottom:6px; width:26px; height:26px; border-radius:50%; display:grid; place-items:center; box-shadow:0 1px 4px rgba(42,27,16,.35); }
-.ph-who { left:6px; background:var(--t2); color:var(--t2e); font-size:12px; font-weight:800; }
-.ph-who.by-elder { background:var(--t4); color:var(--t4e); }
-.ph-talk { right:6px; background:var(--surf); color:var(--acc); }
-.ph-talk .fam-ic { width:15px; height:15px; fill:currentColor; }
 .ph-empty { display:flex; flex-direction:column; align-items:flex-start; gap:10px; padding:18px 16px; }
 
-/* 사진 판 — 크게 볼 때는 자르지 않는다 */
-.ph-sheet { max-height:92dvh; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-left:16px; padding-right:16px; }
-.ph-sheet .fam-grab { margin-bottom:4px; }
-.ph-sheet h2 { margin:0; }
-/* 사진 제 비율대로 — 4:3 틀에 넣으면 세로 사진(어르신 폰 카메라)이 작고 잘려 보였다 (11/24 실기기) */
-.ph-pic { flex:none; display:flex; justify-content:center; min-height:120px; border-radius:14px; overflow:hidden; background:var(--line); }
-.ph-pic img { display:block; max-width:100%; max-height:70dvh; object-fit:contain; }
-.ph-mini { font-size:13px; color:var(--ink3); }
-/* 판의 어르신 이야기·일기 (11/25) */
+/* 옛 사진(연도만 아는 사진)은 빛바랜 색 */
+.ph-old img, img.ph-old { filter:sepia(.5) saturate(.8) contrast(.92) brightness(1.03); }
+
+/* 표지 사진 — 달 글자·사진 수, 오른쪽 아래 옛날 사진 동그라미 */
+.ph-herowrap { position:relative; }
+.ph-hero { position:relative; display:block; width:100%; aspect-ratio:1/1.02; border:0; padding:0; overflow:hidden; background:var(--bg2); text-align:left; cursor:pointer; }
+.ph-hero img { width:100%; height:100%; object-fit:cover; display:block; }
+.ph-hero::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg,rgba(20,12,4,.38),rgba(20,12,4,0) 55%),linear-gradient(0deg,rgba(20,12,4,.45),rgba(20,12,4,0) 30%); }
+.ph-ttl { position:absolute; left:18px; top:42%; z-index:1; color:#fff; text-shadow:0 1px 8px rgba(0,0,0,.35); }
+.ph-ttl b { display:block; font-size:42px; font-weight:400; letter-spacing:-.03em; line-height:1.05; }
+.ph-ttl small { font-size:15px; opacity:.9; }
+.ph-foot { position:absolute; left:16px; bottom:14px; z-index:1; color:#fff; font-size:14px; font-weight:800; text-shadow:0 1px 6px rgba(0,0,0,.4); }
+.ph-memo { position:absolute; right:14px; bottom:52px; z-index:2; display:flex; flex-direction:column; align-items:center; gap:6px; border:0; background:none; padding:0; color:#fff; font-size:13px; font-weight:800; text-shadow:0 1px 6px rgba(0,0,0,.5); cursor:pointer; }
+.ph-memo img { width:86px; height:86px; border-radius:50%; object-fit:cover; border:4px solid #fff; box-shadow:0 4px 14px rgba(0,0,0,.3); }
+
+/* 모자이크 — 3열 정사각, 12장마다 큰 칸이 왼쪽·오른쪽 번갈아 */
+.ph-mosaic { container-type:inline-size; margin-top:2px; }
+.ph-mgrid { display:grid; grid-template-columns:repeat(3,1fr); grid-auto-rows:calc((100cqw - 4px) / 3); grid-auto-flow:row dense; gap:2px; }
+.ph-cell { position:relative; display:block; padding:0; border:0; overflow:hidden; background:var(--bg2); cursor:pointer; }
+.ph-cell.bl { grid-column:1 / span 2; grid-row:span 2; }
+.ph-cell.br { grid-column:2 / span 2; grid-row:span 2; }
+.ph-cell img { width:100%; height:100%; object-fit:cover; display:block; transition:transform .2s; }
+.ph-cell:active img { transform:scale(.97); }
+/* 사진 칸 — 왼쪽 아래 올린 사람(어르신은 파랑), 오른쪽 아래 말풍선 = 어르신이 이 사진으로 이야기하심 (11/25) */
+.ph-who, .ph-talk { position:absolute; bottom:5px; width:22px; height:22px; border-radius:50%; display:grid; place-items:center; }
+.ph-who { left:5px; background:var(--t2); color:var(--t2e); font-size:10px; font-weight:800; box-shadow:0 0 0 1.5px #fff; }
+.ph-who.by-elder { background:var(--t4); color:var(--t4e); }
+.ph-talk { right:5px; background:var(--surf); color:var(--acc); box-shadow:0 1px 4px rgba(42,27,16,.35); }
+.ph-talk .fam-ic { width:13px; height:13px; fill:currentColor; }
+.ph-next { display:flex; align-items:center; justify-content:center; gap:4px; width:100%; min-height:56px; margin-top:2px; border:0; background:none; color:var(--ink3); font-size:14px; font-weight:700; }
+button.ph-next { cursor:pointer; }
+.ph-next .fam-ic { width:18px; height:18px; }
+
+/* 사진 보기·모든 사진 — 틀 위를 덮는 화면 (아래 판 .fam-scrim 5·.fam-sheet 6 보다 아래) */
+.ph-view, .ph-all { position:fixed; inset:0; z-index:4; max-width:520px; margin:0 auto; display:flex; flex-direction:column; animation:ph-up .22s; }
+.ph-view { background:var(--surf); }
+.ph-all { background:var(--bg); }
+@keyframes ph-up { from { transform:translateY(32px); opacity:.4; } }
+.ph-dbar { flex:none; display:flex; align-items:center; min-height:56px; padding:env(safe-area-inset-top,0px) 6px 0; background:inherit; box-shadow:0 1px 0 var(--line); }
+.ph-dttl { flex:1; min-width:0; text-align:center; line-height:1.25; }
+.ph-dttl b { display:block; font-size:16.5px; font-weight:800; }
+.ph-dttl small { display:inline-flex; align-items:center; gap:3px; font-size:12px; color:var(--ink3); }
+.ph-dttl small .fam-ic { width:12px; height:12px; }
+.ph-icon-btn { flex:none; width:44px; height:44px; display:grid; place-items:center; border:0; background:none; border-radius:50%; color:var(--ink); cursor:pointer; }
+.ph-icon-btn:active { background:var(--soft); }
+.ph-icon-btn .fam-ic { width:24px; height:24px; }
+.ph-ghost { flex:none; width:44px; }
+.ph-view-body { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding-bottom:calc(24px + env(safe-area-inset-bottom,0px)); }
+/* 사진 제 비율대로 — 자르지 않는다 (11/24 실기기) */
+.ph-photo { position:relative; display:flex; justify-content:center; background:#0f0c09; touch-action:pan-y; }
+.ph-photo img { display:block; width:100%; max-height:min(440px, 60dvh); object-fit:contain; }
+.ph-side { position:absolute; top:50%; width:34px; height:34px; margin-top:-17px; border:0; border-radius:50%; background:rgba(42,27,16,.4); color:#fff; display:grid; place-items:center; cursor:pointer; }
+.ph-side.l { left:8px; }
+.ph-side.r { right:8px; }
+.ph-side .fam-ic { width:20px; height:20px; }
+.ph-ppl { display:flex; flex-wrap:wrap; gap:6px; padding:12px 16px 0; }
+.ph-tag { display:inline-flex; align-items:center; padding:2px 8px; border-radius:8px; background:var(--soft); color:var(--acc); font-size:13px; font-weight:700; }
+.ph-post { padding:14px 16px; box-shadow:0 1px 0 var(--line); }
+.ph-hd { display:flex; align-items:baseline; gap:8px; margin-bottom:3px; }
+.ph-hd b { font-size:15.5px; font-weight:800; }
+.ph-hd small { margin-left:auto; font-size:12.5px; color:var(--ink3); white-space:nowrap; }
+.fam .ph-post p { font-size:15.5px; line-height:1.55; }
+
+/* 사진 보기 아래 어르신 이야기·일기 (11/25) */
 .ph-story { display:flex; flex-direction:column; align-items:flex-start; gap:8px; padding:14px; border-radius:16px; background:var(--surf); box-shadow:0 0 0 1px var(--line); }
 .ph-story h3 { margin:0; display:flex; align-items:center; gap:6px; font-size:15px; font-weight:800; color:var(--acc); }
 .ph-story h3 .fam-ic { width:16px; height:16px; fill:currentColor; }
 .fam .ph-quote { align-self:stretch; padding:10px 12px; border-radius:12px; background:var(--soft); font-size:15px; font-weight:700; line-height:1.5; }
 .ph-quote small { display:block; margin-top:2px; font-size:12px; color:var(--ink3); }
 .fam .ph-said { padding:8px 12px; border-radius:12px; background:var(--t3); color:var(--t3e); font-size:14px; font-weight:700; }
+
+/* 모든 사진 — 달마다 첫 사진 */
+.ph-all-in { flex:1; min-height:0; overflow-y:auto; padding:4px 12px calc(24px + env(safe-area-inset-bottom,0px)); }
+.ph-all h3 { margin:16px 4px 8px; font-size:15px; font-weight:800; }
+.ph-allg { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.ph-mc { border:0; background:none; padding:0; text-align:left; cursor:pointer; }
+.ph-mc img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:12px; display:block; }
+.ph-mc.on img { box-shadow:0 0 0 3px var(--brand), 0 0 0 4.5px var(--lip); }
+.ph-mc b { display:block; margin-top:4px; font-size:14.5px; font-weight:800; }
+.ph-mc small { font-size:12.5px; color:var(--ink3); }
+
+/* 아래 판 — ⋯ 메뉴·설명 고치기·빼기 */
+.ph-sheet { max-height:92dvh; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-left:16px; padding-right:16px; }
+.ph-sheet .fam-grab { margin-bottom:4px; }
+.ph-sheet h2 { margin:0; }
+.ph-opt { display:flex; align-items:center; gap:12px; width:100%; min-height:60px; padding:10px 14px; border:0; border-radius:20px; background:var(--surf); box-shadow:0 0 0 1px var(--line); text-align:left; font-size:16px; font-weight:700; color:var(--ink); cursor:pointer; }
+.ph-opt > span:last-child { flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.35; }
+.ph-opt small { font-size:13px; font-weight:400; color:var(--ink3); }
+.ph-opt-ic { flex:none; width:40px; height:40px; display:grid; place-items:center; border-radius:12px; background:var(--soft); color:var(--acc); }
+.ph-opt-ic .fam-ic { width:22px; height:22px; }
+.ph-opt.danger { color:var(--rec); }
+.ph-opt.danger .ph-opt-ic { background:var(--rec-soft); color:var(--rec); }
 .ph-danger { background:var(--surf); color:var(--rec); box-shadow:0 0 0 1.5px var(--rec); }
 .ph-two { display:flex; gap:10px; }
 .ph-two .fam-btn { flex:1; }
 
 /* 뺀 뒤 잠깐 뜨는 한 줄 — 탭 화면이라 아래 탭(약 66px) 위로 */
 .ph-snack { position:fixed; left:50%; bottom:calc(84px + env(safe-area-inset-bottom,0px)); z-index:7; transform:translateX(-50%); width:max-content; max-width:calc(100% - 32px); padding:12px 16px; border-radius:14px; background:var(--ink); color:var(--surf); font-size:15px; line-height:1.4; }
+
+@media (prefers-reduced-motion:reduce) {
+  .ph-page.in-l, .ph-page.in-r, .ph-view, .ph-all { animation:none; }
+  .ph-year, .ph-cell img { transition:none; }
+}
