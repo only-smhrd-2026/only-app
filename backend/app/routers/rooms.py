@@ -5,7 +5,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Request, UploadFile
-from sqlalchemy import distinct, func, select
+from sqlalchemy import distinct, func, select, update
 from sqlalchemy.orm import Session
 
 from app.config import REGIONS, TOWNS, now_kst
@@ -314,5 +314,25 @@ def leave_room(room_id: int, user: CurrentUser, db: DB):
         raise ApiError(400, "OWNER_CANNOT_LEAVE", "방장은 가족방을 나갈 수 없어요")
     # removed_at은 내보낸 사람(D16) 전용. 나가기는 줄을 지워 초대 링크로 다시 들어올 수 있게 한다.
     db.delete(member)
+    db.commit()
+    return OkOut()
+
+
+@router.delete("/{room_id}", response_model=OkOut)
+def close_room(room_id: int, user: CurrentUser, db: DB):
+    """방장이 가족방을 닫는다. 사진·일기·대화는 보관하고 사람·기기·초대 링크의 접근을 끊는다."""
+    room = require_owner(room_id, user, db, lock=True)
+    room.status = "CLOSED"
+    for hash_col, exp_col in INVITE_COLS.values():
+        setattr(room, hash_col, None)
+        setattr(room, exp_col, None)
+    room.device_token_hash = room.device_push_token = None
+    room.device_connected_at = room.device_last_seen_at = None
+    push.forget_room(db, room_id)
+    db.execute(
+        update(RoomMember)
+        .where(RoomMember.room_id == room_id, RoomMember.removed_at.is_(None))
+        .values(removed_at=now_kst())
+    )
     db.commit()
     return OkOut()

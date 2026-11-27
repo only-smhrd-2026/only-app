@@ -16,12 +16,13 @@ from app.security import sha256_hex
 router = APIRouter(prefix="/invites", tags=["invites"])
 
 
-def _find(db, token: str) -> tuple[FamilyRoom, str, datetime]:
+def _find(db, token: str, *, lock: bool = False) -> tuple[FamilyRoom, str, datetime]:
     """토큰 → (가족방, 종류, 만료 시각). 링크는 family_rooms 칸에 있다 (D38). 새 링크로 덮어써진 옛 링크는 404."""
     h = sha256_hex(token)
-    room = db.scalar(
-        select(FamilyRoom).where(or_(FamilyRoom.family_invite_hash == h, FamilyRoom.elder_invite_hash == h))
+    query = select(FamilyRoom).where(
+        FamilyRoom.status == "ACTIVE", or_(FamilyRoom.family_invite_hash == h, FamilyRoom.elder_invite_hash == h)
     )
+    room = db.scalar(query.with_for_update() if lock else query)
     if not room:
         raise ApiError(404, "INVITE_NOT_FOUND", "링크를 찾을 수 없습니다")
     kind = "FAMILY" if room.family_invite_hash == h else "ELDER_DEVICE"
@@ -45,7 +46,7 @@ def invite_status(body: DeviceConnectIn, db: DB):
 
 @router.post("/accept", response_model=RoomOut)
 def accept_invite(body: InviteAcceptIn, user: CurrentUser, db: DB):
-    room, kind, expires_at = _find(db, body.token)
+    room, kind, expires_at = _find(db, body.token, lock=True)  # 방을 닫는 동안 새 구성원이 들어가지 않게
     if kind != "FAMILY" or expires_at <= now_kst():
         raise ApiError(410, "INVITE_INVALID", "링크가 만료되었거나 사용할 수 없어요")
     member = db.scalar(select(RoomMember).where(RoomMember.room_id == room.room_id, RoomMember.user_id == user.user_id))
