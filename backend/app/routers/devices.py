@@ -73,7 +73,11 @@ def connect(body: DeviceConnectIn, response: Response, db: DB):
     # 기기 해시를 덮어쓰므로 이전 기기는 바로 막힌다(가족방당 1대). 권한·입력 모드는 새 기기 기준으로 처음 값 (D38)
     row = db.execute(
         update(FamilyRoom)
-        .where(FamilyRoom.elder_invite_hash == sha256_hex(body.token), FamilyRoom.elder_invite_expires_at > now)
+        .where(
+            FamilyRoom.status == "ACTIVE",
+            FamilyRoom.elder_invite_hash == sha256_hex(body.token),
+            FamilyRoom.elder_invite_expires_at > now,
+        )
         .values(
             elder_invite_expires_at=now,
             device_token_hash=sha256_hex(raw),

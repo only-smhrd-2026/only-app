@@ -3,7 +3,7 @@
 - 계정 줄은 남기고(남은 글·사진이 가리킴) 이메일·비밀번호·이름을 바로 지운다 → 이름은 '탈퇴한 가족'.
   같은 이메일로 다시 가입하면 새 계정이다. 이미 발급된 쿠키는 deps._user_from_cookie 가 status 를 봐서 401.
 - 내가 쓴 가족 일기·올린 사진은 가족방에 '탈퇴한 가족' 이름으로 남는다 (가족방 나가기와 같은 규칙).
-- 내가 방장인 가족방: 다른 가족이 있으면 방장을 넘기고, 혼자면 가족방과 어르신 기록을 전부 지운다.
+- 내가 방장인 열린 가족방: 다른 가족이 있으면 방장을 넘기고, 혼자면 가족방과 어르신 기록을 전부 지운다.
   어느 쪽인지 화면이 보여 준 그대로 보내야 한다(transfers) — 그사이 구성원이 바뀌었으면 아무것도 바꾸지 않고 400.
 """
 
@@ -111,11 +111,11 @@ def withdraw(body: WithdrawIn, request: Request, response: Response, user: Curre
     transfers = {t.room_id: t.new_owner_user_id for t in body.transfers}
     keys: list[str] = []
     rooms_deleted = 0
-    # 내가 방장인 가족방. 줄을 잠가 그사이 새 가족이 들어오거나 새 글이 쌓이지 않게 한다.
+    # 내가 방장인 열린 가족방. 닫아 둔 방은 목록에 없으므로 탈퇴 때 넘기거나 지우지 않는다.
     # 잠그는 순서는 가족방 → 구성원 → 계정. 계정을 먼저 잠그면 내게 알림을 넣는 요청(어르신 일기 올리기)과 서로 기다린다
     owned = db.scalars(
         select(FamilyRoom)
-        .where(FamilyRoom.owner_user_id == user.user_id)
+        .where(FamilyRoom.owner_user_id == user.user_id, FamilyRoom.status == "ACTIVE")
         .order_by(FamilyRoom.room_id)
         .with_for_update()
     ).all()

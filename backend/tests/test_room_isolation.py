@@ -22,6 +22,7 @@ CASES = [
     ("PATCH", "/rooms/{room_id}/settings", {"elder_name": "어르신"}),
     ("PUT", "/rooms/{room_id}/elder-photo", "elder-photo"),
     ("DELETE", "/rooms/{room_id}/elder-photo", None),
+    ("DELETE", "/rooms/{room_id}", None),
     ("POST", "/rooms/{room_id}/leave", None),
     ("POST", "/rooms/{room_id}/owner", {"user_id": 1}),
     ("GET", "/rooms/{room_id}/photos", None),

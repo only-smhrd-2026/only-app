@@ -2,7 +2,7 @@
  * GROUP_002 — 가족방 탭 (11/23 시안 f-room, 이슈 #24). 위 막대에서 고른 분의 가족방 한 화면:
  * 할머니 폰(연결됨·마지막으로 연 때 / 연결 3단계) → '내 정보 ›'(ME_001, 11/27 — 옛 '올린 사진' 칸 자리) → 구성원(초대·내보내기·쓸 수 있는 링크)
  * → 할머니 화면 설정(#52, D74 — 글자 크기·말 속도·목소리·말하는 방법은 칩을 누르면 바로 저장, 추억 시간·이름·부르는 말은 판에서)
- * → 위험한 설정(폰 연결 끊기·가족방 나가기 — 로그아웃·탈퇴는 내 정보로). 버튼은 방장에게만, 방장이 아니면 보기만.
+ * → 위험한 설정(방장은 폰 연결 끊기·가족방 삭제, 구성원은 가족방 나가기).
  * 링크 주소(토큰)는 이 화면 state 에만 둔다 (D16 — localStorage·console 금지). 서버는 토큰을 저장하지 않아 나가면 다시 못 본다.
  */
 import { useEffect, useState } from 'react'
@@ -119,6 +119,7 @@ type Sheet =
   | { t: 'owner'; m: MemberOut }
   | { t: 'unlink' }
   | { t: 'leave' }
+  | { t: 'delete' }
   | { t: 'set'; s: SetDef }
   | TextSheet
 
@@ -261,23 +262,23 @@ function RoomTab() {
     setBusy(false)
   }
 
-  /** [나가기] (방장 아닌 가족) — 성공하면 가족 홈을 새로 연다(가족방 목록을 처음부터 다시 읽게).
+  /** [나가기]·[삭제하기] — 성공하면 가족 홈을 새로 열어 가족방 목록을 다시 읽는다.
    * 기억해 둔 가족방 번호(haru.fam.room)는 지우지 않는다 — 위 막대·알림이 목록에 없는 방이면 첫 가족방으로 간다 */
-  async function leave(r: RoomOut) {
+  async function exitRoom(path: string, method: 'POST' | 'DELETE') {
     if (busy) return
     setBusy(true)
     setError(undefined)
     try {
-      await api(`/api/rooms/${r.room_id}/leave`, { method: 'POST' }) // 본문 없어도 method 를 적는다(D34)
+      await api(path, { method })
     } catch (e) {
-      // 404 = 이미 이 방 구성원이 아님(다른 기기에서 나감·그새 내보내짐) → 나간 것과 같다
+      // 다른 기기에서 먼저 처리됐다면 목록을 새로 읽는다.
       if (!(e instanceof ApiError && e.status === 404)) {
         setError(msgOf(e))
         setBusy(false)
         return
       }
     }
-    // replace — 뒤로 가기로 나간 방 화면('찾을 수 없어요')에 돌아오지 않게. busy 는 그대로 둬 새로 열리는 동안 다시 못 누름
+    // 뒤로 가기로 방 화면에 돌아오지 않게 한다. 홈이 열리는 동안에는 버튼을 잠가 둔다.
     window.location.replace('/')
   }
 
@@ -623,8 +624,6 @@ function RoomTab() {
         {!sheet && note === undefined && error === undefined ? null : null}
       </section>
 
-      {/* 방장은 폰이 연결돼 있을 때만 버튼이 있다 — 없으면 칸째 숨김 */}
-      {(!owner || room.device_connected) && (
       <section className="fam-card gr-card">
         <h2>위험한 설정</h2>
         {owner && room.device_connected && (
@@ -635,19 +634,21 @@ function RoomTab() {
             <p className="fam-mini">끊으면 {hon} 폰에 사진과 소식이 더 가지 않아요. 다시 쓰려면 새 연결 링크가 필요해요.</p>
           </>
         )}
-        {/* 방장은 나갈 수 없다(서버 OWNER_CANNOT_LEAVE) — 방장 아닌 가족에게만 */}
-        {!owner && (
+        {owner ? (
+          <button type="button" className="fam-btn fam-btn--danger" onClick={() => open({ t: 'delete' })}>
+            이 가족방 삭제
+          </button>
+        ) : (
           <button type="button" className="fam-btn fam-btn--danger" onClick={() => open({ t: 'leave' })}>
             이 가족방 나가기
           </button>
         )}
         {/* 로그아웃·회원 탈퇴는 내 정보(ME_001)로 옮김 (11/27) */}
       </section>
-      )}
 
       {sheet && (
         <>
-          <button type="button" className="fam-scrim" aria-label="닫기" onClick={close} />
+          <button type="button" className="fam-scrim" aria-label="닫기" disabled={busy && sheet.t === 'delete'} onClick={close} />
           <div className="fam-sheet" role="dialog" aria-label={sheetLabel(sheet, hon)}>
             <span className="fam-grab" />
             {sheet.t === 'invite' && (
@@ -923,8 +924,35 @@ function RoomTab() {
                   <button type="button" className="fam-btn fam-btn--tonal" onClick={close}>
                     취소
                   </button>
-                  <button type="button" className="fam-btn gr-btn-danger" disabled={busy} onClick={() => leave(room)}>
+                  <button
+                    type="button"
+                    className="fam-btn gr-btn-danger"
+                    disabled={busy}
+                    onClick={() => exitRoom(`/api/rooms/${room.room_id}/leave`, 'POST')}
+                  >
                     {busy ? '나가는 중…' : '나가기'}
+                  </button>
+                </div>
+              </>
+            )}
+            {sheet.t === 'delete' && (
+              <>
+                <h2>{room.elder_name} {hon}네 가족방을 삭제할까요?</h2>
+                <p className="gr-sheet-text">
+                  모든 가족의 목록에서 이 방이 사라지고, 초대 링크와 {hon} 폰 연결이 끊겨요. 사진·일기·대화 기록은
+                  보관되며 가족 화면에서 더는 볼 수 없어요.
+                </p>
+                <div className="gr-cta gr-cta-two">
+                  <button type="button" className="fam-btn fam-btn--tonal" disabled={busy} onClick={close}>
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    className="fam-btn gr-btn-danger"
+                    disabled={busy}
+                    onClick={() => exitRoom(`/api/rooms/${room.room_id}`, 'DELETE')}
+                  >
+                    {busy ? '삭제하는 중…' : '삭제하기'}
                   </button>
                 </div>
               </>
@@ -975,6 +1003,7 @@ function sheetLabel(s: Sheet, hon: string) {
   if (s.t === 'owner') return `${s.m.name}님에게 방장 넘기기`
   if (s.t === 'set') return s.s.name
   if (s.t === 'leave') return '가족방 나가기'
+  if (s.t === 'delete') return '가족방 삭제'
   if (s.t === 'text') return s.k === 'nickname' ? `${s.m.name}님 호칭 고치기` : `${TEXTS[s.k].name} 고치기`
   return `${hon} 폰 연결 해제`
 }

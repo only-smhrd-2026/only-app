@@ -87,10 +87,12 @@ def require_member(room_id: int, user: User, db: Session) -> RoomMember:
     return member
 
 
-def require_owner(room_id: int, user: User, db: Session) -> FamilyRoom:
+def require_owner(room_id: int, user: User, db: Session, *, lock: bool = False) -> FamilyRoom:
     require_member(room_id, user, db)
-    room = db.get(FamilyRoom, room_id)
-    if not room or room.owner_user_id != user.user_id:
+    room = db.get(FamilyRoom, room_id, with_for_update=lock)
+    if room is None or room.status != "ACTIVE":
+        raise ApiError(404, "ROOM_NOT_FOUND", "가족방을 찾을 수 없어요")
+    if room.owner_user_id != user.user_id:
         raise ApiError(403, "NOT_OWNER", "방장만 할 수 있습니다")
     return room
 
