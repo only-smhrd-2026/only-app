@@ -72,3 +72,15 @@
 .diary-detail-delete-actions { display:flex; gap:10px; }
 .diary-detail-delete-actions .fam-btn { flex:1; }
 .diary-detail-delete-confirm { border-color:var(--rec); color:var(--rec); }
+/* 11/27 팀 회의 — ♡ 좋아요 하나 + 좋아요 N개, 댓글 쓰기 위 이모지 한 줄 (가족 홈 회상 댓글 판도 같이 씀) */
+.diary-detail-reactions { align-items:center; }
+.diary-detail-like { display:grid; place-items:center; width:48px; height:48px; padding:0; border:0; border-radius:50%; background:none; color:var(--text); cursor:pointer; }
+.diary-detail-like .fam-ic { width:28px; height:28px; }
+.diary-detail-like[aria-pressed='true'] { color:var(--danger); }
+.diary-detail-like[aria-pressed='true'] .fam-ic { fill:currentColor; }
+.diary-detail-like:disabled { cursor:wait; opacity:.6; }
+.diary-detail-likes { font-size:15px; font-weight:700; }
+.cm-emojis { display:flex; justify-content:space-between; gap:4px; }
+.cm-emojis button { flex:1; min-height:44px; padding:0; border:0; border-radius:12px; background:none; font-size:24px; line-height:1; }
+.cm-emojis button:active { background:var(--soft); }
+.cm-emojis button:disabled { opacity:.4; }
