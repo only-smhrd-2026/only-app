@@ -10,7 +10,7 @@ import { useLocation } from 'react-router-dom'
 import { MOOD_LABEL, type DiaryListOut, type DiaryOut } from '../../api/types'
 import ElderPhoto from '../../components/ElderPhoto'
 import ElderCalendar, { kstDay, type CalMonth } from '../../components/ElderCalendar'
-import { ElderCoverBack, ElderStop } from '../../components/ElderUi'
+import { ElderCoverBack, ElderStop, openCover } from '../../components/ElderUi'
 import MoodIcon from '../../components/MoodIcon'
 import type { ElderNavState } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
@@ -101,7 +101,7 @@ export default function ELDER_DIARY_004() {
   function show(d: DiaryOut) {
     setOpen(d)
     setMonth(kstDay(d.posted_at).slice(0, 7)) // 넘기다 다른 달로 가면 뒤의 달력도 그 달로
-    if (!view.current?.open) view.current?.showModal()
+    openCover(view.current)
     read(d)
   }
 
@@ -126,6 +126,7 @@ export default function ELDER_DIARY_004() {
       )}
       <dialog
         ref={view}
+        tabIndex={-1}
         className="elder-cover elder-cover--backed elder-past-view"
         aria-label="일기 크게 보기"
         onClose={(e) => {

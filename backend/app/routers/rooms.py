@@ -110,20 +110,21 @@ def list_members(room_id: int, user: CurrentUser, db: DB):
     require_member(room_id, user, db)
     owner_user_id = db.get(FamilyRoom, room_id).owner_user_id
     rows = db.execute(
-        select(RoomMember, User.name)
+        select(RoomMember, User)
         .join(User, User.user_id == RoomMember.user_id)
         .where(RoomMember.room_id == room_id, RoomMember.removed_at.is_(None))
         .order_by(RoomMember.joined_at, RoomMember.member_id)
     ).all()
     # 다른 가족에게 보이는 목록이라 이메일·로그인 방식은 넣지 않는다
-    return [member_out(member, name, owner_user_id) for member, name in rows]
+    return [member_out(member, u, owner_user_id) for member, u in rows]
 
 
-def member_out(member: RoomMember, name: str, owner_user_id: int) -> MemberOut:
+def member_out(member: RoomMember, u: User, owner_user_id: int) -> MemberOut:
     """구성원 목록과 호칭 변경 응답을 같은 모양으로 만든다."""
     return MemberOut(
         user_id=member.user_id,
-        name=name,
+        name=u.name,
+        profile_url=f"/api/media/{u.profile_key}" if u.profile_key else None,
         nickname=member.nickname,
         relation_tag=member.relation_tag,
         joined_at=member.joined_at,
@@ -133,7 +134,12 @@ def member_out(member: RoomMember, name: str, owner_user_id: int) -> MemberOut:
 
 @router.patch("/{room_id}/members/{user_id}", response_model=MemberOut)
 def update_member(room_id: int, user_id: int, body: MemberUpdateIn, user: CurrentUser, db: DB):
-    room = require_owner(room_id, user, db)
+    # 내 호칭은 내가, 다른 분 호칭은 방장만 (11/27 내 정보)
+    if user_id == user.user_id:
+        require_member(room_id, user, db)
+        room = db.get(FamilyRoom, room_id)
+    else:
+        room = require_owner(room_id, user, db)
     member = db.scalar(
         select(RoomMember)
         .where(
@@ -147,7 +153,7 @@ def update_member(room_id: int, user_id: int, body: MemberUpdateIn, user: Curren
         raise ApiError(404, "MEMBER_NOT_FOUND", "구성원을 찾을 수 없어요")
     member.nickname = body.nickname
     db.commit()
-    return member_out(member, db.get(User, user_id).name, room.owner_user_id)
+    return member_out(member, db.get(User, user_id), room.owner_user_id)
 
 
 @router.post("/{room_id}/invites", response_model=InviteCreatedOut, status_code=201)

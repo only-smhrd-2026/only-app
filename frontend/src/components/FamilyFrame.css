@@ -21,7 +21,8 @@
   --primary:var(--acc); --on-primary:#FFFFFF; --tint:var(--soft); --tint-2:#FBF7F0; --danger:var(--rec);
   --r:20px; --gut:16px;
   --font: Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
-  display:flex; flex-direction:column; height:100dvh; max-width:520px; margin:0 auto;
+  display:flex; flex-direction:column; height:var(--fam-h, 100dvh); max-width:520px; margin:0 auto;
+  position:relative; top:var(--fam-top, 0px); /* 아이폰 키보드 — 보이는 칸에 맞춤 (useKeyboardFit, 11/27) */
   background:var(--bg); color:var(--text); font:15px/1.5 var(--font); letter-spacing:-.015em; word-break:keep-all;
   -webkit-font-smoothing:antialiased;
 }
@@ -67,6 +68,7 @@
 .fam-av { flex:none; width:40px; height:40px; border-radius:50%; display:grid; place-items:center; overflow:hidden; font-size:16px; font-weight:800; letter-spacing:0; }
 .fam-av--s { width:32px; height:32px; font-size:14px; }
 .fam-av img { width:100%; height:auto; }
+.fam-av .fam-av-pic { height:100%; object-fit:cover; } /* 프로필 사진 (11/27 내 정보) */
 .fam-tone-a { background:var(--t1); color:var(--t1e); }
 .fam-tone-b { background:var(--t2); color:var(--t2e); }
 .fam-tone-c { background:var(--t3); color:var(--t3e); }

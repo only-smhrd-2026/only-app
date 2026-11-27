@@ -14,7 +14,7 @@
  * 아직 안 보여 드린 것만(서버 DELETE …/photos/{id}). [오늘 소식 보내기]·[추억 사진 올리기]는 아래 탭 가운데 [+].
  */
 import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { DiaryOut, PhotoListOut, PhotoOut, RoomOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
@@ -66,7 +66,7 @@ function byMonth(photos: PhotoOut[]): [string, PhotoOut[]][] {
 }
 /** '모든 사진' 묶음 이름 — 2026년 · 옛날 사진 · 날짜 모름 */
 const groupName = (k: string) => (!k ? '날짜 모름' : isOld(k) ? '옛날 사진' : `${k.slice(0, 4)}년`)
-const SOURCE: Record<PhotoOut['source'], string> = { FAMILY: '추억 사진', FAMILY_DIARY: '오늘 소식', ELDER_CAMERA: '일기 사진' }
+const SOURCE: Record<PhotoOut['source'], string> = { FAMILY: '추억 사진', FAMILY_DIARY: '가족 일기', ELDER_CAMERA: '일기 사진' }
 
 export default function PHOTO_001() {
   const { room } = useFamily()
@@ -112,15 +112,19 @@ function useSwipe(onSwipe: (d: 1 | -1) => void) {
 
 function Album({ room }: { room: RoomOut }) {
   const hon = room.elder_honorific
-  const [who, setWho] = useState<Who>('')
+  // 보던 자리(누구 사진·달·보던 사진)를 이 화면의 방문 기록에 적어 둔다 — [일기 보기] 뒤 뒤로 오면 그 사진 그대로 (11/27)
+  const nav = useNavigate()
+  const loc = useLocation()
+  const [saved] = useState<{ who: Who; mk?: string; viewId?: number } | undefined>(() => loc.state?.album)
+  const [who, setWho] = useState<Who>(saved?.who ?? '')
   const [page, setPage] = useState<Page | null>(null)
   const [error, setError] = useState<ApiError | Error>()
   const [tick, setTick] = useState(0) // [다시 시도]
-  const [mk, setMk] = useState<string>() // 지금 보는 달 열쇠 — 없으면 맨 앞 달
+  const [mk, setMk] = useState<string | undefined>(saved?.mk) // 지금 보는 달 열쇠 — 없으면 맨 앞 달
   const [anim, setAnim] = useState('') // 달을 넘길 때 미끄러지는 방향
   const [all, setAll] = useState(false) // '모든 사진' 판
   const [mini, setMini] = useState(false) // 내리면 연도 줄을 숨긴다
-  const [viewId, setViewId] = useState<number>() // 사진 보기
+  const [viewId, setViewId] = useState<number | undefined>(saved?.viewId) // 사진 보기
   const [sheet, setSheet] = useState<Sheet>()
   const [busy, setBusy] = useState(false)
   const [sheetError, setSheetError] = useState('')
@@ -148,6 +152,12 @@ function Album({ room }: { room: RoomOut }) {
     })().catch((e) => !stop.signal.aborted && setError(e))
     return () => stop.abort()
   }, [room.room_id, who, tick])
+
+  useEffect(() => {
+    nav(loc.pathname, { replace: true, state: { ...loc.state, album: { who, mk, viewId } } })
+    // 보던 자리가 바뀔 때만 적는다 (loc 이 바뀌어 다시 도는 것은 막음)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [who, mk, viewId])
 
   useEffect(() => {
     if (!note) return
@@ -695,7 +705,7 @@ function Story({ p, hon }: { p: PhotoOut; hon: string }) {
     const liked = d?.reactions.some((r) => r.by === 'ELDER' && r.kind === 'LIKE')
     return (
       <section className="ph-story">
-        <h3>{p.source === 'ELDER_CAMERA' ? `${hon} 일기` : `${p.uploader_name ?? '가족'}의 오늘 소식`}</h3>
+        <h3>{p.source === 'ELDER_CAMERA' ? `${hon} 일기` : `${p.uploader_name ?? '가족'}의 일기`}</h3>
         {d ? <p className="ph-quote">{d.body}</p> : <p className="ph-mini">{diary.error ? diary.error.message : '불러오는 중…'}</p>}
         {reply && (
           <p className="ph-said">

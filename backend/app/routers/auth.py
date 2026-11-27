@@ -1,13 +1,19 @@
 """가족 가입·로그인 (이메일/비밀번호, 쿠키 session). 카카오는 2순위."""
 
-from fastapi import APIRouter, Request, Response
+import io
+import logging
+import uuid
+
+from fastapi import APIRouter, Request, Response, UploadFile
+from PIL import Image
 from sqlalchemy import select
 
-from app.config import now_kst
+from app.config import UPLOAD_MAX_BYTES, now_kst
 from app.deps import DB, CurrentUser
 from app.errors import ApiError
 from app.models import User
-from app.schemas.auth import AuthOut, LoginIn, PasswordChangeIn, SignupIn, UserOut
+from app.routers.photos import to_jpeg
+from app.schemas.auth import AuthOut, LoginIn, NameIn, PasswordChangeIn, SignupIn, UserOut
 from app.schemas.common import OkOut
 from app.security import (
     SESSION_COOKIE,
@@ -20,8 +26,10 @@ from app.security import (
     signup_allowed,
     verify_password,
 )
+from app.services import storage
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+log = logging.getLogger(__name__)
 
 
 @router.post("/signup", response_model=AuthOut, status_code=201)
@@ -94,3 +102,51 @@ def change_password(body: PasswordChangeIn, request: Request, response: Response
 @router.get("/me", response_model=UserOut)
 def me(user: CurrentUser):
     return user
+
+
+PROFILE_SIDE = 400  # 프로필 사진 긴 변(px) — 동그라미로만 보이니 작게
+
+
+@router.patch("/me", response_model=UserOut)
+def update_me(body: NameIn, user: CurrentUser, db: DB):
+    """내 이름 고치기 (11/27 내 정보). 일기·댓글 옆 이름은 읽을 때마다 users.name 을 쓰니 지난 글도 같이 바뀐다"""
+    user.name = body.name
+    db.commit()
+    return user
+
+
+@router.put("/me/photo", response_model=UserOut)
+def set_my_photo(file: UploadFile, user: CurrentUser, db: DB):
+    """프로필 사진 올리기·바꾸기 (11/27). 사진 올리기와 같은 검사(to_jpeg — 위치정보 지움) 뒤 작게 줄여 저장"""
+    if file.size is None or file.size > UPLOAD_MAX_BYTES:
+        raise ApiError(400, "PHOTO_TOO_BIG", f"사진은 {UPLOAD_MAX_BYTES // (1024 * 1024)}MB까지예요")
+    jpeg, _ = to_jpeg(file.file.read())
+    img = Image.open(io.BytesIO(jpeg))
+    img.thumbnail((PROFILE_SIDE, PROFILE_SIDE))
+    out = io.BytesIO()
+    img.save(out, "JPEG", quality=85)
+    key = f"users/{user.user_id}/{uuid.uuid4().hex}.jpg"
+    storage.put(key, out.getvalue())
+    old, user.profile_key = user.profile_key, key
+    db.commit()
+    if old:
+        _drop(old)
+    return user
+
+
+@router.delete("/me/photo", response_model=UserOut)
+def delete_my_photo(user: CurrentUser, db: DB):
+    """프로필 사진 지우기 — 이름 첫 글자 동그라미로 돌아간다"""
+    old, user.profile_key = user.profile_key, None
+    db.commit()
+    if old:
+        _drop(old)
+    return user
+
+
+def _drop(key: str) -> None:
+    """옛 프로필 사진 파일 지우기. DB 저장 뒤라 실패해도 응답은 그대로 (photos.commit_photo_deletion 과 같은 순서)"""
+    try:
+        storage.delete(key)
+    except Exception as e:  # 저장소 일시 오류 — 파일만 남는다. 로그는 예외 종류만 (D15)
+        log.warning("profile photo delete failed error=%s", type(e).__name__)

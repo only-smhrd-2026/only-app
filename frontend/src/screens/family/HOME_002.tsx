@@ -384,7 +384,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
             <b>{name}</b>
             <small>
               <time dateTime={d.posted_at}>{postedAt(d.posted_at)}</time>
-              {!elder && d.author_nickname ? ` · ${d.author_nickname}` : ''} · {elder ? '일기' : '오늘 소식'}
+              {!elder && d.author_nickname ? ` · ${d.author_nickname}` : ''} · 일기
             </small>
           </div>
         </header>

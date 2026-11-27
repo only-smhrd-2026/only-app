@@ -2,7 +2,7 @@
 
 from tests.conftest import make_room, signup
 
-KEYS = {"user_id", "name", "nickname", "relation_tag", "joined_at", "is_owner"}
+KEYS = {"user_id", "name", "nickname", "relation_tag", "joined_at", "is_owner", "profile_url"}
 
 
 def login(client, who):

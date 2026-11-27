@@ -83,6 +83,16 @@ export function Bub({ text, speed, className = '', disabled }: { text: string; s
 }
 
 /**
+ * 크게 보기 판 열기 — showModal 은 첫 버튼([‹ 뒤로])에 포커스를 줘서 강조 선이 생긴다(11/27 지난 일기 피드백).
+ * 판 자체(tabIndex={-1})로 포커스를 옮긴다. 판을 쓰는 dialog 에는 tabIndex={-1} 을 꼭 단다
+ */
+export function openCover(d: HTMLDialogElement | null) {
+  if (!d || d.open) return
+  d.showModal()
+  d.focus()
+}
+
+/**
  * 크게 보기 판(<dialog className="elder-cover elder-cover--backed">) 왼쪽 위 [‹ 뒤로] — 아래 [닫기] 대신 (11/27 팀 회의).
  * 하위 화면 [← 뒤로]와 같은 모양·자리. 누르면 판을 닫는다(폰 뒤로 키로 닫히는 것은 dialog 가 그대로 한다)
  */

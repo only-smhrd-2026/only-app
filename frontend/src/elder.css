@@ -316,7 +316,8 @@ html[data-font='XXL'] .elder-dot { width: 36px; height: 36px; }
 }
 .elder-sheet::before { content: ''; align-self: center; flex: none; width: 44px; height: 5px; border-radius: 3px; background: var(--elder-line); }
 .elder-sheet h1 { font-size: var(--elder-font-size-lg); font-weight: 800; letter-spacing: -.035em; line-height: 1.24; text-wrap: balance; }
-/* 화면 가득 덮는 판(사진 크게 보고 고르기·지난 일기 한 편) */
+/* 화면 가득 덮는 판(사진 크게 보고 고르기·지난 일기 한 편). 열 때 판 자체가 포커스를 받는다(openCover) — 판엔 선 없음 */
+.elder-cover:focus { outline: none; }
 .elder-cover {
   width: 100vw;
   height: 100dvh;

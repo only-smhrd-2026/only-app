@@ -34,6 +34,8 @@ import HOME_002 from './screens/family/HOME_002'
 import HOME_003 from './screens/family/HOME_003'
 import JOIN_001 from './screens/family/JOIN_001'
 import LOGIN_001 from './screens/family/LOGIN_001'
+import ME_001 from './screens/family/ME_001'
+import MEMORY_001 from './screens/family/MEMORY_001'
 import NOTI_001 from './screens/family/NOTI_001'
 import PHOTO_001 from './screens/family/PHOTO_001'
 import POLICY_001 from './screens/family/POLICY_001'
@@ -81,10 +83,12 @@ export const SCREENS: ScreenDef[] = [
   { id: 'UPLOAD_001', path: '/upload', title: '사진 올리기', Screen: UPLOAD_001 },
   { id: 'UPLOAD_002', path: '/upload/target', title: '올릴 가족방 고르기', Screen: UPLOAD_002 },
   { id: 'UPLOAD_003', path: '/upload/result', title: '올린 결과', Screen: UPLOAD_003 },
-  { id: 'FDIARY_001', path: '/fdiary', title: '오늘 소식', Screen: FDIARY_001 }, // 11/23 3단계 → 한 화면, 사진첩 탭의 하위 화면
+  { id: 'FDIARY_001', path: '/fdiary', title: '내 일기 보내기', Screen: FDIARY_001 }, // 11/23 3단계 → 한 화면, 사진첩 탭의 하위 화면
   { id: 'WEEKLY_001', path: '/weekly/:roomId', title: '주간 이야기', Screen: WEEKLY_001 },
   { id: 'NOTI_001', path: '/notifications', title: '알림', Screen: NOTI_001 },
   { id: 'ACCOUNT_001', path: '/account/withdraw', title: '회원 탈퇴', Screen: ACCOUNT_001 }, // 11/19 새 화면
+  { id: 'ME_001', path: '/me', title: '내 정보', Screen: ME_001 }, // 11/27 가족방 탭 '내 정보' 칸
+  { id: 'MEMORY_001', path: '/memories/:sessionId', title: '회상', Screen: MEMORY_001 }, // 11/27 회상 상세·댓글
   // 11/17 새 화면 — 로그인 전에도 열려야 해서 TAB·SUB 어디에도 넣지 않는다(틀 밖, 화면이 스스로 ← 를 그린다)
   { id: 'POLICY_001', path: '/policy', title: '약관·개인정보 처리방침', Screen: POLICY_001 },
 ]
@@ -119,7 +123,7 @@ const TAB_SCREENS = new Set(['HOME_001', 'PHOTO_001', 'WEEKLY_001', 'GROUP_002']
 // 위 [← 뒤로]가 없는 어르신 화면 — 홈(오늘의 한 장·마음 체크 초대도 홈 화면)과 기기 연결. 나머지 어르신 화면은 ElderBackFrame (D97)
 const ELDER_NO_BACK = new Set(['ELDER_HOME_001', 'ELDER_TODAY_001', 'ELDER_MOOD_001', 'ELDER_CONNECT_001'])
 const isElderBacked = (s: { id: string }) => s.id.startsWith('ELDER_') && !ELDER_NO_BACK.has(s.id)
-const SUB_SCREENS = new Set(['GROUP_001', 'HOME_002', 'HOME_003', 'UPLOAD_001', 'UPLOAD_002', 'UPLOAD_003', 'FDIARY_001', 'NOTI_001', 'ACCOUNT_001'])
+const SUB_SCREENS = new Set(['GROUP_001', 'HOME_002', 'HOME_003', 'UPLOAD_001', 'UPLOAD_002', 'UPLOAD_003', 'FDIARY_001', 'NOTI_001', 'ACCOUNT_001', 'ME_001', 'MEMORY_001'])
 const route = ({ id, path, title, Screen }: ScreenDef) => (
   <Route key={id} path={path} element={Screen ? <Screen /> : <NotYet id={id} title={title} />} />
 )

@@ -114,6 +114,7 @@ def test_like_and_comments(client):
     sid = _talk(e["room_id"], e["photo_ids"][0])
     _run()
     url = f"/api/memories/{sid}"
+    assert client.get(url).json()["session_id"] == str(sid)  # 회상 상세 (11/27)
     r = client.post(f"{url}/reaction", json={"kind": "HEART", "on": True})
     assert r.status_code == 200, r.text
     assert [x["kind"] for x in r.json()["reactions"]] == ["HEART"]
@@ -138,6 +139,7 @@ def test_other_room_and_deleted_photo_are_hidden(client):
     signup(client)  # 다른 가족으로 로그인
     assert client.get(f"/api/rooms/{e['room_id']}/memories").status_code == 404
     assert client.post(f"/api/memories/{sid}/reaction", json={"kind": "HEART", "on": True}).status_code == 404
+    assert client.get(f"/api/memories/{sid}").status_code == 404
     with SessionLocal() as db:
         db.get(Photo, e["photo_ids"][0]).status = "DELETED"
         db.commit()
