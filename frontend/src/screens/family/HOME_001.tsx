@@ -5,7 +5,7 @@
  * 실시간 반영은 없다 — 홈을 열 때·앱으로 돌아올 때 읽는다(D36). 회상 대화 원문은 여기 없다(R18) — 11/27 부터 AI 가 만든
  * 가족용 한두 줄 요약만 회상 카드로 섞인다. 피드는 최근 7일만, 그보다 예전은 일기 달력(HOME_003)에서.
  */
-import { Fragment, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import {
@@ -137,18 +137,33 @@ function InstallCard() {
  */
 function SummaryCard({ room, week, notes }: { room: RoomOut; week: MoodWeekOut; notes: string[] }) {
   const [open, setOpen] = useState(false)
+  const card = useRef<HTMLElement>(null)
+  const wasOpen = useRef(false)
+
+  // 전체 카드를 접은 직후에만, 줄어든 카드의 시작을 상단바 아래에 맞춘다. 펼칠 때는 위치를 유지한다.
+  useLayoutEffect(() => {
+    const closed = wasOpen.current && !open
+    wasOpen.current = open
+    if (!closed) return
+    const el = card.current
+    const scroller = el?.closest<HTMLElement>('.fam-body')
+    if (!el || !scroller) return
+    const top = scroller.scrollTop + el.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+    scroller.scrollTo({ top })
+  }, [open])
+
   const check = week.last_check
   const who = `${room.elder_name} ${room.elder_honorific}`
   const md = (ymd: string) => `${day(ymd).getMonth() + 1}/${day(ymd).getDate()}`
   const days = thisWeek(week)
   const talked = days.filter((d) => d.talked).length
   const low = days.filter((d) => d.low).length
-  // 버튼·링크·펼친 안쪽 카드(CareCard 등)를 누른 건 그쪽 일 — 카드 바탕을 누를 때만 펼치고 접는다
+  // 버튼·링크는 제 기능을 유지하고, 요즘 안부의 글·여백을 포함한 나머지 영역은 펼치고 접는다
   const toggle = (e: MouseEvent<HTMLElement>) => {
-    if (!(e.target as HTMLElement).closest('a, button, input, .home-sum-more')) setOpen((o) => !o)
+    if (!(e.target as Element).closest('a, button, input')) setOpen((o) => !o)
   }
   return (
-    <section className="fam-card home-sum" aria-label={`${who} 요즘`} onClick={toggle}>
+    <section className="fam-card home-sum" aria-label={`${who} 요즘`} onClick={toggle} ref={card}>
       <div className="home-sum-row">
         <div className="home-strip">
           <b>{week.last_talk_at ? `${talkLabel(week.last_talk_at)}에 이야기하셨어요` : '아직 이야기를 나누지 않으셨어요'}</b>
