@@ -210,6 +210,19 @@ def _member_names(db, room_id: int, full: bool = False, elder: bool = False) -> 
     return {user_id: nickname or name for user_id, nickname, name in rows}
 
 
+def _member_photos(db, room_id: int) -> dict[int, str]:
+    """지금 가족방에 있는 사람의 user_id → 프로필 사진 주소 (11/27, 내 정보에서 올린 것). 사진 없는 사람은 빠진다.
+
+    나간 사람도 뺀다 — 그 사진은 /api/media 가 404 를 줘 깨진 그림이 된다(이름 첫 글자로 둔다).
+    """
+    rows = db.execute(
+        select(User.user_id, User.profile_key)
+        .join(RoomMember, RoomMember.user_id == User.user_id)
+        .where(RoomMember.room_id == room_id, RoomMember.removed_at.is_(None), User.profile_key.is_not(None))
+    ).all()
+    return {user_id: f"/api/media/{key}" for user_id, key in rows}
+
+
 def _elder_diaries_with_reactions(room_id: int):
     return select(Diary).where(
         Diary.room_id == room_id,
@@ -253,6 +266,8 @@ def _rows(db, room: FamilyRoom, *cond, me: int | None = None, limit: int = 50) -
         if any(d.reactions for d, *_ in rows)
         else {}
     )
+    # 프로필 사진은 가족 화면에만 — 어르신 폰은 그대로 (D117 과 같이)
+    photos = _member_photos(db, room.room_id) if me is not None else {}
     out = []
     for d, name, photo_key, nickname in rows:
         mine = d.author_user_id == me if me is not None else d.author_type == "ELDER"
@@ -267,6 +282,7 @@ def _rows(db, room: FamilyRoom, *cond, me: int | None = None, limit: int = 50) -
                 author_type=d.author_type,
                 author_name=f"{room.elder_name} {room.elder_honorific}" if d.author_type == "ELDER" else name,
                 author_nickname=nickname if d.author_type == "FAMILY" else None,
+                author_profile_url=photos.get(d.author_user_id) if d.author_type == "FAMILY" else None,
                 body=d.body,
                 mood=d.mood,
                 illustration_type=d.illustration_type,
@@ -280,6 +296,7 @@ def _rows(db, room: FamilyRoom, *cond, me: int | None = None, limit: int = 50) -
                     dict(
                         r,
                         name=names.get(r.get("user_id")) if r.get("by") == "FAMILY" else None,
+                        profile_url=photos.get(r.get("user_id")) if r.get("by") == "FAMILY" else None,
                         audio_url=_voice_url(r),
                     )
                     for r in sorted(d.reactions, key=lambda r: r.get("kind") == "REPLY")

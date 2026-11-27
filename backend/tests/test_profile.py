@@ -4,7 +4,7 @@ import io
 
 from PIL import Image
 
-from tests.conftest import add_photos, connect_device, make_room, signup
+from tests.conftest import add_photos, connect_device, make_room, setup_elder, signup
 from tests.test_member_nickname import login
 from tests.test_room_settings import family as family
 
@@ -91,3 +91,37 @@ def test_elder_photo_owner_only_and_room_only(client, family):
     login(client, owner)
     assert client.delete(path).json()["elder_photo_url"] is None
     assert client.get(second).status_code == 404
+
+
+def test_profile_photo_on_feed_and_replies(client):
+    """11/27: 내 정보에서 올린 사진이 가족 화면 일기 카드(쓴 사람)·댓글 칸에 붙는다. 어르신 기기 응답엔 없다."""
+    from tests.test_family_diary import _post
+    from tests.test_reactions import _diary
+
+    room_id = setup_elder(client)["room_id"]
+    url = _put(client).json()["profile_url"]
+    mine = _post(client, room_id).json()
+    assert mine["author_profile_url"] == url
+    elder_diary = _diary(room_id)
+    (reply,) = client.post(f"/api/diaries/{elder_diary}/reply", json={"text": "보고 싶어요"}).json()["reactions"]
+    assert reply["profile_url"] == url
+    feed = {d["diary_id"]: d for d in client.get(f"/api/rooms/{room_id}/diaries").json()["diaries"]}
+    assert feed[mine["diary_id"]]["author_profile_url"] == url
+    assert feed[elder_diary]["author_profile_url"] is None  # 어르신 일기는 방의 elder_photo_url
+    client.cookies.delete("session")  # 어르신 기기 쿠키만
+    (elder_view,) = client.get("/api/elder/diaries").json()["diaries"]
+    assert "profile_url" not in elder_view["reactions"][0]
+    news = client.get("/api/elder/family-news").json()["diaries"]
+    assert all(d["author_profile_url"] is None for d in news)
+
+
+def test_profile_photo_on_memory_comments(client):
+    """회상 카드 댓글 칸에도 프로필 사진 (11/27)."""
+    from tests.test_memory_cards import _run, _talk
+
+    e = setup_elder(client)
+    url = _put(client).json()["profile_url"]
+    sid = _talk(e["room_id"], e["photo_ids"][0])
+    _run()
+    (reply,) = client.post(f"/api/memories/{sid}/reply", json={"text": "보고 싶어요"}).json()["reactions"]
+    assert reply["profile_url"] == url

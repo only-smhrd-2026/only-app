@@ -201,7 +201,7 @@ function DayCard({ d, room }: { d: DiaryOut; room?: RoomOut }) {
     <article className="fam-card home-post">
       <Link className="home-post-link" to={`/diaries/${d.diary_id}`}>
         <header className="home-post-h">
-          <Avatar name={elder ? (room?.elder_name ?? name) : name} src={elder ? room?.elder_photo_url : null} />
+          <Avatar name={elder ? (room?.elder_name ?? name) : name} src={elder ? room?.elder_photo_url : d.author_profile_url} />
           <div className="home-post-who">
             <b>{name}</b>
             <span className="fam-mini">{sub}</span>

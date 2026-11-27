@@ -21,7 +21,7 @@ from app.config import MEMORY_FEED_DAYS, TZ, now_kst, today_kst
 from app.deps import DB, CurrentUser, require_member
 from app.errors import ApiError
 from app.models import Photo, RoomMember, TalkSession
-from app.routers.diaries import _member_names
+from app.routers.diaries import _member_names, _member_photos
 from app.schemas.diaries import MemoryCardOut, MemoryListOut, MemoryReactionIn, ReplyEditIn, ReplyIn
 
 router = APIRouter(tags=["memories"])
@@ -41,7 +41,9 @@ def _cards(db, room_id: int, *cond) -> list[MemoryCardOut]:
         .where(TalkSession.room_id == room_id, *_SHOWN, *cond)
         .order_by(func.coalesce(TalkSession.ended_at, TalkSession.started_at).desc())
     ).all()
-    names = _member_names(db, room_id, full=True) if any(s.reactions for s, _ in rows) else {}
+    reacted = any(s.reactions for s, _ in rows)
+    names = _member_names(db, room_id, full=True) if reacted else {}
+    photos = _member_photos(db, room_id) if reacted else {}
     return [
         MemoryCardOut(
             session_id=s.session_id,
@@ -51,7 +53,7 @@ def _cards(db, room_id: int, *cond) -> list[MemoryCardOut]:
             ended_at=s.ended_at or s.started_at,
             # 좋아요 칸 먼저, 댓글은 남긴 순서 — 일기(diaries._rows)와 같은 차례
             reactions=[
-                dict(r, name=names.get(r.get("user_id")))
+                dict(r, name=names.get(r.get("user_id")), profile_url=photos.get(r.get("user_id")))
                 for r in sorted(s.reactions, key=lambda r: r.get("kind") == "REPLY")
             ],
         )

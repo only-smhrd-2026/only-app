@@ -162,7 +162,7 @@ export default function MEMORY_001() {
                 const my = r.by === 'FAMILY' && r.user_id === user.user_id
                 return (
                   <li key={`${r.by}${r.user_id ?? ''}-${r.at}`}>
-                    <Avatar name={r.name ?? '가족'} small />
+                    <Avatar name={r.name ?? '가족'} src={r.profile_url} small />
                     <span>
                       <span className="cm-text">
                         <b>{my ? '나' : (r.name ?? '가족')}</b> {r.text}
