@@ -36,7 +36,7 @@
 .ph-empty { display:flex; flex-direction:column; align-items:flex-start; gap:10px; padding:18px 16px; }
 
 /* 옛 사진(연도만 아는 사진)은 빛바랜 색 */
-.ph-old img, img.ph-old { filter:sepia(.5) saturate(.8) contrast(.92) brightness(1.03); }
+.ph-old > img, img.ph-old { filter:sepia(.5) saturate(.8) contrast(.92) brightness(1.03); }
 
 /* 표지 사진 — 달 글자·사진 수, 오른쪽 아래 옛날 사진 동그라미 */
 .ph-herowrap { position:relative; }
@@ -56,12 +56,13 @@
 .ph-cell { position:relative; display:block; padding:0; border:0; overflow:hidden; background:var(--bg2); cursor:pointer; }
 .ph-cell.bl { grid-column:1 / span 2; grid-row:span 2; }
 .ph-cell.br { grid-column:2 / span 2; grid-row:span 2; }
-.ph-cell img { width:100%; height:100%; object-fit:cover; display:block; transition:transform .2s; }
-.ph-cell:active img { transform:scale(.97); }
+.ph-cell > img { width:100%; height:100%; object-fit:cover; display:block; transition:transform .2s; }
+.ph-cell:active > img { transform:scale(.97); }
 /* 사진 칸 — 왼쪽 아래 올린 사람(어르신은 파랑), 오른쪽 아래 말풍선 = 어르신이 이 사진으로 이야기하심 (11/25) */
 .ph-who, .ph-talk { position:absolute; bottom:5px; width:22px; height:22px; border-radius:50%; display:grid; place-items:center; }
 .ph-who { left:5px; background:var(--t2); color:var(--t2e); font-size:10px; font-weight:800; box-shadow:0 0 0 1.5px #fff; }
 .ph-who.by-elder { background:var(--t4); color:var(--t4e); }
+.ph-who img { position:absolute; inset:0; width:100%; height:100%; border-radius:inherit; object-fit:cover; }
 .ph-talk { right:5px; background:var(--surf); color:var(--acc); box-shadow:0 1px 4px rgba(42,27,16,.35); }
 .ph-talk .fam-ic { width:13px; height:13px; fill:currentColor; }
 .ph-next { display:flex; align-items:center; justify-content:center; gap:4px; width:100%; min-height:56px; margin-top:2px; border:0; background:none; color:var(--ink3); font-size:14px; font-weight:700; }
@@ -136,5 +137,5 @@ button.ph-next { cursor:pointer; }
 
 @media (prefers-reduced-motion:reduce) {
   .ph-page.in-l, .ph-page.in-r, .ph-view, .ph-all { animation:none; }
-  .ph-year, .ph-cell img { transition:none; }
+  .ph-year, .ph-cell > img { transition:none; }
 }

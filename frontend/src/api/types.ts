@@ -231,6 +231,7 @@ export type PhotoOut = {
   elder_note: string | null // 어르신이 대화에서 이 사진을 바로잡아 주신 내용 한 문장 (FR-ME-009)
   group: PhotoGroup // 11/23 사진첩 분류 칩
   uploader_name: string | null // 11/23 올린 사람(가족 별명→이름, 어르신 사진이면 '순자 할머니' 꼴)
+  uploader_profile_url?: string // 올린 사람의 프로필 사진 또는 가족방에 등록한 어르신 얼굴 사진
   shown: boolean // 11/23 어르신께 보여 드렸나(오늘의 한 장·대화에 나옴). 이 사진 빼기 규칙에만 쓴다(11/25 화면 글자 없앰)
   // 11/25 사진첩 판 — 목록만 채운다
   talked: boolean // 어르신이 이 사진으로 말씀하신 대화가 있다 — 사진 칸 말풍선

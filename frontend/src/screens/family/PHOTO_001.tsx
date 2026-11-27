@@ -594,6 +594,15 @@ function MonthPage(props: {
                   {/* 'elder' 클래스는 어르신 화면 틀(elder.css 전역)과 겹친다 (11/24) — by-elder */}
                   <span className={`ph-who${p.source === 'ELDER_CAMERA' ? ' by-elder' : ''}`} aria-hidden="true">
                     {by[0]}
+                    {p.uploader_profile_url && (
+                      <img
+                        key={p.uploader_profile_url}
+                        src={p.uploader_profile_url}
+                        alt=""
+                        loading="lazy"
+                        onError={(event) => { event.currentTarget.hidden = true }}
+                      />
+                    )}
                   </span>
                   {talkedOf(p) && (
                     <span className="ph-talk" aria-hidden="true">
