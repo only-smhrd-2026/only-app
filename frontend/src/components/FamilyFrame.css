@@ -46,6 +46,7 @@
 
 /* 본문 — 이 칸만 스크롤 */
 .fam-body { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+.fam-body :is(input, textarea) { scroll-margin-bottom:20px; } /* 키보드 위로 맞출 때 칸 아래 여백 (11/27 아이폰) */
 /* 틀 안에 들어온 옛 화면: 화면 높이·바탕은 틀이 맡는다 */
 .fam-body .fam-skin { min-height:0; background:transparent; }
 

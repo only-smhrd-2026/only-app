@@ -77,11 +77,20 @@ function useKeyboardFit() {
       root.setProperty('--fam-h', `${vv.height}px`)
       root.setProperty('--fam-top', `${vv.offsetTop}px`)
     }
+    // 틀이 줄어든 뒤 누른 입력 칸을 키보드 바로 위로 (11/27 아이폰: 사파리는 줄어들기 전에 칸을 맞춰서 위 사진 자리에 머물렀다).
+    // 맞춘 다음은 손으로 위로 밀어 사진을 볼 수 있다 — 키보드는 그대로
+    const keep = () => {
+      fit()
+      const el = document.activeElement
+      if (el instanceof HTMLElement && el.matches('input, textarea') && el.closest('.fam-body')) {
+        requestAnimationFrame(() => el.scrollIntoView({ block: 'nearest' }))
+      }
+    }
     fit()
-    vv.addEventListener('resize', fit)
+    vv.addEventListener('resize', keep)
     vv.addEventListener('scroll', fit)
     return () => {
-      vv.removeEventListener('resize', fit)
+      vv.removeEventListener('resize', keep)
       vv.removeEventListener('scroll', fit)
       root.removeProperty('--fam-h')
       root.removeProperty('--fam-top')
