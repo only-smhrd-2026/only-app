@@ -21,14 +21,10 @@ import VoicePlay from '../../components/VoicePlay'
 import { micBlockedTip, startRecording, type Recorder } from '../../lib/audio'
 import './HOME_002.css'
 
-const REACTS = [
-  ['HEART', '❤️', '하트'],
-  ['SMILE', '😊', '웃음'],
-  ['CLAP', '👏', '박수'],
-] as const
 // 댓글(한마디, 11/19): 한 사람이 여러 개(11/25). 추천 문구는 뺐다(11/25 사용자 — 인스타 댓글창처럼). 글자 수는 서버 config.REPLY_MAX 와 같은 값
-const REPLY_MAX = 40
-const VOICE_MS = 20_000 // 말로 한마디 녹음 상한 — 40자면 몇 초
+const REPLY_MAX = 200
+const EMOJIS = ['❤️', '😊', '👏', '😂', '🥰', '🙏'] // 댓글 쓰기 칸 위 자주 쓰는 이모지 — 가족 홈 회상 댓글과 같은 줄
+const VOICE_MS = 20_000 // 말로 한마디 녹음 상한
 const VOICE_REPLY_SEC = 30 // 목소리 답장 상한 — 서버 config.VOICE_REPLY_MAX_SEC 와 같은 값 (D99)
 
 const postedAt = (iso: string) =>
@@ -93,6 +89,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
   // 내 이모지 칸 — 내 한마디(REPLY) 칸은 따로라 여기서 뺀다
   const mine = d?.reactions.find((r) => r.by === 'FAMILY' && r.kind !== 'REPLY' && r.user_id === me.data?.user_id)?.kind
   const replies = d?.reactions.filter((r) => r.by === 'FAMILY' && r.kind === 'REPLY') ?? []
+  const likes = d?.reactions.filter((r) => r.by === 'FAMILY' && r.kind !== 'REPLY').length ?? 0 // 가족 이모지 칸 = 좋아요
   const elderReply = d?.reactions.find((r) => r.by === 'ELDER' && r.kind === 'REPLY')
   const isMine = (r: Reaction) => r.user_id === me.data?.user_id
   const myLast = replies.findLast(isMine) // 내 마지막 한마디 — 두 번 누름 막기·보냈다는 안내
@@ -311,6 +308,16 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
     return () => view.abort()
   }, [d, room])
 
+  // 가족 홈 카드의 💬 로 왔으면 댓글 쓰기 칸으로 한 번 (11/27 팀 회의)
+  const replyFocused = useRef(false)
+  const toReply = location.state?.reply === true
+  useEffect(() => {
+    if (!toReply || !d || !room || replyFocused.current || !replyInput.current) return
+    replyFocused.current = true
+    replyInput.current.scrollIntoView({ block: 'center' })
+    replyInput.current.focus({ preventScroll: true })
+  }, [toReply, d, room])
+
   if (diary.error?.status === 401 || rooms.error?.status === 401 || me.error?.status === 401) return <Navigate to="/login" replace />
   if (diary.error?.status === 404) {
     return (
@@ -401,29 +408,23 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
         <p className="diary-detail-text">{d.body}</p>
         <p className="diary-detail-mood"><MoodIcon mood={d.mood} />일기 기분 · {MOOD_LABEL[d.mood]}</p>
         {elder && (
-          <div className="diary-detail-reactions" role="group" aria-label="가족 이모지" aria-busy={busy}>
-            {REACTS.map(([kind, emoji, label]) => {
-              const n = d.reactions.filter((r) => r.by === 'FAMILY' && r.kind === kind).length
-              const on = mine === kind
-              return (
-                <button
-                  type="button"
-                  key={kind}
-                  className="diary-detail-react"
-                  onClick={() => react(kind)}
-                  disabled={busy}
-                  aria-pressed={on}
-                  aria-label={n ? `${label} ${n} 개` : label}
-                >
-                  <span aria-hidden="true">{emoji}</span>
-                  {n > 0 && <span>{n}</span>}
-                </button>
-              )
-            })}
+          // 11/27 팀 회의 '인스타처럼': 이모지 3개 → ♡ 좋아요 하나 + '좋아요 N개'(예전 웃음·박수 칸도 좋아요로 센다)
+          <div className="diary-detail-reactions" role="group" aria-label="좋아요" aria-busy={busy}>
+            <button
+              type="button"
+              className="diary-detail-like"
+              onClick={() => react(mine ?? 'HEART')}
+              disabled={busy}
+              aria-pressed={!!mine}
+              aria-label={mine ? '좋아요 취소' : '좋아요'}
+            >
+              <FamIcon name="heart" />
+            </button>
+            {likes > 0 && <span className="diary-detail-likes">좋아요 {likes}개</span>}
           </div>
         )}
         {elder && reactionError && (
-          <p className="diary-detail-note" role="alert">이모지를 보내지 못했어요. 연결을 확인하고 다시 눌러 주세요.</p>
+          <p className="diary-detail-note" role="alert">좋아요를 보내지 못했어요. 연결을 확인하고 다시 눌러 주세요.</p>
         )}
         {(!d.is_mine || replies.length > 0) && (
           <section className="fam-card diary-detail-reply" aria-labelledby="diary-reply-title" aria-busy={busy}>
@@ -478,6 +479,14 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
                   </div>
                 )}
                 {/* 댓글 입력 줄 (11/25 사용자: 추천 문구 없이 인스타 댓글창처럼). 🎤 = 어르신 일기는 목소리 답장, 가족 일기는 말로 쓰기 */}
+                {/* 자주 쓰는 이모지 한 줄 (11/27 팀 회의) — 누르면 글에 넣는다 */}
+                <div className="cm-emojis" role="group" aria-label="이모지 넣기">
+                  {EMOJIS.map((e) => (
+                    <button type="button" key={e} disabled={!!voice} onClick={() => { setDraft((t) => (t + e).slice(0, REPLY_MAX)); replyInput.current?.focus() }}>
+                      {e}
+                    </button>
+                  ))}
+                </div>
                 <form className="cm-bar" onSubmit={(e) => { e.preventDefault(); void sendReply(draft) }}>
                   <Avatar name={me.data?.name ?? '나'} small />
                   <input

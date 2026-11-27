@@ -92,7 +92,9 @@ WEATHER_WIND_MS = 7  # 이상이면 바람 심심이 (D109 — 9 → 7)
 ELDER_DIARY_LIST_LIMIT = 100
 # 가족 소식 첫 장 '하트가 왔어요'가 한 번에 받는 가족 이모지·한마디 수. 넘으면 들은 뒤 나머지가 나온다 (D63)
 ELDER_HEARTS_LIMIT = 20
-REPLY_MAX = 40  # 가족이 어르신 일기에 남기는 한마디 글자 수 (11/19) — 화면 HOME_002 의 REPLY_MAX 와 같은 값
+# 가족 댓글(한마디) 글자 수 (11/19 40자 → 11/27 팀 회의 인스타식 댓글 200자) — 화면 HOME_002 의 REPLY_MAX 와 같은 값
+REPLY_MAX = 200
+ELDER_REPLY_MAX = 40  # 어르신 [말로 답하기] 한 줄 — 읽어 드리는 짧은 말이라 40자 그대로 (11/23)
 # 가족 목소리 답장 (D99, 11/24 사용자): 길이 상한(화면 HOME_002 VOICE_MS 와 같게),
 # 저장 mp3 고정 비트레이트(길이 = 바이트 / (KBPS × 125)), 받아 적은 자막 글자 수
 VOICE_REPLY_MAX_SEC = 30
@@ -128,6 +130,13 @@ WEEKLY_TALK_SHORT = 0.7  # 한마디 길이가 평소의 이 비율보다 짧으
 WEEKLY_TALK_LONG = 1.3  # 한마디 길이가 평소의 이 비율보다 길면 '길어졌어요'
 WEEKLY_MOOD_LOW_DAYS = 2  # 속상했어요·쓸쓸했어요를 고르신 날이 한 주에 이만큼이면 살펴볼 것으로 알린다
 WEEKLY_RUDE_MIN = 2  # 거친 말·성적인 말이 한 주에 이만큼이면 주간 요약에 횟수만 한 줄 (D112 — 한 번은 넘어간다)
+# 회상 카드 (D115, 11/27 팀 회의): 회상 대화가 끝나면 가족용 한두 줄 요약을 AI 1번으로 만든다
+MEMORY_CARD_EVERY_MIN = 2  # 요약 작업 간격(분) — 대화가 끝나고 이만큼 안에 가족 홈에 뜬다
+MEMORY_CARD_LOOKBACK_HOURS = 24  # 이 시간 안에 시작한 대화만 요약 — AI 가 계속 실패해도 끝없이 다시 부르지 않게
+# 끝난 표시 없이 둔 대화(앱을 닫음)는 시작하고 이만큼 지나면 끝난 것으로 보고 요약 (30분 이어 하기 + 여유)
+MEMORY_CARD_IDLE_MIN = 40
+MEMORY_CARD_MAX = 120  # 요약 글자 수 상한 (sessions.family_summary 칸은 200)
+MEMORY_FEED_DAYS = 7  # 가족 홈 피드에 보이는 회상 카드 날수 — 피드 1주일 제한과 같게 (11/27 팀 회의)
 STORY_HOUR = 4  # 새벽 이 시각에 어제 대화에서 이야기 기억을 뽑는다 — 가족방마다 AI 1번 (FR-AI-007, D77)
 STORY_FACTS_MAX = 3  # 하루치 대화에서 뽑는 기억 수 상한
 STORY_LOOKBACK_DAYS = 7  # 이어 물을 기억을 찾는 날수 — 이 안에서 가장 최근 대화한 날의 기억 하나 (FR-AI-008, D77)

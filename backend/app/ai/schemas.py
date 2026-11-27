@@ -12,7 +12,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.config import FAMILY_DRAFT_MAX, REPLY_MAX, ROOT
+from app.config import ELDER_REPLY_MAX, FAMILY_DRAFT_MAX, ROOT
 
 BANNED_WORDS: list[str] = json.loads((ROOT / "data" / "banned_words.json").read_text("utf-8"))["words"]
 # 위급 표현 조각 (D55 ① 안전망). 띄어쓰기를 뺀 어르신 말에 들어 있으면 AI 판단과 상관없이 위급으로 본다
@@ -265,7 +265,7 @@ class ElderReply(BaseModel):
     """어르신이 가족 일기에 말로 하신 답을 어르신 말투 한 줄로 (40자까지). 가족에게 그대로 간다."""
 
     # elder_reply 의 모델 출력 (11/23 어르신 [말로 답하기]). 어르신이 확인한 뒤 POST /elder/diaries/{id}/reply
-    text: str = Field(min_length=1, max_length=REPLY_MAX)
+    text: str = Field(min_length=1, max_length=ELDER_REPLY_MAX)
 
     @field_validator("text")
     @classmethod
@@ -304,6 +304,13 @@ class StoryFactItem(BaseModel):
 
 class StoryFactItems(BaseModel):
     facts: list[StoryFactItem]
+
+
+class MemoryCardText(BaseModel):
+    """회상 카드 요약 (D115) — 가족 홈 피드·어르신 사진첩의 1~2문장과 근거 구절. 규칙 검사는 ai/memory_card.check."""
+
+    summary: str  # 어르신이 이 사진으로 하신 이야기 1~2문장, '요'로 끝, 주어 없이
+    quote: str  # summary 의 근거가 된 어르신 답의 구절 — 원문 그대로 4자 이상. 내용 없는 요약이면 빈 글
 
 
 class DiaryDraft(BaseModel):

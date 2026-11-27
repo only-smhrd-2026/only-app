@@ -33,6 +33,7 @@ CASES = [
     ("POST", "/rooms/{room_id}/family-diary/draft", {"text": "소식이에요"}),
     ("GET", "/rooms/{room_id}/weekly", None),
     ("GET", "/rooms/{room_id}/calendar", None),  # 가족 일기 달력 (11/25)
+    ("GET", "/rooms/{room_id}/memories", None),  # 회상 카드 (D115, 11/27)
     ("GET", "/rooms/{room_id}/calendar/{day}", None),
     ("GET", "/rooms/{room_id}/mood-week", None),
     ("GET", "/rooms/{room_id}/alert", None),
@@ -48,6 +49,10 @@ CASES = [
     ("DELETE", "/diaries/{diary_id}/reply", None),
     ("POST", "/diaries/{diary_id}/voice-reply", "voice"),  # 가족 목소리 답장 (D99)
     ("DELETE", "/diaries/{diary_id}", None),
+    ("POST", "/memories/{session_id}/reaction", {"kind": "HEART", "on": True}),
+    ("POST", "/memories/{session_id}/reply", {"text": "보고 싶어요"}),
+    ("PATCH", "/memories/{session_id}/reply", {"at": "2026-11-26T09:00:00+09:00", "text": "보고 싶어요"}),
+    ("DELETE", "/memories/{session_id}/reply", None),
     ("POST", "/elder/diaries/{diary_id}/read", None),
     ("POST", "/elder/diaries/{diary_id}/like", {"on": True}),
     ("POST", "/elder/diaries/{diary_id}/reply-draft", {"transcript": "고맙다"}),

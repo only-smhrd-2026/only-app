@@ -186,13 +186,16 @@ def _mock(prompt_name: str, data: dict[str, Any], schema: type[T]) -> T:
             for p in data["pairs"][:1]
         ]
         return schema.model_validate({"facts": facts})
+    if prompt_name == "memory_card":  # 가장 긴 답을 그대로 따온 요약 — 키 없는 PC 에서도 회상 카드가 보이게 (D115)
+        said = max((p["said"] for p in data["pairs"]), key=len)
+        return schema.model_validate({"summary": f"'{said[:40]}' 하고 이야기하셨어요.", "quote": said[:40]})
     if prompt_name == "story_question":
         text = f"{data.get('elder_honorific', '어르신')}, {data['when']} 들려주신 이야기 생각나요. 그 뒤로 어떠셨어요?"
         return schema.model_validate({"text": text, "suggestions": ["좋았어요", "그저 그래요"], "signal": "NONE"})
     if prompt_name == "chat_buddy":  # 키 없는 PC 에서도 잡담 화면·화면 이동을 눌러 볼 수 있게 (D106)
         return schema.model_validate(_mock_chat(data))
     if prompt_name != "memory_coach":  # 일기(diary_*·family_*)는 coach 의 고정 문장으로 이어 간다
-        raise LlmError(f"mock 은 memory_coach·weekly_summary·story_* 만 지원합니다 (요청: {prompt_name})")
+        raise LlmError(f"mock 은 memory_coach·weekly_summary·story_*·memory_card 만 지원합니다 (요청: {prompt_name})")
     turn_no = int(data.get("turn_no", 1))
     if data.get("closing"):
         text = "오늘 이야기 들려주셔서 고마워요. 모아서 가족들한테 전해 드릴게요."

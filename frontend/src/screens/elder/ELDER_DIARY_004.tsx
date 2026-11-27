@@ -1,13 +1,16 @@
 /**
  * ELDER_DIARY_004 — 지난 일기 (D60, FR-DI-004). 일기 쓰기 화면(ELDER_DIARY_001)의 [지난 일기]에서 온다.
- * 내가 올린 일기를 최신순으로 쭉 보여 준다(11/23 시안 e-diary-past) — 이 목록만 사진첩처럼 스크롤한다. 줄을 누르면 화면 가득 크게 보여 주고 읽어 준다.
- * 크게 본 화면은 [닫기]나 폰의 뒤로 키로 닫힌다(<dialog>). 글 상자를 누르면 다시 읽는다. 회상 질문은 없다.
+ * 11/27 팀 회의: 목록 대신 달력(가족 소식 달력과 같은 components/ElderCalendar, 크게) — 일기 쓴 날 = 그날 그림 칸.
+ * 날을 누르면 화면 가득 크게 보여 주고 읽어 준다. 크게 본 화면은 왼쪽 위 [‹ 뒤로]나 폰의 뒤로 키로 닫힌다(<dialog>),
+ * 아래 [◀ 전 일기][다음 일기 ▶]로 넘긴다. 글 상자를 누르면 다시 읽는다. 회상 질문은 없다.
+ * 달은 받은 목록(최근 ELDER_DIARY_LIST_LIMIT 개)에서 일기가 있는 달로만 넘긴다.
  */
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { MOOD_LABEL, type DiaryListOut, type DiaryOut } from '../../api/types'
 import ElderPhoto from '../../components/ElderPhoto'
-import { ElderStop } from '../../components/ElderUi'
+import ElderCalendar, { kstDay, type CalMonth } from '../../components/ElderCalendar'
+import { ElderCoverBack, ElderStop } from '../../components/ElderUi'
 import MoodIcon from '../../components/MoodIcon'
 import type { ElderNavState } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
@@ -15,7 +18,7 @@ import { playVoice, speak, stopSpeaking } from '../../lib/audio'
 import { DiaryPaper } from './ELDER_DIARY_003'
 import './ELDER_DIARY_004.css'
 
-const GUIDE = '지난 일기예요. 보고 싶은 일기를 눌러 주세요.'
+const GUIDE = '지난 일기예요. 그림이 있는 날을 누르면 읽어 드려요.'
 const EMPTY = '아직 쓴 일기가 없어요.'
 const KIND_WORD: Record<string, string> = { HEART: '하트', SMILE: '웃음', CLAP: '박수' }
 /** 가족이 이 일기에 보낸 것 — '큰딸 · 하트', '손주 · ‘보고 싶어요’' (11/24 실사용: 가족 소식에서 한 번 듣고 나면 다시 볼 곳이 없었다) */
@@ -67,6 +70,18 @@ export default function ELDER_DIARY_004() {
   const [open, setOpen] = useState<DiaryOut>()
   const view = useRef<HTMLDialogElement>(null)
   const count = data?.diaries.length
+  const all = data?.diaries ?? [] // 새것 먼저
+  const months = [...new Set(all.map((d) => kstDay(d.posted_at).slice(0, 7)))] // 새 달 먼저
+  const [month, setMonth] = useState<string>()
+  const shown = month ?? months[0] ?? kstDay(new Date().toISOString()).slice(0, 7)
+  const mi = months.indexOf(shown)
+  const cal: CalMonth = {
+    month: shown,
+    diaries: all.filter((d) => kstDay(d.posted_at).startsWith(shown)),
+    prev_month: months[mi + 1] ?? null,
+    next_month: mi > 0 ? months[mi - 1] : null,
+  }
+  const at = open ? all.findIndex((d) => d.diary_id === open.diary_id) : -1
   const errorMessage = error?.code === 'DEVICE_REQUIRED' ? '가족이 보낸 연결 링크를 먼저 열어 주세요.' : error?.message
 
   // 안내는 소리로도. 떠나면 멈춘다
@@ -85,7 +100,8 @@ export default function ELDER_DIARY_004() {
 
   function show(d: DiaryOut) {
     setOpen(d)
-    view.current?.showModal()
+    setMonth(kstDay(d.posted_at).slice(0, 7)) // 넘기다 다른 달로 가면 뒤의 달력도 그 달로
+    if (!view.current?.open) view.current?.showModal()
     read(d)
   }
 
@@ -100,35 +116,17 @@ export default function ELDER_DIARY_004() {
   }, [data, openId])
 
   return (
-    <main className="elder elder-past">
-      <h1>지난 일기</h1>
+    <main className="elder elder--fit elder-past">
       {loading ? (
         <p className="elder-text" role="status">잠시만요…</p>
       ) : error ? (
         <ElderStop text={errorMessage} onRetry={error.code !== 'DEVICE_REQUIRED' ? reload : undefined} />
-      ) : count === 0 ? (
-        <p className="elder-sub">{EMPTY}</p>
       ) : (
-        <>
-          <p className="elder-sub">보고 싶은 일기를 눌러 주세요.</p>
-          <div className="elder-col elder-past-list">
-            {data?.diaries.map((d) => (
-              <button key={d.diary_id} type="button" className="elder-btn elder-btn--secondary elder-past-item" onClick={() => show(d)}>
-                {d.illustration_url
-                  ? <img src={d.illustration_url} alt="" loading="lazy" decoding="async" />
-                  : <span className="elder-past-noimg"><MoodIcon mood={d.mood} /></span>}
-                <span>
-                  {day(d.posted_at)}
-                  <small><MoodIcon mood={d.mood} /> {MOOD_LABEL[d.mood]}</small>
-                </span>
-              </button>
-            ))}
-          </div>
-        </>
+        <ElderCalendar title="지난 일기" noun="일기" empty={EMPTY} out={cal} onOpen={(i) => show(cal.diaries[i])} onMonth={setMonth} />
       )}
       <dialog
         ref={view}
-        className="elder-cover elder-past-view"
+        className="elder-cover elder-cover--backed elder-past-view"
         aria-label="일기 크게 보기"
         onClose={(e) => {
           // 안에 든 사진 크게 보기(ElderPhoto 의 dialog)가 닫힐 때도 이 이벤트가 올라온다 — 이 창이 닫힐 때만 비운다
@@ -137,6 +135,7 @@ export default function ELDER_DIARY_004() {
           setOpen(undefined)
         }}
       >
+        <ElderCoverBack onClick={() => view.current?.close()} />
         {open && (
           <>
             <h1>{day(open.posted_at)}</h1>
@@ -148,7 +147,11 @@ export default function ELDER_DIARY_004() {
             <DiaryPaper key={open.diary_id} body={open.body} onRead={() => read(open)} />
             <p className="elder-moodline"><MoodIcon mood={open.mood} />그날 기분 · {MOOD_LABEL[open.mood]}</p>
             {familyLines(open).length > 0 && <FamilyMarks d={open} />}
-            <button type="button" className="elder-btn elder-btn--secondary" onClick={() => view.current?.close()}>닫기</button>
+            {/* 왼쪽 = 예전 일기 (가족 소식 크게 보기와 같은 방향) */}
+            <div className="elder-pager">
+              <button type="button" className="elder-btn elder-btn--secondary elder-btn--sm" disabled={at >= all.length - 1} onClick={() => show(all[at + 1])}>◀ 전 일기</button>
+              <button type="button" className="elder-btn elder-btn--secondary elder-btn--sm" disabled={at <= 0} onClick={() => show(all[at - 1])}>다음 일기 ▶</button>
+            </div>
           </>
         )}
       </dialog>

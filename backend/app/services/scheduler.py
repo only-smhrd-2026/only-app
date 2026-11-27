@@ -20,11 +20,12 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select
 
-from app.ai import classify, story
+from app.ai import classify, memory_card, story
 from app.ai.weekly import summarize
 from app.config import (
     CLASSIFY_EVERY_MIN,
     DAILY_ALERT_HOUR,
+    MEMORY_CARD_EVERY_MIN,
     MEMORY_REMINDER_HOURS,
     NO_RECORD_DAYS,
     STORY_HOUR,
@@ -292,6 +293,12 @@ def classify_photos() -> None:
         log.info("job classify_photos done=%d left=%d", done, left)
 
 
+def memory_cards() -> None:
+    """끝난 회상 대화마다 가족 홈 회상 카드 요약을 만든다 (D115, 11/27). 한 번에 몇 개 — 남은 것은 다음 차례에."""
+    with SessionLocal() as db:
+        memory_card.run_pending(db)
+
+
 def story_facts() -> None:
     """어제 대화에서 이야기 기억을 뽑고, 보관 기간이 지난 기억을 지운다 (AI-07, D77)."""
     with SessionLocal() as db:
@@ -350,6 +357,12 @@ def start() -> None:
         classify_photos,
         CronTrigger(minute=f"*/{CLASSIFY_EVERY_MIN}", timezone=TZ),
         id="classify_photos",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        memory_cards,
+        CronTrigger(minute=f"*/{MEMORY_CARD_EVERY_MIN}", timezone=TZ),
+        id="memory_cards",
         replace_existing=True,
     )
     scheduler.add_job(

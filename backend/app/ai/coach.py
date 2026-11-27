@@ -40,7 +40,7 @@ from app.ai.schemas import (
     FamilyQuestion,
     question_marks,
 )
-from app.config import COMFORT_TURNS, DIARY_TURNS, FAMILY_DRAFT_MAX, MAX_TURNS, REPLY_MAX, today_kst
+from app.config import COMFORT_TURNS, DIARY_TURNS, ELDER_REPLY_MAX, FAMILY_DRAFT_MAX, MAX_TURNS, today_kst
 
 
 @dataclass
@@ -626,4 +626,4 @@ def elder_reply(transcript: str) -> str:
         said = " ".join(transcript.split())
         for word in BANNED_WORDS:
             said = said.replace(word, "")
-        return " ".join(said.split())[:REPLY_MAX]
+        return " ".join(said.split())[:ELDER_REPLY_MAX]

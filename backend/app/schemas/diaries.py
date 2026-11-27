@@ -139,3 +139,25 @@ class FamilyNewsOut(DiaryListOut):
 class HeartsHeardIn(BaseModel):
     # 읽어 드린 마지막 하트·한마디의 at. 그 뒤에 온 것은 다음에 읽어 드린다. 시간대 없는 시각은 422
     until: AwareDatetime
+
+
+class MemoryCardOut(BaseModel):
+    """가족 홈 회상 카드 (D115, 11/27) — 회상 대화의 사진·가족용 요약·좋아요(HEART)·댓글(REPLY)."""
+
+    session_id: uuid.UUID
+    room_id: int
+    photo_url: str | None
+    summary: str
+    ended_at: datetime  # 끝난 시각, 끝난 표시 없이 둔 대화면 시작 시각 — 피드에서 일기와 이 시각으로 섞인다
+    reactions: list[ReactionOut]
+
+
+class MemoryListOut(BaseModel):
+    memories: list[MemoryCardOut]
+
+
+class MemoryReactionIn(BaseModel):
+    """회상 카드 좋아요 — 하트 하나뿐(인스타식, 11/27). on = '이 상태로 만들어 줘'."""
+
+    kind: Literal["HEART"]
+    on: bool

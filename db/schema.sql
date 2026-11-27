@@ -161,6 +161,11 @@ CREATE TABLE sessions (
     emotion_flag VARCHAR(6) NOT NULL DEFAULT 'NONE' CHECK (emotion_flag IN ('NONE', 'SAD', 'LOW', 'RISK')),   -- S4 DEFAULT. D55: LOW 기운 없는 말, RISK 위급 표현. SAD 는 11/12 전 값
     private_flag BOOLEAN NOT NULL DEFAULT false,
     turns JSONB NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(turns) = 'array'),   -- 아래 주석의 키
+    -- 11/27 회상 카드 (D115): 회상(MEMORY·ALBUM) 대화가 끝나면 AI 가 만든 가족용 한두 줄 요약. 가족 홈 피드·어르신 사진첩에 보인다.
+    --   NULL = 아직 안 만듦, '' = 만들지 않음('가족에게 말하지 마'·위급·나눌 말이 없던 대화)
+    family_summary VARCHAR(200),
+    -- 회상 카드에 가족이 남긴 좋아요(HEART)·댓글(REPLY). 칸의 키는 diaries.reactions 와 같다 (목소리 답장 없음)
+    reactions JSONB NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(reactions) = 'array'),
     CONSTRAINT ck_sessions_turn_count CHECK (turn_count BETWEEN 0 AND 30)   -- 8턴 상한 (R17) → 잡담 20번 + 위로 (D106)
 );
 -- turns 한 칸 = AI 한 마디 또는 어르신 한 마디 (turn_no 1=AI, 2=ELDER, 3=AI …). 값 없는 키는 넣지 않는다.

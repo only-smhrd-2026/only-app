@@ -1,14 +1,8 @@
-/* 지난 일기 (11/23 시안 e-diary-past .ditem). 이 화면만 사진첩처럼 스크롤한다 (D60) */
-.elder-past { min-height: 100dvh; }
-.elder-past-list { padding-bottom: 6px; }
-.elder-past-item { min-height: 88px; justify-content: flex-start; gap: 14px; padding: 10px 14px; text-align: left; }
-.elder-past-item > img, .elder-past-noimg { flex: none; width: 64px; height: 64px; border-radius: 16px; object-fit: cover; }
-.elder-past-noimg { display: grid; place-items: center; background: var(--elder-bg2); }
-.elder-past-noimg .elder-ic { width: 40px; height: 40px; }
-.elder-past-item > span:last-child { display: flex; flex-direction: column; gap: 2px; line-height: 1.25; }
-.elder-past-item small { display: flex; align-items: center; gap: 4px; font-size: var(--elder-font-size-s); font-weight: 600; color: var(--elder-ink2); }
+/* 지난 일기 (11/27 팀 회의: 목록 → 달력, components/ElderCalendar). 제목은 위 [← 뒤로] 줄에 같이 — 한 화면에 들어가게 */
+.elder-backed > .elder-past { padding-top: 10px; }
+.elder-past > h1 { min-height: 48px; padding-left: 96px; display: flex; align-items: center; }
 
-/* 일기 한 편 크게 보기 — 화면 가득(.elder-cover), 스크롤 없이 한 화면. [닫기]나 폰의 뒤로 키로 닫힌다 */
+/* 일기 한 편 크게 보기 — 화면 가득(.elder-cover), 스크롤 없이 한 화면. 왼쪽 위 [‹ 뒤로]나 폰의 뒤로 키로 닫힌다 */
 .elder-past-view > .elder-photo-box { flex: 1 0 24dvh; min-height: 88px; } /* 글이 짧으면 남는 자리를 다 쓰고, 길어도 24% 는 지킨다 */
 /* 가족이 보낸 하트·한마디 (11/24) — 길면 이 칸만 스크롤, 화면은 그대로 한 화면 */
 .elder-past-fam { flex: 0 1 auto; min-height: 0; max-height: 22dvh; overflow-y: auto; margin: 0; padding: 10px 12px; border-radius: 16px; background: var(--elder-bg2); display: flex; flex-direction: column; gap: 8px; font-size: var(--elder-font-size-s); font-weight: 600; line-height: 1.35; }

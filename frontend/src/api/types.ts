@@ -204,6 +204,7 @@ export type AlbumPhoto = {
   source: 'FAMILY' | 'ELDER_CAMERA' | 'FAMILY_DIARY'
   diary_id: number | null // 어르신 일기 사진이면 그 일기
   uploader_name: string | null // 11/25 가족 사진을 올린 사람 '별명 (이름)' — 어르신 사진이면 null
+  talks: { at: string; summary: string }[] // 11/27 이 사진으로 나눈 회상 요약(새것 먼저) — 사진 보기에서 보여 드리고 읽어 드림
 }
 export type AlbumOut = { photos: AlbumPhoto[] }
 // POST /api/elder/album (multipart file + request_id) → AlbumPhoto — 어르신이 폰 갤러리에서 고른 사진 1장
@@ -297,7 +298,7 @@ export type DiaryOut = {
 // 가족: POST /api/diaries/{id}/reaction { kind, on } · 어르신: POST /api/elder/diaries/{id}/like { on } → 둘 다 DiaryOut
 // on 은 '이 상태로 만들어 줘' — 화면은 지금 보이는 상태의 반대를 보낸다(같은 요청이 두 번 가도 결과가 같다)
 // 가족 한마디 (11/19): kind 'REPLY' + text. 이모지와 따로, 한 사람이 여러 개(11/25), 응답에서는 이모지 칸들 뒤에 남긴 순서로 온다
-// POST /api/diaries/{id}/reply { text: 한 줄 1~40자 } → DiaryOut (새 칸이 붙음) · DELETE /api/diaries/{id}/reply?at=<칸의 at> → 204 (그 칸 하나)
+// POST /api/diaries/{id}/reply { text: 한 줄 1~200자, 11/27 } → DiaryOut (새 칸이 붙음) · DELETE /api/diaries/{id}/reply?at=<칸의 at> → 204 (그 칸 하나)
 export type Reaction = {
   by: 'ELDER' | 'FAMILY'
   kind: 'LIKE' | 'HEART' | 'SMILE' | 'CLAP' | 'REPLY'
@@ -312,6 +313,20 @@ export type Reaction = {
   audio_sec?: number
 }
 export type DiaryListOut = { diaries: DiaryOut[]; has_more: boolean }
+// 회상 카드 (11/27 팀 회의): 회상 대화가 끝나면 AI 가 가족용 한두 줄 요약을 만든다. '가족에게 말하지 마' 대화는 카드가 없다.
+// 가족 홈 피드에 일기와 섞여 시각 순으로 — 좋아요(HEART)·댓글(REPLY)은 일기와 같은 모양의 칸
+// GET /api/rooms/{room_id}/memories → MemoryListOut (최근 7일, 새것 먼저)
+// POST /api/memories/{session_id}/reaction { kind: 'HEART', on } · POST …/reply { text } · PATCH …/reply { at, text } → MemoryCardOut
+// DELETE /api/memories/{session_id}/reply?at=<칸의 at> → 204
+export type MemoryCardOut = {
+  session_id: string
+  room_id: number
+  photo_url: string | null
+  summary: string
+  ended_at: string
+  reactions: Reaction[]
+}
+export type MemoryListOut = { memories: MemoryCardOut[] }
 // 어르신 가족 소식 GET /api/elder/family-news (D63): 안 들은 가족 일기 + 아직 못 들은 가족 이모지·한마디(첫 장 '하트가 왔어요', 받은 순서)
 // 첫 장을 읽어 드린 뒤 POST /api/elder/hearts/heard { until: 읽어 드린 마지막 하트·한마디의 at } → 204
 export type Heart = {

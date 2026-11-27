@@ -83,6 +83,19 @@ export function Bub({ text, speed, className = '', disabled }: { text: string; s
 }
 
 /**
+ * 크게 보기 판(<dialog className="elder-cover elder-cover--backed">) 왼쪽 위 [‹ 뒤로] — 아래 [닫기] 대신 (11/27 팀 회의).
+ * 하위 화면 [← 뒤로]와 같은 모양·자리. 누르면 판을 닫는다(폰 뒤로 키로 닫히는 것은 dialog 가 그대로 한다)
+ */
+export function ElderCoverBack({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" className="elder-btn elder-btn--secondary elder-btn--sm elder-back" onClick={onClick} aria-label="뒤로">
+      {IC.back}
+      <span aria-hidden="true">뒤로</span>
+    </button>
+  )
+}
+
+/**
  * 어르신 하위 화면 틀 — 위 [← 뒤로] (D97, 11/24 실사용: 아이폰 홈 화면 앱에는 시스템 뒤로가 없어 막다른 화면이 생김).
  * 갤럭시 아래 뒤로 키와 똑같이 history.back — 화면마다 걸린 popstate(마음 체크 이전 문항·팝업 닫기·대화 보류 저장)가 그대로 돈다.
  * 앱 안에서 온 곳이 없으면(바로 열었음·알림) 어르신 홈으로. 가족 SubFrame 과 같은 식(history.state.idx).

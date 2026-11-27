@@ -186,6 +186,10 @@ class TalkSession(Base):
     # 턴 배열 (D38). 키는 schema.sql sessions 아래 주석.
     # 고칠 때는 새 리스트를 넣어야 저장된다 (제자리 append 는 감지 안 됨)
     turns: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, server_default=text("'[]'"))
+    # 회상 카드 (D115, 11/27): 가족용 요약(NULL 아직, '' 만들지 않음)과 그 카드의 좋아요·댓글
+    # (diaries.reactions 와 같은 칸)
+    family_summary: Mapped[str | None] = mapped_column(String(200))
+    reactions: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, server_default=text("'[]'"))
 
 
 # '기록'의 기준 = 어르신이 한 번이라도 말한 대화. 열기만 했거나 말 없이 끝난 대화는 빼고, 앱을 닫아 끝나지 않은
