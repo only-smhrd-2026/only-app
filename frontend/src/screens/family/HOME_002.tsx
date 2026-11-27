@@ -27,7 +27,7 @@ const REACTS = [
   ['CLAP', '👏', '박수'],
 ] as const
 // 댓글(한마디, 11/19): 한 사람이 여러 개(11/25). 추천 문구는 뺐다(11/25 사용자 — 인스타 댓글창처럼). 글자 수는 서버 config.REPLY_MAX 와 같은 값
-const REPLY_MAX = 40
+const REPLY_MAX = 200
 const VOICE_MS = 20_000 // 말로 한마디 녹음 상한 — 40자면 몇 초
 const VOICE_REPLY_SEC = 30 // 목소리 답장 상한 — 서버 config.VOICE_REPLY_MAX_SEC 와 같은 값 (D99)
 
