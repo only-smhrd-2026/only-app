@@ -26,7 +26,7 @@ from app.config import (
 )
 from app.deps import DB, CurrentDevice
 from app.errors import ApiError
-from app.models import DailyPick, Diary, FamilyRoom, Photo
+from app.models import DailyPick, Diary, FamilyRoom, Photo, TalkSession
 from app.photo_groups import group_of
 from app.routers.devices import notify_family
 from app.routers.diaries import _member_names, unheard_hearts
@@ -37,6 +37,7 @@ from app.schemas.common import OkOut
 from app.schemas.elder import (
     AlbumOut,
     AlbumPhotoOut,
+    AlbumTalkOut,
     ElderHomeOut,
     ElderSettingsIn,
     ElderSettingsOut,
@@ -315,7 +316,9 @@ def skip(device: CurrentDevice, db: DB, body: PickSkipIn | None = None):
     return OkOut()
 
 
-def _album_out(p: Photo, diary_id: int | None = None, uploader_name: str | None = None) -> AlbumPhotoOut:
+def _album_out(
+    p: Photo, diary_id: int | None = None, uploader_name: str | None = None, talks: list | None = None
+) -> AlbumPhotoOut:
     return AlbumPhotoOut(
         photo_id=p.photo_id,
         url=f"/api/media/{p.object_key}",
@@ -326,6 +329,7 @@ def _album_out(p: Photo, diary_id: int | None = None, uploader_name: str | None 
         source=p.source,
         diary_id=diary_id,
         uploader_name=uploader_name,
+        talks=talks or [],
     )
 
 
@@ -357,7 +361,26 @@ def album(device: CurrentDevice, db: DB):
         ).all()
     )
     names = _member_names(db, device.room_id, elder=True)
-    return AlbumOut(photos=[_album_out(p, diaries.get(p.photo_id), names.get(p.uploaded_by)) for p in photos])
+    # 이 사진들로 나눈 회상 요약 (D115, 11/27 '할머니 화면에서 회상이 안 보인다') — 새것 먼저
+    talks: dict[int, list[AlbumTalkOut]] = {}
+    for photo_id, at, summary in db.execute(
+        select(
+            TalkSession.photo_id,
+            func.coalesce(TalkSession.ended_at, TalkSession.started_at),
+            TalkSession.family_summary,
+        )
+        .where(
+            TalkSession.room_id == device.room_id,
+            TalkSession.photo_id.in_([p.photo_id for p in photos]),
+            TalkSession.family_summary.is_not(None),
+            TalkSession.family_summary != "",
+        )
+        .order_by(TalkSession.started_at.desc())
+    ):
+        talks.setdefault(photo_id, []).append(AlbumTalkOut(at=at, summary=summary))
+    return AlbumOut(
+        photos=[_album_out(p, diaries.get(p.photo_id), names.get(p.uploaded_by), talks.get(p.photo_id)) for p in photos]
+    )
 
 
 @router.post("/album", response_model=AlbumPhotoOut, status_code=201)

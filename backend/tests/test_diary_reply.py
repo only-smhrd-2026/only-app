@@ -48,17 +48,17 @@ def test_reply_send_change_delete(client):
     assert _unreply(client, diary_id).status_code == 204  # 없어도 204
 
 
-def test_reply_becomes_one_line_of_40(client):
+def test_reply_becomes_one_line_of_200(client):
     diary_id = _diary(setup_elder(client)["room_id"])
     r = _reply(client, diary_id, "  엄마\n김치\t최고\x00\x7f  ")  # 줄바꿈·제어 문자는 빈칸으로, 앞뒤 빈칸은 뗀다
     assert r.status_code == 200, r.text
     assert r.json()["reactions"][0]["text"] == "엄마 김치 최고"
-    r = _reply(client, diary_id, " " + "가" * 40 + "\n")  # 빈칸을 뗀 뒤 40자
+    r = _reply(client, diary_id, " " + "가" * 200 + "\n")  # 빈칸을 뗀 뒤 200자 (11/27 — 40자에서 늘림)
     assert r.status_code == 200, r.text
-    assert r.json()["reactions"][-1]["text"] == "가" * 40  # 새 한마디는 뒤에 붙는다
+    assert r.json()["reactions"][-1]["text"] == "가" * 200  # 새 한마디는 뒤에 붙는다
 
 
-@pytest.mark.parametrize("text", ["", "   ", "\n\t", "\x00", "가" * 41, None, 3])
+@pytest.mark.parametrize("text", ["", "   ", "\n\t", "\x00", "가" * 201, None, 3])
 def test_bad_reply_text_is_422(client, text):
     diary_id = _diary(setup_elder(client)["room_id"])
     r = _reply(client, diary_id, text)

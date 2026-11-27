@@ -1,11 +1,11 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.config import SPEECH_MAX_CHARS, STT_MAX_CHARS
+from app.config import ELDER_REPLY_MAX, SPEECH_MAX_CHARS, STT_MAX_CHARS
 from app.schemas.diaries import ReplyIn
 
 PhotoGroup = Literal["FAMILY", "TRAVEL", "FOOD", "NATURE", "EVENT", "ETC"]  # app/photo_groups.py 의 칩 (11/23)
@@ -87,6 +87,11 @@ class SttOut(BaseModel):
     confidence: float
 
 
+class AlbumTalkOut(BaseModel):
+    at: datetime  # 그 대화가 끝난 시각(끝난 표시가 없으면 시작 시각)
+    summary: str
+
+
 class AlbumPhotoOut(BaseModel):
     photo_id: int
     url: str
@@ -96,6 +101,7 @@ class AlbumPhotoOut(BaseModel):
     source: Literal["FAMILY", "ELDER_CAMERA", "FAMILY_DIARY"] = "FAMILY"
     diary_id: int | None = None  # 어르신 일기 사진이면 그 일기 (D60 바꿈)
     uploader_name: str | None = None  # 11/25 가족 사진을 올린 사람 '별명 (이름)' — 어르신 사진이면 null
+    talks: list[AlbumTalkOut] = []  # 11/27 이 사진으로 나눈 회상 요약(새것 먼저, D115) — 사진 보기에서 읽어 드림
 
 
 class AlbumOut(BaseModel):
@@ -113,4 +119,7 @@ class ElderReplyDraftOut(BaseModel):
 
 
 class ElderReplyIn(ReplyIn):
-    """어르신이 확인한 한 줄 — 가족 한마디(ReplyIn)와 같은 검사: 한 줄로 만든 뒤 1~40자."""
+    """어르신이 확인한 한 줄 — 가족 한마디(ReplyIn)와 같은 검사: 한 줄로 만든 뒤 1~40자.
+    가족 댓글은 11/27 에 200자로 늘었지만 어르신 답은 읽어 드리는 한 줄이라 40자 그대로."""
+
+    text: str = Field(min_length=1, max_length=ELDER_REPLY_MAX)
