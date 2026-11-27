@@ -117,7 +117,18 @@ def update_me(body: NameIn, user: CurrentUser, db: DB):
 
 @router.put("/me/photo", response_model=UserOut)
 def set_my_photo(file: UploadFile, user: CurrentUser, db: DB):
-    """프로필 사진 올리기·바꾸기 (11/27). 사진 올리기와 같은 검사(to_jpeg — 위치정보 지움) 뒤 작게 줄여 저장"""
+    """프로필 사진 올리기·바꾸기 (11/27). 화면이 동그라미로 잘라 정사각형으로 보낸다"""
+    key = f"users/{user.user_id}/{uuid.uuid4().hex}.jpg"
+    storage.put(key, profile_jpeg(file))
+    old, user.profile_key = user.profile_key, key
+    db.commit()
+    if old:
+        drop_photo(old)
+    return user
+
+
+def profile_jpeg(file: UploadFile) -> bytes:
+    """동그라미 사진(내 프로필·어르신 얼굴) — 사진 올리기와 같은 검사(to_jpeg — 위치정보 지움) 뒤 작게 줄인 JPEG"""
     if file.size is None or file.size > UPLOAD_MAX_BYTES:
         raise ApiError(400, "PHOTO_TOO_BIG", f"사진은 {UPLOAD_MAX_BYTES // (1024 * 1024)}MB까지예요")
     jpeg, _ = to_jpeg(file.file.read())
@@ -125,13 +136,7 @@ def set_my_photo(file: UploadFile, user: CurrentUser, db: DB):
     img.thumbnail((PROFILE_SIDE, PROFILE_SIDE))
     out = io.BytesIO()
     img.save(out, "JPEG", quality=85)
-    key = f"users/{user.user_id}/{uuid.uuid4().hex}.jpg"
-    storage.put(key, out.getvalue())
-    old, user.profile_key = user.profile_key, key
-    db.commit()
-    if old:
-        _drop(old)
-    return user
+    return out.getvalue()
 
 
 @router.delete("/me/photo", response_model=UserOut)
@@ -140,11 +145,11 @@ def delete_my_photo(user: CurrentUser, db: DB):
     old, user.profile_key = user.profile_key, None
     db.commit()
     if old:
-        _drop(old)
+        drop_photo(old)
     return user
 
 
-def _drop(key: str) -> None:
+def drop_photo(key: str) -> None:
     """옛 프로필 사진 파일 지우기. DB 저장 뒤라 실패해도 응답은 그대로 (photos.commit_photo_deletion 과 같은 순서)"""
     try:
         storage.delete(key)

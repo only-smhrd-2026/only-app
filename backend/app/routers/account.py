@@ -76,6 +76,7 @@ def _delete_room(db, room_id: int) -> list[str]:
     # 가족 목소리 답장 소리 (D99) — 일기 반응 칸에 key 가 있다
     cells = db.scalars(select(Diary.reactions).where(Diary.room_id == room_id))
     keys += [r["audio_key"] for reactions in cells for r in reactions if r.get("audio_key")]
+    keys.append(db.scalar(select(FamilyRoom.elder_photo_key).where(FamilyRoom.room_id == room_id)))  # 어르신 얼굴 사진
     # 그림일기 그림은 올리지 않은 초안의 것도 저장소에 남아 있다 (diaries._draw — 일기 대화마다 key 가 정해져 있다)
     diary_talks = select(TalkSession.session_id).where(TalkSession.room_id == room_id, TalkSession.kind == "DIARY")
     keys += [f"rooms/{room_id}/{session_id}.jpg" for session_id in db.scalars(diary_talks)]

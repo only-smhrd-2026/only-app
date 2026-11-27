@@ -179,7 +179,7 @@ export default function FamilyFrame() {
       <header className="fam-bar">
         {room ? (
           <button type="button" className="fam-switch" onClick={() => setSheet(true)} aria-haspopup="dialog">
-            <Avatar name={room.elder_name} />
+            <Avatar name={room.elder_name} src={room.elder_photo_url} />
             <span>
               {room.elder_name} {room.elder_honorific}네
             </span>
@@ -263,7 +263,7 @@ export default function FamilyFrame() {
               const on = r.room_id === room.room_id
               return (
                 <button type="button" key={r.room_id} className={on ? 'fam-opt on' : 'fam-opt'} onClick={() => pick(r.room_id)} autoFocus={on}>
-                  <Avatar name={r.elder_name} />
+                  <Avatar name={r.elder_name} src={r.elder_photo_url} />
                   <span>
                     <b>
                       {r.elder_name} {r.elder_honorific}

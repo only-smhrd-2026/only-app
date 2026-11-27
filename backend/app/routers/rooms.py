@@ -1,9 +1,10 @@
 """가족방 생성·목록, 초대 링크 발급·조회·폐기 (방장만). 어르신 기기 연결 해제. 방장 넘기기 (D98)."""
 
+import uuid
 from datetime import timedelta
 from decimal import Decimal
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, UploadFile
 from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
@@ -11,6 +12,7 @@ from app.config import REGIONS, TOWNS, now_kst
 from app.deps import DB, CurrentUser, require_member, require_owner
 from app.errors import ApiError
 from app.models import FamilyRoom, Photo, RoomMember, User
+from app.routers.auth import drop_photo, profile_jpeg
 from app.schemas.common import OkOut
 from app.schemas.rooms import (
     InviteCreatedOut,
@@ -26,7 +28,7 @@ from app.schemas.rooms import (
     RoomSettingsIn,
 )
 from app.security import new_token, sha256_hex
-from app.services import push
+from app.services import push, storage
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
@@ -225,6 +227,30 @@ def update_settings(room_id: int, body: RoomSettingsIn, user: CurrentUser, db: D
     for key, value in changed.items():
         setattr(room, key, value)
     db.commit()
+    return room_out(room, user.user_id, db)
+
+
+@router.put("/{room_id}/elder-photo", response_model=RoomOut)
+def set_elder_photo(room_id: int, file: UploadFile, user: CurrentUser, db: DB):
+    """어르신 얼굴 사진 넣기·바꾸기 (11/27) — 방장만. 내 프로필 사진(auth.set_my_photo)과 같은 줄이기·지우기 순서"""
+    room = require_owner(room_id, user, db)
+    key = f"rooms/{room_id}/elder/{uuid.uuid4().hex}.jpg"
+    storage.put(key, profile_jpeg(file))
+    old, room.elder_photo_key = room.elder_photo_key, key
+    db.commit()
+    if old:
+        drop_photo(old)
+    return room_out(room, user.user_id, db)
+
+
+@router.delete("/{room_id}/elder-photo", response_model=RoomOut)
+def delete_elder_photo(room_id: int, user: CurrentUser, db: DB):
+    """어르신 얼굴 사진 지우기 — 이름 첫 글자 동그라미로 돌아간다"""
+    room = require_owner(room_id, user, db)
+    old, room.elder_photo_key = room.elder_photo_key, None
+    db.commit()
+    if old:
+        drop_photo(old)
     return room_out(room, user.user_id, db)
 
 

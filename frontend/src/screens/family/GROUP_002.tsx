@@ -20,6 +20,7 @@ import type {
 } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
 import { Avatar } from '../../components/FamilyFrame'
+import PhotoCrop from '../../components/PhotoCrop'
 import Sim from '../../components/Sim'
 import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
@@ -170,6 +171,7 @@ function RoomTab() {
   const [error, setError] = useState<string>()
   const [note, setNote] = useState<string>()
   const [text, setText] = useState('') // 글로 고치기 판의 입력 칸
+  const [cropFile, setCropFile] = useState<File>() // 어르신 얼굴 사진 — 동그라미 자르기 판이 열려 있다
 
   useEffect(() => {
     if (!note) return
@@ -346,6 +348,25 @@ function RoomTab() {
   const list = members.data ?? []
   const reloadAll = () => (rooms.reload(), reloadRooms()) // 이 화면 + 위 막대·가족 홈이 같은 숫자를 보게
 
+  /** 어르신 얼굴 사진 (11/27, 방장만) — jpeg 가 있으면 넣기·바꾸기, 없으면 지우기 */
+  async function elderPhoto(jpeg?: Blob) {
+    setCropFile(undefined)
+    setBusy(true)
+    setError(undefined)
+    try {
+      const path = `/api/rooms/${roomId}/elder-photo`
+      const form = new FormData()
+      if (jpeg) form.append('file', jpeg, 'elder.jpg')
+      const out = await api<RoomOut>(path, jpeg ? { method: 'PUT', form } : { method: 'DELETE' })
+      setSettingsPatch((p) => ({ ...p, elder_photo_url: out.elder_photo_url }))
+      reloadRooms() // 위 막대·가족 홈 동그라미도 새 사진으로
+      setNote(jpeg ? '얼굴 사진을 바꿨어요' : '얼굴 사진을 지웠어요')
+    } catch (e) {
+      setError(msgOf(e))
+    }
+    setBusy(false)
+  }
+
   // 추억·일기 시간(24칸)·사시는 동네(17칸)는 판에서, 나머지는 칩으로 바로
   const [timeSets, chipSets] = [SETS.slice(0, 3), SETS.slice(3)]
   const fontPx = SETS[1].opts.find((o) => o[0] === room.font_size)?.[2]
@@ -518,6 +539,43 @@ function RoomTab() {
         <p className="fam-mini gr-owner-note">
           {owner ? `바꾸면 바로 저장돼요 · ${hon}의 다음 대화부터 바뀌어요` : '방장만 바꿀 수 있어요. 다른 가족에게는 읽기만 보여요.'}
         </p>
+        <div className="gr-setrow">
+          <Avatar name={room.elder_name} src={room.elder_photo_url} />
+          <div className="gr-grow">
+            <b>얼굴 사진</b>
+            <p className="fam-mini">가족 화면 동그라미에 보여요</p>
+          </div>
+          {owner && room.elder_photo_url && (
+            <button type="button" className="fam-text-btn" disabled={busy} onClick={() => void elderPhoto()}>
+              지우기
+            </button>
+          )}
+          {owner && (
+            <label className="fam-btn fam-btn--sm gr-file">
+              <input
+                className="st-file" // steps.css — 안 보이지만 키보드·화면 읽기로 누를 수 있게 (ME_001 과 같음)
+                type="file"
+                accept="image/jpeg,image/png"
+                aria-label="얼굴 사진 고르기"
+                disabled={busy}
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  e.target.value = '' // 같은 사진을 다시 골라도 onChange 가 오게
+                  if (file) setCropFile(file)
+                }}
+              />
+              {room.elder_photo_url ? '바꾸기' : '넣기'}
+            </label>
+          )}
+        </div>
+        {cropFile && (
+          <PhotoCrop
+            file={cropFile}
+            title={`${room.elder_name} ${hon} 얼굴 사진`}
+            onCancel={() => setCropFile(undefined)}
+            onDone={(jpeg) => void elderPhoto(jpeg)}
+          />
+        )}
         {(['elder_name', 'elder_honorific'] as const).map((k) => (
           <button key={k} type="button" className="gr-setrow gr-set" disabled={!owner} onClick={() => openText({ t: 'text', k }, room[k])}>
             <span>{TEXTS[k].name}</span>

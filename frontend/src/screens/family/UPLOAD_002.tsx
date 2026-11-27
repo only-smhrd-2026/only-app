@@ -288,7 +288,7 @@ export default function UPLOAD_002() {
                 disabled={busy || done.has(room.room_id)}
                 onClick={() => toggleRoom(room.room_id)}
               >
-                <Avatar name={room.elder_name} />
+                <Avatar name={room.elder_name} src={room.elder_photo_url} />
                 <b>
                   {nameOf(room)}네{done.has(room.room_id) && <small> · 보냄</small>}
                 </b>

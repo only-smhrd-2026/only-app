@@ -343,7 +343,7 @@ function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserO
     <article className="fam-card home-post">
       <Link className="home-post-link" to={to} state={{ familyDiaryOrder: true }}>
         <header className="home-post-h">
-          <Avatar name={elder ? room.elder_name : name} />
+          <Avatar name={elder ? room.elder_name : name} src={elder ? room.elder_photo_url : null} />
           <div className="home-post-who">
             <b>
               {name}
@@ -423,7 +423,7 @@ function MemoryPost({ m, room, me, onChange }: { m: MemoryCardOut; room: RoomOut
     <article className="fam-card home-post">
       <Link className="home-post-link" to={to}>
         <header className="home-post-h">
-          <Avatar name={room.elder_name} />
+          <Avatar name={room.elder_name} src={room.elder_photo_url} />
           <div className="home-post-who">
             <b>{who}</b>
             <span className="fam-mini">{clock(m.ended_at)} · 회상</span>
