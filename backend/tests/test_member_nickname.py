@@ -1,4 +1,4 @@
-"""방장만 구성원 호칭을 변경할 수 있다."""
+"""다른 분 호칭은 방장만, 내 호칭은 나도 바꿀 수 있다 (11/27 내 정보)."""
 
 from tests.test_room_settings import family as family
 
@@ -25,7 +25,9 @@ def test_owner_changes_nickname_and_clears_it(client, family):
 def test_nickname_permissions_and_removed_member(client, family):
     owner, member, room, _ = family
     path = f"/api/rooms/{room}/members/{member['user_id']}"
-    assert client.patch(path, json={"nickname": "딸"}).status_code == 403
+    assert client.patch(f"/api/rooms/{room}/members/{owner['user_id']}", json={"nickname": "딸"}).status_code == 403
+    mine = client.patch(path, json={"nickname": "막내"})  # 내 호칭은 방장이 아니어도
+    assert mine.status_code == 200 and mine.json()["nickname"] == "막내"
     login(client, owner)
     assert client.delete(path).status_code == 200
     response = client.patch(path, json={"nickname": "딸"})

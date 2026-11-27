@@ -16,7 +16,7 @@ import { api, ApiError } from '../../api/client'
 import type { DiaryOut, ElderReplyDraftOut, FamilyNewsOut, Heart, PastNewsOut, SttOut } from '../../api/types'
 import ElderCalendar, { kstDay } from '../../components/ElderCalendar'
 import ElderPhoto from '../../components/ElderPhoto'
-import { Bars, Bub, Dots, ElderCoverBack, ElderStop, IC } from '../../components/ElderUi'
+import { Bars, Bub, Dots, ElderCoverBack, ElderStop, IC, openCover } from '../../components/ElderUi'
 import Sim from '../../components/Sim'
 import { useLive, type ElderNavState } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
@@ -430,7 +430,7 @@ export default function ELDER_FAMILY_001() {
   function openPast(i: number) {
     setReadError(undefined)
     setPick(i)
-    dayView.current?.showModal()
+    openCover(dayView.current)
   }
 
   /** 크게 보기의 [◀ 전 소식]·[다음 소식 ▶] — 그 달 끝이면 소식이 있는 앞·뒤 달로 넘어가 이어서 */
@@ -612,6 +612,7 @@ export default function ELDER_FAMILY_001() {
       {showCal && (
         <dialog
           ref={dayView}
+          tabIndex={-1}
           className="elder-cover elder-cover--backed family-day"
           aria-label="지난 가족 소식 크게 보기"
           onClose={(e) => {

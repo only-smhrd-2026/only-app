@@ -272,7 +272,7 @@ function Write({ me, room }: { me: UserOut; room: RoomOut }) {
     <main className="st">
       <div className="st-body">
         <div className="st-head">
-          <h1>오늘 소식 보내기</h1>
+          <h1>내 일기 보내기</h1>
         </div>
 
         {photo ? (

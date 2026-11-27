@@ -95,6 +95,12 @@ def _mine(s: TalkSession, user_id: int, reply: bool) -> list[dict]:
     return [r for r in s.reactions if r.get("user_id") == user_id and (r.get("kind") == "REPLY") == reply]
 
 
+@router.get("/memories/{session_id}", response_model=MemoryCardOut)
+def get_memory(session_id: uuid.UUID, user: CurrentUser, db: DB):
+    """회상 카드 한 장 — 가족 홈 💬 로 여는 회상 상세(댓글 화면, 11/27). 남의 방·없는 카드는 404"""
+    return _out(db, _locked(db, session_id, user))
+
+
 @router.post("/memories/{session_id}/reaction", response_model=MemoryCardOut)
 def memory_like(session_id: uuid.UUID, body: MemoryReactionIn, user: CurrentUser, db: DB):
     """좋아요 켜기·끄기 — 한 사람 1칸. 같은 요청이 두 번 와도 결과가 같다."""

@@ -1,12 +1,12 @@
 /**
  * GROUP_002 — 가족방 탭 (11/23 시안 f-room, 이슈 #24). 위 막대에서 고른 분의 가족방 한 화면:
- * 할머니 폰(연결됨·마지막으로 연 때 / 연결 3단계) → '올린 사진 n장 ›'(사진첩 탭) → 구성원(초대·내보내기·쓸 수 있는 링크)
+ * 할머니 폰(연결됨·마지막으로 연 때 / 연결 3단계) → '내 정보 ›'(ME_001, 11/27 — 옛 '올린 사진' 칸 자리) → 구성원(초대·내보내기·쓸 수 있는 링크)
  * → 할머니 화면 설정(#52, D74 — 글자 크기·말 속도·목소리·말하는 방법은 칩을 누르면 바로 저장, 추억 시간·이름·부르는 말은 판에서)
- * → 위험한 설정(폰 연결 끊기·가족방 나가기·회원 탈퇴). 버튼은 방장에게만, 방장이 아니면 보기만.
+ * → 위험한 설정(폰 연결 끊기·가족방 나가기 — 로그아웃·탈퇴는 내 정보로). 버튼은 방장에게만, 방장이 아니면 보기만.
  * 링크 주소(토큰)는 이 화면 state 에만 둔다 (D16 — localStorage·console 금지). 서버는 토큰을 저장하지 않아 나가면 다시 못 본다.
  */
 import { useEffect, useState } from 'react'
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type {
   InviteCreatedOut,
@@ -24,7 +24,6 @@ import Sim from '../../components/Sim'
 import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
 import { PROMPT, say, stopSpeaking } from '../../lib/audio'
-import { logout } from '../../lib/logout'
 import './GROUP_002.css'
 
 // ── 할머니 화면 설정 (목업 ⑥ 설정 판, D74). 일기 시간은 11/13 에 뺐다가 11/24 실사용 피드백으로 다시 넣음.
@@ -151,7 +150,6 @@ export default function GROUP_002() {
 
 function RoomTab() {
   const { roomId } = useParams()
-  const nav = useNavigate()
   const { me, reloadRooms } = useFamily()
   // 이 탭을 열 때마다 새로 읽는다 — 갤럭시를 연결하고 돌아오면 '연결됐어요', 사진을 올리고 오면 사진 수가 바뀐다
   const rooms = useFetch<RoomOut[]>('/api/rooms')
@@ -435,11 +433,13 @@ function RoomTab() {
         </section>
       )}
 
-      <Link className="fam-card gr-banner" to="/photos">
-        <span className="gr-sq">
-          <FamIcon name="image" />
-        </span>
-        <b>올린 사진 {room.photo_count}장</b>
+      {/* 내 정보 (11/27 — '올린 사진' 칸 자리. 사진은 사진첩 탭에 있다) */}
+      <Link className="fam-card gr-banner" to="/me">
+        <Avatar name={me.name} src={me.profile_url} />
+        <b>
+          {me.name}
+          <small className="fam-mini gr-me-sub">내 정보 · 사진·이름·호칭·비밀번호</small>
+        </b>
         <FamIcon name="chevRight" />
       </Link>
 
@@ -463,7 +463,7 @@ function RoomTab() {
         ) : (
           list.map((m) => (
             <div key={m.user_id} className="gr-setrow gr-member">
-              <Avatar name={m.name} />
+              <Avatar name={m.name} src={m.profile_url} />
               <div>
                 <b>
                   {m.name}
@@ -565,6 +565,8 @@ function RoomTab() {
         {!sheet && note === undefined && error === undefined ? null : null}
       </section>
 
+      {/* 방장은 폰이 연결돼 있을 때만 버튼이 있다 — 없으면 칸째 숨김 */}
+      {(!owner || room.device_connected) && (
       <section className="fam-card gr-card">
         <h2>위험한 설정</h2>
         {owner && room.device_connected && (
@@ -581,15 +583,9 @@ function RoomTab() {
             이 가족방 나가기
           </button>
         )}
-        {/* 로그아웃 — 바꾸기 판에만 있어 못 찾았다(11/24 실사용). 탈퇴보다 잘 보이게, 보통 버튼 */}
-        <button type="button" className="fam-btn" onClick={() => logout(nav)}>
-          로그아웃
-        </button>
-        {/* 회원 탈퇴 화면(ACCOUNT_001)으로 — 방장도 여기서 간다(방장 넘기기는 그 화면이 묻는다) */}
-        <Link className="fam-text-btn gr-withdraw" to="/account/withdraw">
-          회원 탈퇴
-        </Link>
+        {/* 로그아웃·회원 탈퇴는 내 정보(ME_001)로 옮김 (11/27) */}
       </section>
+      )}
 
       {sheet && (
         <>

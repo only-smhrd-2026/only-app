@@ -18,7 +18,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { AlbumOut, AlbumPhoto, SessionOut } from '../../api/types'
 import ElderPhoto from '../../components/ElderPhoto'
-import { ElderStop, IC } from '../../components/ElderUi'
+import { ElderStop, IC, openCover } from '../../components/ElderUi'
 import { useLive, type ElderNavState } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
 import { speak, stopSpeaking } from '../../lib/audio'
@@ -137,7 +137,7 @@ export default function ELDER_ALBUM_001() {
   function show(p: AlbumPhoto) {
     setOpen(p)
     setNote(undefined)
-    if (!view.current?.open) view.current?.showModal()
+    openCover(view.current)
     const talked = talksOf(p).length ? ' 이 사진으로 이야기 나누신 적이 있어요.' : ''
     void speak(`${fromLine(p)}${talked} 이 사진으로 이야기할까요?`, speed)
   }
@@ -300,6 +300,7 @@ export default function ELDER_ALBUM_001() {
       )}
       <dialog
         ref={view}
+        tabIndex={-1}
         className="elder-cover alb-view"
         aria-label="사진 보기"
         onTouchStart={onTouchStart}

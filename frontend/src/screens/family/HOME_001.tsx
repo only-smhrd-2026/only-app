@@ -5,7 +5,7 @@
  * 실시간 반영은 없다 — 홈을 열 때·앱으로 돌아올 때 읽는다(D36). 회상 대화 원문은 여기 없다(R18) — 11/27 부터 AI 가 만든
  * 가족용 한두 줄 요약만 회상 카드로 섞인다. 피드는 최근 7일만, 그보다 예전은 일기 달력(HOME_003)에서.
  */
-import { Fragment, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import {
@@ -28,14 +28,12 @@ import { Avatar } from '../../components/FamilyFrame'
 import MoodIcon from '../../components/MoodIcon'
 import Sim from '../../components/Sim'
 import UrgentCard from '../../components/UrgentCard'
-import VoicePlay from '../../components/VoicePlay'
 import { useFamily } from '../../hooks/useFamily'
 import { useFetch } from '../../hooks/useFetch'
 import { getInstallState, promptInstall, subscribeInstallPrompt } from '../../lib/installPrompt'
 import { logout } from '../../lib/logout'
 import { weeklySeen } from '../../lib/weeklySeen'
 import './HOME_001.css'
-import './HOME_002.css' // 회상 댓글 판이 일기 상세 댓글창(cm-*)과 같은 모양
 
 // 마음 체크 결과 (D56): 점수 없이 3단계 문장만. 많이 힘드신 단계는 상담을 권한다
 const CHECK_TEXT = {
@@ -133,23 +131,30 @@ function InstallCard() {
 
 /**
  * 요약 카드 (11/23 시안 — D67②·D85 를 접어 둠, 11/27 팀 회의로 크게): 접힌 상태에서도 한눈에 —
- * 마지막 이야기 시각 · 최근 7일 중 며칠 · 7일 점 줄 · 마지막 마음 체크 한 줄 · 오른쪽 전화.
- * [자세히 보기]를 누르면 안부 전화 권유 · 다른 체크 결과 · 요즘 안부(CareCard)가 짧은 줄로 펼쳐진다. 진단 말·점수는 쓰지 않는다(NFR-DE-003)
+ * 마지막 이야기 시각 · 이번 주 며칠 · 월~일 점 줄 · 마지막 마음 체크 한 줄 · 오른쪽 전화.
+ * 카드 어디를 눌러도 펼치고 접는다(11/27 — 전화·링크는 제 일). 펼치면 안부 전화 권유 · 다른 체크 결과 · 요즘 안부(CareCard).
+ * 진단 말·점수는 쓰지 않는다(NFR-DE-003)
  */
 function SummaryCard({ room, week, notes }: { room: RoomOut; week: MoodWeekOut; notes: string[] }) {
   const [open, setOpen] = useState(false)
   const check = week.last_check
-  const last = week.days.length - 1
   const who = `${room.elder_name} ${room.elder_honorific}`
   const md = (ymd: string) => `${day(ymd).getMonth() + 1}/${day(ymd).getDate()}`
+  const days = thisWeek(week)
+  const talked = days.filter((d) => d.talked).length
+  const low = days.filter((d) => d.low).length
+  // 버튼·링크·펼친 안쪽 카드(CareCard 등)를 누른 건 그쪽 일 — 카드 바탕을 누를 때만 펼치고 접는다
+  const toggle = (e: MouseEvent<HTMLElement>) => {
+    if (!(e.target as HTMLElement).closest('a, button, input, .home-sum-more')) setOpen((o) => !o)
+  }
   return (
-    <section className="fam-card home-sum" aria-label={`${who} 요즘`}>
+    <section className="fam-card home-sum" aria-label={`${who} 요즘`} onClick={toggle}>
       <div className="home-sum-row">
         <div className="home-strip">
           <b>{week.last_talk_at ? `${talkLabel(week.last_talk_at)}에 이야기하셨어요` : '아직 이야기를 나누지 않으셨어요'}</b>
           <span className="home-sum-sub">
-            최근 7일 중 <strong>{week.talked_days}일</strong> 이야기하셨어요
-            {week.low_days ? ` · 기운 없는 날 ${week.low_days}일` : ''}
+            이번 주 <strong>{talked}일</strong> 이야기하셨어요
+            {low ? ` · 기운 없어 보인 날 ${low}일` : ''}
           </span>
         </div>
         {/* 번호 없이 전화 앱만 연다 — 어르신 번호는 저장하지 않는다(D57) */}
@@ -157,13 +162,13 @@ function SummaryCard({ room, week, notes }: { room: RoomOut; week: MoodWeekOut; 
           <FamIcon name="phone" />
         </a>
       </div>
-      <ol className="home-week" aria-label="최근 7일">
-        {week.days.map((d, i) => {
-          const s = d.low ? 'low' : d.talked ? 'on' : 'off'
+      <ol className="home-week" aria-label="이번 주 (월~일)">
+        {days.map((d) => {
+          const s = d.future ? 'later' : d.low ? 'low' : d.talked ? 'on' : 'off'
           return (
-            <li key={d.date} className={i === last ? 'today' : undefined}>
+            <li key={d.date} className={d.today ? 'today' : undefined}>
               <Dot s={s} />
-              <span>{i === last ? '오늘' : day(d.date).toLocaleDateString('ko-KR', { weekday: 'short' })}</span>
+              <span>{d.today ? '오늘' : day(d.date).toLocaleDateString('ko-KR', { weekday: 'short' })}</span>
               <span className="home-sr">{WORD[s]}</span>
             </li>
           )
@@ -211,7 +216,9 @@ function SummaryCard({ room, week, notes }: { room: RoomOut; week: MoodWeekOut; 
               ))}
             </ul>
           )}
-          <CareCard roomId={room.room_id} />
+          <div className="home-sum-more">
+            <CareCard roomId={room.room_id} />
+          </div>
           {/* 마음 알림 안내 (D55 — 처리방침 확정 11/17). 11/27 짧게 */}
           <p className="fam-mini">
             진단이 아니에요 · 위급한 말씀은 가족 모두에게 알려요 · <Link to="/policy#mood">자세히 ›</Link>
@@ -222,11 +229,28 @@ function SummaryCard({ room, week, notes }: { room: RoomOut; week: MoodWeekOut; 
   )
 }
 
-const WORD = { on: '이야기한 날', low: '기운 없는 날', off: '기록 없음' } as const
+/**
+ * 이번 주 월~일 (11/27 — 매일 한 칸씩 밀리던 '최근 7일' 대신 고정). 서버는 오늘까지 최근 7일을 주는데,
+ * 이번 주 월요일은 늘 그 안에 있다 → 월요일~오늘은 서버 칸, 내일~일요일은 아직 오지 않은 빈칸.
+ */
+function thisWeek(week: MoodWeekOut) {
+  const last = week.days[week.days.length - 1]
+  const today = day(last.date)
+  const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - ((today.getDay() + 6) % 7))
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i)
+    const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const got = week.days.find((x) => x.date === ymd)
+    return { date: ymd, talked: !!got?.talked, low: !!got?.low, future: d > today, today: ymd === last.date }
+  })
+}
+
+// 기운 없어 보인 날도 이야기한 날이라 ✓ 위에 작은 표시를 더한다 (11/27 — '이야기한 날'과 겹치지 않게)
+const WORD = { on: '이야기했어요', low: '기운 없어 보였어요', off: '이야기 없음', later: '아직 안 온 날' } as const
 function Dot({ s }: { s: keyof typeof WORD }) {
   return (
     <span className={`home-dot ${s}`} aria-hidden="true">
-      {s === 'on' && <FamIcon name="check" />}
+      {(s === 'on' || s === 'low') && <FamIcon name="check" />}
       {s === 'low' && <i />}
     </span>
   )
@@ -260,52 +284,35 @@ function WeeklyBanner({ room, data }: { room: RoomOut; data: WeeklyOut | null })
 const likeCount = (rs: Reaction[]) => rs.filter((r) => r.by === 'FAMILY' && r.kind !== 'REPLY').length
 const myLike = (rs: Reaction[], me: number) => rs.find((r) => r.by === 'FAMILY' && r.kind !== 'REPLY' && r.user_id === me)?.kind
 // 댓글(한마디·목소리 답장·어르신 답) — 목소리 답장은 자막이 비어도 (D99)
-const repliesOf = (rs: Reaction[]) => rs.filter((r) => r.kind === 'REPLY' && (r.text || r.audio_url))
-const EMOJIS = ['❤️', '😊', '👏', '😂', '🥰', '🙏'] // 댓글 쓰기 칸 위 자주 쓰는 이모지 — HOME_002 와 같은 줄
-const REPLY_MAX = 200 // 서버 config.REPLY_MAX 와 같은 값 (11/27)
-/** 댓글 시각 — '방금'·'5분'·'3시간'·'2일', 일주일 넘으면 '11월 3일' (HOME_002 와 같은 규칙) */
-function ago(iso: string) {
-  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000)
-  if (min < 1) return '방금'
-  if (min < 60) return `${min}분`
-  if (min < 1440) return `${Math.floor(min / 60)}시간`
-  if (min < 10080) return `${Math.floor(min / 1440)}일`
-  return new Date(iso).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric' })
+const replyCount = (rs: Reaction[]) => rs.filter((r) => r.kind === 'REPLY' && (r.text || r.audio_url)).length
+
+/** 💬 n — 누르면 상세 화면의 댓글 쓰기 칸으로 (11/27: 카드 아래 댓글 미리보기는 빼고 개수만) */
+function CommentLink({ to, n }: { to: string; n: number }) {
+  return (
+    <Link className="home-like" to={to} state={{ familyDiaryOrder: true, reply: true }} aria-label={n ? `댓글 ${n}개 보기` : '댓글 달기'}>
+      <FamIcon name="chat" />
+      {n > 0 && <span className="home-like-n">{n}</span>}
+    </Link>
+  )
 }
 
-/** ♡ · 💬 · 좋아요 N개 — 일기·회상 카드가 같이 쓴다 */
-function LikeBar({ liked, count, busy, onLike, comment }: {
+/** ♡ n · 💬 n — 일기·회상 카드가 같이 쓴다 (11/27 '하트 2 댓글 3' 처럼 개수만) */
+function LikeBar({ liked, count, busy, onLike, to, replies }: {
   liked: boolean
   count: number
   busy: boolean
   onLike: () => void
-  comment: ReactNode
+  to: string
+  replies: number
 }) {
   return (
     <div className="home-likes">
-      <button type="button" className="home-like" onClick={onLike} disabled={busy} aria-pressed={liked} aria-label={liked ? '좋아요 취소' : '좋아요'}>
+      <button type="button" className="home-like" onClick={onLike} disabled={busy} aria-pressed={liked} aria-label={liked ? `좋아요 취소, 좋아요 ${count}개` : `좋아요, 좋아요 ${count}개`}>
         <FamIcon name="heart" />
+        {count > 0 && <span className="home-like-n">{count}</span>}
       </button>
-      {comment}
-      {count > 0 && <span className="home-like-n">좋아요 {count}개</span>}
+      <CommentLink to={to} n={replies} />
     </div>
-  )
-}
-
-/** 카드 아래 댓글 미리보기 — 마지막 두 개, 더 있으면 '댓글 N개 모두 보기'(more) */
-function ReplyPreview({ rs, room, more }: { rs: Reaction[]; room: RoomOut; more: (n: number) => ReactNode }) {
-  const replies = repliesOf(rs)
-  if (!replies.length) return null
-  return (
-    <ul className="home-replies">
-      {replies.length > 2 && <li>{more(replies.length)}</li>}
-      {replies.slice(-2).map((r) => (
-        <li key={`${r.by}${r.user_id ?? ''}-${r.at}`}>
-          <b>{r.by === 'ELDER' ? `${room.elder_name} ${room.elder_honorific}` : (r.name ?? '가족')}</b>
-          {r.audio_url && <VoicePlay url={r.audio_url} sec={r.audio_sec} />} {r.text}
-        </li>
-      ))}
-    </ul>
   )
 }
 
@@ -314,17 +321,11 @@ function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserO
   const [busy, setBusy] = useState(false)
   const elder = d.author_type === 'ELDER'
   const name = elder ? `${room.elder_name} ${room.elder_honorific}` : (d.author_name ?? '가족')
-  const sub = elder ? `${clock(d.posted_at)} · 일기` : [d.author_nickname, clock(d.posted_at), '오늘 소식'].filter(Boolean).join(' · ')
+  const sub = elder ? `${clock(d.posted_at)} · 일기` : [d.author_nickname, clock(d.posted_at), '일기'].filter(Boolean).join(' · ')
   const mine = myLike(d.reactions, me.user_id)
   const liked = d.reactions.some((r) => r.by === 'ELDER' && r.kind === 'LIKE')
   const elderReply = d.reactions.some((r) => r.by === 'ELDER' && r.kind === 'REPLY')
   const to = `/diaries/${d.diary_id}`
-  const comment = (
-    // 💬 = 일기 상세의 댓글 쓰기 칸으로 (reply: 들어가면 칸에 바로 커서)
-    <Link className="home-like" to={to} state={{ familyDiaryOrder: true, reply: true }} aria-label="댓글 달기">
-      <FamIcon name="chat" />
-    </Link>
-  )
 
   // ♡ (D54 API 그대로): 켜져 있던 내 칸(예전 웃음·박수 포함)을 끄거나 하트를 켠다 — on = '이 상태로 만들어 줘'
   async function like() {
@@ -372,7 +373,7 @@ function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserO
       </Link>
       <footer className="home-post-f">
         {elder ? (
-          <LikeBar liked={!!mine} count={likeCount(d.reactions)} busy={busy} onLike={like} comment={comment} />
+          <LikeBar liked={!!mine} count={likeCount(d.reactions)} busy={busy} onLike={like} to={to} replies={replyCount(d.reactions)} />
         ) : (
           <>
             {d.read_by_elder ? (
@@ -385,32 +386,27 @@ function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserO
             ) : (
               <p className="fam-mini">아직 안 들으셨어요</p>
             )}
-            {!d.is_mine && <span className="home-f-end">{comment}</span>}
+            {(!d.is_mine || replyCount(d.reactions) > 0) && (
+              <span className="home-f-end">
+                <CommentLink to={to} n={replyCount(d.reactions)} />
+              </span>
+            )}
           </>
         )}
       </footer>
-      <ReplyPreview
-        rs={d.reactions}
-        room={room}
-        more={(n) => (
-          <Link className="home-replies-more" to={to} state={{ familyDiaryOrder: true, reply: true }}>
-            댓글 {n}개 모두 보기
-          </Link>
-        )}
-      />
     </article>
   )
 }
 
 /**
  * 회상 카드 (11/27 팀 회의 — 회상도 가족 홈에): 사진 · AI 가 만든 가족용 한두 줄 요약(대화 원문은 보이지 않는다) · ♡ · 💬.
- * 💬 은 이 화면 아래에서 올라오는 댓글 판으로 (회상은 상세 화면이 없다)
+ * 누르거나 💬 → 회상 상세(MEMORY_001) — 일기처럼 새 화면에서 댓글 (11/27 가족화면 설정 개선안)
  */
 function MemoryPost({ m, room, me, onChange }: { m: MemoryCardOut; room: RoomOut; me: UserOut; onChange: (m: MemoryCardOut) => void }) {
   const [busy, setBusy] = useState(false)
-  const [sheet, setSheet] = useState(false)
   const mine = myLike(m.reactions, me.user_id)
   const who = `${room.elder_name} ${room.elder_honorific}`
+  const to = `/memories/${m.session_id}`
 
   async function like() {
     setBusy(true)
@@ -425,171 +421,29 @@ function MemoryPost({ m, room, me, onChange }: { m: MemoryCardOut; room: RoomOut
 
   return (
     <article className="fam-card home-post">
-      <header className="home-post-h">
-        <Avatar name={room.elder_name} />
-        <div className="home-post-who">
-          <b>{who}</b>
-          <span className="fam-mini">{clock(m.ended_at)} · 회상</span>
-        </div>
-      </header>
-      {m.photo_url && (
-        <div className="home-post-photo">
-          <img src={m.photo_url} alt="이야기 나눈 사진" loading="lazy" />
-          <span className="home-tag">
-            <FamIcon name="chat" />
-            사진 보며 이야기
-          </span>
-        </div>
-      )}
-      <p className="home-post-text">{m.summary}</p>
-      <footer className="home-post-f">
-        <LikeBar
-          liked={!!mine}
-          count={likeCount(m.reactions)}
-          busy={busy}
-          onLike={like}
-          comment={
-            <button type="button" className="home-like" onClick={() => setSheet(true)} aria-label="댓글 달기">
+      <Link className="home-post-link" to={to}>
+        <header className="home-post-h">
+          <Avatar name={room.elder_name} />
+          <div className="home-post-who">
+            <b>{who}</b>
+            <span className="fam-mini">{clock(m.ended_at)} · 회상</span>
+          </div>
+        </header>
+        {m.photo_url && (
+          <div className="home-post-photo">
+            <img src={m.photo_url} alt="이야기 나눈 사진" loading="lazy" />
+            <span className="home-tag">
               <FamIcon name="chat" />
-            </button>
-          }
-        />
+              사진 보며 이야기
+            </span>
+          </div>
+        )}
+        <p className="home-post-text">{m.summary}</p>
+      </Link>
+      <footer className="home-post-f">
+        <LikeBar liked={!!mine} count={likeCount(m.reactions)} busy={busy} onLike={like} to={to} replies={replyCount(m.reactions)} />
       </footer>
-      <ReplyPreview
-        rs={m.reactions}
-        room={room}
-        more={(n) => (
-          <button type="button" className="home-replies-more" onClick={() => setSheet(true)}>
-            댓글 {n}개 모두 보기
-          </button>
-        )}
-      />
-      {sheet && <MemoryComments m={m} me={me} onChange={onChange} onClose={() => setSheet(false)} />}
     </article>
-  )
-}
-
-/** 회상 댓글 판 — 목록(내 것은 고치기·지우기) · 이모지 한 줄 · 쓰기 200자 (일기 상세 HOME_002 댓글창과 같은 모양) */
-function MemoryComments({ m, me, onChange, onClose }: {
-  m: MemoryCardOut
-  me: UserOut
-  onChange: (m: MemoryCardOut) => void
-  onClose: () => void
-}) {
-  const [draft, setDraft] = useState('')
-  const [fixing, setFixing] = useState<Reaction>()
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string>()
-  const input = useRef<HTMLInputElement>(null)
-  const replies = repliesOf(m.reactions)
-  const base = `/api/memories/${m.session_id}/reply`
-
-  async function send() {
-    const text = draft.trim()
-    if (!text || busy) return
-    setBusy(true)
-    setError(undefined)
-    try {
-      onChange(fixing
-        ? await api<MemoryCardOut>(base, { method: 'PATCH', body: { at: fixing.at, text } })
-        : await api<MemoryCardOut>(base, { body: { text } }))
-      setDraft('')
-      setFixing(undefined)
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : '댓글을 보내지 못했어요. 다시 해 주세요.')
-    } finally {
-      setBusy(false)
-    }
-  }
-  async function remove(r: Reaction) {
-    setBusy(true)
-    setError(undefined)
-    try {
-      await api<void>(`${base}?at=${encodeURIComponent(r.at)}`, { method: 'DELETE' })
-      onChange({ ...m, reactions: m.reactions.filter((x) => x !== r) })
-      if (fixing === r) setFixing(undefined)
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : '댓글을 지우지 못했어요. 다시 해 주세요.')
-    } finally {
-      setBusy(false)
-    }
-  }
-  function fix(r: Reaction) {
-    setFixing(r)
-    setDraft(r.text ?? '')
-    input.current?.focus()
-  }
-
-  return (
-    <>
-      <button type="button" className="fam-scrim" aria-label="닫기" onClick={onClose} />
-      <div className="fam-sheet" role="dialog" aria-modal="true" aria-label="댓글" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-        <span className="fam-grab" />
-        <h2>댓글{replies.length > 0 && <small> {replies.length}</small>}</h2>
-        {replies.length > 0 ? (
-          <ul className="diary-detail-replies">
-            {replies.map((r) => {
-              const my = r.by === 'FAMILY' && r.user_id === me.user_id
-              return (
-                <li key={`${r.by}${r.user_id ?? ''}-${r.at}`}>
-                  <Avatar name={r.name ?? '가족'} small />
-                  <span>
-                    <span className="cm-text">
-                      <b>{my ? '나' : (r.name ?? '가족')}</b> {r.text}
-                    </span>
-                    <small>
-                      {ago(r.at)}
-                      {my && (
-                        <button type="button" className="cm-del" disabled={busy} onClick={() => fix(r)} aria-pressed={fixing === r}>
-                          고치기
-                        </button>
-                      )}
-                      {my && (
-                        <button type="button" className="cm-del" disabled={busy} onClick={() => void remove(r)}>
-                          지우기
-                        </button>
-                      )}
-                    </small>
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
-        ) : (
-          <p className="fam-mini">첫 댓글을 남겨 보세요</p>
-        )}
-        <div className="cm-emojis" role="group" aria-label="이모지 넣기">
-          {EMOJIS.map((e) => (
-            <button type="button" key={e} onClick={() => { setDraft((t) => (t + e).slice(0, REPLY_MAX)); input.current?.focus() }}>
-              {e}
-            </button>
-          ))}
-        </div>
-        <form className="cm-bar" onSubmit={(e) => { e.preventDefault(); void send() }}>
-          <Avatar name={me.name ?? '나'} small />
-          <input
-            ref={input}
-            className="cm-input"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            maxLength={REPLY_MAX}
-            placeholder="댓글 달기…"
-            aria-label={`댓글 쓰기, ${REPLY_MAX}자까지`}
-            enterKeyHint="send"
-            autoComplete="off"
-            autoFocus
-          />
-          <button type="submit" className="cm-post" disabled={busy || !draft.trim()}>{fixing ? '고치기' : '보내기'}</button>
-        </form>
-        {fixing && (
-          <p className="cm-hint" role="status">
-            댓글을 고치고 있어요{' '}
-            <button type="button" className="cm-del" onClick={() => { setFixing(undefined); setDraft('') }}>취소</button>
-          </p>
-        )}
-        {error && <p className="diary-detail-reply-note" role="alert">{error}</p>}
-      </div>
-    </>
   )
 }
 
@@ -598,7 +452,7 @@ function Empty({ room }: { room: RoomOut }) {
     <div className="home-empty">
       <Sim face="smile" size={96} />
       <b>아직 소식이 없어요</b>
-      <p>{room.elder_honorific} 일기와 가족이 쓴 '오늘 소식'이 여기에 모여요</p>
+      <p>{room.elder_honorific} 일기와 가족이 쓴 일기가 여기에 모여요</p>
     </div>
   )
 }

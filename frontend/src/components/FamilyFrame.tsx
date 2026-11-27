@@ -34,11 +34,11 @@ function saveRoom(roomId: number) {
 
 const TONES = ['a', 'b', 'c', 'd'] as const
 /** 얼굴 동그라미(이름 첫 글자, 11/14 사용자) — 색은 이름으로 4색 중 하나라 같은 사람은 늘 같은 색 */
-export function Avatar({ name, small }: { name: string; small?: boolean }) {
+export function Avatar({ name, small, src }: { name: string; small?: boolean; src?: string | null }) {
   const tone = TONES[[...name].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % TONES.length]
   return (
     <span className={`fam-av fam-tone-${tone}${small ? ' fam-av--s' : ''}`} aria-hidden="true">
-      {[...name][0]}
+      {src ? <img className="fam-av-pic" src={src} alt="" /> : [...name][0]}
     </span>
   )
 }
@@ -64,10 +64,37 @@ function Tab([to, label, icon]: [string, string, FamIconName]) {
   )
 }
 /**
+ * 아이폰 키보드 (11/27 가족 일기 쓰기 피드백): 사파리는 키보드가 떠도 화면 높이(100dvh)를 줄이지 않고 페이지를 위로 밀어
+ * 위쪽을 다시 볼 수 없었다. 보이는 칸(visualViewport)의 높이·위치를 틀(.fam)에 그대로 준다 — 갤럭시 크롬은 이미
+ * 줄어들어(index.html interactive-widget) 값이 같으니 그대로다.
+ */
+function useKeyboardFit() {
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const root = document.documentElement.style
+    const fit = () => {
+      root.setProperty('--fam-h', `${vv.height}px`)
+      root.setProperty('--fam-top', `${vv.offsetTop}px`)
+    }
+    fit()
+    vv.addEventListener('resize', fit)
+    vv.addEventListener('scroll', fit)
+    return () => {
+      vv.removeEventListener('resize', fit)
+      vv.removeEventListener('scroll', fit)
+      root.removeProperty('--fam-h')
+      root.removeProperty('--fam-top')
+    }
+  }, [])
+}
+
+/**
  * 하위 화면 틀 (D70, 목업 '하위 화면에만 위 ←') — 탭 밖 가족 화면(App.tsx 의 SUB_SCREENS). 제목은 각 화면의 것을 그대로 쓴다.
  * 아이폰 앱 화면에는 브라우저 뒤로 버튼이 없어 이 ← 가 돌아가는 길이다. 앱 안에서 온 곳이 있으면 거기로, 바로 열었으면 홈으로.
  */
 export function SubFrame() {
+  useKeyboardFit()
   const nav = useNavigate()
   // react-router 가 history.state.idx 에 앱 안 순번을 적는다 — 0 이면 이 화면으로 바로 들어온 것
   const back = () => ((window.history.state?.idx ?? 0) > 0 ? nav(-1) : nav('/', { replace: true }))
@@ -89,6 +116,7 @@ export function SubFrame() {
 const ROOM_IN_PATH = /^\/(weekly|groups)\/(\d+)/
 
 export default function FamilyFrame() {
+  useKeyboardFit()
   const nav = useNavigate()
   const { pathname } = useLocation()
   const me = useFetch<UserOut>('/api/auth/me')
@@ -178,7 +206,7 @@ export default function FamilyFrame() {
 
       <nav className="fam-tabs" aria-label="메뉴">
         {tabs(room?.room_id ?? null).slice(0, 2).map(Tab)}
-        <button type="button" className="fam-plus" onClick={() => setAdd(true)} aria-haspopup="dialog" aria-label="올리기 — 오늘 소식·추억 사진">
+        <button type="button" className="fam-plus" onClick={() => setAdd(true)} aria-haspopup="dialog" aria-label="올리기 — 내 일기·추억 사진">
           <span>
             <FamIcon name="plus" />
           </span>
@@ -197,8 +225,8 @@ export default function FamilyFrame() {
                 <FamIcon name="pencil" />
               </span>
               <span>
-                <b>오늘 소식 보내기</b>
-                <small>오늘 사진 1장과 한마디 · {hon}께 읽어 드려요</small>
+                <b>내 일기 보내기</b>
+                <small>오늘 사진 1장과 일기 · {hon}께 읽어 드려요</small>
               </span>
               <FamIcon name="chevRight" />
             </button>

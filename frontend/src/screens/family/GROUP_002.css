@@ -81,7 +81,8 @@
 .fam .gr-lock { display:flex; align-items:flex-start; gap:8px; color:var(--text-2); font-size:14px; }
 .gr-lock .fam-ic { width:18px; height:18px; margin-top:2px; color:var(--acc); }
 .gr-banner { display:flex; align-items:center; gap:12px; min-height:56px; padding:12px 16px; color:var(--text); text-decoration:none; }
-.gr-banner b { flex:1; font-size:16px; }
+.gr-banner b { flex:1; display:flex; flex-direction:column; gap:2px; font-size:16px; }
+.gr-me-sub { font-weight:400; }
 .gr-sq { flex:none; display:grid; place-items:center; width:40px; height:40px; border-radius:12px; background:var(--soft); color:var(--acc); }
 .gr-members-card { gap:2px; }
 .gr-members-card .gr-h-row { padding-right:0; margin-bottom:4px; }
@@ -96,5 +97,4 @@
 .gr-seg .gr-font-prev { color:var(--text); font-weight:700; line-height:1.3; }
 .gr-mic { display:flex; flex-direction:column; gap:4px; margin-top:10px; }
 .gr-mic ul { margin:0; padding-left:18px; }
-.gr-withdraw { align-self:center; display:inline-flex; align-items:center; color:var(--text-3); text-decoration:underline; }
 .gr-dev .fam-tag { align-self:flex-start; } /* 연결됨 꼬리표는 글자 폭만 */

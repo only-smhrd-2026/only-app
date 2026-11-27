@@ -1,0 +1,17 @@
+/* ME_001 내 정보 (11/27) — 입력 칸은 ACCOUNT_001.css(acc-input·acc-label) */
+.me { display:flex; flex-direction:column; gap:12px; padding:4px var(--gut) 24px; }
+.me-pad { padding:16px var(--gut); }
+.me-card { display:flex; flex-direction:column; gap:10px; padding:16px; }
+.me-top { align-items:center; text-align:center; }
+.me-av .fam-av { width:88px; height:88px; font-size:34px; }
+.me-photo-btns { display:flex; align-items:center; gap:8px; }
+.me-file { position:relative; cursor:pointer; }
+.me-row { display:flex; gap:8px; align-items:center; }
+.me-row .acc-input { flex:1; }
+.me-row .fam-btn { flex:none; }
+.me-note { color:var(--acc); font-size:14px; font-weight:700; }
+.me-links { gap:0; padding:4px 16px; }
+.me-link { display:flex; align-items:center; justify-content:space-between; min-height:52px; padding:0; border:0; background:none; font:inherit; font-size:16px; font-weight:700; color:var(--text); text-decoration:none; cursor:pointer; }
+.me-link + .me-link { border-top:1px solid var(--line); }
+.me-link .fam-ic { width:18px; height:18px; color:var(--ink3); }
+.me-quiet { color:var(--ink3); font-weight:600; font-size:14px; }

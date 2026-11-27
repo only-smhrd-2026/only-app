@@ -1,6 +1,7 @@
 /** 서버 응답 타입 — backend/app/schemas/*.py 의 거울. 서버 모양이 바뀌면 여기도 같이 (PR 리뷰어 김승희). */
 
-export type UserOut = { user_id: number; email: string | null; name: string; login_type: string; created_at: string }
+// profile_url = 내 정보에서 올린 프로필 사진(11/27), 없으면 null — PATCH /api/auth/me { name } · PUT/DELETE /api/auth/me/photo → UserOut
+export type UserOut = { user_id: number; email: string | null; name: string; login_type: string; created_at: string; profile_url: string | null }
 export type PasswordChangeIn = { current_password: string; new_password: string }
 /** POST /api/auth/withdraw — 회원 탈퇴. transfers = 내가 방장인 가족방마다 1칸: 방장을 넘길 가족, 혼자인 방은 null(가족방을 지움) */
 export type WithdrawIn = { password: string; transfers: { room_id: number; new_owner_user_id: number | null }[] }
@@ -50,6 +51,7 @@ export type MemberOut = {
   user_id: number
   name: string
   nickname: string | null // 어르신이 부르는 호칭(예: 큰딸)
+  profile_url: string | null // 프로필 사진 (11/27), 없으면 null
   relation_tag: RelationTag
   joined_at: string
   is_owner: boolean

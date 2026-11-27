@@ -50,6 +50,7 @@ class MemberOut(BaseModel):
     relation_tag: RelationTag
     joined_at: datetime
     is_owner: bool  # family_rooms.owner_user_id 와 같은 사람 (room_members 에는 방장 칸이 없다)
+    profile_url: str | None = None  # 11/27 내 정보에서 올린 프로필 사진. 없으면 null
 
 
 class MemberUpdateIn(BaseModel):

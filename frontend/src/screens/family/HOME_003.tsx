@@ -192,7 +192,7 @@ function DayCard({ d, room }: { d: DiaryOut; room?: RoomOut }) {
   const elder = d.author_type === 'ELDER'
   const hon = room?.elder_honorific ?? '어르신'
   const name = elder ? (room ? `${room.elder_name} ${room.elder_honorific}` : '어르신') : (d.author_name ?? '가족')
-  const sub = elder ? '일기' : [d.author_nickname, '오늘 소식'].filter(Boolean).join(' · ')
+  const sub = elder ? '일기' : [d.author_nickname, '일기'].filter(Boolean).join(' · ')
   const emojis = d.reactions.filter((r) => r.by === 'FAMILY' && r.kind !== 'REPLY').length
   const replies = d.reactions.filter((r) => r.by === 'FAMILY' && r.kind === 'REPLY').length
   const elderReply = d.reactions.some((r) => r.by === 'ELDER' && r.kind === 'REPLY')
