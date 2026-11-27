@@ -17,7 +17,8 @@
   box-shadow: var(--elder-sh1);
   cursor: pointer;
 }
-.ehome-say { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 12px; }
+/* 남는 높이는 네 칸이 먼저 가져가고(최대 360), 그래도 남으면 말풍선 위가 빈다 (11/27 다듬기) */
+.ehome-say { flex: 0 1 auto; margin-top: auto; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 12px; }
 .ehome-topr { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .ehome-gear { flex: none; display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; background: var(--elder-card); box-shadow: var(--elder-sh1); cursor: pointer; }
 .ehome-gear svg { width: 30px; height: 30px; }
@@ -25,16 +26,18 @@
 .ehome-gear:focus-visible, .ehome-mind:focus-visible { outline: 3px solid var(--elder-fg); outline-offset: 3px; }
 /* 말풍선 카드 — 말(누르면 다시 읽음) + 할 일 버튼. 꼬리는 아래 심심이 쪽 */
 .ehome-card { position: relative; flex: none; width: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 16px; border-radius: var(--elder-radius); background: var(--elder-ai); box-shadow: var(--elder-sh1); }
-.ehome-card .elder-bub { padding: 0; box-shadow: none; background: none; text-align: center; white-space: pre-line; font-weight: 800; line-height: 1.32; text-wrap: balance; }
+.ehome-card .elder-bub { padding: 0; box-shadow: none; background: none; text-align: center; white-space: pre-line; font-weight: 600; line-height: 1.32; text-wrap: balance; }
 .ehome-go { min-height: 60px; gap: 6px; }
-/* 심심이는 230px 까지, 화면이 낮으면 남는 높이만큼 줄어든다 */
-.ehome-say .elder-sim { flex: 0 1 auto; min-height: 0; width: auto; height: min(230px, 100%); max-width: 230px; object-fit: contain; }
+/* 주 버튼은 단색 노랑 하나 — 공통 버튼의 그라데이션·테두리·그림자를 홈에서만 뺀다. 기다릴 때(disabled)는 공통 회색 그대로 */
+.ehome-go:not(:disabled) { border-color: transparent; background: var(--elder-primary); box-shadow: none; }
+/* 심심이는 140px 까지, 화면이 낮으면 남는 높이만큼 줄어든다 */
+.ehome-say .elder-sim { flex: 0 1 auto; min-height: 0; width: auto; height: 100%; max-width: 140px; object-fit: contain; }
 /* 심심이 = 잡담 버튼 (D106). 그림 자리·크기는 위와 같게 — 홈 모양은 바뀌지 않는다 */
-.ehome-simbtn { flex: 0 1 auto; min-height: 0; height: min(230px, 100%); display: flex; justify-content: center; padding: 0; border: 0; border-radius: 28px; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ehome-simbtn { flex: 0 1 auto; min-height: 0; height: 140px; display: flex; justify-content: center; padding: 0; border: 0; border-radius: 28px; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .ehome-simbtn .elder-sim { height: 100%; transition: transform .12s ease; }
 .ehome-simbtn:active .elder-sim { transform: scale(.96); }
 @media (prefers-reduced-motion: reduce) { .ehome-simbtn .elder-sim { transition: none; } }
-.ehome-grid { flex: none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ehome-grid { flex: 1 0 auto; max-height: 360px; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 10px; }
 .ehome-tile {
   position: relative;
   box-sizing: border-box;
@@ -57,19 +60,19 @@
 }
 .ehome-tile:active { transform: scale(.96); box-shadow: none; }
 .ehome-tile:disabled { cursor: default; }
-/* 말풍선이 가리키는 칸 */
-.ehome-tile.now, .ehome-mind.now { box-shadow: 0 0 0 4px var(--elder-primary), var(--elder-sh2); }
+/* 말풍선이 가리키는 칸(.now)도 따로 테두리 없음 — 네 칸 같은 무게, 할 일은 말풍선 버튼이 알려 준다 (11/27 다듬기) */
 .ehome-tile:focus-visible { outline: 3px solid var(--elder-fg); outline-offset: 3px; }
 .ehome-art { flex: none; display: flex; align-items: center; justify-content: center; height: 56px; }
 .ehome-art svg { display: block; width: auto; height: 54px; }
 .ehome-art img { display: block; width: 68px; height: 50px; object-fit: cover; border: 3px solid #fff; border-radius: 8px; transform: rotate(-5deg); box-shadow: 0 4px 10px rgba(74, 45, 10, .22); }
-.ehome-tile b { max-width: 100%; font-size: var(--elder-font-size); font-weight: 800; letter-spacing: -.035em; line-height: 1.2; text-wrap: balance; } /* 글씨 크게(XXL)면 두 줄로 — 넘치지 않게 */
+/* 칸 이름은 화면 높이 640 이하면 기본 글자, 높을수록 조금씩 커져 844 근처에서 한 단계 큰 글자(-lg)에 닿는다 — 낮은 폰에서 말풍선이 위로 밀리지 않게 */
+.ehome-tile b { max-width: 100%; font-size: clamp(var(--elder-font-size), calc(var(--elder-font-size) + (100dvh - 640px) * .03), var(--elder-font-size-lg)); font-weight: 700; letter-spacing: -.035em; line-height: 1.2; text-wrap: balance; } /* 글씨 크게(XXL)면 두 줄로 — 넘치지 않게 */
 /* 내 마음 띠 — 그림 · 이름 · 오른쪽 상태 말 › */
 .ehome-mind { position: relative; flex: none; box-sizing: border-box; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 64px; padding: 8px 16px; border: 0; border-radius: var(--elder-radius); background: var(--elder-card); color: var(--elder-fg); box-shadow: var(--elder-sh1); text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .ehome-mind:active { background: var(--elder-bg2); }
 .ehome-mind-art svg { display: block; width: 40px; height: 36px; }
-.ehome-mind > b { font-size: var(--elder-font-size); font-weight: 800; white-space: nowrap; }
-.ehome-mind-say { flex: 1; min-width: 0; text-align: right; font-size: var(--elder-font-size-s); font-weight: 700; color: var(--elder-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ehome-mind > b { font-size: var(--elder-font-size); font-weight: 700; white-space: nowrap; }
+.ehome-mind-say { flex: 1; min-width: 0; text-align: right; font-size: var(--elder-font-size-s); font-weight: 500; color: var(--elder-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (prefers-reduced-motion: reduce) { .ehome-tile { transition: none; } }
 /* 좁은 폰(360px)에서 로고·날짜·⚙ 한 줄이 넘치지 않게 */
 @media (max-width: 375px) {
