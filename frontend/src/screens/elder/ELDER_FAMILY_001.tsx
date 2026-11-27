@@ -7,15 +7,16 @@
  * 가족 이름은 '딸 (김승희)'처럼 보이고(11/25 사용자 — 딸이 여럿이면 헷갈림), 읽을 때는 괄호를 떼고 '딸이'.
  * ③ 새 소식을 다 보면 '새 소식은 여기까지예요' → [지난 소식 보기]. 새 소식이 없으면 바로 '지난 가족 소식' 달력
  *    (11/25 사용자 — 인스타 스토리 보관함처럼, D104): 들은 가족 일기가 온 날에 그날 사진(없으면 심심이)·2개 이상이면 수,
- *    [◀ 10월] [12월 ▶]는 소식이 있는 달로. 날을 누르면 화면 가득 크게 읽어 드리고 [◀ 전 소식] [닫기] [다음 소식 ▶]
+ *    [◀ 10월] [12월 ▶]는 소식이 있는 달로. 날을 누르면 화면 가득 크게 읽어 드리고 [‹ 뒤로](왼쪽 위) [◀ 전 소식] [다음 소식 ▶]
  *    (달이 바뀌어도 이어서), 하트·말로 답하기도 된다. 읽음 표시는 바꾸지 않는다. 옛 '지난 소식 다시 듣기'(최근 5개)를 바꿈.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { DiaryOut, ElderReplyDraftOut, FamilyNewsOut, Heart, PastNewsOut, SttOut } from '../../api/types'
+import ElderCalendar, { kstDay } from '../../components/ElderCalendar'
 import ElderPhoto from '../../components/ElderPhoto'
-import { Bars, Bub, Dots, ElderStop, IC } from '../../components/ElderUi'
+import { Bars, Bub, Dots, ElderCoverBack, ElderStop, IC } from '../../components/ElderUi'
 import Sim from '../../components/Sim'
 import { useLive, type ElderNavState } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
@@ -26,7 +27,6 @@ const KIND_WORD = { HEART: '하트', SMILE: '웃음', CLAP: '박수' } as const
 const END = '새 소식은 여기까지예요.'
 const END_ASK = '지난 가족 소식도 볼까요?'
 const NO_PAST = '아직 지난 가족 소식이 없어요.'
-const WD = ['일', '월', '화', '수', '목', '금', '토']
 const REPLY_ASK = '하실 말씀을 해 주세요.'
 const REPLY_MS = 60_000 // 답장 녹음 상한 — 대화 녹음과 같게
 const BARS = [30, 55, 80, 45, 95, 60, 35, 75, 50, 85, 40, 65, 30, 55] // 목소리 재생 줄의 꾸밈 막대(높이 %) — 실제 파형 아님
@@ -37,8 +37,6 @@ function josa(word: string, withFinal: string, without: string) {
   return code >= 0xac00 && code <= 0xd7a3 && (code - 0xac00) % 28 !== 0 ? withFinal : without
 }
 const day = (iso: string) => new Date(iso).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
-/** 한국 날짜 'YYYY-MM-DD' */
-const kstDay = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })
 /** '오늘'·'어제'·'3일 전' */
 function agoOf(iso: string) {
   const n = Math.round((Date.parse(kstDay(new Date().toISOString())) - Date.parse(kstDay(iso))) / 864e5)
@@ -466,7 +464,7 @@ export default function ELDER_FAMILY_001() {
   }
 
   const heartFill = <span className="family-hf">{IC.heartFill}</span>
-  // 가족 일기 한 장 — 새 소식(아래 [다음 소식])과 지난 소식 크게 보기(아래 [◀ 전 소식][닫기][다음 소식 ▶])가 같이 쓴다
+  // 가족 일기 한 장 — 새 소식(아래 [다음 소식])과 지난 소식 크게 보기(위 [‹ 뒤로], 아래 [◀ 전 소식][다음 소식 ▶])가 같이 쓴다
   const card = diary && (
     <>
       <div className="family-sender">
@@ -606,7 +604,7 @@ export default function ELDER_FAMILY_001() {
       </>
     )
   else if (showCal)
-    body = past ? <PastCalendar out={past} onOpen={openPast} onMonth={setMonth} /> : cal.error && <ElderStop text={cal.error.message} onRetry={cal.reload} />
+    body = past ? <ElderCalendar title="지난 가족 소식" noun="가족 소식" empty={NO_PAST} out={past} onOpen={openPast} onMonth={setMonth} /> : cal.error && <ElderStop text={cal.error.message} onRetry={cal.reload} />
 
   return (
     <main className="elder elder--fit elder-family">
@@ -614,7 +612,7 @@ export default function ELDER_FAMILY_001() {
       {showCal && (
         <dialog
           ref={dayView}
-          className="elder-cover family-day"
+          className="elder-cover elder-cover--backed family-day"
           aria-label="지난 가족 소식 크게 보기"
           onClose={(e) => {
             // 안에 든 사진 크게 보기(ElderPhoto 의 dialog)가 닫힐 때도 올라온다 — 이 창이 닫힐 때만 (ELDER_DIARY_004 와 같게)
@@ -624,14 +622,14 @@ export default function ELDER_FAMILY_001() {
             setReplying(false)
           }}
         >
+          <ElderCoverBack onClick={() => dayView.current?.close()} />
           {opened ? (
             <>
               <p className="family-when"><b>{day(opened.posted_at)}</b><small>{agoOf(opened.posted_at)}</small></p>
               {card}
               {reacts}
-              <div className="family-daynav">
+              <div className="elder-pager">
                 <button type="button" className="elder-btn elder-btn--secondary elder-btn--sm" disabled={at === 0 && !past?.prev_month} onClick={() => stepPast(-1)}>◀ 전 소식</button>
-                <button type="button" className="elder-btn elder-btn--secondary elder-btn--sm" onClick={() => dayView.current?.close()}>닫기</button>
                 <button type="button" className="elder-btn elder-btn--secondary elder-btn--sm" disabled={at === pastList.length - 1 && !past?.next_month} onClick={() => stepPast(1)}>다음 소식 ▶</button>
               </div>
               {replySheet}
@@ -642,45 +640,5 @@ export default function ELDER_FAMILY_001() {
         </dialog>
       )}
     </main>
-  )
-}
-
-/** 지난 가족 소식 달력 한 달 — 소식 온 날 = 그날 사진(없으면 심심이)·2개 이상이면 수. 나머지 날은 글자만(누를 수 없음) */
-function PastCalendar({ out, onOpen, onMonth }: { out: PastNewsOut; onOpen: (i: number) => void; onMonth: (month: string) => void }) {
-  const [y, m] = out.month.split('-').map(Number)
-  const lead = new Date(y, m - 1, 1).getDay()
-  const days = new Date(y, m, 0).getDate()
-  const [today] = useState(() => kstDay(new Date().toISOString()))
-  const byDay = new Map<string, number[]>() // 'YYYY-MM-DD' → 그날 소식 번호들
-  out.diaries.forEach((d, i) => byDay.set(kstDay(d.posted_at), [...(byDay.get(kstDay(d.posted_at)) ?? []), i]))
-  const go = (to: string | null, label: string) =>
-    to ? <button type="button" className="elder-btn elder-btn--secondary elder-btn--sm" onClick={() => onMonth(to)}>{label}</button> : <span />
-  return (
-    <>
-      <h1>지난 가족 소식</h1>
-      <div className="fcal-month">
-        {go(out.prev_month, `◀ ${Number(out.prev_month?.slice(5))}월`)}
-        <b>{m}월</b>
-        {go(out.next_month, `${Number(out.next_month?.slice(5))}월 ▶`)}
-      </div>
-      <div className="fcal-week" aria-hidden="true">{WD.map((w) => <span key={w}>{w}</span>)}</div>
-      <div className="fcal-grid">
-        {Array.from({ length: lead }, (_, i) => <span key={`b${i}`} />)}
-        {Array.from({ length: days }, (_, i) => {
-          const date = `${out.month}-${String(i + 1).padStart(2, '0')}`
-          const items = byDay.get(date)
-          if (!items) return <span key={date} className={`fcal-day${date === today ? ' today' : ''}${date > today ? ' fut' : ''}`}>{i + 1}</span>
-          const pic = items.map((j) => out.diaries[j].illustration_url).find(Boolean)
-          return (
-            <button key={date} type="button" className={`fcal-day${pic ? '' : ' sim'}`} onClick={() => onOpen(items[0])} aria-label={`${m}월 ${i + 1}일 가족 소식 ${items.length}개`}>
-              {pic ? <img src={pic} alt="" loading="lazy" /> : <Sim face="smile" size={40} />}
-              <span className="fcal-num">{i + 1}</span>
-              {items.length > 1 && <span className="fcal-cnt">{items.length}</span>}
-            </button>
-          )
-        })}
-      </div>
-      <p className="elder-sub fcal-count">{out.diaries.length ? `${m}월 가족 소식 ${out.diaries.length}개 · 사진을 누르면 읽어 드려요` : NO_PAST}</p>
-    </>
   )
 }

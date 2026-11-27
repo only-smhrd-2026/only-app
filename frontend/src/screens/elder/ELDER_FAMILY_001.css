@@ -44,7 +44,7 @@
 
 /* 받은 반응 — 일기마다 한 카드: 위 '어느 일기'(작은 사진 + 날짜 + 앞 글), 아래 '누가'(시안 .react·.rdiary·.rwho) */
 .family-reacts { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: safe center; gap: 12px; padding: 4px 2px; }
-.family-react { flex: none; display: flex; flex-direction: column; gap: 14px; padding: 16px; border: 0; border-radius: 22px; background: var(--elder-card); box-shadow: var(--elder-sh1); color: var(--elder-fg); text-align: left; cursor: pointer; }
+.family-react { flex: none; display: flex; flex-direction: column; gap: 14px; padding: 16px; border: 0; border-radius: var(--elder-radius); background: var(--elder-card); box-shadow: var(--elder-sh1); color: var(--elder-fg); text-align: left; cursor: pointer; }
 .family-react:active { background: var(--elder-bg2); }
 .family-react:focus-visible { outline: 3px solid var(--elder-fg); outline-offset: 3px; }
 .family-rdiary { display: flex; align-items: center; gap: 14px; padding: 10px; border-radius: 16px; background: var(--elder-bg2); font-size: var(--elder-font-size-s); font-weight: 600; line-height: 1.3; }
@@ -81,28 +81,9 @@
 .reply-no { align-self: center; }
 .elder-sheet .elder-greet .elder-sub { flex: 1; }
 
-/* 지난 가족 소식 달력 (11/25 사용자 — 인스타 스토리 보관함처럼, D104). 소식 온 날만 사진 칸(누름·테두리), 나머지는 날짜 글자만 */
-.fcal-month { flex: none; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
-.fcal-month b { font-size: var(--elder-font-size-lg); }
-.fcal-month .elder-btn { width: auto; justify-self: start; }
-.fcal-month > :last-child { justify-self: end; }
-.fcal-week, .fcal-grid { flex: none; display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px 4px; }
-.fcal-week span { text-align: center; font-size: var(--elder-font-size-s); font-weight: 800; color: var(--elder-ink2); }
-.fcal-week span:first-child { color: var(--elder-t2e); }
-.fcal-day { position: relative; aspect-ratio: 3 / 4; display: grid; place-items: center; border-radius: 12px; font-size: 18px; font-weight: 800; color: var(--elder-ink3); }
-.fcal-day.today { box-shadow: inset 0 0 0 2px var(--elder-edge); color: var(--elder-fg); }
-.fcal-day.fut { opacity: .35; }
-button.fcal-day { padding: 0; overflow: hidden; border: var(--elder-edge-w) solid var(--elder-lip); background: var(--elder-soft); cursor: pointer; }
-button.fcal-day img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-button.fcal-day.sim img { object-fit: contain; padding: 4px; }
-.fcal-num { position: absolute; left: 4px; top: 1px; color: var(--elder-card); font-size: 16px; text-shadow: 0 1px 3px rgba(0, 0, 0, .8); }
-button.fcal-day.sim .fcal-num { color: var(--elder-fg); text-shadow: none; }
-.fcal-cnt { position: absolute; right: 2px; bottom: 2px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; display: grid; place-items: center; background: var(--elder-fg); color: var(--elder-card); font-size: 14px; }
-.fcal-count { text-align: center; }
-/* 소식 한 장 크게 (.elder-cover, 스크롤 없이 한 화면) — 맨 아래 [◀ 전 소식][닫기][다음 소식 ▶] 한 줄 */
+/* 지난 가족 소식 달력 = components/ElderCalendar (모양은 elder.css .fcal-*) */
+/* 소식 한 장 크게 (.elder-cover, 스크롤 없이 한 화면) — 왼쪽 위 [‹ 뒤로] · 맨 아래 [◀ 전 소식][다음 소식 ▶] 한 줄 (11/27) */
 .family-day > .elder-photo-box, .family-day > .elder-simflex { flex: 1 1 24dvh; min-height: 88px; }
 .family-when { flex: none; display: flex; align-items: baseline; gap: 10px; margin: 0; }
 .family-when b { font-size: var(--elder-font-size-lg); }
 .family-when small { font-size: var(--elder-font-size-s); font-weight: 800; color: var(--elder-ink3); }
-.family-daynav { flex: none; display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; }
-.family-daynav .elder-btn { width: auto; padding-inline: 10px; }

@@ -134,7 +134,7 @@ export default function ELDER_DIARY_001() {
         <button
           type="button"
           className="elder-btn elder-btn--secondary elder-btn--sm"
-          style={{ alignSelf: 'center' }}
+          style={{ width: '100%' }} // 위 버튼들과 같은 너비 (11/27 팀 회의)
           onClick={() => nav('/elder/diaries', { state: { home } })}
           disabled={locked}
         >

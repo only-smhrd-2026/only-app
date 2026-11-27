@@ -1,4 +1,4 @@
-/* 어르신 홈 (11/23 시안 .ehome): 위 로고·날짜 · 가운데 심심이 + 말풍선(남는 자리) · 아래 네모 6칸. 스크롤 없이 한 화면 */
+/* 어르신 홈 (11/27 팀 회의 시안): 위 로고·날짜·⚙ · 말풍선(할 일 + 버튼) + 심심이(남는 자리) · 네모 4칸 · 내 마음 띠. 스크롤 없이 한 화면 */
 .elder-home { width: 100%; }
 .ehome-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 .ehome-top { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
@@ -18,7 +18,15 @@
   cursor: pointer;
 }
 .ehome-say { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 12px; }
-.ehome-say .elder-bub { flex: none; white-space: pre-line; font-weight: 800; line-height: 1.32; text-wrap: balance; }
+.ehome-topr { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ehome-gear { flex: none; display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; background: var(--elder-card); box-shadow: var(--elder-sh1); cursor: pointer; }
+.ehome-gear svg { width: 30px; height: 30px; }
+.ehome-gear:active { background: var(--elder-bg2); }
+.ehome-gear:focus-visible, .ehome-mind:focus-visible { outline: 3px solid var(--elder-fg); outline-offset: 3px; }
+/* 말풍선 카드 — 말(누르면 다시 읽음) + 할 일 버튼. 꼬리는 아래 심심이 쪽 */
+.ehome-card { position: relative; flex: none; width: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 16px; border-radius: var(--elder-radius); background: var(--elder-ai); box-shadow: var(--elder-sh1); }
+.ehome-card .elder-bub { padding: 0; box-shadow: none; background: none; text-align: center; white-space: pre-line; font-weight: 800; line-height: 1.32; text-wrap: balance; }
+.ehome-go { min-height: 60px; gap: 6px; }
 /* 심심이는 230px 까지, 화면이 낮으면 남는 높이만큼 줄어든다 */
 .ehome-say .elder-sim { flex: 0 1 auto; min-height: 0; width: auto; height: min(230px, 100%); max-width: 230px; object-fit: contain; }
 /* 심심이 = 잡담 버튼 (D106). 그림 자리·크기는 위와 같게 — 홈 모양은 바뀌지 않는다 */
@@ -32,14 +40,16 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   min-width: 0;
-  padding: 10px 12px 12px;
+  padding: 12px 10px;
   border: 0;
   border-radius: var(--elder-radius);
   background: var(--elder-card);
   color: var(--elder-fg);
-  text-align: left;
+  text-align: center;
   box-shadow: var(--elder-sh1);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -48,11 +58,21 @@
 .ehome-tile:active { transform: scale(.96); box-shadow: none; }
 .ehome-tile:disabled { cursor: default; }
 /* 말풍선이 가리키는 칸 */
-.ehome-tile.now { box-shadow: 0 0 0 4px var(--elder-primary), var(--elder-sh2); }
+.ehome-tile.now, .ehome-mind.now { box-shadow: 0 0 0 4px var(--elder-primary), var(--elder-sh2); }
 .ehome-tile:focus-visible { outline: 3px solid var(--elder-fg); outline-offset: 3px; }
-.ehome-art { flex: none; display: flex; align-items: center; height: 44px; margin-bottom: 4px; }
-.ehome-art svg { display: block; width: auto; height: 42px; }
-.ehome-art img { display: block; width: 54px; height: 40px; object-fit: cover; border: 3px solid #fff; border-radius: 8px; transform: rotate(-5deg); box-shadow: 0 4px 10px rgba(74, 45, 10, .22); }
-.ehome-tile b { font-size: var(--elder-font-size); font-weight: 800; letter-spacing: -.035em; line-height: 1.2; white-space: nowrap; }
-.ehome-tile small { max-width: 100%; font-size: 17px; font-weight: 700; line-height: 1.3; color: var(--elder-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ehome-art { flex: none; display: flex; align-items: center; justify-content: center; height: 56px; }
+.ehome-art svg { display: block; width: auto; height: 54px; }
+.ehome-art img { display: block; width: 68px; height: 50px; object-fit: cover; border: 3px solid #fff; border-radius: 8px; transform: rotate(-5deg); box-shadow: 0 4px 10px rgba(74, 45, 10, .22); }
+.ehome-tile b { max-width: 100%; font-size: var(--elder-font-size); font-weight: 800; letter-spacing: -.035em; line-height: 1.2; text-wrap: balance; } /* 글씨 크게(XXL)면 두 줄로 — 넘치지 않게 */
+/* 내 마음 띠 — 그림 · 이름 · 오른쪽 상태 말 › */
+.ehome-mind { position: relative; flex: none; box-sizing: border-box; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 64px; padding: 8px 16px; border: 0; border-radius: var(--elder-radius); background: var(--elder-card); color: var(--elder-fg); box-shadow: var(--elder-sh1); text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ehome-mind:active { background: var(--elder-bg2); }
+.ehome-mind-art svg { display: block; width: 40px; height: 36px; }
+.ehome-mind > b { font-size: var(--elder-font-size); font-weight: 800; white-space: nowrap; }
+.ehome-mind-say { flex: 1; min-width: 0; text-align: right; font-size: var(--elder-font-size-s); font-weight: 700; color: var(--elder-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (prefers-reduced-motion: reduce) { .ehome-tile { transition: none; } }
+/* 좁은 폰(360px)에서 로고·날짜·⚙ 한 줄이 넘치지 않게 */
+@media (max-width: 375px) {
+  .ehome-logo { font-size: 17px; }
+  .ehome-date { padding: 0 10px; font-size: 16px; }
+}
