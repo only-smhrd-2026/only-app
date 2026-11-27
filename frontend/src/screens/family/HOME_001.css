@@ -34,7 +34,7 @@
 .home-dot.low i { position:absolute; right:-3px; bottom:-3px; width:12px; height:12px; border-radius:50%; background:var(--ink2); border:2px solid var(--surface); }
 .home-dot.later { border-style:dotted; opacity:.4; } /* 이번 주 아직 안 온 날 */
 .home-legend { display:flex; flex-wrap:wrap; gap:4px 14px; align-items:center; justify-content:center; }
-.home-legend span { display:inline-flex; align-items:center; gap:5px; }
+.home-legend > span { display:inline-flex; align-items:center; gap:5px; }
 .home-legend .home-dot { width:16px; height:16px; border-width:1.5px; }
 .home-legend .home-dot .fam-ic { width:10px; height:10px; }
 .home-legend .home-dot.low i { right:-2px; bottom:-2px; width:8px; height:8px; border-width:1.5px; }
