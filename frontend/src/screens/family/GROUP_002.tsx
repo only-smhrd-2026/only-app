@@ -456,8 +456,8 @@ function RoomTab() {
       )}
 
       {/* 내 정보 (11/27 — '올린 사진' 칸 자리. 사진은 사진첩 탭에 있다) */}
-      <Link className="fam-card gr-banner" to="/me">
-        <Avatar name={me.name} src={me.profile_url} />
+      <Link className="fam-card gr-banner" to={`/me?room_id=${room.room_id}`}>
+        <Avatar name={me.name} src={room.my_profile_url} />
         <b>
           {me.name}
           <small className="fam-mini gr-me-sub">내 정보 · 사진·이름·호칭·비밀번호</small>

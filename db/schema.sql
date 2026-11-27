@@ -79,6 +79,7 @@ CREATE TABLE room_members (
     user_id BIGINT NOT NULL REFERENCES users(user_id),
     relation_tag VARCHAR(12) NOT NULL CHECK (relation_tag IN ('CHILD', 'GRANDCHILD', 'OTHER')),
     nickname VARCHAR(12),
+    profile_key VARCHAR(255),
     -- S13: is_owner 삭제 (family_rooms.owner_user_id 하나로만 방장 판단)
     joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     removed_at TIMESTAMPTZ,                                        -- 내보낸 구성원. NULL 이면 활성

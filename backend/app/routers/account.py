@@ -67,12 +67,18 @@ _ROOM_TABLES = (
 )
 
 
+def _member_photo_keys(db, member_condition) -> list[str]:
+    keys = db.scalars(select(RoomMember.profile_key).where(member_condition, RoomMember.profile_key.is_not(None)))
+    return [key for key in keys if storage.ROOM_PROFILE_KEY_RE.fullmatch(key)]
+
+
 def _delete_room(db, room_id: int) -> list[str]:
     """가족방과 딸린 줄을 전부 지운다(커밋은 부른 쪽). 커밋 뒤에 지울 저장소 파일 key 를 돌려준다."""
     keys = [
         k for row in db.execute(select(Photo.object_key, Photo.thumb_key).where(Photo.room_id == room_id)) for k in row
     ]
     keys += db.scalars(select(Diary.illustration_key).where(Diary.room_id == room_id))
+    keys += _member_photo_keys(db, RoomMember.room_id == room_id)
     # 가족 목소리 답장 소리 (D99) — 일기 반응 칸에 key 가 있다
     cells = db.scalars(select(Diary.reactions).where(Diary.room_id == room_id))
     keys += [r["audio_key"] for reactions in cells for r in reactions if r.get("audio_key")]
@@ -163,6 +169,7 @@ def withdraw(body: WithdrawIn, request: Request, response: Response, user: Curre
             diary.reactions = [r for r in diary.reactions if r not in mine]
     # 방장이 아닌 가족방은 나가기와 같게 구성원 줄을 지운다 (rooms.leave_room). 방장을 넘긴 방·내보내진 방(removed_at)의
     # 줄도 지운다 — 줄이 남으면 남은 글 옆에 호칭이 그대로 보인다
+    keys += _member_photo_keys(db, RoomMember.user_id == user.user_id)
     db.execute(delete(RoomMember).where(RoomMember.user_id == user.user_id))
     db.execute(delete(Notification).where(Notification.target_user_id == user.user_id))
     db.execute(delete(PushSubscription).where(PushSubscription.user_id == user.user_id))  # 내 폰의 푸시 구독

@@ -11,7 +11,7 @@ from sqlalchemy import select
 from app.config import UPLOAD_MAX_BYTES, now_kst
 from app.deps import DB, CurrentUser
 from app.errors import ApiError
-from app.models import User
+from app.models import FamilyRoom, RoomMember, User
 from app.routers.photos import to_jpeg
 from app.schemas.auth import AuthOut, LoginIn, NameIn, PasswordChangeIn, SignupIn, UserOut
 from app.schemas.common import OkOut
@@ -116,15 +116,12 @@ def update_me(body: NameIn, user: CurrentUser, db: DB):
 
 
 @router.put("/me/photo", response_model=UserOut)
-def set_my_photo(file: UploadFile, user: CurrentUser, db: DB):
-    """프로필 사진 올리기·바꾸기 (11/27). 화면이 동그라미로 잘라 정사각형으로 보낸다"""
-    key = f"users/{user.user_id}/{uuid.uuid4().hex}.jpg"
+def set_my_photo(file: UploadFile, user: CurrentUser, db: DB, room_id: int | None = None):
+    """이 가족방 프로필 사진을 올린다. 화면이 동그라미로 잘라 정사각형으로 보낸다."""
+    member = _photo_member(db, user.user_id, room_id)
+    key = f"rooms/{member.room_id}/profiles/{uuid.uuid4().hex}.jpg"
     storage.put(key, profile_jpeg(file))
-    old, user.profile_key = user.profile_key, key
-    db.commit()
-    if old:
-        drop_photo(old)
-    return user
+    return _save_member_photo(db, user, member, key)
 
 
 def profile_jpeg(file: UploadFile) -> bytes:
@@ -140,13 +137,39 @@ def profile_jpeg(file: UploadFile) -> bytes:
 
 
 @router.delete("/me/photo", response_model=UserOut)
-def delete_my_photo(user: CurrentUser, db: DB):
-    """프로필 사진 지우기 — 이름 첫 글자 동그라미로 돌아간다"""
-    old, user.profile_key = user.profile_key, None
+def delete_my_photo(user: CurrentUser, db: DB, room_id: int | None = None):
+    """이 가족방의 프로필 사진을 지운다."""
+    return _save_member_photo(db, user, _photo_member(db, user.user_id, room_id), None)
+
+
+def _photo_member(db, user_id: int, room_id: int | None) -> RoomMember:
+    query = (
+        select(RoomMember)
+        .join(FamilyRoom)
+        .where(RoomMember.user_id == user_id, RoomMember.removed_at.is_(None), FamilyRoom.status == "ACTIVE")
+        .with_for_update(of=RoomMember)
+    )
+    if room_id is not None:
+        member = db.scalar(query.where(RoomMember.room_id == room_id))
+        if member is None:
+            raise ApiError(404, "ROOM_NOT_FOUND", "가족방을 찾을 수 없어요")
+        return member
+    # 예전 앱에서 가족방 번호 없이 보냈을 때는 대상 가족방이 하나인 경우만 받는다.
+    members = db.scalars(query.limit(2)).all()
+    if len(members) != 1:
+        raise ApiError(409, "ROOM_REQUIRED", "가족방을 선택하고 내 정보에서 사진을 바꿔 주세요")
+    return members[0]
+
+
+def _save_member_photo(db, user: User, member: RoomMember, key: str | None) -> UserOut:
+    old, member.profile_key = member.profile_key, key
     db.commit()
-    if old:
+    # 예전 계정 사진 파일은 다른 가족방에서도 쓰일 수 있다. 계정 탈퇴 때 원본을 지운다.
+    if old and storage.ROOM_PROFILE_KEY_RE.fullmatch(old):
         drop_photo(old)
-    return user
+    out = UserOut.model_validate(user)
+    out.profile_url = f"/api/media/{key}" if key else None
+    return out
 
 
 def drop_photo(key: str) -> None:

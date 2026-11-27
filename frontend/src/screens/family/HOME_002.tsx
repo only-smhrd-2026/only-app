@@ -26,6 +26,7 @@ const REPLY_MAX = 200
 const EMOJIS = ['❤️', '😊', '👏', '😂', '🥰', '🙏'] // 댓글 쓰기 칸 위 자주 쓰는 이모지 — 가족 홈 회상 댓글과 같은 줄
 const VOICE_MS = 20_000 // 말로 한마디 녹음 상한
 const VOICE_REPLY_SEC = 30 // 목소리 답장 상한 — 서버 config.VOICE_REPLY_MAX_SEC 와 같은 값 (D99)
+const voiceFilename = (blob: Blob) => blob.type.includes('mp4') ? 'voice.mp4' : 'voice.webm' // 아이폰 mp4·갤럭시 webm
 
 const postedAt = (iso: string) =>
   new Date(iso).toLocaleString('ko-KR', {
@@ -81,6 +82,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
   // 목소리 답장 (D99): 녹음 중 초 · 녹음을 마친 소리(들어 보기·보내기) · 초 세기와 30초 저절로 멈춤
   const [recSec, setRecSec] = useState(0)
   const [take, setTake] = useState<{ blob: Blob; url: string; sec: number }>()
+  const [takeCaption, setTakeCaption] = useState<string | null>()
   const recTimers = useRef<number[]>([])
   const deleteSheet = useRef<HTMLDialogElement>(null)
   const cancelDelete = useRef<HTMLButtonElement>(null)
@@ -105,8 +107,24 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
       timers.current.forEach((t) => clearTimeout(t))
     }
   }, [])
-  // 들어 보기용 주소는 새로 녹음하거나 떠날 때 버린다
-  useEffect(() => () => take && URL.revokeObjectURL(take.url), [take])
+  // 다시 녹음하거나 취소하면 이전 인식 요청과 들어 보기 주소를 버린다.
+  useEffect(() => {
+    if (!take) return
+    const controller = new AbortController()
+    const form = new FormData()
+    form.append('audio', take.blob, voiceFilename(take.blob))
+    api<SttOut>('/api/stt', { form, signal: controller.signal })
+      .then(({ transcript }) => {
+        if (!controller.signal.aborted) setTakeCaption(transcript.trim().replace(/\s+/g, ' ').slice(0, REPLY_MAX) || null)
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setTakeCaption(null)
+      })
+    return () => {
+      controller.abort()
+      URL.revokeObjectURL(take.url)
+    }
+  }, [take])
 
   useEffect(() => {
     if (deleteOpen) {
@@ -217,17 +235,19 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
     const blob = await r.stop()
     if (!live.current) return
     setVoice(undefined)
+    setTakeCaption(undefined)
     setTake({ blob, url: URL.createObjectURL(blob), sec })
   }
 
   async function sendVoiceReply() {
-    if (!d || !diary.data || !take || busy) return
+    if (!d || !diary.data || !take || takeCaption === undefined || busy) return
     const base = diary.data
     setBusy(true)
     setReplyError(undefined)
     try {
       const form = new FormData()
-      form.append('audio', take.blob, take.blob.type.includes('mp4') ? 'voice.mp4' : 'voice.webm') // 아이폰 mp4·갤럭시 webm
+      form.append('audio', take.blob, voiceFilename(take.blob))
+      if (takeCaption !== null) form.append('caption', takeCaption)
       const data = await api<DiaryOut>(`/api/diaries/${d.diary_id}/voice-reply`, { form })
       setEdit({ base, data })
       setTake(undefined)
@@ -465,8 +485,12 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
                 {/* 어르신 일기 — 진짜 목소리 답장 (D99). 녹음을 마치면 들어 보고 보낸다 */}
                 {elder && take && (
                   <div className="diary-detail-take" role="group" aria-label="녹음한 목소리">
+                    <p className="diary-detail-caption" role="status">
+                      <strong>AI가 받아쓴 말</strong>
+                      <span>{takeCaption === undefined ? '녹음을 글로 바꾸는 중…' : takeCaption ?? '받아쓰지 못했어요. 녹음을 들어 보고 보낼 수 있어요.'}</span>
+                    </p>
                     <VoicePlay url={take.url} sec={take.sec} label="들어 보기" />
-                    <button type="button" className="fam-btn fam-btn--primary fam-btn--sm" disabled={busy} onClick={() => void sendVoiceReply()}>
+                    <button type="button" className="fam-btn fam-btn--primary fam-btn--sm" disabled={busy || takeCaption === undefined} onClick={() => void sendVoiceReply()}>
                       {busy ? '보내는 중…' : '보내기'}
                     </button>
                     <button type="button" className="fam-btn fam-btn--sm" disabled={busy} onClick={() => void startVoiceReply()}>
@@ -488,7 +512,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
                   ))}
                 </div>
                 <form className="cm-bar" onSubmit={(e) => { e.preventDefault(); void sendReply(draft) }}>
-                  <Avatar name={me.data?.name ?? '나'} src={me.data?.profile_url} small />
+                  <Avatar name={me.data?.name ?? '나'} src={room.my_profile_url} small />
                   <input
                     ref={replyInput}
                     className="cm-input"

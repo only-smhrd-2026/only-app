@@ -41,12 +41,12 @@
 /* 표지 사진 — 달 글자·사진 수, 오른쪽 아래 옛날 사진 동그라미 */
 .ph-herowrap { position:relative; }
 .ph-hero { position:relative; display:block; width:100%; aspect-ratio:1/1.02; border:0; padding:0; overflow:hidden; background:var(--bg2); text-align:left; cursor:pointer; }
-.ph-hero img { width:100%; height:100%; object-fit:cover; display:block; }
+.ph-hero > img { width:100%; height:100%; object-fit:cover; display:block; }
 .ph-hero::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg,rgba(20,12,4,.38),rgba(20,12,4,0) 55%),linear-gradient(0deg,rgba(20,12,4,.45),rgba(20,12,4,0) 30%); }
 .ph-ttl { position:absolute; left:18px; top:42%; z-index:1; color:#fff; text-shadow:0 1px 8px rgba(0,0,0,.35); }
 .ph-ttl b { display:block; font-size:42px; font-weight:400; letter-spacing:-.03em; line-height:1.05; }
 .ph-ttl small { font-size:15px; opacity:.9; }
-.ph-foot { position:absolute; left:16px; bottom:14px; z-index:1; color:#fff; font-size:14px; font-weight:800; text-shadow:0 1px 6px rgba(0,0,0,.4); }
+.ph-foot { position:absolute; left:58px; bottom:14px; z-index:1; color:#fff; font-size:14px; font-weight:800; text-shadow:0 1px 6px rgba(0,0,0,.4); }
 .ph-memo { position:absolute; right:14px; bottom:52px; z-index:2; display:flex; flex-direction:column; align-items:center; gap:6px; border:0; background:none; padding:0; color:#fff; font-size:13px; font-weight:800; text-shadow:0 1px 6px rgba(0,0,0,.5); cursor:pointer; }
 .ph-memo img { width:86px; height:86px; border-radius:50%; object-fit:cover; border:4px solid #fff; box-shadow:0 4px 14px rgba(0,0,0,.3); }
 
@@ -62,6 +62,7 @@
 .ph-who, .ph-talk { position:absolute; bottom:5px; width:22px; height:22px; border-radius:50%; display:grid; place-items:center; }
 .ph-who { left:5px; background:var(--t2); color:var(--t2e); font-size:10px; font-weight:800; box-shadow:0 0 0 1.5px #fff; }
 .ph-who.by-elder { background:var(--t4); color:var(--t4e); }
+.ph-hero .ph-who { left:16px; bottom:10px; z-index:1; width:32px; height:32px; font-size:13px; }
 .ph-who img { position:absolute; inset:0; width:100%; height:100%; border-radius:inherit; object-fit:cover; }
 .ph-talk { right:5px; background:var(--surf); color:var(--acc); box-shadow:0 1px 4px rgba(42,27,16,.35); }
 .ph-talk .fam-ic { width:13px; height:13px; fill:currentColor; }

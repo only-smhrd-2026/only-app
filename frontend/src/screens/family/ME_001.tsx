@@ -1,11 +1,11 @@
 /**
  * ME_001 — 내 정보 (/me, 11/27 가족화면 설정 개선안: 가족방 탭의 '올린 사진' 칸 자리에서 온다).
- * 프로필 사진(올리기·바꾸기·지우기) · 이름 · 가족방마다 내 호칭(어르신이 부르는 말) · 비밀번호 바꾸기(카카오 가입은 없음)
+ * 가족방별 프로필 사진 · 이름 · 가족방마다 내 호칭(어르신이 부르는 말) · 비밀번호 바꾸기(카카오 가입은 없음)
  * · 알림 설정 · 로그아웃 · 회원 탈퇴. 서버: PATCH /api/auth/me · PUT·DELETE /api/auth/me/photo ·
  * PATCH /api/rooms/{id}/members/{나} · POST /api/auth/password.
  */
 import { useState, type ChangeEvent, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { MemberOut, RoomOut, UserOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
@@ -23,15 +23,17 @@ type Run = (work: () => Promise<void>, done: string, fail: string) => Promise<vo
 
 export default function ME_001() {
   const nav = useNavigate()
+  const [params] = useSearchParams()
+  const roomId = params.get('room_id')
   const meFetch = useFetch<UserOut>('/api/auth/me')
   const rooms = useFetch<RoomOut[]>('/api/rooms')
+  const room = roomId === null ? rooms.data?.[0] : rooms.data?.find((r) => String(r.room_id) === roomId)
   const [edited, setMe] = useState<UserOut>() // 바꾼 뒤 서버가 돌려준 나 — 없으면 처음 받은 그대로
   const me = edited ?? meFetch.data ?? undefined
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string>() // 바꾼 뒤 한 줄 안내
   const [error, setError] = useState<string>()
   const [nameDraft, setName] = useState<string>()
-  const [cropFile, setCropFile] = useState<File>() // 고른 사진 — 동그라미 자르기 판이 열려 있다
   const name = nameDraft ?? me?.name ?? ''
 
   /** 버튼 하나 = 요청 하나. 끝나면 안내 한 줄 */
@@ -49,23 +51,6 @@ export default function ME_001() {
     }
   }
 
-  function pickPhoto(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = '' // 같은 사진을 다시 골라도 onChange 가 오게
-    if (file) setCropFile(file) // 동그라미로 맞춘 뒤 올린다 (PhotoCrop)
-  }
-
-  function uploadPhoto(jpeg: Blob) {
-    setCropFile(undefined)
-    const form = new FormData()
-    form.append('file', jpeg, 'me.jpg')
-    void run(
-      async () => setMe(await api<UserOut>('/api/auth/me/photo', { method: 'PUT', form })),
-      '프로필 사진을 바꿨어요',
-      '사진을 올리지 못했어요. 다시 해 주세요.',
-    )
-  }
-
   function saveName(e: FormEvent) {
     e.preventDefault()
     void run(
@@ -81,37 +66,13 @@ export default function ME_001() {
   return (
     <main className="me">
       <section className="fam-card me-card me-top">
-        <span className="me-av">
-          <Avatar name={me.name} src={me.profile_url} />
-        </span>
-        <div className="me-photo-btns">
-          <label className="fam-btn fam-btn--tonal fam-btn--sm me-file">
-            <input className="st-file" type="file" accept="image/jpeg,image/png" onChange={pickPhoto} disabled={busy} />
-            <FamIcon name="imagePlus" />
-            {me.profile_url ? '사진 바꾸기' : '사진 넣기'}
-          </label>
-          {me.profile_url && (
-            <button
-              type="button"
-              className="fam-text-btn"
-              disabled={busy}
-              onClick={() =>
-                void run(
-                  async () => setMe(await api<UserOut>('/api/auth/me/photo', { method: 'DELETE' })),
-                  '프로필 사진을 지웠어요',
-                  '사진을 지우지 못했어요. 다시 해 주세요.',
-                )
-              }
-            >
-              사진 지우기
-            </button>
-          )}
-        </div>
+        {room ? (
+          <RoomProfilePhoto key={room.room_id} room={room} name={me.name} busy={busy} run={run} />
+        ) : (
+          <span className="me-av"><Avatar name={me.name} /></span>
+        )}
         {me.email && <p className="fam-mini">{me.email}</p>}
       </section>
-      {cropFile && (
-        <PhotoCrop file={cropFile} title="프로필 사진" onCancel={() => setCropFile(undefined)} onDone={uploadPhoto} />
-      )}
 
       {(note || error) && (
         <p className={error ? 'fam-error' : 'me-note'} role={error ? 'alert' : 'status'}>
@@ -148,6 +109,62 @@ export default function ME_001() {
         </Link>
       </section>
     </main>
+  )
+}
+
+function RoomProfilePhoto({ room, name, busy, run }: { room: RoomOut; name: string; busy: boolean; run: Run }) {
+  const [photoUrl, setPhotoUrl] = useState(room.my_profile_url)
+  const [cropFile, setCropFile] = useState<File>()
+  const path = `/api/auth/me/photo?room_id=${room.room_id}`
+
+  function pickPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (file) setCropFile(file)
+  }
+
+  function uploadPhoto(jpeg: Blob) {
+    setCropFile(undefined)
+    const form = new FormData()
+    form.append('file', jpeg, 'me.jpg')
+    void run(
+      async () => setPhotoUrl((await api<UserOut>(path, { method: 'PUT', form })).profile_url),
+      '이 가족방의 프로필 사진을 바꿨어요',
+      '사진을 올리지 못했어요. 다시 해 주세요.',
+    )
+  }
+
+  return (
+    <>
+      <span className="me-av"><Avatar name={name} src={photoUrl} /></span>
+      <p className="fam-mini">{room.elder_name} {room.elder_honorific}네 가족방 프로필 사진</p>
+      <div className="me-photo-btns">
+        <label className="fam-btn fam-btn--tonal fam-btn--sm me-file">
+          <input className="st-file" type="file" accept="image/jpeg,image/png" onChange={pickPhoto} disabled={busy} />
+          <FamIcon name="imagePlus" />
+          {photoUrl ? '사진 바꾸기' : '사진 넣기'}
+        </label>
+        {photoUrl && (
+          <button
+            type="button"
+            className="fam-text-btn"
+            disabled={busy}
+            onClick={() =>
+              void run(
+                async () => setPhotoUrl((await api<UserOut>(path, { method: 'DELETE' })).profile_url),
+                '이 가족방의 프로필 사진을 지웠어요',
+                '사진을 지우지 못했어요. 다시 해 주세요.',
+              )
+            }
+          >
+            사진 지우기
+          </button>
+        )}
+      </div>
+      {cropFile && (
+        <PhotoCrop file={cropFile} title="프로필 사진" onCancel={() => setCropFile(undefined)} onDone={uploadPhoto} />
+      )}
+    </>
   )
 }
 

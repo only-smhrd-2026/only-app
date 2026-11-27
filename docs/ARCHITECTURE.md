@@ -48,6 +48,9 @@ only-app/
 가족방 자원: deps.require_member → room_members.removed_at IS NULL  (내 가족방 것만)
 ```
 
+`room_members.profile_key` (`VARCHAR(255)`, `NULL` 허용)는 구성원별 가족방 프로필 사진의 저장소 키다. 새 사진은
+`rooms/{room_id}/profiles/{uuid}.jpg`를 쓰고, 이전 사진은 처음 한 번 `users.profile_key`에서 가져온다 (D119).
+
 ### 가족 가입 → 가족방 → 어르신 연결
 
 ```

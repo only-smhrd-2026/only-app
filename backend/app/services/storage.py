@@ -15,10 +15,12 @@ from pathlib import Path
 from app.config import settings
 
 KEY_RE = re.compile(
-    r"^(rooms/\d+/([0-9a-f-]{36}(/\d+)?\.jpg|voice/[0-9a-f]{32}\.mp3|elder/[0-9a-f]{32}\.jpg)|users/\d+/[0-9a-f]{32}\.jpg)$"
+    r"^(rooms/\d+/([0-9a-f-]{36}(/\d+)?\.jpg|voice/[0-9a-f]{32}\.mp3|"
+    r"(?:elder|profiles)/[0-9a-f]{32}\.jpg)|users/\d+/[0-9a-f]{32}\.jpg)$"
 )
-# 가족 프로필 사진 (11/27 내 정보) — users/{user_id}/{uuid}.jpg. 미디어 주소는 같은 가족방 사람에게만 보인다
+# 이전 계정 프로필 사진. 현재도 해당 파일을 프로필로 쓰는 가족방에서만 읽을 수 있다.
 PROFILE_KEY_RE = re.compile(r"^users/(\d+)/[0-9a-f]{32}\.jpg$")
+ROOM_PROFILE_KEY_RE = re.compile(r"^rooms/(\d+)/profiles/[0-9a-f]{32}\.jpg$")
 # 가족 목소리 답장 (D99) — rooms/{가족방}/voice/{uuid}.mp3. 미디어 주소는 이 가족방 번호로 권한을 본다
 VOICE_KEY_RE = re.compile(r"^rooms/(\d+)/voice/[0-9a-f]{32}\.mp3$")
 # 어르신 얼굴 사진 (11/27, 방장이 넣음) — rooms/{가족방}/elder/{uuid}.jpg. 권한은 목소리 답장처럼 가족방 번호로
