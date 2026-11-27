@@ -47,6 +47,7 @@ CREATE TABLE family_rooms (
     tts_speed NUMERIC(3,2) NOT NULL DEFAULT 0.90 CHECK (tts_speed IN (0.80, 0.90, 1.00)),   -- D74 (전 0.70·0.85·1.00)
     tts_voice VARCHAR(6) NOT NULL DEFAULT 'FEMALE' CHECK (tts_voice IN ('FEMALE', 'MALE')),  -- D74 어르신이 처음 연결 때 고름
     weather_region VARCHAR(10),                                    -- 어르신 동네(시·도, config.REGIONS) — 심심이 날씨 (D106). NULL = 안 정함
+    elder_photo_key VARCHAR(255),                                  -- 어르신 얼굴 사진 rooms/{id}/elder/{uuid}.jpg (11/27, 방장만). NULL = 이름 첫 글자
     integration_scope VARCHAR(15) NOT NULL DEFAULT 'NONE' CHECK (integration_scope IN ('NONE', 'SUMMARY_ONLY')),
     integration_consent_at TIMESTAMPTZ,
     external_user_id VARCHAR(64) UNIQUE,

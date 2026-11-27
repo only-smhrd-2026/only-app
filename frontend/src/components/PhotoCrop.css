@@ -1,0 +1,10 @@
+/* 동그라미 사진 자르기 판 (PhotoCrop.tsx) — 판 모양은 FamilyFrame.css 의 fam-sheet */
+.crop { align-items:center; }
+.crop .fam-mini { text-align:center; }
+.crop-box { position:relative; flex:none; overflow:hidden; border-radius:16px; background:#000; touch-action:none; cursor:grab; user-select:none; }
+.crop-box img { position:absolute; left:0; top:0; max-width:none; pointer-events:none; }
+/* 동그라미 밖은 어둡게 — 그림자를 바깥으로 크게 퍼뜨린다 */
+.crop-ring { position:absolute; inset:0; border-radius:50%; box-shadow:0 0 0 999px rgba(0,0,0,.55); outline:2px solid rgba(255,255,255,.85); outline-offset:-2px; pointer-events:none; }
+.crop-zoom { display:flex; align-items:center; gap:10px; width:100%; max-width:320px; color:var(--text-3); font-size:13px; }
+.crop-zoom input { flex:1; min-height:44px; accent-color:var(--brand); }
+.crop-btns { display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%; }

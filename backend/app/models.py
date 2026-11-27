@@ -72,6 +72,7 @@ class FamilyRoom(Base):
     tts_speed: Mapped[Decimal] = mapped_column(Numeric(3, 2), server_default="0.90")  # 0.80 | 0.90 | 1.00 (D74)
     tts_voice: Mapped[str] = mapped_column(String(6), server_default="FEMALE")  # FEMALE | MALE (D74)
     weather_region: Mapped[str | None] = mapped_column(String(10))  # 어르신 동네(시·도) — 심심이 날씨 (D106)
+    elder_photo_key: Mapped[str | None] = mapped_column(String(255))  # 어르신 얼굴 사진 (11/27, 방장만 넣음)
     integration_scope: Mapped[str] = mapped_column(String(15), server_default="NONE")
     integration_consent_at: Mapped[datetime | None] = mapped_column(TS)
     external_user_id: Mapped[str | None] = mapped_column(String(64), unique=True)

@@ -98,3 +98,4 @@
 .gr-mic { display:flex; flex-direction:column; gap:4px; margin-top:10px; }
 .gr-mic ul { margin:0; padding-left:18px; }
 .gr-dev .fam-tag { align-self:flex-start; } /* 연결됨 꼬리표는 글자 폭만 */
+.gr-file { position:relative; cursor:pointer; } /* 어르신 얼굴 사진 [넣기] — 안의 파일 칸은 st-file */

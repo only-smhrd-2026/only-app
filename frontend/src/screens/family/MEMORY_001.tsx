@@ -133,7 +133,7 @@ export default function MEMORY_001() {
       <h1 className="diary-detail-title">회상</h1>
       <article className="diary-detail-card">
         <header className="diary-detail-head">
-          <Avatar name={room.elder_name} />
+          <Avatar name={room.elder_name} src={room.elder_photo_url} />
           <div className="diary-detail-who">
             <b>{room.elder_name} {room.elder_honorific}</b>
             <small>

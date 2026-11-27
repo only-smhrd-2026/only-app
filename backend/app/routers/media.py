@@ -27,7 +27,9 @@ def get_media(key: str, actor: CurrentActor, db: DB):
         return Response(data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
     # 가족 목소리 답장 mp3 (D99) — key 의 가족방 번호로 권한을 본다. 답장을 지우거나 바꾸면 파일도 지워 없으면 404
     voice = storage.VOICE_KEY_RE.match(key)
-    room_id = int(voice[1]) if voice else None
+    # 어르신 얼굴 사진 (11/27) 도 key 의 가족방 번호로. 바꾸거나 지우면 옛 파일은 지워져 404
+    by_room = voice or storage.ELDER_PHOTO_KEY_RE.match(key)
+    room_id = int(by_room[1]) if by_room else None
     if room_id is None:
         room_id = db.scalar(
             select(Photo.room_id).where((Photo.object_key == key) | (Photo.thumb_key == key), Photo.status == "ACTIVE")
