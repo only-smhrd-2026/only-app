@@ -1,38 +1,91 @@
-/* 어르신 사진첩 (11/23 시안 .alb·.mtabs·.chips·.ahero·.agrid.three). 이 화면만 스크롤한다 (D51) */
-.alb { min-height: 100dvh; }
+/* 어르신 사진첩 (11/27 시안 목업_1127_사진첩/elder.html — FamilyAlbum 배치). 이 화면만 스크롤한다 (D51) */
+.alb { min-height: 100dvh; padding-bottom: 112px; } /* 아래 떠 있는 [+ 사진 올리기]에 가리지 않게 */
 .alb > h1 { flex: none; }
+.alb-center { text-align: center; }
+
+/* 위: 연도 한 줄 + 달 탭 + 칩 — 내려도 위에 붙어 있다 */
+.alb-top { position: sticky; top: 0; z-index: 3; flex: none; margin: 0 calc(-1 * var(--elder-pad)); padding: 0 var(--elder-pad) 10px; background: var(--elder-bg); box-shadow: 0 1px 0 var(--elder-line); }
+.alb-year { text-align: center; font-size: 18px; font-weight: 800; color: var(--elder-ink2); }
+.alb-tabs { display: flex; overflow-x: auto; margin: 0 calc(-1 * var(--elder-pad)); padding: 0 8px; scrollbar-width: none; }
+.alb-tabs::-webkit-scrollbar, .alb-chips::-webkit-scrollbar { display: none; }
+.alb-tab { flex: none; position: relative; height: 56px; padding: 0 14px; border: 0; background: none; font-size: var(--elder-font-size-s); font-weight: 700; color: var(--elder-ink3); white-space: nowrap; cursor: pointer; }
+.alb-tab[aria-current="true"] { color: var(--elder-fg); font-weight: 800; }
+.alb-tab[aria-current="true"]::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: 0; height: 5px; border-radius: 3px 3px 0 0; background: var(--elder-primary); box-shadow: inset 0 -1.5px 0 var(--elder-lip); }
 /* 칩 [전체] [내 사진] [가족 사진] (11/25) */
-.alb-chips { flex: none; display: flex; gap: 8px; overflow-x: auto; margin: 0 calc(-1 * var(--elder-pad)); padding: 2px var(--elder-pad); scrollbar-width: none; }
+.alb-chips { display: flex; gap: 8px; overflow-x: auto; margin: 6px calc(-1 * var(--elder-pad)) 0; padding: 2px var(--elder-pad); scrollbar-width: none; }
 .alb-chips .elder-chip { flex: none; min-height: 48px; }
-/* 달(지난 해는 연도) 제목 + 사진 2열 — 크게 보이고 누르기 쉽게 (11/25, 가족 사진첩은 3열) */
-.alb-month { flex: none; display: flex; flex-direction: column; gap: 8px; }
-.alb-month h2 { margin: 6px 0 0; font-size: var(--elder-font-size-s); font-weight: 800; color: var(--elder-ink2); }
-.alb-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-.alb-grid > button { position: relative; aspect-ratio: 1; padding: 0; overflow: hidden; border: 0; border-radius: 14px; background: var(--elder-bg2); box-shadow: var(--elder-sh1); cursor: pointer; transition: transform .12s var(--elder-ease); }
-.alb-grid > button:active:not(:disabled) { transform: scale(.96); }
-.alb-grid img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* 한 달 — 표지 사진 + 모자이크는 화면 끝까지 */
+.alb-page { flex: none; display: flex; flex-direction: column; margin: 0 calc(-1 * var(--elder-pad)); animation: alb-in .26s cubic-bezier(.2, .8, .2, 1); }
+@keyframes alb-in { from { opacity: .3; } }
+.alb-herowrap { position: relative; }
+.alb-hero { position: relative; display: block; width: 100%; aspect-ratio: 1; padding: 0; border: 0; overflow: hidden; background: var(--elder-bg2); cursor: pointer; }
+.alb-hero img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.alb-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(20, 12, 4, .42), rgba(20, 12, 4, 0) 58%), linear-gradient(0deg, rgba(20, 12, 4, .5), rgba(20, 12, 4, 0) 32%); }
+.alb-hero-ttl { position: absolute; left: 20px; top: 38%; z-index: 1; color: #fff; text-align: left; text-shadow: 0 1px 8px rgba(0, 0, 0, .35); }
+.alb-hero-ttl b { display: block; font-size: 52px; font-weight: 400; letter-spacing: -.03em; line-height: 1.05; }
+.alb-hero-ttl small { font-size: 20px; }
+.alb-hero-foot { position: absolute; left: 18px; bottom: 16px; z-index: 1; color: #fff; font-size: 20px; font-weight: 800; text-shadow: 0 1px 6px rgba(0, 0, 0, .45); }
+/* 'N년 전 사진' 동그라미 — 가장 옛 사진으로 바로 가기 */
+.alb-memo { position: absolute; right: 14px; bottom: 60px; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: #fff; font-size: 18px; font-weight: 800; text-shadow: 0 1px 6px rgba(0, 0, 0, .55); cursor: pointer; }
+.alb-memo img { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; border: 4px solid #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, .3); filter: sepia(.5) saturate(.8) contrast(.92) brightness(1.03); }
+
+/* 3열 모자이크 — 12장마다 2×2 큰 칸(왼쪽·오른쪽) */
+.alb-mosaic { container-type: inline-size; display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: calc((100cqw - 6px) / 3); grid-auto-flow: row dense; gap: 3px; margin-top: 3px; }
+.alb-cell { position: relative; display: block; padding: 0; border: 0; overflow: hidden; background: var(--elder-bg2); cursor: pointer; }
+.alb-cell--bl { grid-column: 1 / span 2; grid-row: span 2; }
+.alb-cell--br { grid-column: 2 / span 2; grid-row: span 2; }
+.alb-cell img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .12s var(--elder-ease); }
+.alb-cell:active img { transform: scale(.96); }
+.alb-cell:focus-visible, .alb-hero:focus-visible { outline: 3px solid var(--elder-fg); outline-offset: -3px; }
 /* 이름표 — 가족은 보낸 사람 별명, 어르신 사진은 '내 사진'·'내 일기'(파랑) */
-.alb-name { position: absolute; left: 6px; bottom: 6px; max-width: calc(100% - 12px); padding: 3px 10px; border-radius: 10px; background: rgba(17, 12, 8, .78); color: #fff; font-size: 18px; font-style: normal; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.alb-name { position: absolute; left: 5px; bottom: 5px; max-width: calc(100% - 10px); padding: 2px 8px; border-radius: 9px; background: rgba(17, 12, 8, .78); color: #fff; font-size: 16px; font-style: normal; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.alb-cell--bl .alb-name, .alb-cell--br .alb-name { font-size: 18px; padding: 3px 10px; }
 .alb-name--me { background: var(--elder-t4e); }
-/* [+ 사진 올리기] — 칩 아래 넓은 버튼 하나 */
-.alb-up {
-  flex: none;
+/* 이 사진으로 이야기 나누심 — 오른쪽 위 작은 말풍선 */
+.alb-talked { position: absolute; top: 5px; right: 5px; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--elder-soft); color: var(--elder-acc); }
+.alb-talked .elder-ic { width: 18px; height: 18px; }
+.alb-next { margin: 20px var(--elder-pad) 0; width: auto; }
+.alb-end { padding: 24px var(--elder-pad) 0; }
+
+/* 떠 있는 [+ 사진 올리기] — 오른쪽 아래 */
+.alb-add {
+  position: fixed;
+  right: max(16px, calc((100vw - 560px) / 2 + 16px));
+  bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  z-index: 5;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: var(--elder-chip-height);
-  border: var(--elder-edge-w) dashed var(--elder-lip);
-  border-radius: var(--elder-radius);
-  background: var(--elder-soft);
-  color: var(--elder-acc);
-  font-size: var(--elder-font-size-s);
+  gap: 6px;
+  min-height: 60px;
+  padding: 0 22px 0 16px;
+  border: var(--elder-edge-w) solid var(--elder-lip);
+  border-radius: 30px;
+  background: linear-gradient(180deg, var(--elder-brand-hi), var(--elder-primary) 62%);
+  color: var(--elder-primary-fg);
+  font-size: 21px;
   font-weight: 800;
+  box-shadow: var(--elder-sh2);
   cursor: pointer;
 }
-.alb-up .elder-ic { width: 28px; height: 28px; }
-.alb-up:disabled { cursor: default; }
-.alb-grid > button:focus-visible { outline: 3px solid var(--elder-fg); outline-offset: 3px; }
-.alb-center { text-align: center; }
+.alb-add .elder-ic { width: 28px; height: 28px; }
+.alb-add:disabled { cursor: default; opacity: .7; }
+
+/* 사진 보기 — 한 화면(스크롤 없음). 위 [‹ 뒤로] + 날짜, 아래 [닫기] 없음 (11/27) */
+.alb-vhead { flex: none; display: flex; align-items: center; gap: 8px; }
+.alb-vhead .elder-btn--sm { gap: 2px; padding-left: 8px; }
+.alb-vttl { flex: 1; min-width: 0; text-align: center; padding-right: 88px; font-size: var(--elder-font-size-s) !important; font-weight: 800; }
+.alb-pbox { position: relative; flex: 1 1 auto; min-height: 150px; display: flex; flex-direction: column; }
+.alb-side { position: absolute; top: 50%; z-index: 2; display: grid; place-items: center; width: 48px; height: 48px; margin-top: -24px; border: 0; border-radius: 50%; background: rgba(17, 12, 8, .5); color: #fff; cursor: pointer; }
+.alb-side--l { left: 8px; }
+.alb-side--r { right: 8px; }
+.alb-side .elder-ic { width: 28px; height: 28px; }
+.alb-count { position: absolute; top: 10px; right: 10px; z-index: 2; padding: 2px 10px; border-radius: 12px; background: rgba(17, 12, 8, .6); color: #fff; font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .alb-from { flex: none; margin: 0; font-weight: 800; color: var(--elder-fg); }
-@media (prefers-reduced-motion: reduce) { .alb-grid > button { transition: none; } }
+.alb-cap { flex: none; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* 이 사진으로 나눈 이야기 — 누르면 읽어 드림 */
+.alb-talk { flex: none; display: flex; flex-direction: column; gap: 2px; padding: 10px 16px; border: var(--elder-edge-w) solid var(--elder-edge); border-radius: 20px; background: var(--elder-card); box-shadow: var(--elder-sh1); text-align: left; cursor: pointer; }
+.alb-talk b { display: flex; align-items: center; gap: 6px; font-size: 20px; color: var(--elder-acc); }
+.alb-talk b .elder-ic { width: 22px; height: 22px; }
+.alb-talk span { font-size: var(--elder-font-size-s); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .alb-page { animation: none; } .alb-cell img { transition: none; } }
