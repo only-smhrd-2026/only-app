@@ -713,7 +713,7 @@ function RoomTab() {
             {sheet.t === 'member' && (
               <>
                 <div className="gr-person">
-                  <Avatar name={sheet.m.name} />
+                  <Avatar name={sheet.m.name} src={sheet.m.profile_url} />
                   <div>
                     <b>
                       {sheet.m.name}

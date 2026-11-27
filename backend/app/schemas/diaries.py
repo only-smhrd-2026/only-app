@@ -78,6 +78,8 @@ class ReactionOut(BaseModel):
     kind: Literal["LIKE", "HEART", "SMILE", "CLAP", "REPLY"]  # REPLY = 가족 한마디 (이모지와 따로 한 사람 1칸)
     user_id: int | None = None  # 가족만
     name: str | None = None  # 가족만 — 가족방 별명, 없으면 이름. 응답에만 있다 (DB 에는 user_id 만)
+    # 가족 화면만 — 누른 가족의 프로필 사진 /api/media/… (11/27). 사진 없거나 방에서 나갔으면 키 없음
+    profile_url: str | None = Field(default=None, exclude_if=lambda value: value is None)
     at: datetime
     # REPLY 칸의 글. 다른 칸은 응답에 text 키를 싣지 않는다 (DB 칸과 같이 — 값 없는 키는 안 넣음)
     text: str | None = Field(default=None, exclude_if=lambda value: value is None)
@@ -95,6 +97,8 @@ class DiaryOut(BaseModel):
     # 가족 일기를 쓴 사람이 가족방에 들어올 때 정한 별명(예: "큰딸"). 없거나 어르신 일기면 null.
     # 어르신 가족 소식 화면이 "큰딸 ○○" 처럼 관계와 이름을 같이 읽는다 (화면설계서 ELDER_FAMILY_001 ①)
     author_nickname: str | None = None
+    # 가족 일기 쓴 사람의 프로필 사진 (11/27) — 가족 화면에만. 없거나 어르신 일기면 null(어르신은 방의 elder_photo_url)
+    author_profile_url: str | None = None
     body: str
     mood: Mood
     illustration_type: IllustrationType

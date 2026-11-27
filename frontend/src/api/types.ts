@@ -288,6 +288,7 @@ export type DiaryOut = {
   author_type: 'ELDER' | 'FAMILY'
   author_name: string | null
   author_nickname: string | null // 가족방 별명(예: 큰딸). 가족 일기에만, 없으면 null — 어르신 가족 소식이 '큰딸 ○○'로 읽는다
+  author_profile_url: string | null // 가족 일기 쓴 사람의 프로필 사진(11/27, 가족 화면만). 어르신 일기는 방의 elder_photo_url
   body: string
   mood: Mood
   illustration_type: IllustrationType
@@ -307,6 +308,7 @@ export type Reaction = {
   kind: 'LIKE' | 'HEART' | 'SMILE' | 'CLAP' | 'REPLY'
   user_id: number | null
   name: string | null
+  profile_url?: string // 누른 가족의 프로필 사진 (11/27, 가족 화면만). 없으면 키 없음
   at: string
   text?: string // REPLY 칸에만
   // 가족 목소리 답장 (D99, 11/24): 소리 주소·길이(초). 이때 text 는 받아 적은 자막(빈 글일 수 있음)

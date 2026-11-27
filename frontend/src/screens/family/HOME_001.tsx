@@ -358,7 +358,7 @@ function Post({ d, room, me, onChange }: { d: DiaryOut; room: RoomOut; me: UserO
     <article className="fam-card home-post">
       <Link className="home-post-link" to={to} state={{ familyDiaryOrder: true }}>
         <header className="home-post-h">
-          <Avatar name={elder ? room.elder_name : name} src={elder ? room.elder_photo_url : null} />
+          <Avatar name={elder ? room.elder_name : name} src={elder ? room.elder_photo_url : d.author_profile_url} />
           <div className="home-post-who">
             <b>
               {name}

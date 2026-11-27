@@ -166,7 +166,7 @@ export default function ACCOUNT_001() {
                       onChange={() => setPicked((p) => ({ ...p, [room.room_id]: m.user_id }))}
                       required
                     />
-                    <Avatar name={m.name} />
+                    <Avatar name={m.name} src={m.profile_url} />
                     <span>
                       <b>{m.name}</b>
                       {m.nickname && <small>{m.nickname}</small>}

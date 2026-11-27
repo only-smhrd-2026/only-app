@@ -379,7 +379,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
       <h1 className="diary-detail-title">일기 상세</h1>
       <article className="diary-detail-card">
         <header className="diary-detail-head">
-          <Avatar name={elder ? room.elder_name : name} src={elder ? room.elder_photo_url : null} />
+          <Avatar name={elder ? room.elder_name : name} src={elder ? room.elder_photo_url : d.author_profile_url} />
           <div className="diary-detail-who">
             <b>{name}</b>
             <small>
@@ -435,7 +435,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
               <ul className="diary-detail-replies">
                 {replies.map((r) => (
                   <li key={`${r.user_id}-${r.at}`}>
-                    <Avatar name={r.name ?? '가족'} small />
+                    <Avatar name={r.name ?? '가족'} src={r.profile_url} small />
                     <span>
                       <span className="cm-text">
                         <b>{isMine(r) ? '나' : (r.name ?? '가족')}</b>
@@ -488,7 +488,7 @@ function DiaryDetail({ diaryId }: { diaryId: string }) {
                   ))}
                 </div>
                 <form className="cm-bar" onSubmit={(e) => { e.preventDefault(); void sendReply(draft) }}>
-                  <Avatar name={me.data?.name ?? '나'} small />
+                  <Avatar name={me.data?.name ?? '나'} src={me.data?.profile_url} small />
                   <input
                     ref={replyInput}
                     className="cm-input"
