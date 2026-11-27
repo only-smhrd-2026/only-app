@@ -64,3 +64,30 @@ def test_profile_photo_visible_only_to_room(client, family):
     make_room(client)
     response = client.get(url)  # 다른 가족방 사람 — 있는지도 모르게 404
     assert response.status_code == 404 and response.json()["code"] == "MEDIA_NOT_FOUND"
+
+
+def test_elder_photo_owner_only_and_room_only(client, family):
+    owner, _member, room_id, _ = family  # 지금 로그인 = member
+    path = f"/api/rooms/{room_id}/elder-photo"
+    put = lambda: client.put(path, files={"file": ("elder.jpg", _jpeg(), "image/jpeg")})  # noqa: E731
+    assert put().status_code in (403, 404)  # 방장이 아니면 못 넣음
+    assert client.get("/api/rooms").json()[0]["elder_photo_url"] is None
+    login(client, owner)
+    first = put()
+    assert first.status_code == 200, first.text
+    url = first.json()["elder_photo_url"]
+    assert url.startswith(f"/api/media/rooms/{room_id}/elder/")
+    assert max(Image.open(io.BytesIO(client.get(url).content)).size) == 400
+    second = put().json()["elder_photo_url"]
+    assert client.get(url).status_code == 404  # 옛 사진은 지워짐
+    add_photos(room_id)
+    connect_device(client, room_id)
+    client.cookies.delete("session")  # 어르신 기기도 볼 수 있다 (같은 방)
+    assert client.get(second).status_code == 200
+    client.cookies.clear()
+    signup(client)
+    make_room(client)
+    assert client.get(second).status_code == 404  # 다른 가족방 사람
+    login(client, owner)
+    assert client.delete(path).json()["elder_photo_url"] is None
+    assert client.get(second).status_code == 404

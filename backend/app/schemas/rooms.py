@@ -2,7 +2,7 @@ from datetime import datetime, time
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.config import PLACES
 
@@ -31,6 +31,7 @@ class RoomOut(BaseModel):
     weather_region: str | None = None  # 어르신 동네 '전남 영광군'·'서울' — 심심이 날씨 (D106·D111). None = 안 정함
     device_input_mode: str  # VOICE | BUTTON — 가족방 설정 화면(GROUP_003)이 지금 값을 보여 준다
     status: str
+    elder_photo_key: str | None = Field(default=None, exclude=True)
     is_owner: bool = False
     # 가족 홈 '시작 3단계'·어르신 바꾸기 판 (D70). 사진 수는 기기 링크 조건(사진 3장)과 같은 셈
     photo_count: int = 0
@@ -41,6 +42,12 @@ class RoomOut(BaseModel):
     device_perm_camera: bool | None = None
     device_perm_notification: bool | None = None
     device_last_seen_at: datetime | None = None  # 그 폰이 마지막으로 서버에 온 때 (5분마다 갱신, deps.py)
+
+    @computed_field
+    @property
+    def elder_photo_url(self) -> str | None:
+        """어르신 얼굴 사진 (11/27, 방장이 넣음). 없으면 null — 화면은 이름 첫 글자 동그라미"""
+        return f"/api/media/{self.elder_photo_key}" if self.elder_photo_key else None
 
 
 class MemberOut(BaseModel):

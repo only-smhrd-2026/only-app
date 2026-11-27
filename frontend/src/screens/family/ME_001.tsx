@@ -10,6 +10,7 @@ import { api, ApiError } from '../../api/client'
 import type { MemberOut, RoomOut, UserOut } from '../../api/types'
 import FamIcon from '../../components/FamIcon'
 import { Avatar } from '../../components/FamilyFrame'
+import PhotoCrop from '../../components/PhotoCrop'
 import { useFetch } from '../../hooks/useFetch'
 import { logout } from '../../lib/logout'
 import './ACCOUNT_001.css' // 입력 칸(acc-input·acc-label)이 같은 모양
@@ -30,6 +31,7 @@ export default function ME_001() {
   const [note, setNote] = useState<string>() // 바꾼 뒤 한 줄 안내
   const [error, setError] = useState<string>()
   const [nameDraft, setName] = useState<string>()
+  const [cropFile, setCropFile] = useState<File>() // 고른 사진 — 동그라미 자르기 판이 열려 있다
   const name = nameDraft ?? me?.name ?? ''
 
   /** 버튼 하나 = 요청 하나. 끝나면 안내 한 줄 */
@@ -50,9 +52,13 @@ export default function ME_001() {
   function pickPhoto(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = '' // 같은 사진을 다시 골라도 onChange 가 오게
-    if (!file) return
+    if (file) setCropFile(file) // 동그라미로 맞춘 뒤 올린다 (PhotoCrop)
+  }
+
+  function uploadPhoto(jpeg: Blob) {
+    setCropFile(undefined)
     const form = new FormData()
-    form.append('file', file)
+    form.append('file', jpeg, 'me.jpg')
     void run(
       async () => setMe(await api<UserOut>('/api/auth/me/photo', { method: 'PUT', form })),
       '프로필 사진을 바꿨어요',
@@ -103,6 +109,9 @@ export default function ME_001() {
         </div>
         {me.email && <p className="fam-mini">{me.email}</p>}
       </section>
+      {cropFile && (
+        <PhotoCrop file={cropFile} title="프로필 사진" onCancel={() => setCropFile(undefined)} onDone={uploadPhoto} />
+      )}
 
       {(note || error) && (
         <p className={error ? 'fam-error' : 'me-note'} role={error ? 'alert' : 'status'}>

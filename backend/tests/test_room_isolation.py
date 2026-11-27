@@ -20,6 +20,8 @@ CASES = [
     ("DELETE", "/rooms/{room_id}/invites/{kind}", None),
     ("DELETE", "/rooms/{room_id}/device", None),
     ("PATCH", "/rooms/{room_id}/settings", {"elder_name": "어르신"}),
+    ("PUT", "/rooms/{room_id}/elder-photo", "elder-photo"),
+    ("DELETE", "/rooms/{room_id}/elder-photo", None),
     ("POST", "/rooms/{room_id}/leave", None),
     ("POST", "/rooms/{room_id}/owner", {"user_id": 1}),
     ("GET", "/rooms/{room_id}/photos", None),
@@ -49,6 +51,7 @@ CASES = [
     ("DELETE", "/diaries/{diary_id}/reply", None),
     ("POST", "/diaries/{diary_id}/voice-reply", "voice"),  # 가족 목소리 답장 (D99)
     ("DELETE", "/diaries/{diary_id}", None),
+    ("GET", "/memories/{session_id}", None),
     ("POST", "/memories/{session_id}/reaction", {"kind": "HEART", "on": True}),
     ("POST", "/memories/{session_id}/reply", {"text": "보고 싶어요"}),
     ("PATCH", "/memories/{session_id}/reply", {"at": "2026-11-26T09:00:00+09:00", "text": "보고 싶어요"}),
@@ -121,6 +124,10 @@ def test_other_family_cannot_access_resource(client, method, path, body):
         image = BytesIO()
         Image.new("RGB", (8, 8)).save(image, "JPEG")
         kwargs = {"files": [("files", ("photo.jpg", image.getvalue(), "image/jpeg"))]}
+    if body == "elder-photo":
+        image = BytesIO()
+        Image.new("RGB", (8, 8)).save(image, "JPEG")
+        kwargs = {"files": {"file": ("elder.jpg", image.getvalue(), "image/jpeg")}}
     if body == "voice":
         kwargs = {"files": {"audio": ("voice.webm", b"fake-webm", "audio/webm")}}
     if body == "elder-voice":

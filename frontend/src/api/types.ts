@@ -22,6 +22,7 @@ export type RoomOut = {
   weather_region: string | null // 어르신 동네 '서울'·'전남 영광군' — 심심이 날씨 (D106·D111). null = 안 정함
   device_input_mode: 'VOICE' | 'BUTTON'
   status: string
+  elder_photo_url: string | null // 어르신 얼굴 사진 (11/27, 방장이 넣음). null = 이름 첫 글자 동그라미
   is_owner: boolean
   // 가족 홈 '시작 3단계'·어르신 바꾸기 판 (D70). 사진 수는 기기 링크 조건(사진 3장)과 같은 셈
   photo_count: number
