@@ -400,3 +400,30 @@ html[data-font='XXL'] .elder-dot { width: 36px; height: 36px; }
 /* 더 갈 수 없을 때(ElderStop) — 심심이 + 가운데 말 + [다시 보기] */
 .elder-stop { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; text-align:center; }
 .elder-stop .elder-btn { align-self:stretch; }
+
+/* ───── 어르신 달력 (components/ElderCalendar — 지난 가족 소식·지난 일기). 11/27 팀 회의: 어르신이 쓰니 크게 크게 ─────
+   있는 날만 사진 칸(누름·테두리), 나머지는 날짜 글자만 */
+.fcal-month { flex: none; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
+.fcal-month b { font-size: var(--elder-font-size-lg); }
+.fcal-month .elder-btn { width: auto; justify-self: start; font-size: var(--elder-font-size-s); }
+.fcal-month > :last-child { justify-self: end; }
+.fcal-week, .fcal-grid { flex: none; display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px 4px; }
+.fcal-week span { text-align: center; font-size: var(--elder-font-size-s); font-weight: 800; color: var(--elder-ink2); }
+.fcal-week span:first-child { color: var(--elder-t2e); }
+.fcal-day { position: relative; aspect-ratio: 3 / 4; display: grid; place-items: center; border-radius: 12px; font-size: var(--elder-font-size-s); font-weight: 800; color: var(--elder-ink3); }
+.fcal-day.today { box-shadow: inset 0 0 0 3px var(--elder-edge); color: var(--elder-fg); }
+.fcal-day.fut { opacity: .35; }
+button.fcal-day { padding: 0; overflow: hidden; border: 2px solid var(--elder-lip); background: var(--elder-soft); cursor: pointer; }
+button.fcal-day img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+button.fcal-day.sim img { object-fit: contain; padding: 4px; }
+.fcal-num { position: absolute; left: 4px; top: 1px; color: var(--elder-card); font-size: 20px; text-shadow: 0 1px 3px rgba(0, 0, 0, .85); }
+button.fcal-day.sim .fcal-num { color: var(--elder-fg); text-shadow: none; }
+.fcal-cnt { position: absolute; right: 2px; bottom: 2px; min-width: 24px; height: 24px; padding: 0 5px; border-radius: 12px; display: grid; place-items: center; background: var(--elder-fg); color: var(--elder-card); font-size: 16px; }
+.fcal-count { text-align: center; }
+button.fcal-day:focus-visible { outline: 3px solid var(--elder-fg); outline-offset: 2px; }
+
+/* 크게 보기 판(.elder-cover) 왼쪽 위 [‹ 뒤로] — 아래 [닫기] 대신 (11/27 팀 회의). 버튼은 하위 화면 [← 뒤로](.elder-back)와 같은 모양 */
+.elder-cover--backed { padding-top: 68px; }
+/* 크게 보기 아래 [◀ 전 …][다음 … ▶] 한 줄 (가족 소식·지난 일기) */
+.elder-pager { flex: none; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.elder-pager .elder-btn { width: auto; padding-inline: 10px; }

@@ -1,8 +1,10 @@
 /**
- * ELDER_HOME_001 — 어르신 홈 (11/23 시안 e-home). 위: 작은 로고·날짜 → 큰 꼬마심심이 + 말풍선 → 아래 네모 6칸.
+ * ELDER_HOME_001 — 어르신 홈 (11/27 팀 회의 시안). 위: 작은 로고·날짜·⚙ 설정 → 말풍선(할 일 말 + 그 일 버튼) + 꼬마심심이
+ * → 네모 4칸(오늘 사진·일기 쓰기·가족 소식·사진첩) → 아래 넓은 '내 마음' 띠.
  * 말풍선은 하루 상태 순서로 '지금 할 일'을 말하고, 가리키는 칸은 노란 테두리로 한 번 더 짚는다(글을 못 읽으셔도 어디를 누를지 보이게):
- *   하던 이야기(30분 안, D52 ⑥) → 오늘의 한 장 → 일기(17시부터) → 가족 소식 → 마음 체크 → 다 함(사진 없는 날이면 사진첩 권유,
- *   17시 전에 일기를 안 썼으면 '저녁 5시부터').
+ *   하던 이야기(30분 안, D52 ⑥) → 오늘의 한 장 → 일기(17시부터) → 가족 소식 → 마음 체크(PHQ-9 2주마다) → 사진 없는 날이면 사진첩.
+ *   할 일이 없으면 시간대 인사 + 추천 하나(잡담·사진첩·지난 소식·외로움·걱정·기억력 체크·기억력 놀이 중 무작위, 11/27).
+ *   문장은 상태마다 여러 개 — 같은 날·상태·시간대면 같은 문장(pickOf).
  * 옛 '오늘의 한 장' 팝업·건너뛰기(ELDER_TODAY_001, D65·D78)는 이 말풍선과 회상 칸으로 합쳤다 — /elder/today 도 이 화면.
  * 마음 체크는 말풍선·'내 마음' 칸으로만 권한다 — 홈 위에 판으로 띄우지 않는다(D97, 홈으로 돌아올 때 화면을 덮음). /elder/mood 도 이 화면.
  * 들어오면 인사(이름 + 말풍선)를 읽어 준다 — 같은 말은 앱을 켠 동안 한 번만.
@@ -18,6 +20,7 @@ import { useLive } from '../../hooks/useElderSession'
 import { useFetch } from '../../hooks/useFetch'
 import { setVoice, speak, stopSpeaking } from '../../lib/audio'
 import { setElderFont } from '../../lib/elderFont'
+import type { CheckKind } from '../../lib/moodCheck'
 import { readPaused, resumePath } from '../../lib/pausedSession'
 import { ELDER_PUSH, syncPush } from '../../lib/push'
 import './ELDER_HOME_001.css'
@@ -28,18 +31,47 @@ const NOTICE_MS = 4_000
 const DIARY_FROM = 17 // 홈 말풍선이 일기를 권하는 시각(한국 시간) — 11/25 사용자
 let lastGreet = '' // 앱을 켠 동안 마지막으로 읽어 드린 인사 — 같은 말을 홈에 올 때마다 되풀이하지 않게
 
-type Tile = 'talk' | 'diary' | 'news' | 'album' | 'mind' | 'set'
+type Tile = 'talk' | 'diary' | 'news' | 'album' | 'mind'
 type Msg = 'paused' | 'photo' | 'diary' | 'news' | 'mind' | 'nophoto' | 'later' | 'done'
-const HMSG: Record<Msg, [string, Tile | '']> = {
-  paused: ['하던 이야기가 있어요.\n이어서 해 볼까요?', 'talk'],
-  photo: ['오늘의 한 장이 왔어요.\n사진 보며 이야기할 시간이에요.', 'talk'],
-  diary: ['오늘 있었던 일을\n일기로 남길 시간이에요.', 'diary'],
-  news: ['가족 소식이 왔어요.\n눌러서 보세요.', 'news'],
-  mind: ['기분 여쭤볼 차례예요.\n내 마음을 눌러 주세요.', 'mind'],
-  nophoto: ['오늘은 새 사진이 없어요.\n사진첩에서 골라 볼까요?', 'album'],
-  // 할 일이 없는 남는 시간에는 심심이 잡담(D106)을 권한다 (11/25 사용자 '저를 눌러 보세요')
-  later: ['일기는 저녁 5시부터 같이 써요.\n심심하시면 저를 눌러 보세요!', ''],
-  done: ['오늘 할 일을 다 하셨어요.\n심심하시면 저를 눌러 보세요!', ''],
+// 할 일 말풍선 — 상태마다 여러 문장 중 하나 (11/27 팀 회의: 문구가 한정적이다). [칸, 말풍선 안 버튼 글]
+const HMSG: Record<Exclude<Msg, 'later' | 'done'>, [string[], Tile, string]> = {
+  paused: [['하던 이야기가 있어요.\n이어서 해 볼까요?', '아까 하던 이야기,\n마저 들려주세요.'], 'talk', '이어서 하기'],
+  photo: [
+    ['오늘의 한 장이 왔어요.\n사진 보며 이야기해요.', '가족이 보낸 사진이 있어요.\n같이 볼까요?', '새 사진이 도착했어요.\n어떤 이야기가 있을까요?'],
+    'talk',
+    '이야기 시작하기',
+  ],
+  diary: [['오늘 있었던 일을\n일기로 남겨 볼까요?', '오늘 하루 어떠셨어요?\n일기로 들려주세요.', '저녁이에요.\n오늘 일기 같이 써요.'], 'diary', '일기 쓰기'],
+  news: [['가족 소식이 왔어요.\n같이 들어 볼까요?', '가족이 마음을 보냈어요.\n어서 열어 보세요.'], 'news', '소식 보기'],
+  mind: [['기분 여쭤볼 차례예요.\n잠깐 이야기해 주세요.', '요즘 마음은 어떠세요?\n몇 가지 여쭤볼게요.'], 'mind', '마음 체크 하기'],
+  nophoto: [['오늘은 새 사진이 없어요.\n사진첩에서 골라 볼까요?', '새 사진은 아직이에요.\n옛날 사진 같이 볼까요?'], 'album', '사진첩 보기'],
+}
+// 할 일이 없을 때: 시간대 인사 한 줄 + 추천 한 줄. 마음 체크 중 기분(PHQ-9)은 2주마다 '할 차례'로만,
+// 나머지 체크(외로움·걱정·기억력·기억력 놀이)는 여기서 무작위로 권한다 (11/27 사용자)
+type Rec = { line: string; label: string; tile: Tile | ''; go: string; kind?: CheckKind }
+const RECS: Rec[] = [
+  { line: '심심하시면 저랑 이야기해요!', label: '심심이랑 이야기하기', tile: '', go: '/elder/chat' },
+  { line: '옛날 사진 같이 볼까요?', label: '사진첩 보기', tile: 'album', go: '/elder/album' },
+  { line: '지난 가족 소식 다시 들어 볼까요?', label: '가족 소식 보기', tile: 'news', go: '/elder/family-news' },
+  { line: '오늘은 외로움 체크 어떠세요?', label: '외로움 체크 하기', tile: 'mind', go: '/elder/mood-check', kind: 'UCLA3' },
+  { line: '요즘 걱정은 없으세요?\n걱정 체크 해 볼까요?', label: '걱정 체크 하기', tile: 'mind', go: '/elder/mood-check', kind: 'GAD7' },
+  { line: '기억력 체크 한번 해 볼까요?', label: '기억력 체크 하기', tile: 'mind', go: '/elder/mood-check', kind: 'SMCQ' },
+  { line: '기억력 놀이 한 판 할까요?', label: '기억력 놀이 하기', tile: 'mind', go: '/elder/mind/memory-game' },
+]
+// 한국 시각 → 시간대 인사 (오전에 '일기는 저녁 5시부터'만 되풀이하지 않게, 11/27)
+const TIME_LINES: [number, string[]][] = [
+  [5, ['오늘도 좋은 하루 보내세요.', '하루 잘 마무리하세요.', '편안한 밤 보내세요.']], // 0~4시
+  [11, ['좋은 아침이에요!', '아침은 든든히 드셨어요?', '오늘도 힘차게 시작해요.']],
+  [14, ['점심은 맛있게 드셨어요?', '오늘 날씨는 어떤가요?', '잠깐 쉬어 가요.']],
+  [17, ['오후도 편안하게 보내세요.', '물 한 잔 드셨어요?', '오늘은 무얼 하셨어요?']],
+  [21, ['저녁은 드셨어요?', '오늘 하루도 고생 많으셨어요.', '저녁 시간이 참 좋아요.']],
+  [24, ['오늘 하루도 고생 많으셨어요.', '푹 주무세요.', '편안한 밤 보내세요.']],
+]
+/** 같은 날·같은 상태·같은 시간대면 같은 문장 — 홈에 올 때마다 말이 바뀌지 않게, 날·상태가 바뀌면 다른 문장 */
+function pickOf<T>(list: T[], seed: string): T {
+  let h = 0
+  for (const c of seed) h = (h * 31 + c.charCodeAt(0)) | 0
+  return list[Math.abs(h) % list.length]
 }
 
 /* 칸 그림 — 꼬마심심이처럼 도톰하게 (시안 ART) */
@@ -214,7 +246,8 @@ export default function ELDER_HOME_001() {
   const paused = preview ? null : readPaused()
   const pick = home?.today_pick ?? null
   // 일기는 17시부터 권한다 (11/25 실사용: 회상을 마치자마자 일기를 권하면 바빴다). 일기 칸은 언제든 눌린다
-  const [diaryTime] = useState(() => (new Date().getUTCHours() + 9) % 24 >= DIARY_FROM) // 홈을 열 때 시각
+  const [hour] = useState(() => (new Date().getUTCHours() + 9) % 24) // 홈을 열 때 시각(한국)
+  const diaryTime = hour >= DIARY_FROM
   const msg: Msg = paused ? 'paused'
     : pick?.status === 'PENDING' ? 'photo'
       : home && !home.diary_today && diaryTime ? 'diary'
@@ -222,7 +255,14 @@ export default function ELDER_HOME_001() {
           : home?.mood_due ? 'mind'
             : !pick ? 'nophoto'
               : home && !home.diary_today ? 'later' : 'done'
-  const [msgText, msgTileRaw] = HMSG[msg]
+  const timeIdx = TIME_LINES.findIndex(([until]) => hour < until)
+  const seed = `${kstDate()}|${msg}|${timeIdx}`
+  // 할 일이 없으면 추천 하나(마음 체크·사진첩·잡담 …), 있으면 그 일
+  const rec = msg === 'later' || msg === 'done' ? pickOf(RECS, `${seed}|rec`) : null
+  const todo = rec ? null : HMSG[msg as keyof typeof HMSG]
+  const [msgText, msgTileRaw, actLabel] = todo
+    ? [pickOf(todo[0], seed), todo[1], todo[2]]
+    : [`${msg === 'done' && pickOf([0, 1], seed) ? '오늘 할 일을 다 하셨어요.' : pickOf(TIME_LINES[timeIdx][1], seed)}\n${rec!.line}`, rec!.tile, rec!.label]
   const msgTile: Tile | '' = msg === 'paused' && paused?.kind === 'DIARY' ? 'diary' : msgTileRaw
   const who = home ? `${home.elder_name} ${home.elder_honorific}` : ''
   const greeting = `${who}, ${msgText.replace('\n', ' ')}`
@@ -304,17 +344,24 @@ export default function ELDER_HOME_001() {
     )
   if (!home) return loading ? <main className="elder elder--fit elder-center"><p className="elder-text" role="status">잠시만요…</p></main> : null
 
-  const resumeMemory = !!paused && paused.kind !== 'DIARY'
-  const talkNote = busy ? '잠시만요' : resumeMemory ? '이어서 해요' : !pick ? '사진이 없어요' : pick.status === 'PENDING' ? '사진이 왔어요' : '오늘 했어요'
   const unread = home.unread_family_news
-  const tile = (k: Tile, onClick: () => void, art: ReactNode, name: string, note: string, extra?: ReactNode) => (
+  // 11/27 팀 회의: 칸 아래 작은 글('사진이 왔어요' 등)은 빼고 그림·이름만 가운데
+  const tile = (k: Tile, onClick: () => void, art: ReactNode, name: string, extra?: ReactNode) => (
     <button type="button" className={`ehome-tile${msgTile === k ? ' now' : ''}`} onClick={onClick} disabled={k === 'talk' && busy}>
       <span className="ehome-art">{art}</span>
       <b>{name}</b>
-      <small>{note}</small>
       {extra}
     </button>
   )
+  // 말풍선 안 버튼 = 말풍선이 권하는 일을 바로
+  function onAct() {
+    if (rec) return nav(rec.go, { state: { home, kind: rec.kind } })
+    if (msg === 'paused' || msg === 'photo') return paused?.kind === 'DIARY' ? onDiary() : onTalk()
+    if (msg === 'diary') return onDiary()
+    if (msg === 'news') return nav('/elder/family-news', { state: { home } })
+    if (msg === 'mind') return nav('/elder/mood-check', { state: { home, kind: 'PHQ9' } })
+    nav('/elder/album', { state: { home } })
+  }
   const date = todayLabel()
   const bubble = notice || msgText
 
@@ -324,27 +371,47 @@ export default function ELDER_HOME_001() {
         <h1 className="elder-sr">홈</h1>
         <div className="ehome-top">
           <span className="ehome-logo">{MARK}하루한장</span>
-          <button type="button" className="ehome-date" onClick={() => void speak(`오늘은 ${date}이에요.`, speed)} aria-label={`오늘은 ${date}. 누르면 읽어 드려요`}>
-            {date}
-          </button>
+          <span className="ehome-topr">
+            <button type="button" className="ehome-date" onClick={() => void speak(`오늘은 ${date}이에요.`, speed)} aria-label={`오늘은 ${date}. 누르면 읽어 드려요`}>
+              {date}
+            </button>
+            {/* 설정은 칸 대신 오른쪽 위 (11/27 팀 회의) */}
+            <button type="button" className="ehome-gear" onClick={() => nav('/elder/settings', { state: { home } })} aria-label="설정 · 글자와 목소리">
+              {ART.gear}
+            </button>
+          </span>
         </div>
         <div className="ehome-say" role={notice ? 'status' : undefined}>
-          <Bub key={bubble} text={bubble} speed={speed} className="elder-bub--down" />
-          {/* 심심이를 누르면 잡담 (D106, 11/25 멘토 아이디어) — 홈 모양은 그대로, 그림만 누를 수 있게 */}
+          {/* 말풍선 = 할 일 말 + 그 일을 바로 하는 버튼 (11/27 팀 회의 시안). 말을 누르면 다시 읽는다 */}
+          <div className="ehome-card elder-bub--down">
+            <Bub key={bubble} text={bubble} speed={speed} />
+            {!notice && (
+              <button type="button" className="elder-btn ehome-go" onClick={onAct} disabled={busy}>
+                {busy ? '잠시만요…' : actLabel}
+                <span aria-hidden="true">›</span>
+              </button>
+            )}
+          </div>
+          {/* 심심이를 누르면 잡담 (D106, 11/25 멘토 아이디어) — 그림만 누를 수 있게 */}
           <button type="button" className="ehome-simbtn" onClick={() => nav('/elder/chat', { state: { home } })} aria-label="꼬마심심이랑 이야기하기">
             <Sim face={weather.data?.look ?? 'hello'} size={230} className="elder-sim" />
           </button>
         </div>
         <div className="ehome-grid">
-          {tile('talk', onTalk, pick ? <img src={pick.photo_url} alt="" /> : ART.album, '회상', talkNote)}
-          {tile('diary', onDiary, ART.diary, '일기 쓰기', paused?.kind === 'DIARY' ? '이어서 해요' : home.diary_today ? '오늘 썼어요' : '오늘 있었던 일')}
-          {tile('news', () => nav('/elder/family-news', { state: { home } }), ART.news, '가족 소식', unread > 0 ? `새 소식 ${unread}개` : '지난 소식 보기', // 11/25 — 새 소식이 없으면 지난 소식 달력
+          {tile('talk', onTalk, pick ? <img src={pick.photo_url} alt="" /> : ART.album, '오늘 사진')}
+          {tile('diary', onDiary, ART.diary, '일기 쓰기')}
+          {tile('news', () => nav('/elder/family-news', { state: { home } }), ART.news, '가족 소식',
             unread > 0 && <b className="elder-badge" aria-label={`새 소식 ${unread}개`}>{unread}</b>)}
-          {tile('album', () => nav('/elder/album', { state: { home } }), ART.album, '사진첩', '지난 사진')}
-          {tile('mind', () => nav('/elder/mind', { state: { home } }), ART.mind, '내 마음', home.mood_due ? '여쭤볼 차례' : '요즘 괜찮아요',
-            home.mood_due && <b className="elder-badge" aria-label="할 차례">!</b>)}
-          {tile('set', () => nav('/elder/settings', { state: { home } }), ART.gear, '설정', '글자·목소리')}
+          {tile('album', () => nav('/elder/album', { state: { home } }), ART.album, '사진첩')}
         </div>
+        {/* 내 마음 = 아래 넓은 띠 (시안) */}
+        <button type="button" className={`ehome-mind${msgTile === 'mind' ? ' now' : ''}`} onClick={() => nav('/elder/mind', { state: { home } })}>
+          <span className="ehome-mind-art" aria-hidden="true">{ART.mind}</span>
+          <b>내 마음</b>
+          <span className="ehome-mind-say">{home.mood_due ? '여쭤볼 차례' : '요즘 마음 보기'}</span>
+          <span aria-hidden="true">›</span>
+          {home.mood_due && <b className="elder-badge" aria-label="할 차례">!</b>}
+        </button>
       </div>
     </main>
   )
