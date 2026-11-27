@@ -61,7 +61,7 @@ export default function CareCard({ roomId }: { roomId: number }) {
         ))}
       {rest.length > 0 && (
         <button type="button" className="fam-text-btn care-toggle" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-          {open ? '접기' : `지난 ${rest.length}일 더 보기`}
+          {open ? '지난 안부 접기' : `지난 ${rest.length}일 더 보기`}
         </button>
       )}
     </section>
