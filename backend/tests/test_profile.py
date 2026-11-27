@@ -16,8 +16,9 @@ def _jpeg(size=(1200, 800)) -> bytes:
     return out.getvalue()
 
 
-def _put(client, data=None):
-    return client.put("/api/auth/me/photo", files={"file": ("me.jpg", data or _jpeg(), "image/jpeg")})
+def _put(client, data=None, *, room_id=None):
+    params = {"room_id": room_id} if room_id is not None else {}
+    return client.put("/api/auth/me/photo", params=params, files={"file": ("me.jpg", data or _jpeg(), "image/jpeg")})
 
 
 def test_change_name(client):
@@ -33,11 +34,12 @@ def test_change_name(client):
 
 def test_profile_photo_put_replace_delete(client):
     signup(client)
+    room_id = make_room(client)["room_id"]
     assert client.get("/api/auth/me").json()["profile_url"] is None
     first = _put(client)
     assert first.status_code == 200, first.text
     url = first.json()["profile_url"]
-    assert url.startswith("/api/media/users/")
+    assert url.startswith(f"/api/media/rooms/{room_id}/profiles/")
     pic = client.get(url)
     assert pic.status_code == 200
     assert max(Image.open(io.BytesIO(pic.content)).size) == 400  # 작게 줄여 저장
@@ -47,6 +49,41 @@ def test_profile_photo_put_replace_delete(client):
     assert client.delete("/api/auth/me/photo").json()["profile_url"] is None
     assert client.get(second).status_code == 404
     assert _put(client, b"not an image").json()["code"] == "BAD_IMAGE"
+
+
+def test_profile_photos_are_independent_for_two_rooms(client):
+    from tests.test_family_diary import _post
+
+    owner = signup(client)
+    first, second = (make_room(client)["room_id"] for _ in range(2))
+    assert _put(client).json()["code"] == "ROOM_REQUIRED"
+    first_url = _put(client, room_id=first).json()["profile_url"]
+
+    def my_photos():
+        return {room["room_id"]: room["my_profile_url"] for room in client.get("/api/rooms").json()}
+
+    assert my_photos() == {first: first_url, second: None}
+    second_url = _put(client, room_id=second).json()["profile_url"]
+    assert first_url != second_url
+    for room_id, url in ((first, first_url), (second, second_url)):
+        assert _post(client, room_id).json()["author_profile_url"] == url
+        path = f"/api/rooms/{room_id}/photos"
+        uploaded = client.post(path, files={"files": ("album.jpg", _jpeg(), "image/jpeg")})
+        assert uploaded.status_code == 201
+        assert client.get(path).json()["photos"][0]["uploader_profile_url"] == url
+
+    invite = client.post(f"/api/rooms/{second}/invites", json={"kind": "FAMILY"}).json()["url"].split("#", 1)[1]
+    signup(client)
+    assert client.post("/api/invites/accept", json={"token": invite, "relation_tag": "CHILD"}).status_code == 200
+    assert _put(client, room_id=first).status_code == 404
+    assert client.get(first_url).status_code == 404
+    assert client.get(second_url).status_code == 200
+
+    login(client, owner)
+    assert client.delete("/api/auth/me/photo", params={"room_id": first}).json()["profile_url"] is None
+    assert my_photos() == {first: None, second: second_url}
+    assert client.get(first_url).status_code == 404
+    assert client.get(second_url).status_code == 200
 
 
 def test_profile_photo_visible_only_to_room(client, family):

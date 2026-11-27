@@ -103,6 +103,7 @@ class RoomMember(Base):
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.user_id"))
     relation_tag: Mapped[str] = mapped_column(String(12))  # CHILD | GRANDCHILD | OTHER
     nickname: Mapped[str | None] = mapped_column(String(12))
+    profile_key: Mapped[str | None] = mapped_column(String(255))
     joined_at: Mapped[datetime] = mapped_column(TS, server_default=NOW)
     removed_at: Mapped[datetime | None] = mapped_column(TS)
 

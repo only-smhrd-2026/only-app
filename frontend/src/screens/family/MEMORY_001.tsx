@@ -192,7 +192,7 @@ export default function MEMORY_001() {
             ))}
           </div>
           <form className="cm-bar" onSubmit={(e) => { e.preventDefault(); send() }}>
-            <Avatar name={user.name} src={user.profile_url} small />
+            <Avatar name={user.name} src={room?.my_profile_url} small />
             <input
               ref={input}
               className="cm-input"

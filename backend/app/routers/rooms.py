@@ -54,11 +54,12 @@ def room_out(room: FamilyRoom, user_id: int, db: Session) -> RoomOut:
     out.is_owner = room.owner_user_id == user_id
     # ponytail: 가족방마다 셈 2번(목록이면 방 수만큼) — 한 사람의 가족방은 몇 개뿐. 늘면 group_by 한 번으로
     out.photo_count = family_photo_count(db, room.room_id)
-    out.member_count = db.scalar(
-        select(func.count(RoomMember.member_id)).where(
-            RoomMember.room_id == room.room_id, RoomMember.removed_at.is_(None)
-        )
-    )
+    out.member_count, profile_key = db.execute(
+        select(
+            func.count(RoomMember.member_id), func.max(RoomMember.profile_key).filter(RoomMember.user_id == user_id)
+        ).where(RoomMember.room_id == room.room_id, RoomMember.removed_at.is_(None))
+    ).one()
+    out.my_profile_url = f"/api/media/{profile_key}" if profile_key else None
     out.device_connected = room.device_token_hash is not None
     if not out.device_connected:
         out.device_perm_mic = out.device_perm_camera = out.device_perm_notification = None
@@ -126,7 +127,7 @@ def member_out(member: RoomMember, u: User, owner_user_id: int) -> MemberOut:
     return MemberOut(
         user_id=member.user_id,
         name=u.name,
-        profile_url=f"/api/media/{u.profile_key}" if u.profile_key else None,
+        profile_url=f"/api/media/{member.profile_key}" if member.profile_key else None,
         nickname=member.nickname,
         relation_tag=member.relation_tag,
         joined_at=member.joined_at,
@@ -313,8 +314,11 @@ def leave_room(room_id: int, user: CurrentUser, db: DB):
     if room.owner_user_id == user.user_id:
         raise ApiError(400, "OWNER_CANNOT_LEAVE", "방장은 가족방을 나갈 수 없어요")
     # removed_at은 내보낸 사람(D16) 전용. 나가기는 줄을 지워 초대 링크로 다시 들어올 수 있게 한다.
+    profile_key = member.profile_key
     db.delete(member)
     db.commit()
+    if profile_key and storage.ROOM_PROFILE_KEY_RE.fullmatch(profile_key):
+        drop_photo(profile_key)
     return OkOut()
 
 

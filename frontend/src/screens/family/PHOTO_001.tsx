@@ -568,6 +568,7 @@ function MonthPage(props: {
           <span className="ph-foot">
             사진 {list.length}장{talks ? ` · ${hon} 이야기 ${talks}번` : ''}
           </span>
+          <PhotoUploaderAvatar photo={hero} />
         </button>
         {memo?.taken_year && (
           <button type="button" className="ph-memo" onClick={() => onOpen(memo.photo_id)}>
@@ -591,19 +592,7 @@ function MonthPage(props: {
                   onClick={() => onOpen(p.photo_id)}
                 >
                   <img src={p.url} alt="" loading="lazy" />
-                  {/* 'elder' 클래스는 어르신 화면 틀(elder.css 전역)과 겹친다 (11/24) — by-elder */}
-                  <span className={`ph-who${p.source === 'ELDER_CAMERA' ? ' by-elder' : ''}`} aria-hidden="true">
-                    {by[0]}
-                    {p.uploader_profile_url && (
-                      <img
-                        key={p.uploader_profile_url}
-                        src={p.uploader_profile_url}
-                        alt=""
-                        loading="lazy"
-                        onError={(event) => { event.currentTarget.hidden = true }}
-                      />
-                    )}
-                  </span>
+                  <PhotoUploaderAvatar photo={p} />
                   {talkedOf(p) && (
                     <span className="ph-talk" aria-hidden="true">
                       <FamIcon name="chat" />
@@ -624,6 +613,23 @@ function MonthPage(props: {
         <p className="ph-next">맨 처음 사진까지 다 봤어요</p>
       )}
     </div>
+  )
+}
+
+function PhotoUploaderAvatar({ photo }: { photo: PhotoOut }) {
+  return (
+    <span className={`ph-who${photo.source === 'ELDER_CAMERA' ? ' by-elder' : ''}`} aria-hidden="true">
+      {(photo.uploader_name ?? '가족')[0]}
+      {photo.uploader_profile_url && (
+        <img
+          key={photo.uploader_profile_url}
+          src={photo.uploader_profile_url}
+          alt=""
+          loading="lazy"
+          onError={(event) => { event.currentTarget.hidden = true }}
+        />
+      )}
+    </span>
   )
 }
 

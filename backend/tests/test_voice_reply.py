@@ -43,6 +43,16 @@ def test_voice_reply_is_kept_and_played_to_elder(client):
     assert "audio_url" not in _stored(diary_id)[0]  # DB 에는 key 만, 주소는 응답에만
 
 
+def test_voice_reply_keeps_preview_caption_without_transcribing_again(client, monkeypatch):
+    diary_id = _diary(setup_elder(client)["room_id"])
+    monkeypatch.setattr(stt, "transcribe", lambda *_: pytest.fail("이미 확인한 자막을 다시 받아쓰면 안 된다"))
+    path = f"/api/diaries/{diary_id}/voice-reply"
+    result = client.post(path, files=AUDIO, data={"caption": "할머니  오늘도 즐거웠어요."})
+    assert result.status_code == 200, result.text
+    assert result.json()["reactions"][0]["text"] == "할머니 오늘도 즐거웠어요."
+    assert client.post(path, files=AUDIO, data={"caption": "가" * 201}).status_code == 422
+
+
 def test_new_reply_keeps_old_sound_and_delete_removes_it(client):
     room_id = setup_elder(client)["room_id"]
     diary_id = _diary(room_id)

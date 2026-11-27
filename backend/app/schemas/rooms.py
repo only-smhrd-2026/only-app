@@ -33,6 +33,7 @@ class RoomOut(BaseModel):
     status: str
     elder_photo_key: str | None = Field(default=None, exclude=True)
     is_owner: bool = False
+    my_profile_url: str | None = None  # 이 가족방에서 내 프로필 사진
     # 가족 홈 '시작 3단계'·어르신 바꾸기 판 (D70). 사진 수는 기기 링크 조건(사진 3장)과 같은 셈
     photo_count: int = 0
     member_count: int = 0

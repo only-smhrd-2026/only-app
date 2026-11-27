@@ -1,6 +1,6 @@
 /** 서버 응답 타입 — backend/app/schemas/*.py 의 거울. 서버 모양이 바뀌면 여기도 같이 (PR 리뷰어 김승희). */
 
-// profile_url = 내 정보에서 올린 프로필 사진(11/27), 없으면 null — PATCH /api/auth/me { name } · PUT/DELETE /api/auth/me/photo → UserOut
+// profile_url은 PUT/DELETE /api/auth/me/photo?room_id=…에서 바꾼 가족방 사진을 돌려준다.
 export type UserOut = { user_id: number; email: string | null; name: string; login_type: string; created_at: string; profile_url: string | null }
 export type PasswordChangeIn = { current_password: string; new_password: string }
 /** POST /api/auth/withdraw — 회원 탈퇴. transfers = 내가 방장인 가족방마다 1칸: 방장을 넘길 가족, 혼자인 방은 null(가족방을 지움) */
@@ -23,6 +23,7 @@ export type RoomOut = {
   device_input_mode: 'VOICE' | 'BUTTON'
   status: string
   elder_photo_url: string | null // 어르신 얼굴 사진 (11/27, 방장이 넣음). null = 이름 첫 글자 동그라미
+  my_profile_url: string | null // 이 가족방에서 내 프로필 사진
   is_owner: boolean
   // 가족 홈 '시작 3단계'·어르신 바꾸기 판 (D70). 사진 수는 기기 링크 조건(사진 3장)과 같은 셈
   photo_count: number

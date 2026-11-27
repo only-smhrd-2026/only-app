@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator
 
 # 메일을 보내지 않으므로 모양만 검사 (email-validator 는 .local 같은 테스트 도메인을 거부해 쓰지 않음)
 EMAIL_RE = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
@@ -40,13 +40,7 @@ class UserOut(BaseModel):
     name: str
     login_type: str
     created_at: datetime
-    profile_key: str | None = Field(default=None, exclude=True)
-
-    @computed_field
-    @property
-    def profile_url(self) -> str | None:
-        """프로필 사진 (11/27 내 정보). 없으면 null — 화면은 이름 첫 글자 동그라미"""
-        return f"/api/media/{self.profile_key}" if self.profile_key else None
+    profile_url: str | None = None  # 해당 가족방의 프로필 사진을 바꾼 응답에서만 채운다.
 
 
 class NameIn(BaseModel):

@@ -216,9 +216,9 @@ def _member_photos(db, room_id: int) -> dict[int, str]:
     나간 사람도 뺀다 — 그 사진은 /api/media 가 404 를 줘 깨진 그림이 된다(이름 첫 글자로 둔다).
     """
     rows = db.execute(
-        select(User.user_id, User.profile_key)
-        .join(RoomMember, RoomMember.user_id == User.user_id)
-        .where(RoomMember.room_id == room_id, RoomMember.removed_at.is_(None), User.profile_key.is_not(None))
+        select(RoomMember.user_id, RoomMember.profile_key).where(
+            RoomMember.room_id == room_id, RoomMember.removed_at.is_(None), RoomMember.profile_key.is_not(None)
+        )
     ).all()
     return {user_id: f"/api/media/{key}" for user_id, key in rows}
 
@@ -849,6 +849,7 @@ def send_voice_reply(
     user: CurrentUser,
     db: DB,
     audio: UploadFile = File(description="가족 목소리 녹음(webm/opus·mp4/aac), 5MB 이하"),
+    caption: str | None = Form(default=None, max_length=VOICE_REPLY_MAX_CHARS),
 ):
     """가족 목소리 답장 (D99, 11/24 사용자 — D6·D91·D98 '녹음은 저장하지 않는다'를 가족 답장에 한해 바꿈).
 
@@ -876,7 +877,7 @@ def send_voice_reply(
     sec = round(len(mp3) / (VOICE_REPLY_KBPS * 125))  # 고정 비트레이트라 바이트로 길이를 안다
     if sec < 1:  # 못 푸는 파일은 ffmpeg 가 머리글만 내고 끝날 때가 있다 (목차가 끝에 있는 mp4)
         raise ApiError(422, "AUDIO_INVALID", "녹음을 알아듣지 못했어요. 다시 녹음해 주세요.")
-    text = _voice_caption(data)
+    text = " ".join(caption.split()) if caption is not None else _voice_caption(data)
     key = f"rooms/{room_id}/voice/{uuid.uuid4().hex}.mp3"
     storage.put(key, mp3, "audio/mpeg")
     try:

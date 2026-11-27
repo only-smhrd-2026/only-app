@@ -44,6 +44,8 @@
 .diary-detail-replies .fam-voice { align-self:flex-start; margin:2px 0; }
 /* 목소리 답장 녹음을 마친 뒤 — 들어 보기 · 보내기 · 다시 녹음 (D99) */
 .diary-detail-take { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.diary-detail-caption { display:grid; flex:1 0 100%; gap:4px; margin:0; padding:10px 12px; border-radius:12px; background:var(--bg2); overflow-wrap:anywhere; }
+.diary-detail-caption strong { font-size:13px; color:var(--ink3); }
 /* 입력 줄: 내 동그라미 · 칸 · 🎤 · [보내기] */
 .cm-bar { display:flex; align-items:center; gap:8px; padding-top:12px; border-top:1px solid var(--line); }
 .cm-input { flex:1; min-width:0; min-height:44px; padding:10px 14px; border:1px solid var(--line); border-radius:22px; background:var(--bg); color:var(--text); font-size:16px; }
